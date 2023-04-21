@@ -182,7 +182,13 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 	}
 	defer inpFh.Close() //nolint
 
-	if err = scpClient.CopyFromFile(ctx, *inpFh, req.remoteFile, "0655"); err != nil {
+	inpFi, err := os.Stat(req.localFile)
+	if err != nil {
+		return fmt.Errorf("failed to stat local file %s: %v", req.localFile, err)
+	}
+	log.Printf("[DEBUG] file mode for %s: %s", req.localFile, fmt.Sprintf("%04o", inpFi.Mode().Perm()))
+
+	if err = scpClient.CopyFromFile(ctx, *inpFh, req.remoteFile, fmt.Sprintf("%04o", inpFi.Mode().Perm())); err != nil {
 		return fmt.Errorf("failed to copy file: %v", err)
 	}
 
