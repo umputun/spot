@@ -129,8 +129,6 @@ func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command stri
 	defer session.Close()
 	session.Stdout, session.Stderr = os.Stdout, os.Stderr
 
-	// return session.Run(command)
-
 	done := make(chan error)
 	go func() {
 		done <- session.Run(command)
@@ -158,7 +156,6 @@ type scpReq struct {
 	remotePort string
 	remoteFile string
 	mkdir      bool
-	overwrite  bool
 	client     *ssh.Client
 }
 
@@ -174,8 +171,8 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 	}
 
 	remotePath := fmt.Sprintf("%s@%s:%s", ex.user, req.remoteHost, req.remoteFile)
-	cmd := exec.Command("scp", "-i", ex.privateKey, "-P", req.remotePort, "-o", "StrictHostKeyChecking=no",
-		req.localFile, remotePath) //nolint:gosec
+	cmd := exec.CommandContext(ctx, "scp", "-i", ex.privateKey, "-P", req.remotePort, "-o", "StrictHostKeyChecking=no", //nolint
+		req.localFile, remotePath) //nolint
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run SCP command: %v", err)
@@ -189,14 +186,14 @@ func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
 
 	if req.mkdir {
-		if err := os.MkdirAll(filepath.Dir(req.localFile), 0750); err != nil {
+		if err := os.MkdirAll(filepath.Dir(req.localFile), 0o750); err != nil {
 			return fmt.Errorf("failed to create local directory: %w", err)
 		}
 	}
 
 	remotePath := fmt.Sprintf("%s@%s:%s", ex.user, req.remoteHost, req.remoteFile)
-	cmd := exec.Command("scp", "-i", ex.privateKey, "-P", req.remotePort, "-o", "StrictHostKeyChecking=no",
-		remotePath, req.localFile) //nolint:gosec
+	cmd := exec.CommandContext(ctx, "scp", "-i", ex.privateKey, "-P", req.remotePort, "-o", "StrictHostKeyChecking=no", //nolint
+		remotePath, req.localFile) //nolint
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to run SCP command: %v", err)
@@ -205,7 +202,7 @@ func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
 }
 
 func (ex *Executer) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, error) {
-	key, err := os.ReadFile(privateKeyPath)
+	key, err := os.ReadFile(privateKeyPath) //nolint
 	if err != nil {
 		return nil, fmt.Errorf("unable to read private key: %vw", err)
 	}
@@ -216,8 +213,8 @@ func (ex *Executer) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 	sshConfig := &ssh.ClientConfig{
 		User:            user,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	} // nolint
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint
+	}
 
 	return sshConfig, nil
 }

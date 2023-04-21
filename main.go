@@ -38,7 +38,7 @@ func main() {
 	}
 }
 
-func run(opts options) error {
+func run(opts options) error { //nolint
 	return nil
 }
 
