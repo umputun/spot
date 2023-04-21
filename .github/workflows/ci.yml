@@ -1,0 +1,89 @@
+name: build
+
+on:
+  push:
+    branches:
+    tags:
+  pull_request:
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: set up go 1.20
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.20"
+        id: go
+
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: build and test
+        run: |
+          go test -v -timeout=100s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
+          cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mocks" | grep -v "_mock" > $GITHUB_WORKSPACE/profile.cov
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+
+      - name: install goveralls
+        run: |
+          curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh -s -- -b $GITHUB_WORKSPACE v1.45.0
+          GO111MODULE=off go get -u -v github.com/mattn/goveralls
+
+      - name: submit coverage
+        run: $(go env GOPATH)/bin/goveralls -service="github" -coverprofile=$GITHUB_WORKSPACE/profile.cov
+        env:
+          COVERALLS_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: available platforms
+        run: echo ${{ steps.buildx.outputs.platforms }}
+
+      - name: build and deploy master image to ghcr.io and dockerhub
+        if: ${{ github.ref == 'refs/heads/master' }}
+        env:
+          GITHUB_PACKAGE_TOKEN: ${{ secrets.PKG_TOKEN }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+          USERNAME: ${{ github.actor }}
+          GITHUB_SHA: ${{ github.sha}}
+          GITHUB_REF: ${{ github.ref}}
+        run: |
+          ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
+          echo GITHUB_REF - $ref
+          echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
+          echo ${DOCKER_HUB_TOKEN} | docker login -u ${USERNAME} --password-stdin
+          docker buildx build --push \
+              --build-arg CI=github --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GIT_BRANCH=${ref} \
+              --platform linux/amd64,linux/arm/v7,linux/arm64 \
+              -t ghcr.io/${USERNAME}/simplotask:${ref} -t ${USERNAME}/simplotask:${ref} .
+
+      - name: deploy tagged (latest) to ghcr.io and dockerhub
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        env:
+          GITHUB_PACKAGE_TOKEN: ${{ secrets.PKG_TOKEN }}
+          DOCKER_HUB_TOKEN: ${{ secrets.DOCKER_HUB_TOKEN }}
+          USERNAME: ${{ github.actor }}
+          GITHUB_SHA: ${{ github.sha}}
+          GITHUB_REF: ${{ github.ref}}
+        run: |
+          ref="$(echo ${GITHUB_REF} | cut -d'/' -f3)"
+          echo GITHUB_REF - $ref
+          echo ${GITHUB_PACKAGE_TOKEN} | docker login ghcr.io -u ${USERNAME} --password-stdin
+          echo ${DOCKER_HUB_TOKEN} | docker login -u ${USERNAME} --password-stdin
+          docker buildx build --push \
+              --build-arg CI=github --build-arg GITHUB_SHA=${GITHUB_SHA} --build-arg GIT_BRANCH=${ref} \
+              --platform linux/amd64,linux/arm/v7,linux/arm64 \
+              -t ghcr.io/${USERNAME}/simplotask:${ref} -t ghcr.io/${USERNAME}/simplotask:latest \
+              -t ${USERNAME}/simplotask:${ref} -t ${USERNAME}/simplotask:latest .
