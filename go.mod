@@ -3,6 +3,7 @@ module github.com/umputun/simplotask
 go 1.20
 
 require (
+	github.com/bramvdbogaerde/go-scp v1.2.1
 	github.com/fatih/color v1.15.0
 	github.com/go-pkgz/fileutils v0.2.0
 	github.com/go-pkgz/lgr v0.11.0

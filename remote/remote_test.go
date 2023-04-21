@@ -56,7 +56,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	defer svc.Close()
 
 	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
-	require.EqualError(t, err, "failed to run SCP command: exit status 1")
+	require.EqualError(t, err, "failed to copy file: scp: /tmp/blah/data.txt: No such file or directory\n")
 }
 
 func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
@@ -109,7 +109,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	cancel()
 	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
-	require.EqualError(t, err, "failed to run SCP command: context canceled")
+	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
 func TestExecuter_ConnectCanceled(t *testing.T) {

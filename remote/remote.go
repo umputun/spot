@@ -6,11 +6,11 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/bramvdbogaerde/go-scp"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -170,13 +170,22 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 		}
 	}
 
-	remotePath := fmt.Sprintf("%s@%s:%s", ex.user, req.remoteHost, req.remoteFile)
-	cmd := exec.CommandContext(ctx, "scp", "-i", ex.privateKey, "-P", req.remotePort, "-o", "StrictHostKeyChecking=no", //nolint
-		req.localFile, remotePath) //nolint
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run SCP command: %v", err)
+	scpClient, err := scp.NewClientBySSH(ex.client)
+	if err != nil {
+		return fmt.Errorf("failed to create scp client: %v", err)
 	}
+	defer scpClient.Close()
+
+	inpFh, err := os.Open(req.localFile)
+	if err != nil {
+		return fmt.Errorf("failed to open local file %s: %v", req.localFile, err)
+	}
+	defer inpFh.Close() //nolint
+
+	if err = scpClient.CopyFromFile(ctx, *inpFh, req.remoteFile, "0655"); err != nil {
+		return fmt.Errorf("failed to copy file: %v", err)
+	}
+
 	return nil
 }
 
@@ -191,14 +200,22 @@ func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
 		}
 	}
 
-	remotePath := fmt.Sprintf("%s@%s:%s", ex.user, req.remoteHost, req.remoteFile)
-	cmd := exec.CommandContext(ctx, "scp", "-i", ex.privateKey, "-P", req.remotePort, "-o", "StrictHostKeyChecking=no", //nolint
-		remotePath, req.localFile) //nolint
-	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run SCP command: %v", err)
+	scpClient, err := scp.NewClientBySSH(ex.client)
+	if err != nil {
+		return fmt.Errorf("failed to create scp client: %v", err)
 	}
-	return nil
+	defer scpClient.Close()
+
+	outFh, err := os.Create(req.localFile)
+	if err != nil {
+		return fmt.Errorf("failed to open local file %s: %v", req.localFile, err)
+	}
+	defer outFh.Close() //nolint
+
+	if err = scpClient.CopyFromRemote(ctx, outFh, req.remoteFile); err != nil {
+		return fmt.Errorf("failed to copy file: %v", err)
+	}
+	return outFh.Sync() //nolint
 }
 
 func (ex *Executer) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, error) {
