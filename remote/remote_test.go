@@ -15,8 +15,118 @@ import (
 )
 
 func TestExecuter_UploadAndDownload(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
 
-	// start a docker container running an SSH server
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer svc.Close()
+
+	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
+	require.NoError(t, err)
+
+	tmpFile, err := fileutils.TempFileName("", "data.txt")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpFile)
+	err = svc.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
+	require.NoError(t, err)
+	assert.FileExists(t, tmpFile)
+	exp, err := os.ReadFile("testdata/data.txt")
+	require.NoError(t, err)
+	act, err := os.ReadFile(tmpFile)
+	require.NoError(t, err)
+	assert.Equal(t, string(exp), string(act))
+}
+
+func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer svc.Close()
+
+	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
+	require.EqualError(t, err, "failed to run SCP command: exit status 1")
+}
+
+func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer svc.Close()
+
+	err = svc.Upload(ctx, "testdata/data.txt", "/dev/blah/data.txt", true)
+	require.EqualError(t, err, "failed to create remote directory: failed to run command on remote server: Process exited with status 1")
+}
+
+func TestExecuter_Upload_Canceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer svc.Close()
+
+	cancel()
+	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
+	require.EqualError(t, err, "failed to create remote directory: canceled: context canceled")
+}
+
+func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer svc.Close()
+
+	cancel()
+	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
+	require.EqualError(t, err, "failed to run SCP command: context canceled")
+}
+
+func TestExecuter_ConnectCanceled(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.EqualError(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
+}
+
+func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
+	t.Helper()
 	ctx := context.Background()
 	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
 	require.NoError(t, err)
@@ -40,33 +150,10 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to start container: %v", err)
 	}
-	defer container.Terminate(ctx)
 
 	_, err = container.Host(ctx)
 	require.NoError(t, err)
 	port, err := container.MappedPort(ctx, "2222")
 	require.NoError(t, err)
-	hostAndPort := fmt.Sprintf("localhost:%s", port.Port())
-
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
-	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
-	require.NoError(t, err)
-	defer svc.Close()
-
-	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
-	require.NoError(t, err)
-
-	tmpFile, err := fileutils.TempFileName("", "data.txt")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpFile)
-	err = svc.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
-	require.NoError(t, err)
-	assert.FileExists(t, tmpFile)
-	exp, err := os.ReadFile("testdata/data.txt")
-	require.NoError(t, err)
-	act, err := os.ReadFile(tmpFile)
-	require.NoError(t, err)
-	assert.Equal(t, string(exp), string(act))
+	return fmt.Sprintf("localhost:%s", port.Port()), func() { container.Terminate(ctx) }
 }
