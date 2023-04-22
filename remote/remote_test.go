@@ -167,8 +167,7 @@ func TestExecuter_Run(t *testing.T) {
 }
 
 func TestExecuter_Sync(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
+	ctx := context.Background()
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
@@ -177,20 +176,86 @@ func TestExecuter_Sync(t *testing.T) {
 	require.NoError(t, svc.Connect(ctx, hostAndPort))
 
 	t.Run("sync", func(t *testing.T) {
-		err = svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest")
+		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest")
 		require.NoError(t, err)
+		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 		out, e := svc.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool {
-			return out[i] < out[j]
-		})
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
 	})
 
-	t.Run("sync no src", func(t *testing.T) {
-		err = svc.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest")
-		require.EqualError(t, err, "failed to walk local directory /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
+	t.Run("sync_again", func(t *testing.T) {
+		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest")
+		require.NoError(t, err)
+		assert.Equal(t, 0, len(res), "no files should be synced")
 	})
+
+	t.Run("sync no src", func(t *testing.T) {
+		_, err = svc.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest")
+		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
+			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
+	})
+
+	// t.Run("sync src is not dir", func(t *testing.T) {
+	// 	err = svc.Sync(ctx, "testdata/data.txt", "/tmp/sync.dest")
+	// 	require.EqualError(t, err, "failed to walk local directory /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
+	// })
+}
+
+func TestExecuter_findUnmatchedFiles(t *testing.T) {
+	tbl := []struct {
+		name     string
+		local    map[string]fileProperties
+		remote   map[string]fileProperties
+		expected []string
+	}{
+		{
+			name: "all files match",
+			local: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			remote: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			expected: []string{},
+		},
+		{
+			name: "some files match",
+			local: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			remote: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(1, 1)},
+			},
+			expected: []string{"file2"},
+		},
+		{
+			name: "no files match",
+			local: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			remote: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(1, 1)},
+				"file2": {Size: 200, Time: time.Unix(1, 1)},
+			},
+			expected: []string{"file1", "file2"},
+		},
+	}
+
+	for _, tc := range tbl {
+		t.Run(tc.name, func(t *testing.T) {
+			ex := &Executer{}
+			result := ex.findUnmatchedFiles(tc.local, tc.remote)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {

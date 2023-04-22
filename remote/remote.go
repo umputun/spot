@@ -125,15 +125,15 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) error {
+func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
 	}
 
 	remoteFiles, err := ex.getRemoteFilesProperties(ctx, remoteDir)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("failed to get remote files properties for %s: %w", remoteDir, err)
 	}
 
 	unmatchedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles)
@@ -142,11 +142,12 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) error 
 		remotePath := filepath.Join(remoteDir, file)
 		err := ex.Upload(ctx, localPath, remotePath, true)
 		if err != nil {
-			return err
+			return nil, fmt.Errorf("failed to upload %s to %s: %w", localPath, remotePath, err)
 		}
+		log.Printf("[INFO] synced %s to %s", localPath, remotePath)
 	}
 
-	return nil
+	return unmatchedFiles, nil
 }
 
 // sshClient creates ssh client connected to remote server. Caller must close session.
@@ -221,8 +222,10 @@ type scpReq struct {
 
 // scpUpload uploads local file to remote host. Creates remote directory if mkdir is true.
 func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
-	log.Printf("[INFO] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
-	defer func(st time.Time) { log.Printf("[DEBUG] upload done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
+	log.Printf("[DEBUG] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
+	defer func(st time.Time) {
+		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
+	}(time.Now())
 
 	if req.mkdir {
 		if _, err := ex.sshRun(ctx, req.client, fmt.Sprintf("mkdir -p %s", filepath.Dir(req.remoteFile))); err != nil {
@@ -253,7 +256,7 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 	}
 
 	// set modification time of the uploaded file
-	modTime := inpFi.ModTime().Format("200601021504.05")
+	modTime := inpFi.ModTime().In(time.UTC).Format("200601021504.05")
 	touchCmd := fmt.Sprintf("touch -m -t %s %s", modTime, req.remoteFile)
 	if _, err := ex.sshRun(ctx, req.client, touchCmd); err != nil {
 		return fmt.Errorf("failed to set modification time of remote file: %w", err)
@@ -310,24 +313,28 @@ func (ex *Executer) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 }
 
 type fileProperties struct {
-	Size int64
-	Time time.Time
+	Size     int64
+	Time     time.Time
+	FileName string
 }
 
+// getLocalFilesProperties returns map of file properties for all files in the local directory.
 func (ex *Executer) getLocalFilesProperties(dir string) (map[string]fileProperties, error) {
 	fileProps := make(map[string]fileProperties)
 
+	// walk local directory and get file properties
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(dir, path)
-			if err != nil {
-				return fmt.Errorf("failed to get relative path: %w", err)
-			}
-			fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime()}
+		if info.IsDir() {
+			return nil
 		}
+		relPath, err := filepath.Rel(dir, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %w", err)
+		}
+		fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime(), FileName: info.Name()}
 		return nil
 	})
 
@@ -338,13 +345,15 @@ func (ex *Executer) getLocalFilesProperties(dir string) (map[string]fileProperti
 	return fileProps, nil
 }
 
+// getRemoteFilesProperties returns map of file properties for all files in the remote directory.
 func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (map[string]fileProperties, error) {
-	checkDirCmd := fmt.Sprintf("test -d %s", dir)
+	checkDirCmd := fmt.Sprintf("test -d %s", dir) // check if directory exists
 	if _, checkErr := ex.Run(ctx, checkDirCmd); checkErr != nil {
 		return nil, nil
 	}
 
-	cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:t%%s:t%%Y' {} \\;", dir)
+	// find all files in the directory and get their properties
+	cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s:%%Y' {} \\;", dir) // makes output like: ./file1:1234:1234567890
 	output, err := ex.Run(ctx, cmd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remote files properties: %w", err)
@@ -374,21 +383,25 @@ func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (m
 			return nil, fmt.Errorf("failed to parse modification time for %s: %w", fullPath, err)
 		}
 		modTime := time.Unix(modTimeUnix, 0)
-
-		fileProps[relPath] = fileProperties{
-			Size: size,
-			Time: modTime,
-		}
+		fileProps[relPath] = fileProperties{Size: size, Time: modTime, FileName: fullPath}
 	}
 
 	return fileProps, nil
 }
 
 func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) []string {
-	var unmatchedFiles []string
+	isWithinOneSecond := func(t1, t2 time.Time) bool {
+		diff := t1.Sub(t2)
+		if diff < 0 {
+			diff = -diff
+		}
+		return diff <= time.Second
+	}
+
+	unmatchedFiles := []string{}
 	for localPath, localProps := range local {
 		remoteProps, exists := remote[localPath]
-		if !exists || localProps.Size != remoteProps.Size || localProps.Time != remoteProps.Time {
+		if !exists || localProps.Size != remoteProps.Size || !isWithinOneSecond(localProps.Time, remoteProps.Time) {
 			unmatchedFiles = append(unmatchedFiles, localPath)
 		}
 	}
