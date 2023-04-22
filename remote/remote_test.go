@@ -157,3 +157,35 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	require.NoError(t, err)
 	return fmt.Sprintf("localhost:%s", port.Port()), func() { container.Terminate(ctx) }
 }
+
+func TestExecuter_Run(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+
+	err = svc.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+
+	t.Run("single line out", func(t *testing.T) {
+		out, err := svc.Run(ctx, "sh -c 'echo hello world'")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"hello world"}, out)
+	})
+
+	t.Run("multi line out", func(t *testing.T) {
+		err := svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data1.txt", true)
+		assert.NoError(t, err)
+		err = svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
+		assert.NoError(t, err)
+		out, err := svc.Run(ctx, "ls -la /tmp/st")
+		require.NoError(t, err)
+		t.Logf("out: %v", out)
+		assert.Equal(t, 5, len(out))
+		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 20 22:02 data1.txt", out[3])
+		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 20 22:02 data2.txt", out[4])
+	})
+}

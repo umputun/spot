@@ -1,8 +1,10 @@
 package remote
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -35,6 +37,19 @@ func NewExecuter(user, privateKey string) (res *Executer, err error) {
 	return res, err
 }
 
+// NewExecuters creates multiple new Executer instance. It uses user and private key to authenticate.
+func NewExecuters(user, privateKey string, count int) (res []Executer, err error) {
+	for i := 0; i < count; i++ {
+		var ex *Executer
+		ex, err = NewExecuter(user, privateKey)
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, *ex)
+	}
+	return res, err
+}
+
 // Connect to remote server using ssh.
 func (ex *Executer) Connect(ctx context.Context, host string) (err error) {
 	log.Printf("[DEBUG] connect to %s", host)
@@ -49,6 +64,16 @@ func (ex *Executer) Close() error {
 		return ex.client.Close()
 	}
 	return nil
+}
+
+// Run command on remote server.
+func (ex *Executer) Run(ctx context.Context, cmd string) (out []string, err error) {
+	if ex.client == nil {
+		return nil, fmt.Errorf("client is not connected")
+	}
+	log.Printf("[DEBUG] run %s", cmd)
+
+	return ex.sshRun(ctx, ex.client, cmd)
 }
 
 // Upload file to remote server with scp
@@ -120,14 +145,17 @@ func (ex *Executer) sshClient(ctx context.Context, host string) (session *ssh.Cl
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to remote process.
-func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command string) (err error) {
+func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
 	if err != nil {
-		return fmt.Errorf("failed to create session: %w", err)
+		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 	defer session.Close()
-	session.Stdout, session.Stderr = os.Stdout, os.Stderr
+
+	var stdoutBuf bytes.Buffer
+	mwr := io.MultiWriter(os.Stdout, &stdoutBuf)
+	session.Stdout, session.Stderr = mwr, os.Stderr
 
 	done := make(chan error)
 	go func() {
@@ -137,17 +165,22 @@ func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command stri
 	select {
 	case err = <-done:
 		if err != nil {
-			return fmt.Errorf("failed to run command on remote server: %w", err)
+			return nil, fmt.Errorf("failed to run command on remote server: %w", err)
 		}
 	case <-ctx.Done():
 		err = session.Signal(ssh.SIGINT)
 		if err != nil {
-			return fmt.Errorf("failed to send interrupt signal to remote process: %w", err)
+			return nil, fmt.Errorf("failed to send interrupt signal to remote process: %w", err)
 		}
-		return fmt.Errorf("canceled: %w", ctx.Err())
+		return nil, fmt.Errorf("canceled: %w", ctx.Err())
 	}
 
-	return nil
+	for _, line := range strings.Split(stdoutBuf.String(), "\n") {
+		if line != "" {
+			out = append(out, line)
+		}
+	}
+	return out, nil
 }
 
 type scpReq struct {
@@ -165,7 +198,7 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 	defer func(st time.Time) { log.Printf("[DEBUG] upload done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
 
 	if req.mkdir {
-		if err := ex.sshRun(ctx, req.client, fmt.Sprintf("mkdir -p %s", filepath.Dir(req.remoteFile))); err != nil {
+		if _, err := ex.sshRun(ctx, req.client, fmt.Sprintf("mkdir -p %s", filepath.Dir(req.remoteFile))); err != nil {
 			return fmt.Errorf("failed to create remote directory: %w", err)
 		}
 	}
@@ -190,6 +223,13 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 
 	if err = scpClient.CopyFromFile(ctx, *inpFh, req.remoteFile, fmt.Sprintf("%04o", inpFi.Mode().Perm())); err != nil {
 		return fmt.Errorf("failed to copy file: %v", err)
+	}
+
+	// set modification time of the uploaded file
+	modTime := inpFi.ModTime().Format("200601021504.05")
+	touchCmd := fmt.Sprintf("touch -m -t %s %s", modTime, req.remoteFile)
+	if _, err := ex.sshRun(ctx, req.client, touchCmd); err != nil {
+		return fmt.Errorf("failed to set modification time of remote file: %w", err)
 	}
 
 	return nil
