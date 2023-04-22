@@ -157,13 +157,11 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("find out", func(t *testing.T) {
-		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s:%%Y' {} \\;", "/tmp/")
+		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
 		out, e := svc.Run(ctx, cmd)
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool {
-			return out[i] < out[j]
-		})
-		assert.Equal(t, []string{"/tmp/st/data1.txt:68:1682028151", "/tmp/st/data2.txt:68:1682028151"}, out)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"/tmp/st/data1.txt:68", "/tmp/st/data2.txt:68"}, out)
 	})
 
 }
