@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -391,5 +392,8 @@ func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) 
 			unmatchedFiles = append(unmatchedFiles, localPath)
 		}
 	}
+	sort.Slice(unmatchedFiles, func(i, j int) bool {
+		return unmatchedFiles[i] < unmatchedFiles[j]
+	})
 	return unmatchedFiles
 }

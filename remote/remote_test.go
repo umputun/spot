@@ -159,7 +159,7 @@ func TestExecuter_Run(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s:%%Y' {} \\;", "/tmp/")
 		out, e := svc.Run(ctx, cmd)
 		require.NoError(t, e)
-		assert.Equal(t, []string{"hello world"}, out)
+		assert.Equal(t, []string{"/tmp/st/data1.txt:68:1682028151", "/tmp/st/data2.txt:68:1682028151"}, out)
 	})
 
 }
