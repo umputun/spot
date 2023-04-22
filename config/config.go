@@ -51,6 +51,7 @@ type CopyInternal struct {
 type SyncInternal struct {
 	Source string `yaml:"src"`
 	Dest   string `yaml:"dest"`
+	Delete bool   `yaml:"delete"`
 }
 
 // New makes new config from yml

@@ -176,7 +176,7 @@ func TestExecuter_Sync(t *testing.T) {
 	require.NoError(t, svc.Connect(ctx, hostAndPort))
 
 	t.Run("sync", func(t *testing.T) {
-		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest")
+		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
 		require.NoError(t, err)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
@@ -187,13 +187,13 @@ func TestExecuter_Sync(t *testing.T) {
 	})
 
 	t.Run("sync_again", func(t *testing.T) {
-		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest")
+		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
 		require.NoError(t, err)
 		assert.Equal(t, 0, len(res), "no files should be synced")
 	})
 
 	t.Run("sync no src", func(t *testing.T) {
-		_, err = svc.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest")
+		_, err = svc.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", true)
 		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
 			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})
@@ -206,10 +206,11 @@ func TestExecuter_Sync(t *testing.T) {
 
 func TestExecuter_findUnmatchedFiles(t *testing.T) {
 	tbl := []struct {
-		name     string
-		local    map[string]fileProperties
-		remote   map[string]fileProperties
-		expected []string
+		name    string
+		local   map[string]fileProperties
+		remote  map[string]fileProperties
+		updated []string
+		deleted []string
 	}{
 		{
 			name: "all files match",
@@ -221,7 +222,8 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 				"file1": {Size: 100, Time: time.Unix(0, 0)},
 				"file2": {Size: 200, Time: time.Unix(0, 0)},
 			},
-			expected: []string{},
+			updated: []string{},
+			deleted: []string{},
 		},
 		{
 			name: "some files match",
@@ -233,7 +235,8 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 				"file1": {Size: 100, Time: time.Unix(0, 0)},
 				"file2": {Size: 200, Time: time.Unix(1, 1)},
 			},
-			expected: []string{"file2"},
+			updated: []string{"file2"},
+			deleted: []string{},
 		},
 		{
 			name: "no files match",
@@ -245,15 +248,31 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 				"file1": {Size: 100, Time: time.Unix(1, 1)},
 				"file2": {Size: 200, Time: time.Unix(1, 1)},
 			},
-			expected: []string{"file1", "file2"},
+			updated: []string{"file1", "file2"},
+			deleted: []string{},
+		},
+		{
+			name: "some local files deleted",
+			local: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			remote: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+				"file3": {Size: 300, Time: time.Unix(0, 0)},
+			},
+			updated: []string{},
+			deleted: []string{"file3"},
 		},
 	}
 
 	for _, tc := range tbl {
 		t.Run(tc.name, func(t *testing.T) {
 			ex := &Executer{}
-			result := ex.findUnmatchedFiles(tc.local, tc.remote)
-			assert.Equal(t, tc.expected, result)
+			updated, deleted := ex.findUnmatchedFiles(tc.local, tc.remote)
+			assert.Equal(t, tc.updated, updated)
+			assert.Equal(t, tc.deleted, deleted)
 		})
 	}
 }

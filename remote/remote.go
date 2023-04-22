@@ -125,7 +125,7 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) ([]string, error) {
+func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, delete bool) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
@@ -136,7 +136,7 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) ([]str
 		return nil, fmt.Errorf("failed to get remote files properties for %s: %w", remoteDir, err)
 	}
 
-	unmatchedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles)
+	unmatchedFiles, deletedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles)
 	for _, file := range unmatchedFiles {
 		localPath := filepath.Join(localDir, file)
 		remotePath := filepath.Join(remoteDir, file)
@@ -147,7 +147,27 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) ([]str
 		log.Printf("[INFO] synced %s to %s", localPath, remotePath)
 	}
 
+	if delete {
+		for _, file := range deletedFiles {
+			if err = ex.Delete(ctx, filepath.Join(remoteDir, file)); err != nil {
+				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
+			}
+		}
+	}
+
 	return unmatchedFiles, nil
+}
+
+// Delete file on remote server.
+func (ex *Executer) Delete(ctx context.Context, remoteFile string) (err error) {
+	if ex.client == nil {
+		return fmt.Errorf("client is not connected")
+	}
+	if _, err = ex.sshRun(ctx, ex.client, fmt.Sprintf("rm -f %s", remoteFile)); err != nil {
+		return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
+	}
+	log.Printf("[INFO] deleted %s", remoteFile)
+	return nil
 }
 
 // sshClient creates ssh client connected to remote server. Caller must close session.
@@ -389,7 +409,7 @@ func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (m
 	return fileProps, nil
 }
 
-func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) []string {
+func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) (updatedFiles, deletedFiles []string) {
 	isWithinOneSecond := func(t1, t2 time.Time) bool {
 		diff := t1.Sub(t2)
 		if diff < 0 {
@@ -398,15 +418,29 @@ func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) 
 		return diff <= time.Second
 	}
 
-	unmatchedFiles := []string{}
+	updatedFiles = []string{}
+	deletedFiles = []string{}
+
 	for localPath, localProps := range local {
 		remoteProps, exists := remote[localPath]
 		if !exists || localProps.Size != remoteProps.Size || !isWithinOneSecond(localProps.Time, remoteProps.Time) {
-			unmatchedFiles = append(unmatchedFiles, localPath)
+			updatedFiles = append(updatedFiles, localPath)
 		}
 	}
-	sort.Slice(unmatchedFiles, func(i, j int) bool {
-		return unmatchedFiles[i] < unmatchedFiles[j]
+
+	// Check for deleted files
+	for remotePath := range remote {
+		if _, exists := local[remotePath]; !exists {
+			deletedFiles = append(deletedFiles, remotePath)
+		}
+	}
+
+	sort.Slice(updatedFiles, func(i, j int) bool {
+		return updatedFiles[i] < updatedFiles[j]
 	})
-	return unmatchedFiles
+	sort.Slice(deletedFiles, func(i, j int) bool {
+		return deletedFiles[i] < deletedFiles[j]
+	})
+
+	return updatedFiles, deletedFiles
 }
