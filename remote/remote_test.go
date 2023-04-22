@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -179,7 +180,15 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, err)
 		out, e := svc.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
 		require.NoError(t, e)
-		assert.Equal(t, []string{"185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt", "17 /tmp/sync.dest/d1/file11.txt"}, out)
+		sort.Slice(out, func(i, j int) bool {
+			return out[i] < out[j]
+		})
+		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
+	})
+
+	t.Run("sync no src", func(t *testing.T) {
+		err = svc.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest")
+		require.EqualError(t, err, "failed to walk local directory /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})
 }
 
