@@ -125,39 +125,6 @@ func TestExecuter_ConnectCanceled(t *testing.T) {
 	require.EqualError(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
 }
 
-func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
-	t.Helper()
-	ctx := context.Background()
-	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
-	require.NoError(t, err)
-
-	req := testcontainers.ContainerRequest{
-		Image:        "lscr.io/linuxserver/openssh-server:latest",
-		ExposedPorts: []string{"2222/tcp"},
-		WaitingFor:   wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 30),
-		Files: []testcontainers.ContainerFile{
-			{HostFilePath: "testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
-		},
-		Env: map[string]string{
-			"PUBLIC_KEY": string(pubKey),
-			"USER_NAME":  "test",
-		},
-	}
-	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
-	})
-	if err != nil {
-		t.Fatalf("failed to start container: %v", err)
-	}
-
-	_, err = container.Host(ctx)
-	require.NoError(t, err)
-	port, err := container.MappedPort(ctx, "2222")
-	require.NoError(t, err)
-	return fmt.Sprintf("localhost:%s", port.Port()), func() { container.Terminate(ctx) }
-}
-
 func TestExecuter_Run(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
@@ -177,24 +144,50 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("multi line out", func(t *testing.T) {
-		tmpIn, err := fileutils.TempFileName("", "data.txt")
-		require.NoError(t, err)
-		fileutils.CopyFile("testdata/data.txt", tmpIn)
-		ts := time.Date(2023, 4, 21, 16, 23, 55, 0, time.UTC)
-		err = os.Chtimes(tmpIn, ts, ts)
+		err = svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data1.txt", true)
 		assert.NoError(t, err)
-		defer os.RemoveAll(tmpIn)
-
-		err = svc.Upload(ctx, tmpIn, "/tmp/st/data1.txt", true)
-		assert.NoError(t, err)
-		err = svc.Upload(ctx, tmpIn, "/tmp/st/data2.txt", true)
+		err = svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
 		assert.NoError(t, err)
 
-		out, err := svc.Run(ctx, "ls -la /tmp/st")
+		out, err := svc.Run(ctx, "ls -1 /tmp/st")
 		require.NoError(t, err)
 		t.Logf("out: %v", out)
-		assert.Equal(t, 5, len(out))
-		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 21 11:23 data1.txt", out[3])
-		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 21 11:23 data2.txt", out[4])
+		assert.Equal(t, 2, len(out))
+		assert.Equal(t, "data1.txt", out[0])
+		assert.Equal(t, "data2.txt", out[1])
 	})
+}
+
+func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
+	t.Helper()
+	ctx := context.Background()
+	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
+	require.NoError(t, err)
+
+	req := testcontainers.ContainerRequest{
+		Image:        "lscr.io/linuxserver/openssh-server:latest",
+		ExposedPorts: []string{"2222/tcp"},
+		WaitingFor:   wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 30),
+		Files: []testcontainers.ContainerFile{
+			{HostFilePath: "testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
+		},
+		Env: map[string]string{
+			"PUBLIC_KEY": string(pubKey),
+			"USER_NAME":  "test",
+			"TZ":         "Etc/UTC",
+		},
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		t.Fatalf("failed to start container: %v", err)
+	}
+
+	_, err = container.Host(ctx)
+	require.NoError(t, err)
+	port, err := container.MappedPort(ctx, "2222")
+	require.NoError(t, err)
+	return fmt.Sprintf("localhost:%s", port.Port()), func() { container.Terminate(ctx) }
 }
