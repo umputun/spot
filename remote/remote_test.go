@@ -177,15 +177,24 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("multi line out", func(t *testing.T) {
-		err := svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data1.txt", true)
+		tmpIn, err := fileutils.TempFileName("", "data.txt")
+		require.NoError(t, err)
+		fileutils.CopyFile("testdata/data.txt", tmpIn)
+		ts := time.Date(2023, 4, 21, 16, 23, 55, 0, time.UTC)
+		err = os.Chtimes(tmpIn, ts, ts)
 		assert.NoError(t, err)
-		err = svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
+		defer os.RemoveAll(tmpIn)
+
+		err = svc.Upload(ctx, tmpIn, "/tmp/st/data1.txt", true)
 		assert.NoError(t, err)
+		err = svc.Upload(ctx, tmpIn, "/tmp/st/data2.txt", true)
+		assert.NoError(t, err)
+
 		out, err := svc.Run(ctx, "ls -la /tmp/st")
 		require.NoError(t, err)
 		t.Logf("out: %v", out)
 		assert.Equal(t, 5, len(out))
-		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 20 22:02 data1.txt", out[3])
-		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 20 22:02 data2.txt", out[4])
+		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 21 11:23 data1.txt", out[3])
+		assert.Equal(t, "-rw-r--r-- 1 test test   68 Apr 21 11:23 data2.txt", out[4])
 	})
 }
