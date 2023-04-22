@@ -133,13 +133,11 @@ func TestExecuter_Run(t *testing.T) {
 
 	svc, err := NewExecuter("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
-	require.NoError(t, err)
+	require.NoError(t, svc.Connect(ctx, hostAndPort))
 
 	t.Run("single line out", func(t *testing.T) {
-		out, err := svc.Run(ctx, "sh -c 'echo hello world'")
-		require.NoError(t, err)
+		out, e := svc.Run(ctx, "sh -c 'echo hello world'")
+		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
 

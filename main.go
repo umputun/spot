@@ -16,6 +16,7 @@ type options struct {
 	DestHost      []string `short:"h" long:"host" description:"destination host"`
 
 	Dbg bool `long:"dbg" description:"debug mode"`
+	Dev bool `long:"dev" description:"development mode"`
 }
 
 var revision = "latest"
@@ -32,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	setupLog(opts.Dbg)
+	setupLog(opts.Dbg, opts.Dev)
 	if err := run(opts); err != nil {
 		log.Panicf("[ERROR] %v", err)
 	}
@@ -42,10 +43,13 @@ func run(opts options) error { //nolint
 	return nil
 }
 
-func setupLog(dbg bool) {
+func setupLog(dbg, dev bool) {
 	logOpts := []lgr.Option{lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
 	if dbg {
-		logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+		logOpts = []lgr.Option{lgr.Debug, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+		if dev {
+			logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+		}
 	}
 
 	colorizer := lgr.Mapper{
