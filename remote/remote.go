@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -120,6 +121,31 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 		remotePort: port,
 	}
 	return ex.scpDownload(ctx, req)
+}
+
+// Sync compares local and remote files and uploads unmatched files, recursively.
+func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string) error {
+	localFiles, err := ex.getLocalFilesProperties(localDir)
+	if err != nil {
+		return err
+	}
+
+	remoteFiles, err := ex.getRemoteFilesProperties(ctx, remoteDir)
+	if err != nil {
+		return err
+	}
+
+	unmatchedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles)
+	for _, file := range unmatchedFiles {
+		localPath := filepath.Join(localDir, file)
+		remotePath := filepath.Join(remoteDir, file)
+		err := ex.Upload(ctx, localPath, remotePath, true)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // sshClient creates ssh client connected to remote server. Caller must close session.
@@ -280,4 +306,90 @@ func (ex *Executer) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 	}
 
 	return sshConfig, nil
+}
+
+type fileProperties struct {
+	Size int64
+	Time time.Time
+}
+
+func (ex *Executer) getLocalFilesProperties(dir string) (map[string]fileProperties, error) {
+	fileProps := make(map[string]fileProperties)
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			relPath, err := filepath.Rel(dir, path)
+			if err != nil {
+				return fmt.Errorf("failed to get relative path: %w", err)
+			}
+			fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime()}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk local directory %s: %w", dir, err)
+	}
+
+	return fileProps, nil
+}
+
+func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (map[string]fileProperties, error) {
+	checkDirCmd := fmt.Sprintf("test -d %s", dir)
+	if _, checkErr := ex.Run(ctx, checkDirCmd); checkErr != nil {
+		return nil, nil
+	}
+
+	cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:t%%s:t%%Y' {} \\;", dir)
+	output, err := ex.Run(ctx, cmd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get remote files properties: %w", err)
+	}
+
+	fileProps := make(map[string]fileProperties)
+	for _, line := range output {
+		if line == "" {
+			continue
+		}
+		parts := strings.SplitN(line, ":", 3)
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("invalid line format: %s", line)
+		}
+
+		fullPath := parts[0]
+		relPath, err := filepath.Rel(dir, fullPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get relative path for %s: %w", fullPath, err)
+		}
+		size, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse size for %s: %w", fullPath, err)
+		}
+		modTimeUnix, err := strconv.ParseInt(parts[2], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse modification time for %s: %w", fullPath, err)
+		}
+		modTime := time.Unix(modTimeUnix, 0)
+
+		fileProps[relPath] = fileProperties{
+			Size: size,
+			Time: modTime,
+		}
+	}
+
+	return fileProps, nil
+}
+
+func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) []string {
+	var unmatchedFiles []string
+	for localPath, localProps := range local {
+		remoteProps, exists := remote[localPath]
+		if !exists || localProps.Size != remoteProps.Size || localProps.Time != remoteProps.Time {
+			unmatchedFiles = append(unmatchedFiles, localPath)
+		}
+	}
+	return unmatchedFiles
 }

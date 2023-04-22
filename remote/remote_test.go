@@ -154,6 +154,33 @@ func TestExecuter_Run(t *testing.T) {
 		assert.Equal(t, "data1.txt", out[0])
 		assert.Equal(t, "data2.txt", out[1])
 	})
+
+	t.Run("find out", func(t *testing.T) {
+		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s:%%Y' {} \\;", "/tmp/")
+		out, e := svc.Run(ctx, cmd)
+		require.NoError(t, e)
+		assert.Equal(t, []string{"hello world"}, out)
+	})
+
+}
+
+func TestExecuter_Sync(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	require.NoError(t, svc.Connect(ctx, hostAndPort))
+
+	t.Run("sync", func(t *testing.T) {
+		err = svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest")
+		require.NoError(t, err)
+		out, e := svc.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
+		require.NoError(t, e)
+		assert.Equal(t, []string{"185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt", "17 /tmp/sync.dest/d1/file11.txt"}, out)
+	})
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
