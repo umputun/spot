@@ -39,14 +39,15 @@ type Task struct {
 
 // Cmd defines a single command
 type Cmd struct {
-	Name    string       `yaml:"name"`
-	Log     string       `yaml:"log"`
-	Copy    CopyInternal `yaml:"copy"`
-	Sync    SyncInternal `yaml:"sync"`
-	Script  string       `yaml:"script"`
-	Before  string       `yaml:"before"`
-	After   string       `yaml:"after"`
-	OnError string       `yaml:"onerror"`
+	Name    string         `yaml:"name"`
+	Log     string         `yaml:"log"`
+	Copy    CopyInternal   `yaml:"copy"`
+	Sync    SyncInternal   `yaml:"sync"`
+	Delete  DeleteInternal `yaml:"delete"`
+	Script  string         `yaml:"script"`
+	Before  string         `yaml:"before"`
+	After   string         `yaml:"after"`
+	OnError string         `yaml:"onerror"`
 	Options struct {
 		IgnoreErrors bool `yaml:"ignore_errors"`
 		NoAuto       bool `yaml:"no_auto"`
@@ -66,6 +67,12 @@ type SyncInternal struct {
 	Source string `yaml:"src"`
 	Dest   string `yaml:"dst"`
 	Delete bool   `yaml:"delete"`
+}
+
+// DeleteInternal defines delete command, implemented internally
+type DeleteInternal struct {
+	Location  string `yaml:"loc"`
+	Recursive bool   `yaml:"recur"`
 }
 
 // Overrides defines override for task passed from cli

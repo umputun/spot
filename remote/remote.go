@@ -113,7 +113,7 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, delete
 
 	if delete {
 		for _, file := range deletedFiles {
-			if err = ex.Delete(ctx, filepath.Join(remoteDir, file)); err != nil {
+			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), false); err != nil {
 				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
 			}
 		}
@@ -122,15 +122,26 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, delete
 	return unmatchedFiles, nil
 }
 
-// Delete file on remote server.
-func (ex *Executer) Delete(ctx context.Context, remoteFile string) (err error) {
+// Delete file on remote server. Recursively if recursive is true.
+// if file or directory does not exist, returns nil, i.e. no error.
+func (ex *Executer) Delete(ctx context.Context, remoteFile string, recursive bool) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
+
+	if recursive {
+		if _, err = ex.sshRun(ctx, ex.client, fmt.Sprintf("rm -fr %s", remoteFile)); err != nil {
+			return fmt.Errorf("failed to delete recursevly %s: %w", remoteFile, err)
+		}
+		log.Printf("[INFO] deleted recursevly %s", remoteFile)
+		return nil
+	}
+
 	if _, err = ex.sshRun(ctx, ex.client, fmt.Sprintf("rm -f %s", remoteFile)); err != nil {
 		return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
 	}
 	log.Printf("[INFO] deleted %s", remoteFile)
+
 	return nil
 }
 

@@ -68,6 +68,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 			if _, err := sess.Sync(ctx, cmd.Sync.Source, cmd.Sync.Dest, cmd.Sync.Delete); err != nil {
 				return fmt.Errorf("can't sync files on %s: %w", host, err)
 			}
+		case cmd.Delete.Location != "":
+			log.Printf("[DEBUG] delete files on %s", host)
+			if err := sess.Delete(ctx, cmd.Delete.Location, cmd.Delete.Recursive); err != nil {
+				return fmt.Errorf("can't delete files on %s: %w", host, err)
+			}
 		}
 	}
 	return nil

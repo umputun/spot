@@ -203,6 +203,49 @@ func TestExecuter_Sync(t *testing.T) {
 	// })
 }
 
+func TestExecuter_Delete(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer sess.Close()
+
+	res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+	require.NoError(t, err)
+	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+	assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
+
+	t.Run("delete file", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/sync.dest/file1.txt", false)
+		assert.NoError(t, err)
+		out, err := sess.Run(ctx, "ls -1 /tmp/sync.dest")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"d1", "file2.txt"}, out)
+	})
+
+	t.Run("delete dir", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/sync.dest", true)
+		assert.NoError(t, err)
+		out, err := sess.Run(ctx, "ls -1 /tmp/")
+		require.NoError(t, err)
+		assert.NotContains(t, out, "file2.txt", out)
+	})
+
+	t.Run("delete no-such-file", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-file", false)
+		assert.NoError(t, err)
+	})
+
+	t.Run("delete no-such-dir", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-dir", true)
+		assert.NoError(t, err)
+	})
+}
+
 func TestExecuter_findUnmatchedFiles(t *testing.T) {
 	tbl := []struct {
 		name    string

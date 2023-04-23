@@ -24,3 +24,9 @@ tasks:
           du -hcs /srv
           cat /tmp/conf.yml
           echo all good, 123
+
+      - name: delete things
+        delete: {"loc": "/tmp/things", "recur": true}
+
+      - name: show content
+        script: ls -laR /tmp
