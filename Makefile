@@ -6,7 +6,7 @@ PKGS=$(shell go list ./... | grep -v vendor)
 
 
 build:
-		go build -o bin/spt -ldflags "-X main.revision=$(REV) -s -w" -o ./bin/spt.$(BRANCH)
+	go build -o bin/spt -ldflags "-X main.revision=$(REV) -s -w" -o ./bin/spt.$(BRANCH)
 
 release:
 	- @mkdir -p bin
@@ -15,3 +15,9 @@ release:
 	docker run -d --name=spt.bin spt.bin
 	docker cp spt.bin:/artifacts bin/
 	docker rm -f spt.bin
+
+test:
+	go clean -testcache
+	go test ./...
+
+.PHONY: build release test
