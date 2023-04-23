@@ -144,8 +144,8 @@ func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command stri
 	defer session.Close()
 
 	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(os.Stdout, &stdoutBuf)
-	session.Stdout, session.Stderr = mwr, os.Stderr
+	mwr := io.MultiWriter(&stdOutLogWriter{prefix: ">", level: "DEBUG"}, &stdoutBuf)
+	session.Stdout, session.Stderr = mwr, &stdOutLogWriter{prefix: "!", level: "WARN"}
 
 	done := make(chan error)
 	go func() {
@@ -362,4 +362,20 @@ func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) 
 	sort.Slice(deletedFiles, func(i, j int) bool { return deletedFiles[i] < deletedFiles[j] })
 
 	return updatedFiles, deletedFiles
+}
+
+type stdOutLogWriter struct {
+	prefix string
+	level  string
+}
+
+func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
+	lines := strings.Split(string(p), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		log.Printf("[%s] %s %s", w.level, w.prefix, line)
+	}
+	return len(p), nil
 }
