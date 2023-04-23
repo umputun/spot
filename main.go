@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -18,19 +19,19 @@ import (
 )
 
 type options struct {
-	TaskFile   string `short:"f" long:"file" description:"task file" default:"stask.yml"`
-	TaskName   string `short:"n" long:"name" description:"task name" default:"default""`
+	TaskFile   string `short:"f" long:"file" description:"task file" default:"spt.yml"`
+	TaskName   string `short:"n" long:"name" description:"task name" default:"default"`
 	TargetName string `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 
 	// target overrides
 	TargetHosts   []string `short:"h" long:"host" description:"destination host"`
-	InventoryFile string   `short:"i" long:"inventory" description:"inventory file" default:"inventory.yml"`
+	InventoryFile string   `short:"i" long:"inventory" description:"inventory file"`
 	InventoryHttp string   `short:"H" long:"inventory-http" description:"inventory http url"`
 
 	// connection overrides
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
-	SSHKey  string `short:"k" long:"key" description:"ssh key"`
+	SSHKey  string `short:"k" long:"key" description:"ssh key" default:"~/.ssh/id_rsa"`
 
 	Dbg bool `long:"dbg" description:"debug mode"`
 	Dev bool `long:"dev" description:"development mode"`
@@ -78,17 +79,18 @@ func run(ctx context.Context, opts options) error {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
 	r := runner.Process{Concurrency: opts.Concurrent, Connector: connector, Config: conf}
-	r.Run(ctx, opts.TaskName, opts.TargetName)
-	return nil
+	return r.Run(ctx, opts.TaskName, opts.TargetName)
 }
 
 func setupLog(dbg, dev bool) {
-	logOpts := []lgr.Option{lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+	logOpts := []lgr.Option{lgr.Out(io.Discard), lgr.Err(io.Discard)} // default to discard
 	if dbg {
+		// debug mode shows all messages but no caller/stack trace
 		logOpts = []lgr.Option{lgr.Debug, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
-		if dev {
-			logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
-		}
+	}
+	if dev {
+		// dev mode shows all messages with caller/stack trace
+		logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
 	}
 
 	colorizer := lgr.Mapper{
