@@ -89,7 +89,7 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, delete bool) ([]string, error) {
+func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, del bool) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
@@ -104,14 +104,13 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, delete
 	for _, file := range unmatchedFiles {
 		localPath := filepath.Join(localDir, file)
 		remotePath := filepath.Join(remoteDir, file)
-		err := ex.Upload(ctx, localPath, remotePath, true)
-		if err != nil {
+		if err = ex.Upload(ctx, localPath, remotePath, true); err != nil {
 			return nil, fmt.Errorf("failed to upload %s to %s: %w", localPath, remotePath, err)
 		}
 		log.Printf("[INFO] synced %s to %s", localPath, remotePath)
 	}
 
-	if delete {
+	if del {
 		for _, file := range deletedFiles {
 			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), false); err != nil {
 				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
@@ -215,7 +214,7 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 	if err != nil {
 		return fmt.Errorf("failed to open local file %s: %v", req.localFile, err)
 	}
-	defer inpFh.Close() //nolint
+	defer inpFh.Close() // nolint
 
 	inpFi, err := os.Stat(req.localFile)
 	if err != nil {
@@ -258,12 +257,12 @@ func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
 	if err != nil {
 		return fmt.Errorf("failed to open local file %s: %v", req.localFile, err)
 	}
-	defer outFh.Close() //nolint
+	defer outFh.Close() // nolint
 
 	if err = scpClient.CopyFromRemote(ctx, outFh, req.remoteFile); err != nil {
 		return fmt.Errorf("failed to copy file: %v", err)
 	}
-	return outFh.Sync() //nolint
+	return outFh.Sync() // nolint
 }
 
 type fileProperties struct {

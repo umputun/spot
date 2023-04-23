@@ -27,7 +27,7 @@ type options struct {
 	// target overrides
 	TargetHosts   []string `short:"h" long:"host" description:"destination host"`
 	InventoryFile string   `short:"i" long:"inventory" description:"inventory file"`
-	InventoryHttp string   `short:"H" long:"inventory-http" description:"inventory http url"`
+	InventoryHTTP string   `short:"H" long:"inventory-http" description:"inventory http url"`
 
 	// connection overrides
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
@@ -69,7 +69,7 @@ func main() {
 
 func run(ctx context.Context, opts options) error {
 	conf, err := config.New(opts.TaskFile,
-		&config.Overrides{TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHttp: opts.InventoryHttp})
+		&config.Overrides{TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHTTP: opts.InventoryHTTP})
 	if err != nil {
 		return fmt.Errorf("can't read config: %w", err)
 	}

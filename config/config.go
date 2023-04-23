@@ -26,7 +26,7 @@ type PlayBook struct {
 type Target struct {
 	Hosts         []string `yaml:"hosts"`
 	InventoryFile string   `yaml:"inventory_file"`
-	InventoryHttp string   `yaml:"inventory_http"`
+	InventoryHTTP string   `yaml:"inventory_http"`
 }
 
 // Task defines multiple commands runs together
@@ -79,7 +79,7 @@ type DeleteInternal struct {
 type Overrides struct {
 	TargetHosts   []string
 	InventoryFile string
-	InventoryHttp string
+	InventoryHTTP string
 }
 
 // New makes new config from yml
@@ -115,11 +115,11 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 
 	loadInventoryFile := func(fname string) ([]string, error) {
-		fh, err := os.Open(fname)
+		fh, err := os.Open(fname) // nolint
 		if err != nil {
 			return nil, fmt.Errorf("can't open inventory file %s: %w", fname, err)
 		}
-		defer fh.Close() //nolint
+		defer fh.Close() // nolint
 		hosts, err := p.parseInventory(fh)
 		if err != nil {
 			return nil, fmt.Errorf("can't parse inventory file %s: %w", fname, err)
@@ -127,13 +127,13 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return hosts, nil
 	}
 
-	loadInventoryHttp := func(url string) ([]string, error) {
+	loadInventoryHTTP := func(url string) ([]string, error) {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("can't get inventory from http %s: %w", url, err)
 		}
-		defer resp.Body.Close() //nolint
+		defer resp.Body.Close() // nolint
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("can't get inventory from http %s, status: %s", url, resp.Status)
 		}
@@ -150,8 +150,8 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
 		return loadInventoryFile(p.overrides.InventoryFile)
 	}
-	if p.overrides != nil && p.overrides.InventoryHttp != "" {
-		return loadInventoryHttp(p.overrides.InventoryHttp)
+	if p.overrides != nil && p.overrides.InventoryHTTP != "" {
+		return loadInventoryHTTP(p.overrides.InventoryHTTP)
 	}
 
 	t, ok := p.Targets[name]
@@ -174,8 +174,8 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return loadInventoryFile(t.InventoryFile)
 	}
 
-	if t.InventoryHttp != "" {
-		return loadInventoryHttp(t.InventoryHttp)
+	if t.InventoryHTTP != "" {
+		return loadInventoryHTTP(t.InventoryHTTP)
 	}
 
 	return t.Hosts, nil
@@ -204,7 +204,7 @@ func (cmd *Cmd) GetScript() string {
 	}
 	elems := strings.Split(cmd.Script, "\n")
 	res := "sh -c \""
-	var parts []string //nolint
+	var parts []string // nolint
 	for _, el := range elems {
 		c := strings.TrimSpace(el)
 		if len(c) < 2 {

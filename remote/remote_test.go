@@ -175,8 +175,8 @@ func TestExecuter_Sync(t *testing.T) {
 	defer sess.Close()
 
 	t.Run("sync", func(t *testing.T) {
-		res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
-		require.NoError(t, err)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
@@ -186,8 +186,8 @@ func TestExecuter_Sync(t *testing.T) {
 	})
 
 	t.Run("sync_again", func(t *testing.T) {
-		res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
-		require.NoError(t, err)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+		require.NoError(t, e)
 		assert.Equal(t, 0, len(res), "no files should be synced")
 	})
 
@@ -196,11 +196,6 @@ func TestExecuter_Sync(t *testing.T) {
 		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
 			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})
-
-	// t.Run("sync src is not dir", func(t *testing.T) {
-	// 	err = svc.Sync(ctx, "testdata/data.txt", "/tmp/sync.dest")
-	// 	require.EqualError(t, err, "failed to walk local directory /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
-	// })
 }
 
 func TestExecuter_Delete(t *testing.T) {
@@ -222,16 +217,16 @@ func TestExecuter_Delete(t *testing.T) {
 	t.Run("delete file", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest/file1.txt", false)
 		assert.NoError(t, err)
-		out, err := sess.Run(ctx, "ls -1 /tmp/sync.dest")
-		require.NoError(t, err)
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest")
+		require.NoError(t, e)
 		assert.Equal(t, []string{"d1", "file2.txt"}, out)
 	})
 
 	t.Run("delete dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest", true)
 		assert.NoError(t, err)
-		out, err := sess.Run(ctx, "ls -1 /tmp/")
-		require.NoError(t, err)
+		out, e := sess.Run(ctx, "ls -1 /tmp/")
+		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
 	})
 
