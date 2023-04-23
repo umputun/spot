@@ -249,8 +249,8 @@ func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
 	defer sftpClient.Close()
 
 	if req.mkdir {
-		if err := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); err != nil {
-			return fmt.Errorf("failed to create remote directory: %v", err)
+		if e := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); e != nil {
+			return fmt.Errorf("failed to create remote directory: %v", e)
 		}
 	}
 
