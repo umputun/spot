@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/go-pkgz/syncs"
 
@@ -16,6 +17,9 @@ type Process struct {
 	Concurrency int
 	Connector   *remote.Connector
 	Config      *config.PlayBook
+
+	Skip []string
+	Only []string
 }
 
 // Run runs a task for a target hosts. Runs in parallel with limited concurrency, each host is processed in separate goroutine.
@@ -43,6 +47,15 @@ func (p *Process) Run(ctx context.Context, task, target string) (err error) {
 }
 
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host string) error {
+	contains := func(list []string, s string) bool {
+		for _, v := range list {
+			if strings.EqualFold(v, s) {
+				return true
+			}
+		}
+		return false
+	}
+
 	sess, err := p.Connector.Connect(ctx, host)
 	if err != nil {
 		return fmt.Errorf("can't connect to %s: %w", host, err)
@@ -50,6 +63,13 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	defer sess.Close()
 
 	for _, cmd := range tsk.Commands {
+		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
+			continue
+		}
+		if len(p.Skip) > 0 && contains(p.Skip, cmd.Name) {
+			continue
+		}
+
 		log.Printf("[INFO] run command %q on host %s", cmd.Name, host)
 		switch {
 		case cmd.Script != "":

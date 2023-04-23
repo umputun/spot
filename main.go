@@ -33,6 +33,9 @@ type options struct {
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
 	SSHKey  string `short:"k" long:"key" description:"ssh key" default:"~/.ssh/id_rsa"`
 
+	Skip []string `short:"s" long:"skip" description:"skip commands"`
+	Only []string `short:"o" long:"only" description:"run only commands"`
+
 	Dbg bool `long:"dbg" description:"debug mode"`
 	Dev bool `long:"dev" description:"development mode"`
 }
@@ -78,7 +81,13 @@ func run(ctx context.Context, opts options) error {
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
-	r := runner.Process{Concurrency: opts.Concurrent, Connector: connector, Config: conf}
+	r := runner.Process{
+		Concurrency: opts.Concurrent,
+		Connector:   connector,
+		Config:      conf,
+		Only:        opts.Only,
+		Skip:        opts.Skip,
+	}
 	return r.Run(ctx, opts.TaskName, opts.TargetName)
 }
 
