@@ -7,10 +7,12 @@ require (
 	github.com/fatih/color v1.15.0
 	github.com/go-pkgz/fileutils v0.2.0
 	github.com/go-pkgz/lgr v0.11.0
+	github.com/go-pkgz/syncs v1.3.0
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/stretchr/testify v1.8.2
 	github.com/testcontainers/testcontainers-go v0.19.0
 	golang.org/x/crypto v0.8.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -49,6 +51,5 @@ require (
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
 	google.golang.org/grpc v1.54.0 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.4.0 // indirect
 )

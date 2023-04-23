@@ -1,19 +1,36 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/go-pkgz/lgr"
 	"github.com/jessevdk/go-flags"
+
+	"github.com/umputun/simplotask/config"
+	"github.com/umputun/simplotask/remote"
+	"github.com/umputun/simplotask/runner"
 )
 
 type options struct {
-	TaskFile      string   `short:"f" long:"file" description:"task file" default:"stask.yml"`
+	TaskFile   string `short:"f" long:"file" description:"task file" default:"stask.yml"`
+	TaskName   string `short:"n" long:"name" description:"task name" default:"default""`
+	TargetName string `short:"t" long:"target" description:"target name" default:"default"`
+	Concurrent int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
+
+	// target overrides
+	TargetHosts   []string `short:"h" long:"host" description:"destination host"`
 	InventoryFile string   `short:"i" long:"inventory" description:"inventory file" default:"inventory.yml"`
-	DestHost      []string `short:"h" long:"host" description:"destination host"`
+	InventoryHttp string   `short:"H" long:"inventory-http" description:"inventory http url"`
+
+	// connection overrides
+	SSHUser string `short:"u" long:"user" description:"ssh user"`
+	SSHKey  string `short:"k" long:"key" description:"ssh key"`
 
 	Dbg bool `long:"dbg" description:"debug mode"`
 	Dev bool `long:"dev" description:"development mode"`
@@ -34,12 +51,34 @@ func main() {
 	}
 
 	setupLog(opts.Dbg, opts.Dev)
-	if err := run(opts); err != nil {
+
+	ctx, cancel := context.WithCancel(context.Background())
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM) // cancel on SIGINT or SIGTERM
+	go func() {
+		sig := <-sigs
+		log.Printf("received signal: %v", sig)
+		cancel()
+	}()
+
+	if err := run(ctx, opts); err != nil {
 		log.Panicf("[ERROR] %v", err)
 	}
 }
 
-func run(opts options) error { //nolint
+func run(ctx context.Context, opts options) error {
+	conf, err := config.New(opts.TaskFile,
+		&config.Overrides{TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHttp: opts.InventoryHttp})
+	if err != nil {
+		return fmt.Errorf("can't read config: %w", err)
+	}
+
+	connector, err := remote.NewConnector("user", "key")
+	if err != nil {
+		return fmt.Errorf("can't create connector: %w", err)
+	}
+	r := runner.Process{Concurrency: opts.Concurrent, Connector: connector, Config: conf}
+	r.Run(ctx, opts.TaskName, opts.TargetName)
 	return nil
 }
 

@@ -2,17 +2,31 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
 // PlayBook defines top-level config yaml
 type PlayBook struct {
-	User  string          `yaml:"user"`
-	Tasks map[string]Task `yaml:"tasks"`
+	User    string            `yaml:"user"`
+	Targets map[string]Target `yaml:"targets"`
+	Tasks   map[string]Task   `yaml:"tasks"`
+
+	overrides *Overrides
+}
+
+// Target defines hosts to run commands on
+type Target struct {
+	Hosts         []string `yaml:"hosts"`
+	InventoryFile string   `yaml:"inventory_file"`
+	InventoryHttp string   `yaml:"inventory_http"`
 }
 
 // Task defines multiple commands runs together
@@ -43,20 +57,27 @@ type Cmd struct {
 // CopyInternal defines copy command, implemented internally
 type CopyInternal struct {
 	Source string `yaml:"src"`
-	Dest   string `yaml:"dest"`
+	Dest   string `yaml:"dst"`
 	Mkdir  bool   `yaml:"mkdir"`
 }
 
 // SyncInternal defines sync command (recursive copy), implemented internally
 type SyncInternal struct {
 	Source string `yaml:"src"`
-	Dest   string `yaml:"dest"`
+	Dest   string `yaml:"dst"`
 	Delete bool   `yaml:"delete"`
 }
 
+// Overrides defines override for task passed from cli
+type Overrides struct {
+	TargetHosts   []string
+	InventoryFile string
+	InventoryHttp string
+}
+
 // New makes new config from yml
-func New(fname string) (*PlayBook, error) {
-	res := &PlayBook{}
+func New(fname string, overrides *Overrides) (*PlayBook, error) {
+	res := &PlayBook{overrides: overrides}
 	data, err := os.ReadFile(fname) // nolint
 	if err != nil {
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
@@ -83,6 +104,91 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	return nil, fmt.Errorf("task %s not found", name)
 }
 
+// TargetHosts returns target hosts for given target name
+func (p *PlayBook) TargetHosts(name string) ([]string, error) {
+
+	loadInventoryFile := func(fname string) ([]string, error) {
+		fh, err := os.Open(fname)
+		if err != nil {
+			return nil, fmt.Errorf("can't open inventory file %s: %w", fname, err)
+		}
+		defer fh.Close() //nolint
+		hosts, err := p.parseInventory(fh)
+		if err != nil {
+			return nil, fmt.Errorf("can't parse inventory file %s: %w", fname, err)
+		}
+		return hosts, nil
+	}
+
+	loadInventoryHttp := func(url string) ([]string, error) {
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Get(url)
+		if err != nil {
+			return nil, fmt.Errorf("can't get inventory from http %s: %w", url, err)
+		}
+		defer resp.Body.Close() //nolint
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("can't get inventory from http %s, status: %s", url, resp.Status)
+		}
+		hosts, err := p.parseInventory(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("can't parse inventory from http %s: %w", url, err)
+		}
+		return hosts, nil
+	}
+
+	if p.overrides != nil && len(p.overrides.TargetHosts) > 0 {
+		return p.overrides.TargetHosts, nil
+	}
+	if p.overrides != nil && p.overrides.InventoryFile != "" {
+		return loadInventoryFile(p.overrides.InventoryFile)
+	}
+	if p.overrides != nil && p.overrides.InventoryHttp != "" {
+		return loadInventoryHttp(p.overrides.InventoryHttp)
+	}
+
+	t, ok := p.Targets[name]
+	if !ok {
+		// no target, check if it is a host
+		if ip := net.ParseIP(name); ip != nil {
+			return []string{name}, nil // it is a host, sent as ip
+		}
+		if strings.Contains(name, ".") || strings.Contains(name, "localhost") {
+			return []string{name}, nil // is a valid FQDN
+		}
+		return nil, fmt.Errorf("target %s not found", name)
+	}
+
+	if len(t.Hosts) > 0 { // hosts defined in config, have priority
+		return t.Hosts, nil
+	}
+
+	if t.InventoryFile != "" {
+		return loadInventoryFile(t.InventoryFile)
+	}
+
+	if t.InventoryHttp != "" {
+		return loadInventoryHttp(t.InventoryHttp)
+	}
+
+	return t.Hosts, nil
+}
+
+func (p *PlayBook) parseInventory(r io.Reader) (res []string, err error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("inventory reader failed: %w", err)
+	}
+	lines := strings.Split(string(data), "\n")
+	for _, line := range lines {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		res = append(res, line)
+	}
+	return res, nil
+}
+
 // GetScript concatenates all script line in commands into one a string to be executed by shell.
 // Empty string is returned if no script is defined.
 func (cmd *Cmd) GetScript() string {
@@ -102,6 +208,6 @@ func (cmd *Cmd) GetScript() string {
 		}
 		parts = append(parts, c)
 	}
-	res += strings.Join(parts, "; ")
+	res += strings.Join(parts, "; ") + "\""
 	return res
 }

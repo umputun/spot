@@ -20,20 +20,20 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
 
-	err = svc.Connect(ctx, hostAndPort)
+	sess, err := c.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
-	defer svc.Close()
+	defer sess.Close()
 
-	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
 	require.NoError(t, err)
 
 	tmpFile, err := fileutils.TempFileName("", "data.txt")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpFile)
-	err = svc.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
+	err = sess.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
 	require.NoError(t, err)
 	assert.FileExists(t, tmpFile)
 	exp, err := os.ReadFile("testdata/data.txt")
@@ -49,14 +49,13 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
+	sess, err := c.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
-	defer svc.Close()
+	defer sess.Close()
 
-	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
+	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
 	require.EqualError(t, err, "failed to copy file: scp: /tmp/blah/data.txt: No such file or directory\n")
 }
 
@@ -66,14 +65,13 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
+	sess, err := c.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
-	defer svc.Close()
+	defer sess.Close()
 
-	err = svc.Upload(ctx, "testdata/data.txt", "/dev/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data.txt", "/dev/blah/data.txt", true)
 	require.EqualError(t, err, "failed to create remote directory: failed to run command on remote server: Process exited with status 1")
 }
 
@@ -83,15 +81,14 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
+	sess, err := c.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
-	defer svc.Close()
+	defer sess.Close()
 
 	cancel()
-	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
 	require.EqualError(t, err, "failed to create remote directory: canceled: context canceled")
 }
 
@@ -101,15 +98,15 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
+	sess, err := c.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
-	defer svc.Close()
+	defer sess.Close()
 
 	cancel()
-	err = svc.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
+
+	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
 	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
@@ -119,11 +116,10 @@ func TestExecuter_ConnectCanceled(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-
-	err = svc.Connect(ctx, hostAndPort)
-	require.EqualError(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
+	_, err = c.Connect(ctx, hostAndPort)
+	assert.ErrorContains(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
 }
 
 func TestExecuter_Run(t *testing.T) {
@@ -132,23 +128,25 @@ func TestExecuter_Run(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-	require.NoError(t, svc.Connect(ctx, hostAndPort))
+	sess, err := c.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer sess.Close()
 
 	t.Run("single line out", func(t *testing.T) {
-		out, e := svc.Run(ctx, "sh -c 'echo hello world'")
+		out, e := sess.Run(ctx, "sh -c 'echo hello world'")
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
 
 	t.Run("multi line out", func(t *testing.T) {
-		err = svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data1.txt", true)
+		err = sess.Upload(ctx, "testdata/data.txt", "/tmp/st/data1.txt", true)
 		assert.NoError(t, err)
-		err = svc.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
+		err = sess.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
 		assert.NoError(t, err)
 
-		out, err := svc.Run(ctx, "ls -1 /tmp/st")
+		out, err := sess.Run(ctx, "ls -1 /tmp/st")
 		require.NoError(t, err)
 		t.Logf("out: %v", out)
 		assert.Equal(t, 2, len(out))
@@ -158,12 +156,11 @@ func TestExecuter_Run(t *testing.T) {
 
 	t.Run("find out", func(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
-		out, e := svc.Run(ctx, cmd)
+		out, e := sess.Run(ctx, cmd)
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"/tmp/st/data1.txt:68", "/tmp/st/data2.txt:68"}, out)
 	})
-
 }
 
 func TestExecuter_Sync(t *testing.T) {
@@ -171,29 +168,31 @@ func TestExecuter_Sync(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	svc, err := NewExecuter("test", "testdata/test_ssh_key")
+	c, err := NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
-	require.NoError(t, svc.Connect(ctx, hostAndPort))
+	sess, err := c.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+	defer sess.Close()
 
 	t.Run("sync", func(t *testing.T) {
-		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+		res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
 		require.NoError(t, err)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := svc.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
+		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
 	})
 
 	t.Run("sync_again", func(t *testing.T) {
-		res, err := svc.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+		res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
 		require.NoError(t, err)
 		assert.Equal(t, 0, len(res), "no files should be synced")
 	})
 
 	t.Run("sync no src", func(t *testing.T) {
-		_, err = svc.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", true)
+		_, err = sess.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", true)
 		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
 			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})

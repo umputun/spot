@@ -1,5 +1,12 @@
 user: umputun
 
+targets:
+    remark42:
+      hosts: ["h1.example.com", "h2.example.com"]
+    staging:
+      inventory: "file://inventory/staging.yml"
+
+
 tasks:
 
   deploy-remark42:
