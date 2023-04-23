@@ -154,10 +154,16 @@ func (ex *Executer) Delete(ctx context.Context, remoteFile string, recursive boo
 
 		// Delete files and directories in reverse order
 		for i := len(pathsToDelete) - 1; i >= 0; i-- {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
 			path := pathsToDelete[i]
-			fileInfo, err := sftpClient.Stat(path)
-			if err != nil {
-				return fmt.Errorf("failed to stat %s: %w", path, err)
+			fileInfo, stErr := sftpClient.Stat(path)
+			if stErr != nil {
+				return fmt.Errorf("failed to stat %s: %w", path, stErr)
 			}
 
 			if fileInfo.IsDir() {
@@ -268,8 +274,8 @@ func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := io.Copy(remoteFh, inpFh)
-		errCh <- err
+		_, e := io.Copy(remoteFh, inpFh)
+		errCh <- e
 	}()
 
 	select {
@@ -324,8 +330,8 @@ func (ex *Executer) sftpDownload(ctx context.Context, req sftpReq) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		_, err := io.Copy(outFh, remoteFh)
-		errCh <- err
+		_, e := io.Copy(outFh, remoteFh)
+		errCh <- e
 	}()
 
 	select {
