@@ -10,10 +10,6 @@ targets:
 tasks:
 
   deploy-remark42:
-    before: "curl https://example.com/before"
-    after: "curl https://example.com/after"
-    onerror: "curl https://example.com/after/{{.Command.Name}}"
-    warn_duration: 3s
 
     commands:
       - name: wait
@@ -44,3 +40,6 @@ tasks:
           docker stop remark42 || true
           docker rm remark42 || true
           docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
+        env:
+          FOO: bar
+          BAR: qux

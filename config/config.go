@@ -16,6 +16,7 @@ import (
 // PlayBook defines top-level config yaml
 type PlayBook struct {
 	User    string            `yaml:"user"`
+	SSHKey  string            `yaml:"ssh_key"`
 	Targets map[string]Target `yaml:"targets"`
 	Tasks   map[string]Task   `yaml:"tasks"`
 
@@ -31,24 +32,20 @@ type Target struct {
 
 // Task defines multiple commands runs together
 type Task struct {
-	Before   string `yaml:"before"`
-	After    string `yaml:"after"`
-	OnError  string `yaml:"onerror"`
+	User     string `yaml:"user"`
+	SSHKey   string `yaml:"ssh_key"`
 	Commands []Cmd  `yaml:"commands"`
 }
 
 // Cmd defines a single command
 type Cmd struct {
-	Name    string         `yaml:"name"`
-	Log     string         `yaml:"log"`
-	Copy    CopyInternal   `yaml:"copy"`
-	Sync    SyncInternal   `yaml:"sync"`
-	Delete  DeleteInternal `yaml:"delete"`
-	Script  string         `yaml:"script"`
-	Before  string         `yaml:"before"`
-	After   string         `yaml:"after"`
-	OnError string         `yaml:"onerror"`
-	Options struct {
+	Name        string            `yaml:"name"`
+	Copy        CopyInternal      `yaml:"copy"`
+	Sync        SyncInternal      `yaml:"sync"`
+	Delete      DeleteInternal    `yaml:"delete"`
+	Script      string            `yaml:"script"`
+	Environment map[string]string `yaml:"env"`
+	Options     struct {
 		IgnoreErrors bool `yaml:"ignore_errors"`
 		NoAuto       bool `yaml:"no_auto"`
 		Local        bool `yaml:"local"`
@@ -202,8 +199,18 @@ func (cmd *Cmd) GetScript() string {
 	if cmd.Script == "" {
 		return ""
 	}
-	elems := strings.Split(cmd.Script, "\n")
+
+	envs := make([]string, 0, len(cmd.Environment))
+	for k, v := range cmd.Environment {
+		envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+	}
+
 	res := "sh -c \""
+	if len(envs) > 0 {
+		res += strings.Join(envs, " ") + " "
+	}
+
+	elems := strings.Split(cmd.Script, "\n")
 	var parts []string // nolint
 	for _, el := range elems {
 		c := strings.TrimSpace(el)

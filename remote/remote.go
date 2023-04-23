@@ -242,17 +242,17 @@ func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
 		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
 	}(time.Now())
 
-	if req.mkdir {
-		if _, err := ex.sshRun(ctx, req.client, fmt.Sprintf("mkdir -p %s", filepath.Dir(req.remoteFile))); err != nil {
-			return fmt.Errorf("failed to create remote directory: %w", err)
-		}
-	}
-
 	sftpClient, err := sftp.NewClient(req.client)
 	if err != nil {
 		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
 	defer sftpClient.Close()
+
+	if req.mkdir {
+		if err := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); err != nil {
+			return fmt.Errorf("failed to create remote directory: %v", err)
+		}
+	}
 
 	inpFh, err := os.Open(req.localFile)
 	if err != nil {
@@ -291,11 +291,8 @@ func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
 		return fmt.Errorf("failed to set permissions on remote file: %v", err)
 	}
 
-	// set modification time of the uploaded file
-	modTime := inpFi.ModTime().In(time.UTC).Format("200601021504.05")
-	touchCmd := fmt.Sprintf("touch -m -t %s %s", modTime, req.remoteFile)
-	if _, err := ex.sshRun(ctx, req.client, touchCmd); err != nil {
-		return fmt.Errorf("failed to set modification time of remote file: %w", err)
+	if err = sftpClient.Chtimes(req.remoteFile, inpFi.ModTime(), inpFi.ModTime()); err != nil {
+		return fmt.Errorf("failed to set modification time of remote file %s: %v", req.remoteFile, err)
 	}
 
 	return nil

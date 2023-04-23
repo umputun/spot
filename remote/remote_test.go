@@ -72,7 +72,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	defer sess.Close()
 
 	err = sess.Upload(ctx, "testdata/data.txt", "/dev/blah/data.txt", true)
-	require.EqualError(t, err, "failed to create remote directory: failed to run command on remote server: Process exited with status 1")
+	require.EqualError(t, err, "failed to create remote directory: permission denied")
 }
 
 func TestExecuter_Upload_Canceled(t *testing.T) {
@@ -89,7 +89,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 
 	cancel()
 	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
-	require.EqualError(t, err, "failed to create remote directory: canceled: context canceled")
+	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
 func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
@@ -161,6 +161,7 @@ func TestExecuter_Run(t *testing.T) {
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"/tmp/st/data1.txt:68", "/tmp/st/data2.txt:68"}, out)
 	})
+
 }
 
 func TestExecuter_Sync(t *testing.T) {

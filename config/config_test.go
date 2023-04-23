@@ -56,6 +56,13 @@ func TestCmd_GetScript(t *testing.T) {
 		res := cmd.GetScript()
 		assert.Equal(t, "", res)
 	})
+
+	t.Run("script with env", func(t *testing.T) {
+		cmd := c.Tasks["deploy-remark42"].Commands[4]
+		assert.Equal(t, "docker", cmd.Name)
+		res := cmd.GetScript()
+		assert.Equal(t, `sh -c "FOO=bar BAR=qux docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest"`, res)
+	})
 }
 
 func TestPlayBook_TargetHosts(t *testing.T) {
