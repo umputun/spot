@@ -3,12 +3,12 @@ module github.com/umputun/simplotask
 go 1.20
 
 require (
-	github.com/bramvdbogaerde/go-scp v1.2.1
 	github.com/fatih/color v1.15.0
 	github.com/go-pkgz/fileutils v0.2.0
 	github.com/go-pkgz/lgr v0.11.0
 	github.com/go-pkgz/syncs v1.3.0
 	github.com/jessevdk/go-flags v1.5.0
+	github.com/pkg/sftp v1.13.5
 	github.com/stretchr/testify v1.8.2
 	github.com/testcontainers/testcontainers-go v0.19.0
 	golang.org/x/crypto v0.8.0
@@ -30,6 +30,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

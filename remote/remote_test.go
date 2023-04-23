@@ -56,7 +56,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	defer sess.Close()
 
 	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
-	require.EqualError(t, err, "failed to copy file: scp: /tmp/blah/data.txt: No such file or directory\n")
+	require.EqualError(t, err, "failed to create remote file: file does not exist")
 }
 
 func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
@@ -106,7 +106,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	cancel()
 
-	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
+	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/data.txt", false)
 	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
@@ -188,7 +188,7 @@ func TestExecuter_Sync(t *testing.T) {
 	t.Run("sync_again", func(t *testing.T) {
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
 		require.NoError(t, e)
-		assert.Equal(t, 0, len(res), "no files should be synced")
+		assert.Equal(t, 0, len(res), "no files should be synced", res)
 	})
 
 	t.Run("sync no src", func(t *testing.T) {

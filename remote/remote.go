@@ -10,11 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/bramvdbogaerde/go-scp"
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -54,7 +53,7 @@ func (ex *Executer) Upload(ctx context.Context, local, remote string, mkdir bool
 		return fmt.Errorf("failed to split host and port: %w", err)
 	}
 
-	req := scpReq{
+	req := sftpReq{
 		client:     ex.client,
 		localFile:  local,
 		remoteFile: remote,
@@ -62,7 +61,7 @@ func (ex *Executer) Upload(ctx context.Context, local, remote string, mkdir bool
 		remoteHost: host,
 		remotePort: port,
 	}
-	return ex.scpUpload(ctx, req)
+	return ex.sftpUpload(ctx, req)
 }
 
 // Download file from remote server with scp
@@ -77,7 +76,7 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 		return fmt.Errorf("failed to split host and port: %w", err)
 	}
 
-	req := scpReq{
+	req := sftpReq{
 		client:     ex.client,
 		localFile:  local,
 		remoteFile: remote,
@@ -85,7 +84,7 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 		remoteHost: host,
 		remotePort: port,
 	}
-	return ex.scpDownload(ctx, req)
+	return ex.sftpDownload(ctx, req)
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
@@ -128,18 +127,58 @@ func (ex *Executer) Delete(ctx context.Context, remoteFile string, recursive boo
 		return fmt.Errorf("client is not connected")
 	}
 
-	if recursive {
-		if _, err = ex.sshRun(ctx, ex.client, fmt.Sprintf("rm -fr %s", remoteFile)); err != nil {
-			return fmt.Errorf("failed to delete recursevly %s: %w", remoteFile, err)
+	sftpClient, err := sftp.NewClient(ex.client)
+	if err != nil {
+		return fmt.Errorf("failed to create sftp client: %v", err)
+	}
+	defer sftpClient.Close()
+
+	fileInfo, err := sftpClient.Stat(remoteFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
 		}
-		log.Printf("[INFO] deleted recursevly %s", remoteFile)
-		return nil
+		return fmt.Errorf("failed to stat %s: %w", remoteFile, err)
 	}
 
-	if _, err = ex.sshRun(ctx, ex.client, fmt.Sprintf("rm -f %s", remoteFile)); err != nil {
-		return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
+	if fileInfo.IsDir() && recursive {
+		walker := sftpClient.Walk(remoteFile)
+
+		var pathsToDelete []string
+		for walker.Step() {
+			if walker.Err() != nil {
+				continue
+			}
+			pathsToDelete = append(pathsToDelete, walker.Path())
+		}
+
+		// Delete files and directories in reverse order
+		for i := len(pathsToDelete) - 1; i >= 0; i-- {
+			path := pathsToDelete[i]
+			fileInfo, err := sftpClient.Stat(path)
+			if err != nil {
+				return fmt.Errorf("failed to stat %s: %w", path, err)
+			}
+
+			if fileInfo.IsDir() {
+				err = sftpClient.RemoveDirectory(path)
+			} else {
+				err = sftpClient.Remove(path)
+			}
+
+			if err != nil {
+				return fmt.Errorf("failed to delete %s: %w", path, err)
+			}
+		}
+
+		log.Printf("[INFO] deleted recursevly %s", remoteFile)
+	} else {
+		err = sftpClient.Remove(remoteFile)
+		if err != nil {
+			return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
+		}
+		log.Printf("[INFO] deleted %s", remoteFile)
 	}
-	log.Printf("[INFO] deleted %s", remoteFile)
 
 	return nil
 }
@@ -182,7 +221,7 @@ func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command stri
 	return out, nil
 }
 
-type scpReq struct {
+type sftpReq struct {
 	localFile  string
 	remoteHost string
 	remotePort string
@@ -191,8 +230,7 @@ type scpReq struct {
 	client     *ssh.Client
 }
 
-// scpUpload uploads local file to remote host. Creates remote directory if mkdir is true.
-func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
+func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
 	log.Printf("[DEBUG] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) {
 		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
@@ -204,11 +242,11 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 		}
 	}
 
-	scpClient, err := scp.NewClientBySSH(ex.client)
+	sftpClient, err := sftp.NewClient(req.client)
 	if err != nil {
-		return fmt.Errorf("failed to create scp client: %v", err)
+		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
-	defer scpClient.Close()
+	defer sftpClient.Close()
 
 	inpFh, err := os.Open(req.localFile)
 	if err != nil {
@@ -222,8 +260,29 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 	}
 	log.Printf("[DEBUG] file mode for %s: %s", req.localFile, fmt.Sprintf("%04o", inpFi.Mode().Perm()))
 
-	if err = scpClient.CopyFromFile(ctx, *inpFh, req.remoteFile, fmt.Sprintf("%04o", inpFi.Mode().Perm())); err != nil {
-		return fmt.Errorf("failed to copy file: %v", err)
+	remoteFh, err := sftpClient.Create(req.remoteFile)
+	if err != nil {
+		return fmt.Errorf("failed to create remote file: %v", err)
+	}
+	defer remoteFh.Close() // nolint
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(remoteFh, inpFh)
+		errCh <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("failed to copy file: %v", ctx.Err())
+	case err = <-errCh:
+		if err != nil {
+			return fmt.Errorf("failed to copy file: %v", err)
+		}
+	}
+
+	if err = remoteFh.Chmod(inpFi.Mode().Perm()); err != nil {
+		return fmt.Errorf("failed to set permissions on remote file: %v", err)
 	}
 
 	// set modification time of the uploaded file
@@ -235,10 +294,8 @@ func (ex *Executer) scpUpload(ctx context.Context, req scpReq) error {
 
 	return nil
 }
-
-// scpDownload downloads remote file to local path. Creates remote directory if mkdir is true.
-func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
-	log.Printf("[INFO] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
+func (ex *Executer) sftpDownload(ctx context.Context, req sftpReq) error {
+	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
 
 	if req.mkdir {
@@ -247,11 +304,11 @@ func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
 		}
 	}
 
-	scpClient, err := scp.NewClientBySSH(ex.client)
+	sftpClient, err := sftp.NewClient(req.client)
 	if err != nil {
-		return fmt.Errorf("failed to create scp client: %v", err)
+		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
-	defer scpClient.Close()
+	defer sftpClient.Close()
 
 	outFh, err := os.Create(req.localFile)
 	if err != nil {
@@ -259,9 +316,27 @@ func (ex *Executer) scpDownload(ctx context.Context, req scpReq) error {
 	}
 	defer outFh.Close() // nolint
 
-	if err = scpClient.CopyFromRemote(ctx, outFh, req.remoteFile); err != nil {
-		return fmt.Errorf("failed to copy file: %v", err)
+	remoteFh, err := sftpClient.Open(req.remoteFile)
+	if err != nil {
+		return fmt.Errorf("failed to open remote file: %v", err)
 	}
+	defer remoteFh.Close() // nolint
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := io.Copy(outFh, remoteFh)
+		errCh <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err = <-errCh:
+		if err != nil {
+			return fmt.Errorf("failed to copy file: %v", err)
+		}
+	}
+
 	return outFh.Sync() // nolint
 }
 
@@ -298,45 +373,42 @@ func (ex *Executer) getLocalFilesProperties(dir string) (map[string]fileProperti
 	return fileProps, nil
 }
 
-// getRemoteFilesProperties returns map of file properties for all files in the remote directory.
 func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (map[string]fileProperties, error) {
-	checkDirCmd := fmt.Sprintf("test -d %s", dir) // check if directory exists
-	if _, checkErr := ex.Run(ctx, checkDirCmd); checkErr != nil {
-		return nil, nil
-	}
-
-	// find all files in the directory and get their properties
-	cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s:%%Y' {} \\;", dir) // makes output like: ./file1:1234:1234567890
-	output, err := ex.Run(ctx, cmd)
+	sftpClient, err := sftp.NewClient(ex.client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get remote files properties: %w", err)
+		return nil, fmt.Errorf("failed to create sftp client: %v", err)
 	}
+	defer sftpClient.Close()
 
 	fileProps := make(map[string]fileProperties)
-	for _, line := range output {
-		if line == "" {
-			continue
-		}
-		parts := strings.SplitN(line, ":", 3)
-		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid line format: %s", line)
+
+	walker := sftpClient.Walk(dir)
+
+	for walker.Step() {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
 		}
 
-		fullPath := parts[0]
+		if walker.Err() != nil {
+			if walker.Err().Error() == "file does not exist" {
+				return fileProps, nil
+			}
+			return nil, fmt.Errorf("failed to walk remote directory: %v", walker.Err())
+		}
+
+		fileInfo, fullPath := walker.Stat(), walker.Path()
+		if fileInfo.IsDir() {
+			continue
+		}
+
 		relPath, err := filepath.Rel(dir, fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get relative path for %s: %w", fullPath, err)
 		}
-		size, err := strconv.ParseInt(parts[1], 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse size for %s: %w", fullPath, err)
-		}
-		modTimeUnix, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse modification time for %s: %w", fullPath, err)
-		}
-		modTime := time.Unix(modTimeUnix, 0)
-		fileProps[relPath] = fileProperties{Size: size, Time: modTime, FileName: fullPath}
+
+		fileProps[relPath] = fileProperties{Size: fileInfo.Size(), Time: fileInfo.ModTime(), FileName: fullPath}
 	}
 
 	return fileProps, nil
