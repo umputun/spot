@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-pkgz/syncs"
 
-	"github.com/umputun/simplotask/config"
-	"github.com/umputun/simplotask/remote"
+	"github.com/umputun/simplotask/app/config"
+	"github.com/umputun/simplotask/app/remote"
 )
 
 // Process is a struct that holds the information needed to run a process.

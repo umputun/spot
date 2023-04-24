@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/umputun/simplotask/config"
+	"github.com/umputun/simplotask/app/config"
 )
 
 func Test_sshUserAndKey(t *testing.T) {

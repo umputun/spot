@@ -13,9 +13,9 @@ import (
 	"github.com/go-pkgz/lgr"
 	"github.com/jessevdk/go-flags"
 
-	"github.com/umputun/simplotask/config"
-	"github.com/umputun/simplotask/remote"
-	"github.com/umputun/simplotask/runner"
+	"github.com/umputun/simplotask/app/config"
+	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/runner"
 )
 
 type options struct {
