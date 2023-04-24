@@ -59,7 +59,11 @@ func main() {
 	setupLog(opts.Dbg)
 
 	if err := run(opts); err != nil {
-		log.Panicf("[ERROR] %v", err)
+		if opts.Dbg {
+			log.Panicf("[ERROR] %v", err)
+		}
+		fmt.Printf("failed: %v\n", err)
+		os.Exit(1)
 	}
 }
 
