@@ -109,7 +109,8 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	return nil, fmt.Errorf("task %s not found", name)
 }
 
-// TargetHosts returns target hosts for given target name
+// TargetHosts returns target hosts for given target name.
+// It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
 func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 
 	loadInventoryFile := func(fname string) ([]string, error) {

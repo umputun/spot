@@ -87,6 +87,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		if len(p.Skip) > 0 && contains(p.Skip, cmd.Name) {
 			continue
 		}
+		if cmd.Options.NoAuto && (len(p.Only) == 0 || !contains(p.Only, cmd.Name)) {
+			// skip command if it has NoAuto option and not in Only list
+			continue
+		}
 
 		log.Printf("[INFO] run command %q on host %s", cmd.Name, host)
 		st := time.Now()
