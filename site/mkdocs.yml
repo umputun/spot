@@ -1,12 +1,12 @@
-site_name: Reproxy
-site_url: https://reproxy.io/
+site_name: SimploTask
+site_url: https://simplotask.com/
 site_author: Umputun
 site_description: >-
-  Reproxy is a simple edge HTTP(s) server / reverse proxy supporting various providers (docker, static, file, consul catalog).
+  SimploTask (aka spot) is a powerful and easy-to-use tool for effortless deployment and configuration management.
 
-repo_name: umputun/reproxy
-repo_url: https://github.com/umputun/reproxy
-copyright: Some rights reserved &copy; 2021 - 2022 Umputun
+repo_name: umputun/simplotask
+repo_url: https://github.com/umputun/simplotask
+copyright: Some rights reserved &copy; 2023 Umputun
 
 theme:
   name: material
@@ -16,7 +16,7 @@ theme:
   palette:
     - scheme: slate
       media: "(prefers-color-scheme: dark)"
-      primary: orange
+      primary: blue
   features:
     - navigation.instant
     - toc.follow
@@ -39,7 +39,7 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/umputun
     - icon: fontawesome/brands/docker
-      link: https://hub.docker.com/r/umputun/reproxy/
+      link: https://hub.docker.com/r/umputun/simplotask/
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/umputun
   analytics:
@@ -85,4 +85,4 @@ markdown_extensions:
   - pymdownx.tilde
 
 nav:
-  - Reproxy: index.md
+  - SimploTask: index.md

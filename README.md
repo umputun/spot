@@ -1,8 +1,6 @@
 # SimploTask
 
-SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define
-a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on 
-remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
+SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
 ## Features
 
@@ -96,7 +94,7 @@ SimploTask supports runtime variables that can be used in the playbook file. The
 - `{SPOT_COMMAND}`: The command name.
 - `{SPOT_TASK}`: The task name.
 
-Variables can be used in the following places: `script`, `copy`, `sync`, `delete`, `env`, for example:
+Variables can be used in the following places: `script`, `copy`, `sync`, `delete` and `env`, for example:
 
 ```yml
 tasks:
@@ -145,7 +143,7 @@ In conclusion, SimploTask is a powerful and easy-to-use tool that simplifies the
 
 SimploTask is not intended to be a direct replacement for Ansible. While both tools can be used for deployment and configuration management, there are some key differences between them:
 
-- **Complexity*: Ansible is a more feature-rich and mature tool, offering a wide range of modules and plugins that can automate many different aspects of infrastructure management. SimploTask, on the other hand, is designed to be simple and lightweight, focusing on a few core features to streamline the deployment and configuration process.
+- **Complexity**: Ansible is a more feature-rich and mature tool, offering a wide range of modules and plugins that can automate many different aspects of infrastructure management. SimploTask, on the other hand, is designed to be simple and lightweight, focusing on a few core features to streamline the deployment and configuration process.
 - **Learning Curve**: Due to its simplicity, SimploTask has a lower learning curve compared to Ansible. It's easier to get started with SimploTask, making it more suitable for smaller projects or teams with limited experience in infrastructure automation. Ansible, while more powerful, can be more complex to learn and configure, especially for newcomers. 
 - **Customization**: While both tools offer customization options, Ansible has a more extensive set of built-in modules and plugins that can handle a wide range of tasks out-of-the-box. SimploTask, in contrast, relies on custom scripts and a limited set of built-in commands for its functionality, which might require more manual configuration and scripting for certain use cases.
 - **Community and Ecosystem**: Ansible has a large and active community, as well as a vast ecosystem of roles, modules, and integrations. This can be beneficial when dealing with common tasks or integrating with third-party systems. SimploTask, being a smaller and simpler tool, doesn't have the same level of community support or ecosystem.

@@ -18,3 +18,4 @@ bin/
 .bin/
 *.gpg
 spot-private.yml
+site/public/

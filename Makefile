@@ -24,4 +24,14 @@ test:
 	go tool cover -func=coverage_no_mocks.out
 	rm coverage.out coverage_no_mocks.out
 
-.PHONY: build release test
+site:
+	@rm -f  site/public/*
+	@docker rm -f spot-site
+	docker build -f Dockerfile.site --progress=plain -t spot.site .
+	docker run -d --name=spot-site spot.site
+	sleep 3
+	docker cp "spot-site":/srv/site/ site/public
+	docker rm -f spot-site
+#	rsync -avz -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --progress ./site/public/ reproxy.io:/srv/www/reproxy.io
+
+.PHONY: build release test site

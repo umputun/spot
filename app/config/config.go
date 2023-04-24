@@ -45,6 +45,7 @@ type Cmd struct {
 	Copy        CopyInternal      `yaml:"copy"`
 	Sync        SyncInternal      `yaml:"sync"`
 	Delete      DeleteInternal    `yaml:"delete"`
+	Wait        WaitInternal      `yaml:"wait"`
 	Script      string            `yaml:"script"`
 	Environment map[string]string `yaml:"env"`
 	Options     struct {
@@ -72,6 +73,13 @@ type SyncInternal struct {
 type DeleteInternal struct {
 	Location  string `yaml:"loc"`
 	Recursive bool   `yaml:"recur"`
+}
+
+// WaitInternal defines wait command, implemented internally
+type WaitInternal struct {
+	Timeout       int    `yaml:"timeout"`
+	CheckDuration int    `yaml:"duration"`
+	Command       string `yaml:"command"`
 }
 
 // Overrides defines override for task passed from cli
