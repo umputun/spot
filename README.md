@@ -87,6 +87,35 @@ tasks:
         env: {FOO: bar, BAR: qux}
 ```
 
+## Runtime variables
+
+SimploTask supports runtime variables that can be used in the playbook file. The following variables are supported:
+
+- `{SPOT_REMOTE_HOST}`: The remote host name or IP address.
+- `{SPOT_REMOTE_USER}`: The remote user name.
+- `{SPOT_COMMAND}`: The command name.
+- `{SPOT_TASK}`: The task name.
+
+Variables can be used in the following places: `script`, `copy`, `sync`, `delete`, `env`, for example:
+
+```yml
+tasks:
+  deploy-things:
+    commands:
+      - name: copy configuration
+        copy: {"src": "{SPOT_REMOTE_HOST}/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
+      - name: sync things
+        sync: {"src": "testdata", "dst": "/tmp/{SPOT_TASK}/things"}
+      - name: some command
+        script: |
+          ls -laR /tmp/${SPOT_COMMAND}
+        env: { FOO: bar, BAR: "{SPOT_COMMAND}-blah" }
+      - name: delete things
+        delete: {"loc": "/tmp/things/{SPOT_REMOTE_USER}", "recur": true}
+
+```
+
+
 ## Getting Started
 
 - Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the Releases page.

@@ -13,6 +13,7 @@ import (
 
 	"github.com/umputun/simplotask/app/config"
 	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/runner/mocks"
 )
 
 func TestProcess_Run(t *testing.T) {
@@ -32,6 +33,93 @@ func TestProcess_Run(t *testing.T) {
 	}
 	_, err = p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
+}
+
+func TestProcess_applyTemplates(t *testing.T) {
+	tests := []struct {
+		name     string
+		inp      string
+		user     string
+		tdata    templateData
+		expected string
+	}{
+		{
+			name: "all_variables",
+			inp:  "${SPOT_REMOTE_HOST}:${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
+			user: "user",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+			},
+			expected: "example.com:user:ls",
+		},
+		{
+			name: "no_variables",
+			inp:  "no_variables_here",
+			user: "user",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+			},
+			expected: "no_variables_here",
+		},
+		{
+			name: "single_dollar_variable",
+			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND",
+			user: "user",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+			},
+			expected: "example.com:user:ls",
+		},
+		{
+			name: "mixed_variables",
+			inp:  "{SPOT_REMOTE_HOST}:$SPOT_REMOTE_USER:${SPOT_COMMAND}:{SPOT_TASK}",
+			user: "user2",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+			},
+			expected: "example.com:user2:ls:task1",
+		},
+		{
+			name: "escaped_variables",
+			inp:  "\\${SPOT_REMOTE_HOST}:\\$SPOT_REMOTE_USER:\\${SPOT_COMMAND}",
+			user: "user",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+			},
+			expected: "\\example.com:\\user:\\ls",
+		},
+		{
+			name: "variables with normal text",
+			inp:  "${SPOT_REMOTE_HOST} blah ${SPOT_TASK} ${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
+			user: "user2",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+			},
+			expected: "example.com blah task1 user2:ls",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &mocks.ConnectorMock{UserFunc: func() string { return tt.user }}
+			p := Process{Connector: c}
+			actual := p.applyTemplates(tt.inp, tt.tdata)
+			require.Equal(t, tt.expected, actual)
+		})
+	}
+
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {

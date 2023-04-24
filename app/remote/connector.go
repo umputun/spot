@@ -27,6 +27,11 @@ func NewConnector(user, privateKey string) (res *Connector, err error) {
 	return res, nil
 }
 
+// User returns user name used to connect to remote host.
+func (c *Connector) User() string {
+	return c.user
+}
+
 // Connect connects to a remote host and returns an Executer, caller must close the Executer.
 func (c *Connector) Connect(ctx context.Context, host string) (*Executer, error) {
 	log.Printf("[DEBUG] connect to %s", host)

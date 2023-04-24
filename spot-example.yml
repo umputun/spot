@@ -21,6 +21,7 @@ tasks:
 
       - name: some command
         script: |
+          echo ${SPOT_REMOTE_HOST}
           ls -laR /tmp
           du -hcs /srv
           cat /tmp/conf.yml

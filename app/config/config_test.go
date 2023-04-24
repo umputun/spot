@@ -34,6 +34,7 @@ func TestPlayBook_Task(t *testing.T) {
 		tsk, err := c.Task("deploy-remark42")
 		require.NoError(t, err)
 		assert.Equal(t, 5, len(tsk.Commands))
+		assert.Equal(t, "deploy-remark42", tsk.Name)
 	})
 }
 

@@ -17,14 +17,22 @@ import (
 	"github.com/umputun/simplotask/app/remote"
 )
 
+//go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
+
 // Process is a struct that holds the information needed to run a process.
 type Process struct {
 	Concurrency int
-	Connector   *remote.Connector
+	Connector   Connector
 	Config      *config.PlayBook
 
 	Skip []string
 	Only []string
+}
+
+// Connector is an interface for connecting to a host, and returning an Executer.
+type Connector interface {
+	Connect(ctx context.Context, host string) (*remote.Executer, error)
+	User() string
 }
 
 // ProcStats holds the information about processed commands and hosts.
@@ -98,29 +106,34 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		switch {
 		case cmd.Script != "":
 			log.Printf("[DEBUG] run script on %s", host)
-			c := cmd.GetScript()
+			c := p.applyTemplates(cmd.GetScript(), templateData{host: host, task: tsk, command: cmd.Name})
 			if _, err := sess.Run(ctx, c); err != nil {
 				return 0, fmt.Errorf("can't run script on %s: %w", host, err)
 			}
-			details = fmt.Sprintf(" {script: %s}", cmd.GetScript())
+			details = fmt.Sprintf(" {script: %s}", c)
 		case cmd.Copy.Source != "" && cmd.Copy.Dest != "":
 			log.Printf("[DEBUG] copy file on %s", host)
-			if err := sess.Upload(ctx, cmd.Copy.Source, cmd.Copy.Dest, cmd.Copy.Mkdir); err != nil {
+			src := p.applyTemplates(cmd.Copy.Source, templateData{host: host, task: tsk, command: cmd.Name})
+			dst := p.applyTemplates(cmd.Copy.Dest, templateData{host: host, task: tsk, command: cmd.Name})
+			if err := sess.Upload(ctx, src, dst, cmd.Copy.Mkdir); err != nil {
 				return 0, fmt.Errorf("can't copy file on %s: %w", host, err)
 			}
-			details = fmt.Sprintf(" {copy: %s -> %s}", cmd.Copy.Source, cmd.Copy.Dest)
+			details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
 		case cmd.Sync.Source != "" && cmd.Sync.Dest != "":
 			log.Printf("[DEBUG] sync files on %s", host)
-			if _, err := sess.Sync(ctx, cmd.Sync.Source, cmd.Sync.Dest, cmd.Sync.Delete); err != nil {
+			src := p.applyTemplates(cmd.Sync.Source, templateData{host: host, task: tsk, command: cmd.Name})
+			dst := p.applyTemplates(cmd.Sync.Dest, templateData{host: host, task: tsk, command: cmd.Name})
+			if _, err := sess.Sync(ctx, src, dst, cmd.Sync.Delete); err != nil {
 				return 0, fmt.Errorf("can't sync files on %s: %w", host, err)
 			}
-			details = fmt.Sprintf(" {sync: %s -> %s}", cmd.Sync.Source, cmd.Sync.Dest)
+			details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
 		case cmd.Delete.Location != "":
 			log.Printf("[DEBUG] delete files on %s", host)
-			if err := sess.Delete(ctx, cmd.Delete.Location, cmd.Delete.Recursive); err != nil {
+			loc := p.applyTemplates(cmd.Delete.Location, templateData{host: host, task: tsk, command: cmd.Name})
+			if err := sess.Delete(ctx, loc, cmd.Delete.Recursive); err != nil {
 				return 0, fmt.Errorf("can't delete files on %s: %w", host, err)
 			}
-			details = fmt.Sprintf(" {delete: %s, recursive: %v}", cmd.Delete.Location, cmd.Delete.Recursive)
+			details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, cmd.Delete.Recursive)
 		}
 		outLine := p.colorize(host)("[%s] %s%s (%v)\n", host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 		_, _ = os.Stdout.WriteString(outLine)
@@ -136,4 +149,28 @@ func (p *Process) colorize(host string) func(format string, a ...interface{}) st
 		color.FgBlue, color.FgYellow, color.FgGreen, color.FgRed}
 	i := crc32.ChecksumIEEE([]byte(host)) % uint32(len(colors))
 	return color.New(colors[i]).SprintfFunc()
+}
+
+type templateData struct {
+	host    string
+	command string
+	task    *config.Task
+}
+
+func (p *Process) applyTemplates(inp string, tdata templateData) string {
+	apply := func(inp, from, to string) string {
+		// replace either {SPOT_REMOTE_HOST} ${SPOT_REMOTE_HOST} or $SPOT_REMOTE_HOST format
+		res := strings.ReplaceAll(inp, fmt.Sprintf("${%s}", from), to)
+		res = strings.ReplaceAll(res, fmt.Sprintf("$%s", from), to)
+		res = strings.ReplaceAll(res, fmt.Sprintf("{%s}", from), to)
+		return res
+	}
+
+	res := inp
+	res = apply(res, "SPOT_REMOTE_HOST", tdata.host)
+	res = apply(res, "SPOT_COMMAND", tdata.command)
+	res = apply(res, "SPOT_REMOTE_USER", p.Connector.User())
+	res = apply(res, "SPOT_TASK", tdata.task.Name)
+
+	return res
 }

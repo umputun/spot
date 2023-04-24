@@ -33,6 +33,7 @@ type Target struct {
 
 // Task defines multiple commands runs together
 type Task struct {
+	Name     string // name of target, set by config caller
 	User     string `yaml:"user"`
 	SSHKey   string `yaml:"ssh_key"`
 	Commands []Cmd  `yaml:"commands"`
@@ -104,6 +105,7 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 // Task returns task by name
 func (p *PlayBook) Task(name string) (*Task, error) {
 	if t, ok := p.Tasks[name]; ok {
+		t.Name = name
 		return &t, nil
 	}
 	return nil, fmt.Errorf("task %s not found", name)
