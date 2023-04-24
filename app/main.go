@@ -7,7 +7,11 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"os/user"
+	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/go-pkgz/lgr"
@@ -20,8 +24,8 @@ import (
 
 type options struct {
 	TaskFile   string `short:"f" long:"file" description:"task file" default:"spt.yml"`
-	TaskName   string `short:"n" long:"name" description:"task name" default:"default"`
-	TargetName string `short:"t" long:"target" description:"target name" default:"default"`
+	TaskName   string `short:"t" long:"task" description:"task name"`
+	TargetName string `short:"d" long:"target" description:"target name" required:"true"`
 	Concurrent int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 
 	// target overrides
@@ -31,13 +35,12 @@ type options struct {
 
 	// connection overrides
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
-	SSHKey  string `short:"k" long:"key" description:"ssh key" default:"~/.ssh/id_rsa"`
+	SSHKey  string `short:"k" long:"key" description:"ssh key"`
 
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `short:"o" long:"only" description:"run only commands"`
 
 	Dbg bool `long:"dbg" description:"debug mode"`
-	Dev bool `long:"dev" description:"development mode"`
 }
 
 var revision = "latest"
@@ -49,11 +52,11 @@ func main() {
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
 		if err.(*flags.Error).Type != flags.ErrHelp {
-			fmt.Printf("%v", err)
+			os.Exit(1)
 		}
-		os.Exit(1)
+		os.Exit(2)
 	}
-	setupLog(opts.Dbg, opts.Dev)
+	setupLog(opts.Dbg)
 
 	if err := run(opts); err != nil {
 		log.Panicf("[ERROR] %v", err)
@@ -61,6 +64,7 @@ func main() {
 }
 
 func run(opts options) error {
+	st := time.Now()
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM) // cancel on SIGINT or SIGTERM
@@ -89,19 +93,37 @@ func run(opts options) error {
 	}
 
 	if opts.TaskName != "" { // run single task
-		return r.Run(ctx, opts.TaskName, opts.TargetName)
+		stats, err := r.Run(ctx, opts.TaskName, opts.TargetName)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("completed: hosts:%d, commands:%d in %v\n",
+			stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
+		return nil
 	}
 
 	// run all tasks
 	for taskName := range conf.Tasks {
-		if err := r.Run(ctx, taskName, opts.TargetName); err != nil {
+		if _, err := r.Run(ctx, taskName, opts.TargetName); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func sshUserAndKey(opts options, conf *config.PlayBook) (user, key string) {
+func sshUserAndKey(opts options, conf *config.PlayBook) (uname, key string) {
+	expandPath := func(path string) (string, error) {
+		if strings.HasPrefix(path, "~") {
+			usr, err := user.Current()
+			if err != nil {
+				return "", err
+			}
+			home := usr.HomeDir
+			return filepath.Join(home, path[1:]), nil
+		}
+		return path, nil
+	}
+
 	sshUser := conf.User // default to global config user
 	if tsk, ok := conf.Tasks[opts.TaskName]; ok && tsk.User != "" {
 		sshUser = tsk.User // override with task config
@@ -114,18 +136,18 @@ func sshUserAndKey(opts options, conf *config.PlayBook) (user, key string) {
 	if opts.SSHKey != "" { // override with command line
 		sshKey = opts.SSHKey
 	}
+
+	if p, err := expandPath(sshKey); err == nil {
+		sshKey = p
+	}
+
 	return sshUser, sshKey
 }
 
-func setupLog(dbg, dev bool) {
+func setupLog(dbg bool) {
 	logOpts := []lgr.Option{lgr.Out(io.Discard), lgr.Err(io.Discard)} // default to discard
 	if dbg {
-		// debug mode shows all messages but no caller/stack trace
 		logOpts = []lgr.Option{lgr.Debug, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
-	}
-	if dev {
-		// dev mode shows all messages with caller/stack trace
-		logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
 	}
 
 	colorizer := lgr.Mapper{

@@ -142,36 +142,56 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return hosts, nil
 	}
 
+	// check if we have overrides for target hosts, this is the highest priority
 	if p.overrides != nil && len(p.overrides.TargetHosts) > 0 {
 		return p.overrides.TargetHosts, nil
 	}
+	// check if we have overrides for inventory file, this is second priority
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
 		return loadInventoryFile(p.overrides.InventoryFile)
 	}
+	// check if we have overrides for inventory http, this is third priority
 	if p.overrides != nil && p.overrides.InventoryHTTP != "" {
 		return loadInventoryHTTP(p.overrides.InventoryHTTP)
 	}
 
+	// no overrides, check if we have target in config
 	t, ok := p.Targets[name]
 	if !ok {
-		// no target, check if it is a host
+		// no target, check if it is a host and if so return it as a single host target
 		if ip := net.ParseIP(name); ip != nil {
+			if !strings.Contains(name, ":") {
+				name += ":22"
+			}
 			return []string{name}, nil // it is a host, sent as ip
 		}
 		if strings.Contains(name, ".") || strings.Contains(name, "localhost") {
+			if !strings.Contains(name, ":") {
+				name += ":22"
+			}
 			return []string{name}, nil // is a valid FQDN
 		}
 		return nil, fmt.Errorf("target %s not found", name)
 	}
 
-	if len(t.Hosts) > 0 { // hosts defined in config, have priority
-		return t.Hosts, nil
+	// target found, check if it has hosts
+	if len(t.Hosts) > 0 {
+		res := make([]string, len(t.Hosts))
+		for i, h := range t.Hosts {
+			if !strings.Contains(h, ":") {
+				h += ":22"
+			}
+			res[i] = h
+		}
+		return res, nil
 	}
 
+	// target has no hosts, check if it has inventory file
 	if t.InventoryFile != "" {
 		return loadInventoryFile(t.InventoryFile)
 	}
 
+	// target has no hosts, check if it has inventory http
 	if t.InventoryHTTP != "" {
 		return loadInventoryHTTP(t.InventoryHTTP)
 	}
@@ -188,6 +208,9 @@ func (p *PlayBook) parseInventory(r io.Reader) (res []string, err error) {
 	for _, line := range lines {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
+		}
+		if !strings.Contains(line, ":") {
+			line += ":22"
 		}
 		res = append(res, line)
 	}

@@ -30,7 +30,7 @@ func TestProcess_Run(t *testing.T) {
 		Connector:   connector,
 		Config:      conf,
 	}
-	err = p.Run(ctx, "task1", hostAndPort)
+	_, err = p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
 }
 

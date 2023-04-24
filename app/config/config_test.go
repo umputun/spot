@@ -77,11 +77,11 @@ func TestPlayBook_TargetHosts(t *testing.T) {
 			name: "existing target",
 			targets: map[string]Target{
 				"web": {
-					Hosts: []string{"10.0.0.1", "10.0.0.2"},
+					Hosts: []string{"10.0.0.1", "10.0.0.2:2222"},
 				},
 			},
 			input:         "web",
-			expectedHosts: []string{"10.0.0.1", "10.0.0.2"},
+			expectedHosts: []string{"10.0.0.1:22", "10.0.0.2:2222"},
 			expectedError: nil,
 		},
 		{
@@ -92,7 +92,18 @@ func TestPlayBook_TargetHosts(t *testing.T) {
 				},
 			},
 			input:         "192.168.1.1",
-			expectedHosts: []string{"192.168.1.1"},
+			expectedHosts: []string{"192.168.1.1:22"},
+			expectedError: nil,
+		},
+		{
+			name: "host IP with port",
+			targets: map[string]Target{
+				"web": {
+					Hosts: []string{"10.0.0.1", "10.0.0.2:2222"},
+				},
+			},
+			input:         "192.168.1.1:2222",
+			expectedHosts: []string{"192.168.1.1:2222"},
 			expectedError: nil,
 		},
 		{
@@ -103,7 +114,7 @@ func TestPlayBook_TargetHosts(t *testing.T) {
 				},
 			},
 			input:         "www.example.com",
-			expectedHosts: []string{"www.example.com"},
+			expectedHosts: []string{"www.example.com:22"},
 			expectedError: nil,
 		},
 		{
@@ -155,12 +166,12 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 		require.NoError(t, err)
 		res, err := c.TargetHosts("blah")
 		require.NoError(t, err)
-		assert.Equal(t, []string{"hh1.example.com", "h2.example.com"}, res)
+		assert.Equal(t, []string{"hh1.example.com:22", "h2.example.com:2233"}, res)
 	})
 
 	t.Run("override hosts with http", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := w.Write([]byte("h1.example.com\nh2.example.com"))
+			_, err := w.Write([]byte("h1.example.com:2223\nh2.example.com"))
 			require.NoError(t, err)
 		}))
 		defer ts.Close()
@@ -168,6 +179,6 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 		require.NoError(t, err)
 		res, err := c.TargetHosts("blah")
 		require.NoError(t, err)
-		assert.Equal(t, []string{"h1.example.com", "h2.example.com"}, res)
+		assert.Equal(t, []string{"h1.example.com:2223", "h2.example.com:22"}, res)
 	})
 }
