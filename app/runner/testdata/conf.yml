@@ -26,7 +26,7 @@ tasks:
           echo all good, 123
 
       - name: delete things
-        delete: {"loc": "/tmp/things", "recur": true}
+        delete: {"path": "/tmp/things", "recur": true}
 
       - name: show content
         script: ls -laR /tmp

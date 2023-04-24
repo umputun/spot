@@ -1,3 +1,6 @@
+user: app
+ssh_key: ~/.ssh/id_rsa
+
 targets:
   prod:
     hosts: ["h1.example.com", "h2.example.com"]
@@ -28,7 +31,7 @@ tasks:
           echo all good, 123
 
       - name: delete things
-        delete: {"loc": "/tmp/things", "recur": true}
+        delete: {"path": "/tmp/things", "recur": true}
 
       - name: show content
         script: ls -laR /tmp

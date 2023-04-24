@@ -72,7 +72,7 @@ type SyncInternal struct {
 
 // DeleteInternal defines delete command, implemented internally
 type DeleteInternal struct {
-	Location  string `yaml:"loc"`
+	Location  string `yaml:"path"`
 	Recursive bool   `yaml:"recur"`
 }
 

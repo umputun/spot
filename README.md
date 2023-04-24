@@ -23,8 +23,8 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 ## Getting Started
 
 - Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the [Releases]() page.
-- Create a configuration file, as shown in the example above, and save it as config.yml.
--  Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
+- Create a configuration file, as shown in the example below, and save it as `spot.yml`.
+- Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
 - To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
 - To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
 
@@ -36,27 +36,29 @@ SimploTask supports the following command-line options:
   variable `$SPOT_FILE` to define the playbook file path.
 - `t`, `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
   If not specified all the tasks will be executed.
-- `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. User can pass a host name or IP instead of the target name for a quick override. If not specified the default target will be used.
-- `-c`, `--concurrent=`: Sets the number of concurrent tasks to execute. Defaults to 1, which means tasks will be executed sequentially.
+- `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. User can pass a host name or IP instead of the target name for a quick override. If not specified the `default` target will be used.
+- `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
   `-h, --host=`: Specifies the destination host(s) for the task execution. Overrides the host(s) defined in the playbook file
   for the specified target. Provide the `-h` flag multiple times with different hosts names or ips to set multiple destination hosts,
   e.g., `-h example1.com -h example2.com`
-- `--inventory-fil=`: Specifies the inventory file to use for the task execution. Overrides the inventory file defined in the
-  playbook file for the specified target.
+- `--inventory-file=`: Specifies the inventory file to use for the task execution. Overrides the inventory file defined in the
+  playbook file.
 - `--inventory-url=`: Specifies the inventory HTTP URL to use for the task execution. Overrides the inventory URL defined in the
-  playbook file for the specified target.
-- `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file
-  for the specified task.
-- `-k`, `--key=`: Specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file
-  for the specified task.
-- `-s`, `--skip=`: Skips the specified commands during the task execution. Provide a comma-separated list of command names to skip.
-- `-o`, `--only=`: Runs only the specified commands during the task execution. Provide a comma-separated list of command names to execute.
+  playbook file.
+- `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
+- `-k`, `--key=`: Specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file.
+- `-s`, `--skip=`: Skips the specified commands during the task execution. Provide the `-s` flag multiple times with different command names to skip multiple commands.
+- `-o`, `--only=`: Runs only the specified commands during the task execution. Provide the `-o` flag multiple times with different command names to run only multiple commands.
 - `--dbg`: Enables debug mode, providing more detailed output and error messages during the task execution.
 - `-h`, `--help`: Displays the help message, listing all available command-line options.
 
-## Example Playbook
+## Example playbook
 
 ```yml
+user: umputun
+ssh_key: keys/id_rsa
+
+# list of targets, i.e. hosts, inventory files or inventory URLs
 targets:
   prod:
     hosts: ["h1.example.com", "h2.example.com"]
@@ -65,6 +67,7 @@ targets:
   dev:
     inventory_url: "http://localhost:8080/inventory"
 
+# list of tasks, i.e. commands to execute
 tasks:
   deploy-things:
     on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
@@ -86,7 +89,7 @@ tasks:
           echo all good, 123
       
       - name: delete things
-        delete: {"loc": "/tmp/things", "recur": true}
+        delete: {"path": "/tmp/things", "recur": true}
       
       - name: show content
         script: ls -laR /tmp
@@ -99,7 +102,7 @@ tasks:
           docker stop remark42 || true
           docker rm remark42 || true
           docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
-        env: {FOO: bar, BAR: qux}
+        env: {FOO: bar, BAR: qux} # set environment variables for the command
       - wait: {cmd: "curl -s localhost:8080/health", timeout: "10s", interval: "1s"} # wait for health check to pass
 ```
 
@@ -108,8 +111,8 @@ tasks:
 Each task consists of a list of commands that will be executed on the remote host(s). The task can also define the following optional fields:
 
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
-- `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file for the specified task.
-- `ssh_key`: specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file for the specified task.
+- `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
+- `ssh_key`: specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the top section of playbook file for the specified task.
 
 
 ## Command Types
@@ -117,9 +120,9 @@ Each task consists of a list of commands that will be executed on the remote hos
 SimploTask supports the following command types:
 
 - `script`: can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
-- `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`
+- `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash.
 - `sync`: syncs directory from the local machine to the remote host(s). Optionally supports deleting files on the remote host(s) that don't exist locally. Example: `sync: {"src": "testdata", "dst": "/tmp/things", "delete": true}`
-- `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"loc": "/tmp/things", "recur": true}`
+- `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"path": "/tmp/things", "recur": true}`
 - `wait`: waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when you need to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval. Example: `wait: {"cmd": "curl -s --fail localhost:8080", "timeout": "30s", "interval": "1s"}`
 
 ## Targets
