@@ -15,4 +15,5 @@
 # vendor/
 
 bin/
+.bin/
 *.gpg

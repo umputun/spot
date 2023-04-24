@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -204,6 +205,7 @@ func (cmd *Cmd) GetScript() string {
 	for k, v := range cmd.Environment {
 		envs = append(envs, fmt.Sprintf("%s=%s", k, v))
 	}
+	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 
 	res := "sh -c \""
 	if len(envs) > 0 {

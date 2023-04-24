@@ -77,7 +77,7 @@ func run(ctx context.Context, opts options) error {
 		return fmt.Errorf("can't read config: %w", err)
 	}
 
-	connector, err := remote.NewConnector("user", "key")
+	connector, err := remote.NewConnector(sshUserAndKey(opts, conf))
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
@@ -89,6 +89,22 @@ func run(ctx context.Context, opts options) error {
 		Skip:        opts.Skip,
 	}
 	return r.Run(ctx, opts.TaskName, opts.TargetName)
+}
+
+func sshUserAndKey(opts options, conf *config.PlayBook) (user, key string) {
+	sshUser := conf.User // default to global config user
+	if tsk, ok := conf.Tasks[opts.TaskName]; ok && tsk.User != "" {
+		sshUser = tsk.User // override with task config
+	}
+	if opts.SSHUser != "" { // override with command line
+		sshUser = opts.SSHUser
+	}
+
+	sshKey := conf.SSHKey  // default to global config key
+	if opts.SSHKey != "" { // override with command line
+		sshKey = opts.SSHKey
+	}
+	return sshUser, sshKey
 }
 
 func setupLog(dbg, dev bool) {

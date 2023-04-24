@@ -7,7 +7,7 @@ REV=$(GITREV)-$(BRANCH)-$(shell date +%Y%m%d-%H:%M:%S)
 all: test build
 
 build:
-	go build -o bin/spt -ldflags "-X main.revision=$(REV) -s -w" -o ./bin/spt.$(BRANCH)
+	cd app && go build -o bin/spt -ldflags "-X main.revision=$(REV) -s -w" -o ./bin/spt.$(BRANCH)
 
 release:
 	- @mkdir -p bin
@@ -18,7 +18,7 @@ release:
 	docker rm -f spt.bin
 
 test:
-	go clean -testcache
-	go test ./...
+	cd app && go clean -testcache
+	cd app && go test ./...
 
 .PHONY: build release test

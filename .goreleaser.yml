@@ -19,7 +19,7 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    dir: .
+    dir: app
     ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
 
 archives:
