@@ -17,4 +17,4 @@
 bin/
 .bin/
 *.gpg
-spt-private.yml
+spot-private.yml

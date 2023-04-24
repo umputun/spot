@@ -6,8 +6,9 @@ ADD . /build
 RUN apk add -u gnupg
 
 RUN \
+    ls -la && \
     export GNUPGHOME="$PWD/releaser-gpg" && export GNUPGHOME && mkdir -p "$GNUPGHOME" && chmod 0700 "$GNUPGHOME" && \
-    cat spt.signing-key.gpg | gpg --batch --allow-secret-key-import --import && \
+    cat /build/spot.signing-key.gpg | gpg --batch --allow-secret-key-import --import && \
     goreleaser --snapshot --skip-publish --rm-dist
 
 FROM alpine

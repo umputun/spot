@@ -1,6 +1,6 @@
 # SimploTask
 
-SimploTask (spt) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define
+SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define
 a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on 
 remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
@@ -23,8 +23,8 @@ remote hosts concurrently. SimploTask supports running scripts, copying files, s
 
 SimploTask supports the following command-line options:
 
-- `-f`, `--file=`: Specifies the playbook file to be used. Defaults to spt.yml. You can also set the environment
-  variable $SPT_FILE to define the playbook file path.
+- `-f`, `--file=`: Specifies the playbook file to be used. Defaults to spot.yml. You can also set the environment
+  variable $SPOT_FILE to define the playbook file path.
 - `t`, `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
   If not specified all the tasks will be executed.
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. User can pass a host name or IP instead of the target name for a quick override. If not specified the default target will be used.
@@ -91,9 +91,9 @@ tasks:
 
 - Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the Releases page.
 - Create a configuration file, as shown in the example above, and save it as config.yml.
--  Run SimploTask using the following command: `spt`. This will execute all the tasks defined in the default `spt.yml` file for the `default` target with a concurrency of 1.
-- To execute a specific task, use the `-t` flag: `spt -t deploy-things`. This will execute only the `deploy-things` task.
-- To execute a specific task for a specific target, use the `-t` and `-d` flags: `spt -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
+-  Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
+- To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
+- To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
 
 
 ## Why SimploTask?

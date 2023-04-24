@@ -1,7 +1,7 @@
 signs:
   - artifacts: checksum
 
-project_name: spt
+project_name: spot
 
 builds:
   - env:
