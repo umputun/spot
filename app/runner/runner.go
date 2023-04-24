@@ -72,7 +72,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 
 	// execute on-error command if any error occurred during task execution and on-error command is defined
 	if err != nil && tsk.OnError != "" {
-		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError)
+		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
 		onErrCmd.Stdout = os.Stdout
 		onErrCmd.Stderr = os.Stderr
