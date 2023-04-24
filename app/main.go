@@ -53,9 +53,14 @@ func main() {
 		}
 		os.Exit(1)
 	}
-
 	setupLog(opts.Dbg, opts.Dev)
 
+	if err := run(opts); err != nil {
+		log.Panicf("[ERROR] %v", err)
+	}
+}
+
+func run(opts options) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM) // cancel on SIGINT or SIGTERM
@@ -65,12 +70,6 @@ func main() {
 		cancel()
 	}()
 
-	if err := run(ctx, opts); err != nil {
-		log.Panicf("[ERROR] %v", err)
-	}
-}
-
-func run(ctx context.Context, opts options) error {
 	conf, err := config.New(opts.TaskFile,
 		&config.Overrides{TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHTTP: opts.InventoryHTTP})
 	if err != nil {

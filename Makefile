@@ -19,6 +19,9 @@ release:
 
 test:
 	cd app && go clean -testcache
-	cd app && go test ./...
+	cd app && go test -race -coverprofile=../coverage.out ./...
+	grep -v "_mock.go" coverage.out | grep -v mocks > coverage_no_mocks.out
+	go tool cover -func=coverage_no_mocks.out
+	rm coverage.out coverage_no_mocks.out
 
 .PHONY: build release test
