@@ -23,20 +23,21 @@ import (
 )
 
 type options struct {
-	TaskFile   string `short:"f" long:"file" description:"task file" default:"spt.yml"`
-	TaskName   string `short:"t" long:"task" description:"task name"`
-	TargetName string `short:"d" long:"target" description:"target name" required:"true"`
-	Concurrent int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
+	PlaybookFile string `short:"f" long:"file" env:"SPT_FILE" description:"playbook file" default:"spt.yml"`
+	TaskName     string `short:"t" long:"task" description:"task name"`
+	TargetName   string `short:"d" long:"target" description:"target name" required:"true"`
+	Concurrent   int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 
 	// target overrides
 	TargetHosts   []string `short:"h" long:"host" description:"destination host"`
-	InventoryFile string   `short:"i" long:"inventory" description:"inventory file"`
-	InventoryHTTP string   `short:"H" long:"inventory-http" description:"inventory http url"`
+	InventoryFile string   `long:"inventory-file" description:"inventory file"`
+	InventoryURL  string   `long:"inventory-url" description:"inventory http url"`
 
 	// connection overrides
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
 	SSHKey  string `short:"k" long:"key" description:"ssh key"`
 
+	// commands filter
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `short:"o" long:"only" description:"run only commands"`
 
@@ -78,8 +79,8 @@ func run(opts options) error {
 		cancel()
 	}()
 
-	conf, err := config.New(opts.TaskFile, &config.Overrides{
-		TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHTTP: opts.InventoryHTTP})
+	conf, err := config.New(opts.PlaybookFile, &config.Overrides{
+		TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryURL: opts.InventoryURL})
 	if err != nil {
 		return fmt.Errorf("can't read config: %w", err)
 	}

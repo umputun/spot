@@ -21,12 +21,12 @@ func Test_run(t *testing.T) {
 	defer teardown()
 
 	opts := options{
-		SSHUser:    "test",
-		SSHKey:     "runner/testdata/test_ssh_key",
-		TaskFile:   "runner/testdata/conf.yml",
-		TaskName:   "task1",
-		TargetName: hostAndPort,
-		Only:       []string{"wait"},
+		SSHUser:      "test",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf.yml",
+		TaskName:     "task1",
+		TargetName:   hostAndPort,
+		Only:         []string{"wait"},
 	}
 
 	go func() {

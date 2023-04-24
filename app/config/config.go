@@ -28,7 +28,7 @@ type PlayBook struct {
 type Target struct {
 	Hosts         []string `yaml:"hosts"`
 	InventoryFile string   `yaml:"inventory_file"`
-	InventoryHTTP string   `yaml:"inventory_http"`
+	InventoryURL  string   `yaml:"inventory_url"`
 }
 
 // Task defines multiple commands runs together
@@ -77,7 +77,7 @@ type DeleteInternal struct {
 type Overrides struct {
 	TargetHosts   []string
 	InventoryFile string
-	InventoryHTTP string
+	InventoryURL  string
 }
 
 // New makes new config from yml
@@ -125,7 +125,7 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return hosts, nil
 	}
 
-	loadInventoryHTTP := func(url string) ([]string, error) {
+	loadInventoryURL := func(url string) ([]string, error) {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
@@ -151,8 +151,8 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return loadInventoryFile(p.overrides.InventoryFile)
 	}
 	// check if we have overrides for inventory http, this is third priority
-	if p.overrides != nil && p.overrides.InventoryHTTP != "" {
-		return loadInventoryHTTP(p.overrides.InventoryHTTP)
+	if p.overrides != nil && p.overrides.InventoryURL != "" {
+		return loadInventoryURL(p.overrides.InventoryURL)
 	}
 
 	// no overrides, check if we have target in config
@@ -192,8 +192,8 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 	}
 
 	// target has no hosts, check if it has inventory http
-	if t.InventoryHTTP != "" {
-		return loadInventoryHTTP(t.InventoryHTTP)
+	if t.InventoryURL != "" {
+		return loadInventoryURL(t.InventoryURL)
 	}
 
 	return t.Hosts, nil

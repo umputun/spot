@@ -3,7 +3,8 @@ targets:
     hosts: ["h1.example.com", "h2.example.com"]
   staging:
     inventory_file: "testdata/inventory"
-
+  dev:
+    inventory_url: "http://localhost:8080/inventory"
 
 tasks:
 
@@ -39,6 +40,4 @@ tasks:
           docker stop remark42 || true
           docker rm remark42 || true
           docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
-        env:
-          FOO: bar
-          BAR: qux
+        env: {FOO: bar, BAR: qux}

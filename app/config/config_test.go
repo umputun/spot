@@ -175,7 +175,7 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 			require.NoError(t, err)
 		}))
 		defer ts.Close()
-		c, err := New("testdata/f1.yml", &Overrides{InventoryHTTP: ts.URL})
+		c, err := New("testdata/f1.yml", &Overrides{InventoryURL: ts.URL})
 		require.NoError(t, err)
 		res, err := c.TargetHosts("blah")
 		require.NoError(t, err)
