@@ -2,6 +2,7 @@
 
 SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
+
 ## Features
 
 - Define tasks with a list of commands.
@@ -18,6 +19,14 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 - Debug mode to print out the commands to be executed, output of the commands, and all the other details.
 - A single binary with no dependencies.
 
+
+## Getting Started
+
+- Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the [Releases]() page.
+- Create a configuration file, as shown in the example above, and save it as config.yml.
+-  Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
+- To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
+- To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
 
 ## Options
 
@@ -163,16 +172,6 @@ tasks:
         delete: {"loc": "/tmp/things/{SPOT_REMOTE_USER}", "recur": true}
 
 ```
-
-
-## Getting Started
-
-- Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the [Releases]() page.
-- Create a configuration file, as shown in the example above, and save it as config.yml.
--  Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
-- To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
-- To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
-
 
 ## Why SimploTask?
 
