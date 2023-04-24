@@ -10,10 +10,12 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 - Run scripts on remote hosts.
 - Built-in commands: copy, sync, and delete.
 - Concurrent execution of task on multiple hosts.
+- Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
 - Ability to override list of destination hosts, ssh username and ssh key file.
 - Skip or execute only specific commands.
-- Debug mode to print out the commands to be executed, output of the commands, and all the errors.
+- Catch errors and execute a command hook on the local host.
+- Debug mode to print out the commands to be executed, output of the commands, and all the other details.
 - A single binary with no dependencies.
 
 
@@ -21,8 +23,8 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 
 SimploTask supports the following command-line options:
 
-- `-f`, `--file=`: Specifies the playbook file to be used. Defaults to spot.yml. You can also set the environment
-  variable $SPOT_FILE to define the playbook file path.
+- `-f`, `--file=`: Specifies the playbook file to be used. Defaults to `spot.yml`. You can also set the environment
+  variable `$SPOT_FILE` to define the playbook file path.
 - `t`, `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
   If not specified all the tasks will be executed.
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. User can pass a host name or IP instead of the target name for a quick override. If not specified the default target will be used.
@@ -56,21 +58,27 @@ targets:
 
 tasks:
   deploy-things:
+    on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
     commands:
       - name: wait
         script: sleep 5s
+      
       - name: copy configuration
         copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
+      
       - name: sync things
         sync: {"src": "testdata", "dst": "/tmp/things"}
+      
       - name: some command
         script: |
           ls -laR /tmp
           du -hcs /srv
           cat /tmp/conf.yml
           echo all good, 123
+      
       - name: delete things
         delete: {"loc": "/tmp/things", "recur": true}
+      
       - name: show content
         script: ls -laR /tmp
 
@@ -83,11 +91,21 @@ tasks:
           docker rm remark42 || true
           docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
         env: {FOO: bar, BAR: qux}
+      - wait: {cmd: "curl -s localhost:8080/health", timeout: "10s", interval: "1s"} # wait for health check to pass
 ```
+
+## Task details
+
+Each task consists of a list of commands that will be executed on the remote host(s). The task can also define the following optional fields:
+
+- `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
+- `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file for the specified task.
+- `ssh_key`: specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file for the specified task.
+
 
 ## Command Types
 
-Simplotask supports the following command types:
+SimploTask supports the following command types:
 
 - `script`: can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
 - `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`
@@ -95,17 +113,39 @@ Simplotask supports the following command types:
 - `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"loc": "/tmp/things", "recur": true}`
 - `wait`: waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when you need to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval. Example: `wait: {"cmd": "curl -s --fail localhost:8080", "timeout": "30s", "interval": "1s"}`
 
+## Targets
+
+Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
+
+- `hosts`: a list of host names or IP addresses to execute the tasks on. Example: `hosts: ["h1.example.com", "h2.example.com"]`
+- `inventory_file`: a path to the inventory file to use. Example: `inventory_file: "testdata/inventory"`. The file contains a list of host names or IP addresses, one per line.
+- `inventory_url`: a URL to the inventory file to use. Example: `inventory_url: "http://localhost:8080/inventory"`. The response contains a list of host names or IP addresses, one per line.
+
+_note: if host has no port specified, port 22 will be used._
+
+Targets contains environments each of which represents a set of hosts, for example:
+
+```yml
+targets:
+  prod:
+    hosts: ["h1.example.com", "h2.example.com"]
+  staging:
+    inventory_file: "testdata/inventory"
+  dev:
+    inventory_url: "http://localhost:8080/inventory"
+```
 
 ## Runtime variables
 
 SimploTask supports runtime variables that can be used in the playbook file. The following variables are supported:
 
 - `{SPOT_REMOTE_HOST}`: The remote host name or IP address.
-- `{SPOT_REMOTE_USER}`: The remote user name.
+- `{SPOT_REMOTE_USER}`: The remote username.
 - `{SPOT_COMMAND}`: The command name.
 - `{SPOT_TASK}`: The task name.
+- `{SPOT_ERROR}`: The error message, if any.
 
-Variables can be used in the following places: `script`, `copy`, `sync`, `delete` and `env`, for example:
+Variables can be used in the following places: `script`, `copy`, `sync`, `delete`, `wait` and `env`, for example:
 
 ```yml
 tasks:
@@ -127,7 +167,7 @@ tasks:
 
 ## Getting Started
 
-- Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the Releases page.
+- Install SimploTask by running `go install github.com/umputun/simplotask` or download the latest release from the [Releases]() page.
 - Create a configuration file, as shown in the example above, and save it as config.yml.
 -  Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
 - To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.

@@ -6,6 +6,7 @@ import (
 	"hash/crc32"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -68,6 +69,18 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 		})
 	}
 	err = wg.Wait()
+
+	// execute on-error command if any error occurred during task execution and on-error command is defined
+	if err != nil && tsk.OnError != "" {
+		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError)
+		onErrCmd.Env = os.Environ()
+		onErrCmd.Stdout = os.Stdout
+		onErrCmd.Stderr = os.Stderr
+		if exErr := onErrCmd.Run(); exErr != nil {
+			log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
+		}
+	}
+
 	return ProcStats{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands))}, err
 }
 
@@ -192,6 +205,7 @@ type templateData struct {
 	host    string
 	command string
 	task    *config.Task
+	err     error
 }
 
 func (p *Process) applyTemplates(inp string, tdata templateData) string {
@@ -208,6 +222,11 @@ func (p *Process) applyTemplates(inp string, tdata templateData) string {
 	res = apply(res, "SPOT_COMMAND", tdata.command)
 	res = apply(res, "SPOT_REMOTE_USER", p.Connector.User())
 	res = apply(res, "SPOT_TASK", tdata.task.Name)
+	if tdata.err != nil {
+		res = apply(res, "SPOT_ERROR", tdata.err.Error())
+	} else {
+		res = apply(res, "SPOT_ERROR", "")
+	}
 
 	return res
 }

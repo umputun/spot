@@ -109,6 +109,30 @@ func TestProcess_applyTemplates(t *testing.T) {
 			},
 			expected: "example.com blah task1 user2:ls",
 		},
+		{
+			name: "with error msg",
+			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
+			user: "user",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+				err:     fmt.Errorf("some error"),
+			},
+			expected: "example.com:user:ls some error",
+		},
+		{
+			name: "with error msg but no error",
+			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
+			user: "user",
+			tdata: templateData{
+				host:    "example.com",
+				command: "ls",
+				task:    &config.Task{Name: "task1"},
+				err:     nil,
+			},
+			expected: "example.com:user:ls ",
+		},
 	}
 
 	for _, tt := range tests {

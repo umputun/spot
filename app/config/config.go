@@ -37,6 +37,7 @@ type Task struct {
 	User     string `yaml:"user"`
 	SSHKey   string `yaml:"ssh_key"`
 	Commands []Cmd  `yaml:"commands"`
+	OnError  string `yaml:"on_error"`
 }
 
 // Cmd defines a single command
