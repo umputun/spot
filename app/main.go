@@ -70,8 +70,8 @@ func run(opts options) error {
 		cancel()
 	}()
 
-	conf, err := config.New(opts.TaskFile,
-		&config.Overrides{TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHTTP: opts.InventoryHTTP})
+	conf, err := config.New(opts.TaskFile, &config.Overrides{
+		TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryHTTP: opts.InventoryHTTP})
 	if err != nil {
 		return fmt.Errorf("can't read config: %w", err)
 	}
@@ -87,7 +87,18 @@ func run(opts options) error {
 		Only:        opts.Only,
 		Skip:        opts.Skip,
 	}
-	return r.Run(ctx, opts.TaskName, opts.TargetName)
+
+	if opts.TaskName != "" { // run single task
+		return r.Run(ctx, opts.TaskName, opts.TargetName)
+	}
+
+	// run all tasks
+	for taskName := range conf.Tasks {
+		if err := r.Run(ctx, taskName, opts.TargetName); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func sshUserAndKey(opts options, conf *config.PlayBook) (user, key string) {
