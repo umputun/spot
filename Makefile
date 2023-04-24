@@ -32,6 +32,6 @@ site:
 	sleep 3
 	docker cp "spot-site":/srv/site/ site/public
 	docker rm -f spot-site
-#	rsync -avz -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --progress ./site/public/ reproxy.io:/srv/www/reproxy.io
+#	rsync -avz -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --progress ./site/public/ simplotask.com:/srv/www/simplotask.com
 
 .PHONY: build release test site

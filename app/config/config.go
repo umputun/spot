@@ -77,9 +77,9 @@ type DeleteInternal struct {
 
 // WaitInternal defines wait command, implemented internally
 type WaitInternal struct {
-	Timeout       int    `yaml:"timeout"`
-	CheckDuration int    `yaml:"duration"`
-	Command       string `yaml:"command"`
+	Timeout       time.Duration `yaml:"timeout"`
+	CheckDuration time.Duration `yaml:"interval"`
+	Command       string        `yaml:"cmd"`
 }
 
 // Overrides defines override for task passed from cli

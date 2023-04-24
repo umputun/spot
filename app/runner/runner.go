@@ -134,13 +134,50 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 				return 0, fmt.Errorf("can't delete files on %s: %w", host, err)
 			}
 			details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, cmd.Delete.Recursive)
+		case cmd.Wait.Command != "":
+			log.Printf("[DEBUG] wait for command on %s", host)
+			c := p.applyTemplates(cmd.Wait.Command, templateData{host: host, task: tsk, command: cmd.Name})
+			params := config.WaitInternal{Command: c, Timeout: cmd.Wait.Timeout, CheckDuration: cmd.Wait.CheckDuration}
+			if err := p.wait(ctx, sess, params); err != nil {
+				return 0, fmt.Errorf("wait failed on %s: %w", host, err)
+			}
+			details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
+				c, cmd.Wait.Timeout.Truncate(100*time.Millisecond), cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
 		}
+
 		outLine := p.colorize(host)("[%s] %s%s (%v)\n", host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 		_, _ = os.Stdout.WriteString(outLine)
 		count++
 	}
 
 	return count, nil
+}
+
+func (p *Process) wait(ctx context.Context, sess *remote.Executer, params config.WaitInternal) error {
+	if params.Timeout == 0 {
+		return nil
+	}
+	duration := params.CheckDuration
+	if params.CheckDuration == 0 {
+		duration = 5 * time.Second // default check duration if not set
+	}
+	checkTk := time.NewTicker(duration)
+	defer checkTk.Stop()
+	timeoutTk := time.NewTicker(params.Timeout)
+	defer timeoutTk.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeoutTk.C:
+			return fmt.Errorf("timeout exceeded")
+		case <-checkTk.C:
+			if _, err := sess.Run(ctx, params.Command); err == nil {
+				return nil
+			}
+		}
+	}
 }
 
 func (p *Process) colorize(host string) func(format string, a ...interface{}) string {

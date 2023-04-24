@@ -119,7 +119,41 @@ func TestProcess_applyTemplates(t *testing.T) {
 			require.Equal(t, tt.expected, actual)
 		})
 	}
+}
 
+func TestProcess_waitPassed(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	sess, err := connector.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+
+	p := Process{Connector: connector}
+	time.AfterFunc(time.Second, func() {
+		_, _ = sess.Run(ctx, "touch /tmp/wait.done")
+	})
+	err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+		Command: "cat /tmp/wait.done"})
+	require.NoError(t, err)
+}
+
+func TestProcess_waitFailed(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	sess, err := connector.Connect(ctx, hostAndPort)
+	require.NoError(t, err)
+
+	p := Process{Connector: connector}
+	err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+		Command: "cat /tmp/wait.done"})
+	require.EqualError(t, err, "timeout exceeded")
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
