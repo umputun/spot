@@ -1,4 +1,4 @@
-# SimploTask
+# SimploTask - SPOT
 
 SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
@@ -21,7 +21,13 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 - Catch errors and execute a command hook on the local host.
 - Debug mode to print out the commands to be executed, output of the commands, and all the other details.
 - A single binary with no dependencies.
+----
 
+<div align="center">
+
+[![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)&nbsp;[![Docker Hub](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/umputun/simplotask)
+
+</div>
 
 ## Getting Started
 
