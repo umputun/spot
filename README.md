@@ -200,7 +200,7 @@ Below are some of the reasons why you should consider using SimploTask:
 In conclusion, SimploTask is a powerful and easy-to-use tool that simplifies the process of deployment and configuration management while offering the flexibility and extensibility needed to cater to various use cases. If you value simplicity, efficiency, and a customizable experience, SimploTask is a great choice for your infrastructure management needs.
 
 
-## Is it replacing Ansible?
+### Is it replacing Ansible?
 
 SimploTask is not intended to be a direct replacement for Ansible. While both tools can be used for deployment and configuration management, there are some key differences between them:
 
