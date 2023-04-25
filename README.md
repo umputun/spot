@@ -210,6 +210,10 @@ SimploTask can be a good choice if you're looking for a lightweight, simple, and
 The simplicity of SimploTask's single binary distribution and lack of dependencies make it an attractive choice for teams who want a lightweight, easy-to-install, and low-maintenance solution for deployment and configuration management. While Ansible offers more advanced features and a comprehensive ecosystem, its dependency on Python and additional libraries can be a hurdle for some users, particularly in environments with strict control over software installations or limited resources.
 
 
+## Status
+
+The project is currently in active development, and breaking changes may occur until the release of version 1.0. However, we strive to minimize disruptions and will only introduce breaking changes when there is a compelling reason to do so.
+
 ## Contributing
 
 Please feel free to submit issues, fork the repository, and send pull requests.
