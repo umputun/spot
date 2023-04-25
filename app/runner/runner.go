@@ -21,6 +21,7 @@ import (
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
 
 // Process is a struct that holds the information needed to run a process.
+// It responsible for running a task on a target hosts.
 type Process struct {
 	Concurrency int
 	Connector   Connector
@@ -42,7 +43,7 @@ type ProcStats struct {
 	Hosts    int
 }
 
-// Run runs a task for a target hosts. Runs in parallel with limited concurrency, each host is processed in separate goroutine.
+// Run runs a task for a set of target hosts. Runs in parallel with limited concurrency, each host is processed in separate goroutine.
 func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, err error) {
 	tsk, err := p.Config.Task(task)
 	if err != nil {
@@ -84,6 +85,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	return ProcStats{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands))}, err
 }
 
+// runTaskOnHost executes all commands of a task on a target host.
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host string) (int, error) {
 	contains := func(list []string, s string) bool {
 		for _, v := range list {
@@ -166,6 +168,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	return count, nil
 }
 
+// wait waits for a command to complete on a target host. It runs the command in a loop with a check duration
+// until the command succeeds or the timeout is exceeded.
 func (p *Process) wait(ctx context.Context, sess *remote.Executer, params config.WaitInternal) error {
 	if params.Timeout == 0 {
 		return nil
@@ -193,6 +197,7 @@ func (p *Process) wait(ctx context.Context, sess *remote.Executer, params config
 	}
 }
 
+// colorize returns a function that formats a string with a color based on the host name.
 func (p *Process) colorize(host string) func(format string, a ...interface{}) string {
 	colors := []color.Attribute{color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
 		color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan, color.FgCyan, color.FgMagenta,
