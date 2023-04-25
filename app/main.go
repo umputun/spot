@@ -70,14 +70,9 @@ func main() {
 
 func run(opts options) error {
 	st := time.Now()
-	ctx, cancel := context.WithCancel(context.Background())
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM) // cancel on SIGINT or SIGTERM
-	go func() {
-		sig := <-sigs
-		log.Printf("received signal: %v", sig)
-		cancel()
-	}()
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	conf, err := config.New(opts.PlaybookFile, &config.Overrides{
 		TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryURL: opts.InventoryURL})
