@@ -12,7 +12,7 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 - Support for remote hosts specified directly or through inventory files/URLs.
 - Everything can be defined in a simple YAML file.
 - Run scripts on remote hosts.
-- Built-in commands: copy, sync, and delete.
+- Built-in commands: copy, sync, delete and wait.
 - Concurrent execution of task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
