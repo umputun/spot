@@ -25,8 +25,7 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 
 <div align="center">
 
-[![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)
-
+[![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/simplotask.svg)](https://pkg.go.dev/github.com/umputun/simplotask)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/simplotask.svg)](https://github.com/umputun/simplotask/releases)
 </div>
 
 ## Getting Started
