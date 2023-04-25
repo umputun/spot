@@ -46,7 +46,7 @@ SimploTask supports the following command-line options:
   If not specified all the tasks will be executed.
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. User can pass a host name or IP instead of the target name for a quick override. If not specified the `default` target will be used.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
-  `-h, --host=`: Specifies the destination host(s) for the task execution. Overrides the host(s) defined in the playbook file
+- `-h, --host=`: Specifies the destination host(s) for the task execution. Overrides the host(s) defined in the playbook file
   for the specified target. Provide the `-h` flag multiple times with different hosts names or ips to set multiple destination hosts,
   e.g., `-h example1.com -h example2.com`
 - `--inventory-file=`: Specifies the inventory file to use for the task execution. Overrides the inventory file defined in the
