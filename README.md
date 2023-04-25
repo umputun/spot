@@ -25,7 +25,7 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 
 <div align="center">
 
-[![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)&nbsp;[![Docker Hub](https://img.shields.io/docker/automated/jrottenberg/ffmpeg.svg)](https://hub.docker.com/r/umputun/simplotask)
+[![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)
 
 </div>
 
