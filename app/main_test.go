@@ -16,7 +16,7 @@ import (
 	"github.com/umputun/simplotask/app/config"
 )
 
-func Test_run(t *testing.T) {
+func Test_runCompleted(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
@@ -28,7 +28,26 @@ func Test_run(t *testing.T) {
 		TargetName:   hostAndPort,
 		Only:         []string{"wait"},
 	}
+	setupLog(true)
+	st := time.Now()
+	err := run(opts)
+	require.NoError(t, err)
+	assert.True(t, time.Since(st) >= 5*time.Second)
+}
 
+func Test_runCanceled(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf.yml",
+		TaskName:     "task1",
+		TargetName:   hostAndPort,
+		Only:         []string{"wait"},
+	}
+	setupLog(true)
 	go func() {
 		err := run(opts)
 		assert.ErrorContains(t, err, "remote command exited")
