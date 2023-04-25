@@ -3,7 +3,7 @@
 SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
 <div align="center">
-  <img class="logo" src="https://raw.githubusercontent.com/umputun/simplotask/master/site/spot-bg.svg" width="355px" height="142px" alt="SimploTask | Effortless Deployment"/>
+  <img class="logo" src="https://github.com/umputun/simplotask/raw/master/site/spot-bg.png" width="355px" height="142px" alt="SimploTask | Effortless Deployment"/>
 </div>
 
 ## Features
