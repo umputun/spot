@@ -11,7 +11,7 @@ copyright: Some rights reserved &copy; 2023 Umputun
 theme:
   name: material
   custom_dir: overrides
-  favicon: favicon.svg
+  favicon: favicon.png
   language: en
   palette:
     - scheme: slate
