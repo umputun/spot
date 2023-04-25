@@ -57,7 +57,7 @@ SimploTask supports the following command-line options:
 
 ## Example playbook
 
-```yml
+```yaml
 user: umputun
 ssh_key: keys/id_rsa
 
@@ -140,7 +140,7 @@ _note: if host has no port specified, port 22 will be used._
 
 Targets contains environments each of which represents a set of hosts, for example:
 
-```yml
+```yaml
 targets:
   prod:
     hosts: ["h1.example.com", "h2.example.com"]
@@ -162,7 +162,7 @@ SimploTask supports runtime variables that can be used in the playbook file. The
 
 Variables can be used in the following places: `script`, `copy`, `sync`, `delete`, `wait` and `env`, for example:
 
-```yml
+```yaml
 tasks:
   deploy-things:
     commands:

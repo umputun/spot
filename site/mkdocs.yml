@@ -16,7 +16,7 @@ theme:
   palette:
     - scheme: slate
       media: "(prefers-color-scheme: dark)"
-      primary: blue
+      primary: blue grey
   features:
     - navigation.instant
     - toc.follow
@@ -69,6 +69,7 @@ markdown_extensions:
       emoji_index: !!python/name:materialx.emoji.twemoji
   - pymdownx.highlight:
       anchor_linenums: true
+      use_pygments: true
   - pymdownx.inlinehilite
   - pymdownx.keys
   - pymdownx.mark

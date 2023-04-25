@@ -6,3 +6,6 @@
     display: none;
 }
 
+[data-md-color-primary=blue-grey] {
+    --md-primary-fg-color: #22353b !important;
+}
