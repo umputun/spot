@@ -57,6 +57,7 @@ SimploTask supports the following command-line options:
 - `-k`, `--key=`: Specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file.
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Provide the `-s` flag multiple times with different command names to skip multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Provide the `-o` flag multiple times with different command names to run only multiple commands.
+- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Provide the `-e` flag multiple times with different environment variables to set multiple environment variables, e.g., `-e VAR1=VALUE1 -e VAR2=VALUE2`.
 - `--dbg`: Enables debug mode, providing more detailed output and error messages during the task execution.
 - `-h`, `--help`: Displays the help message, listing all available command-line options.
 

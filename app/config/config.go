@@ -88,6 +88,7 @@ type Overrides struct {
 	TargetHosts   []string
 	InventoryFile string
 	InventoryURL  string
+	Environment   map[string]string
 }
 
 // New makes new config from yml
@@ -115,6 +116,21 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 func (p *PlayBook) Task(name string) (*Task, error) {
 	if t, ok := p.Tasks[name]; ok {
 		t.Name = name
+
+		// apply overrides of environment variables, to each script command
+		if p.overrides != nil && p.overrides.Environment != nil {
+			for envKey, envVal := range p.overrides.Environment {
+				for cmdIdx := range t.Commands {
+					if t.Commands[cmdIdx].Script == "" {
+						continue
+					}
+					if t.Commands[cmdIdx].Environment == nil {
+						t.Commands[cmdIdx].Environment = make(map[string]string)
+					}
+					t.Commands[cmdIdx].Environment[envKey] = envVal
+				}
+			}
+		}
 		return &t, nil
 	}
 	return nil, fmt.Errorf("task %s not found", name)
