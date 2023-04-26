@@ -30,3 +30,12 @@ tasks:
 
       - name: show content
         script: ls -laR /tmp
+
+  failed_task:
+    commands:
+      - name: good command
+        script: echo good command 1
+      - name: bad command
+        script: echo bad command && exit 1
+      - name: good command
+        script: echo good command 2

@@ -35,6 +35,44 @@ func TestProcess_Run(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestProcess_RunFailed(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+	}
+	_, err = p.Run(ctx, "failed_task", hostAndPort)
+	require.ErrorContains(t, err, `can't run command "bad command" on host`)
+}
+
+func TestProcess_RunFailedErrIgnored(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+	conf.Tasks["failed_task"].Commands[1].Options.IgnoreErrors = true
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+	}
+	_, err = p.Run(ctx, "failed_task", hostAndPort)
+	require.NoError(t, err, "error ignored")
+}
+
 func TestProcess_applyTemplates(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -102,6 +102,53 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	}
 	defer sess.Close()
 
+	execCommand := func(cmd config.Cmd) (details string, err error) {
+		switch {
+		case cmd.Script != "":
+			log.Printf("[DEBUG] run script on %s", host)
+			c := p.applyTemplates(cmd.GetScript(), templateData{host: host, task: tsk, command: cmd.Name})
+			details = fmt.Sprintf(" {script: %s}", c)
+			if _, err := sess.Run(ctx, c); err != nil {
+				return details, fmt.Errorf("can't run script on %s: %w", host, err)
+			}
+		case cmd.Copy.Source != "" && cmd.Copy.Dest != "":
+			log.Printf("[DEBUG] copy file on %s", host)
+			src := p.applyTemplates(cmd.Copy.Source, templateData{host: host, task: tsk, command: cmd.Name})
+			dst := p.applyTemplates(cmd.Copy.Dest, templateData{host: host, task: tsk, command: cmd.Name})
+			details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
+			if err := sess.Upload(ctx, src, dst, cmd.Copy.Mkdir); err != nil {
+				return details, fmt.Errorf("can't copy file on %s: %w", host, err)
+			}
+		case cmd.Sync.Source != "" && cmd.Sync.Dest != "":
+			log.Printf("[DEBUG] sync files on %s", host)
+			src := p.applyTemplates(cmd.Sync.Source, templateData{host: host, task: tsk, command: cmd.Name})
+			dst := p.applyTemplates(cmd.Sync.Dest, templateData{host: host, task: tsk, command: cmd.Name})
+			details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
+			if _, err := sess.Sync(ctx, src, dst, cmd.Sync.Delete); err != nil {
+				return details, fmt.Errorf("can't sync files on %s: %w", host, err)
+			}
+		case cmd.Delete.Location != "":
+			log.Printf("[DEBUG] delete files on %s", host)
+			loc := p.applyTemplates(cmd.Delete.Location, templateData{host: host, task: tsk, command: cmd.Name})
+			details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, cmd.Delete.Recursive)
+			if err := sess.Delete(ctx, loc, cmd.Delete.Recursive); err != nil {
+				return details, fmt.Errorf("can't delete files on %s: %w", host, err)
+			}
+		case cmd.Wait.Command != "":
+			log.Printf("[DEBUG] wait for command on %s", host)
+			c := p.applyTemplates(cmd.Wait.Command, templateData{host: host, task: tsk, command: cmd.Name})
+			params := config.WaitInternal{Command: c, Timeout: cmd.Wait.Timeout, CheckDuration: cmd.Wait.CheckDuration}
+			details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
+				c, cmd.Wait.Timeout.Truncate(100*time.Millisecond), cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
+			if err := p.wait(ctx, sess, params); err != nil {
+				return details, fmt.Errorf("wait failed on %s: %w", host, err)
+			}
+		default:
+			return "", fmt.Errorf("unknown command %q", cmd.Name)
+		}
+		return details, nil
+	}
+
 	count := 0
 	for _, cmd := range tsk.Commands {
 		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
@@ -117,47 +164,15 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 
 		log.Printf("[INFO] run command %q on host %s", cmd.Name, host)
 		st := time.Now()
-		details := ""
-		switch {
-		case cmd.Script != "":
-			log.Printf("[DEBUG] run script on %s", host)
-			c := p.applyTemplates(cmd.GetScript(), templateData{host: host, task: tsk, command: cmd.Name})
-			if _, err := sess.Run(ctx, c); err != nil {
-				return 0, fmt.Errorf("can't run script on %s: %w", host, err)
+		details, err := execCommand(cmd)
+		if err != nil {
+			if !cmd.Options.IgnoreErrors {
+				return count, fmt.Errorf("can't run command %q on host %s: %w", cmd.Name, host, err)
 			}
-			details = fmt.Sprintf(" {script: %s}", c)
-		case cmd.Copy.Source != "" && cmd.Copy.Dest != "":
-			log.Printf("[DEBUG] copy file on %s", host)
-			src := p.applyTemplates(cmd.Copy.Source, templateData{host: host, task: tsk, command: cmd.Name})
-			dst := p.applyTemplates(cmd.Copy.Dest, templateData{host: host, task: tsk, command: cmd.Name})
-			if err := sess.Upload(ctx, src, dst, cmd.Copy.Mkdir); err != nil {
-				return 0, fmt.Errorf("can't copy file on %s: %w", host, err)
-			}
-			details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-		case cmd.Sync.Source != "" && cmd.Sync.Dest != "":
-			log.Printf("[DEBUG] sync files on %s", host)
-			src := p.applyTemplates(cmd.Sync.Source, templateData{host: host, task: tsk, command: cmd.Name})
-			dst := p.applyTemplates(cmd.Sync.Dest, templateData{host: host, task: tsk, command: cmd.Name})
-			if _, err := sess.Sync(ctx, src, dst, cmd.Sync.Delete); err != nil {
-				return 0, fmt.Errorf("can't sync files on %s: %w", host, err)
-			}
-			details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-		case cmd.Delete.Location != "":
-			log.Printf("[DEBUG] delete files on %s", host)
-			loc := p.applyTemplates(cmd.Delete.Location, templateData{host: host, task: tsk, command: cmd.Name})
-			if err := sess.Delete(ctx, loc, cmd.Delete.Recursive); err != nil {
-				return 0, fmt.Errorf("can't delete files on %s: %w", host, err)
-			}
-			details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, cmd.Delete.Recursive)
-		case cmd.Wait.Command != "":
-			log.Printf("[DEBUG] wait for command on %s", host)
-			c := p.applyTemplates(cmd.Wait.Command, templateData{host: host, task: tsk, command: cmd.Name})
-			params := config.WaitInternal{Command: c, Timeout: cmd.Wait.Timeout, CheckDuration: cmd.Wait.CheckDuration}
-			if err := p.wait(ctx, sess, params); err != nil {
-				return 0, fmt.Errorf("wait failed on %s: %w", host, err)
-			}
-			details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
-				c, cmd.Wait.Timeout.Truncate(100*time.Millisecond), cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
+			outLine := p.colorize(host)("[%s] failed %s%s (%v)\n",
+				host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+			_, _ = os.Stdout.WriteString(outLine)
+			continue
 		}
 
 		outLine := p.colorize(host)("[%s] %s%s (%v)\n", host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
