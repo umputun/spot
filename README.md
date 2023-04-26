@@ -133,6 +133,22 @@ SimploTask supports the following command types:
 - `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"path": "/tmp/things", "recur": true}`
 - `wait`: waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when you need to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval. Example: `wait: {"cmd": "curl -s --fail localhost:8080", "timeout": "30s", "interval": "1s"}`
 
+### Command options
+
+Each command type supports the following options:
+
+- `ignore_errors`: if set to `true` the command will not fail the task in case of an error.
+- `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
+
+example setting both options:
+
+```yaml
+  commands:
+      - name: wait
+        script: sleep 5s
+        options: {ignore_errors: true, no_auto: true}
+```
+
 ## Targets
 
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
