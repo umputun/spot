@@ -38,6 +38,24 @@ func TestPlayBook_Task(t *testing.T) {
 	})
 }
 
+func TestPlayBook_TaskOverrideEnv(t *testing.T) {
+	c, err := New("testdata/f1.yml", nil)
+	require.NoError(t, err)
+
+	c.overrides = &Overrides{
+		Environment: map[string]string{"k1": "v1", "k2": "v2"},
+	}
+
+	tsk, err := c.Task("deploy-remark42")
+	require.NoError(t, err)
+	assert.Equal(t, 5, len(tsk.Commands))
+	assert.Equal(t, "deploy-remark42", tsk.Name)
+	cmd := tsk.Commands[2]
+	assert.Equal(t, "some local command", cmd.Name)
+	assert.Equal(t, "v1", cmd.Environment["k1"])
+	assert.Equal(t, "v2", cmd.Environment["k2"])
+}
+
 func TestCmd_GetScript(t *testing.T) {
 	c, err := New("testdata/f1.yml", nil)
 	require.NoError(t, err)

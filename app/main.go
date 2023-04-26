@@ -37,6 +37,8 @@ type options struct {
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
 	SSHKey  string `short:"k" long:"key" description:"ssh key"`
 
+	Env map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
+
 	// commands filter
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `short:"o" long:"only" description:"run only commands"`
@@ -74,8 +76,14 @@ func run(opts options) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	conf, err := config.New(opts.PlaybookFile, &config.Overrides{
-		TargetHosts: opts.TargetHosts, InventoryFile: opts.InventoryFile, InventoryURL: opts.InventoryURL})
+	overrides := config.Overrides{
+		TargetHosts:   opts.TargetHosts,
+		InventoryFile: opts.InventoryFile,
+		InventoryURL:  opts.InventoryURL,
+		Environment:   opts.Env,
+	}
+
+	conf, err := config.New(opts.PlaybookFile, &overrides)
 	if err != nil {
 		return fmt.Errorf("can't read config: %w", err)
 	}
