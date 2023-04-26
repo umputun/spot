@@ -200,6 +200,11 @@ tasks:
 
 ```
 
+## Rolling Updates
+
+SimploTask supports rolling updates, which means that the tasks will be executed on the hosts one by one, waiting for the previous host to finish before starting the next one. This is useful when you need to update a service running on multiple hosts, but want to avoid downtime. To enable rolling updates, use the `--concurrent=N` flag when running the `spot` command. `N` is the number of hosts to execute the tasks on concurrently. Example: `spot --concurrent=2`. In addition, user can use a builtin `wait` command to wait for a service to start before executing the next command. See the [Command Types](#command-types) section for more details. Practically, user will have a task with a series of commands, where the last command will wait for the service to start by running a command like `curl -s --fail localhost:8080` and then the task will be executed on the next host.
+
+
 ## Why SimploTask?
 
 SimploTask is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
