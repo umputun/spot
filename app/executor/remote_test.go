@@ -1,4 +1,4 @@
-package remote
+package executor
 
 import (
 	"context"
@@ -307,7 +307,7 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 
 	for _, tc := range tbl {
 		t.Run(tc.name, func(t *testing.T) {
-			ex := &Executer{}
+			ex := &Remote{}
 			updated, deleted := ex.findUnmatchedFiles(tc.local, tc.remote)
 			assert.Equal(t, tc.updated, updated)
 			assert.Equal(t, tc.deleted, deleted)

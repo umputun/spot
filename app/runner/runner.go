@@ -15,7 +15,7 @@ import (
 	"github.com/go-pkgz/syncs"
 
 	"github.com/umputun/simplotask/app/config"
-	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/executor"
 )
 
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
@@ -31,9 +31,9 @@ type Process struct {
 	Only []string
 }
 
-// Connector is an interface for connecting to a host, and returning an Executer.
+// Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
-	Connect(ctx context.Context, host string) (*remote.Executer, error)
+	Connect(ctx context.Context, host string) (*executor.Remote, error)
 	User() string
 }
 
@@ -96,58 +96,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		return false
 	}
 
-	sess, err := p.Connector.Connect(ctx, host)
+	remote, err := p.Connector.Connect(ctx, host)
 	if err != nil {
 		return 0, fmt.Errorf("can't connect to %s: %w", host, err)
 	}
-	defer sess.Close()
-
-	execCommand := func(cmd config.Cmd) (details string, err error) {
-		switch {
-		case cmd.Script != "":
-			log.Printf("[DEBUG] run script on %s", host)
-			c := p.applyTemplates(cmd.GetScript(), templateData{host: host, task: tsk, command: cmd.Name})
-			details = fmt.Sprintf(" {script: %s}", c)
-			if _, err := sess.Run(ctx, c); err != nil {
-				return details, fmt.Errorf("can't run script on %s: %w", host, err)
-			}
-		case cmd.Copy.Source != "" && cmd.Copy.Dest != "":
-			log.Printf("[DEBUG] copy file on %s", host)
-			src := p.applyTemplates(cmd.Copy.Source, templateData{host: host, task: tsk, command: cmd.Name})
-			dst := p.applyTemplates(cmd.Copy.Dest, templateData{host: host, task: tsk, command: cmd.Name})
-			details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-			if err := sess.Upload(ctx, src, dst, cmd.Copy.Mkdir); err != nil {
-				return details, fmt.Errorf("can't copy file on %s: %w", host, err)
-			}
-		case cmd.Sync.Source != "" && cmd.Sync.Dest != "":
-			log.Printf("[DEBUG] sync files on %s", host)
-			src := p.applyTemplates(cmd.Sync.Source, templateData{host: host, task: tsk, command: cmd.Name})
-			dst := p.applyTemplates(cmd.Sync.Dest, templateData{host: host, task: tsk, command: cmd.Name})
-			details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-			if _, err := sess.Sync(ctx, src, dst, cmd.Sync.Delete); err != nil {
-				return details, fmt.Errorf("can't sync files on %s: %w", host, err)
-			}
-		case cmd.Delete.Location != "":
-			log.Printf("[DEBUG] delete files on %s", host)
-			loc := p.applyTemplates(cmd.Delete.Location, templateData{host: host, task: tsk, command: cmd.Name})
-			details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, cmd.Delete.Recursive)
-			if err := sess.Delete(ctx, loc, cmd.Delete.Recursive); err != nil {
-				return details, fmt.Errorf("can't delete files on %s: %w", host, err)
-			}
-		case cmd.Wait.Command != "":
-			log.Printf("[DEBUG] wait for command on %s", host)
-			c := p.applyTemplates(cmd.Wait.Command, templateData{host: host, task: tsk, command: cmd.Name})
-			params := config.WaitInternal{Command: c, Timeout: cmd.Wait.Timeout, CheckDuration: cmd.Wait.CheckDuration}
-			details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
-				c, cmd.Wait.Timeout.Truncate(100*time.Millisecond), cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
-			if err := p.wait(ctx, sess, params); err != nil {
-				return details, fmt.Errorf("wait failed on %s: %w", host, err)
-			}
-		default:
-			return "", fmt.Errorf("unknown command %q", cmd.Name)
-		}
-		return details, nil
-	}
+	defer remote.Close()
 
 	count := 0
 	for _, cmd := range tsk.Commands {
@@ -164,7 +117,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 
 		log.Printf("[INFO] run command %q on host %s", cmd.Name, host)
 		st := time.Now()
-		details, err := execCommand(cmd)
+		params := execCmdParams{cmd: cmd, host: host, tsk: tsk, exec: remote}
+		if cmd.Options.Local {
+			params.exec = &executor.Local{}
+		}
+		details, err := p.execCommand(ctx, params)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
 				return count, fmt.Errorf("can't run command %q on host %s: %w", cmd.Name, host, err)
@@ -183,9 +140,63 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	return count, nil
 }
 
+type execCmdParams struct {
+	cmd  config.Cmd
+	host string
+	tsk  *config.Task
+	exec executor.Interface
+}
+
+func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	switch {
+	case ep.cmd.Script != "":
+		log.Printf("[DEBUG] run script on %s", ep.host)
+		c := p.applyTemplates(ep.cmd.GetScript(), templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		details = fmt.Sprintf(" {script: %s}", c)
+		if _, err := ep.exec.Run(ctx, c); err != nil {
+			return details, fmt.Errorf("can't run script on %s: %w", ep.host, err)
+		}
+	case ep.cmd.Copy.Source != "" && ep.cmd.Copy.Dest != "":
+		log.Printf("[DEBUG] copy file on %s", ep.host)
+		src := p.applyTemplates(ep.cmd.Copy.Source, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		dst := p.applyTemplates(ep.cmd.Copy.Dest, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
+		if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
+			return details, fmt.Errorf("can't copy file on %s: %w", ep.host, err)
+		}
+	case ep.cmd.Sync.Source != "" && ep.cmd.Sync.Dest != "":
+		log.Printf("[DEBUG] sync files on %s", ep.host)
+		src := p.applyTemplates(ep.cmd.Sync.Source, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		dst := p.applyTemplates(ep.cmd.Sync.Dest, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
+		if _, err := ep.exec.Sync(ctx, src, dst, ep.cmd.Sync.Delete); err != nil {
+			return details, fmt.Errorf("can't sync files on %s: %w", ep.host, err)
+		}
+	case ep.cmd.Delete.Location != "":
+		log.Printf("[DEBUG] delete files on %s", ep.host)
+		loc := p.applyTemplates(ep.cmd.Delete.Location, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ep.cmd.Delete.Recursive)
+		if err := ep.exec.Delete(ctx, loc, ep.cmd.Delete.Recursive); err != nil {
+			return details, fmt.Errorf("can't delete files on %s: %w", ep.host, err)
+		}
+	case ep.cmd.Wait.Command != "":
+		log.Printf("[DEBUG] wait for command on %s", ep.host)
+		c := p.applyTemplates(ep.cmd.Wait.Command, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		params := config.WaitInternal{Command: c, Timeout: ep.cmd.Wait.Timeout, CheckDuration: ep.cmd.Wait.CheckDuration}
+		details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
+			c, ep.cmd.Wait.Timeout.Truncate(100*time.Millisecond), ep.cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
+		if err := p.wait(ctx, ep.exec, params); err != nil {
+			return details, fmt.Errorf("wait failed on %s: %w", ep.host, err)
+		}
+	default:
+		return "", fmt.Errorf("unknown command %q", ep.cmd.Name)
+	}
+	return details, nil
+}
+
 // wait waits for a command to complete on a target host. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
-func (p *Process) wait(ctx context.Context, sess *remote.Executer, params config.WaitInternal) error {
+func (p *Process) wait(ctx context.Context, sess executor.Interface, params config.WaitInternal) error {
 	if params.Timeout == 0 {
 		return nil
 	}
