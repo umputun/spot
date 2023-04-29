@@ -303,3 +303,52 @@ func TestDelete(t *testing.T) {
 		})
 	}
 }
+
+func TestClose(t *testing.T) {
+	l := &Local{}
+	err := l.Close()
+	assert.NoError(t, err, "unexpected error")
+}
+
+func TestLocal_syncSrcToDst_InvalidSrcPath(t *testing.T) {
+	l := &Local{}
+	src := "non_existent_path"
+	dst, err := os.MkdirTemp("", "dst")
+	require.NoError(t, err)
+	defer os.RemoveAll(dst)
+
+	_, err = l.syncSrcToDst(context.Background(), src, dst)
+	assert.Error(t, err, "expected an error")
+}
+
+func TestLocal_removeExtraDstFiles_InvalidDstPath(t *testing.T) {
+	l := &Local{}
+	src, err := os.MkdirTemp("", "src")
+	require.NoError(t, err)
+	defer os.RemoveAll(src)
+
+	dst := "non_existent_path"
+
+	err = l.removeExtraDstFiles(context.Background(), src, dst)
+	assert.Error(t, err, "expected an error")
+}
+
+func TestUpload_SpecialCharacterInPath(t *testing.T) {
+	l := &Local{}
+	srcFile, err := os.CreateTemp("", "src")
+	require.NoError(t, err)
+	defer os.Remove(srcFile.Name())
+
+	dstDir, err := os.MkdirTemp("", "dst")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	dstFile := filepath.Join(dstDir, "file_with_special_#_character.txt")
+
+	err = l.Upload(context.Background(), srcFile.Name(), dstFile, true)
+	assert.NoError(t, err, "unexpected error")
+
+	dstContent, err := os.ReadFile(dstFile)
+	require.NoError(t, err)
+	assert.Equal(t, "", string(dstContent), "uploaded content should match source content")
+}
