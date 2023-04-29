@@ -44,10 +44,10 @@ SimploTask supports the following command-line options:
   variable `$SPOT_FILE` to define the playbook file path.
 - `t`, `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
   If not specified all the tasks will be executed.
-- `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. User can pass a host name or IP instead of the target name for a quick override. If not specified the `default` target will be used.
+- `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name or IP instead of the target name for a quick override.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
 - `-h, --host=`: Specifies the destination host(s) for the task execution. Overrides the host(s) defined in the playbook file
-  for the specified target. Provide the `-h` flag multiple times with different hosts names or ips to set multiple destination hosts,
+  for the specified target. Providing the `-h` flag multiple times with different hosts names or ips sets multiple destination hosts,
   e.g., `-h example1.com -h example2.com`
 - `--inventory-file=`: Specifies the inventory file to use for the task execution. Overrides the inventory file defined in the
   playbook file.
@@ -55,9 +55,9 @@ SimploTask supports the following command-line options:
   playbook file.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
 - `-k`, `--key=`: Specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file.
-- `-s`, `--skip=`: Skips the specified commands during the task execution. Provide the `-s` flag multiple times with different command names to skip multiple commands.
-- `-o`, `--only=`: Runs only the specified commands during the task execution. Provide the `-o` flag multiple times with different command names to run only multiple commands.
-- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Provide the `-e` flag multiple times with different environment variables to set multiple environment variables, e.g., `-e VAR1=VALUE1 -e VAR2=VALUE2`.
+- `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
+- `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
+- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1=VALUE1 -e VAR2=VALUE2`.
 - `--dbg`: Enables debug mode, providing more detailed output and error messages during the task execution.
 - `-h`, `--help`: Displays the help message, listing all available command-line options.
 
@@ -140,8 +140,9 @@ Each command type supports the following options:
 
 - `ignore_errors`: if set to `true` the command will not fail the task in case of an error.
 - `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
+- `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 
-example setting both options:
+example setting `ignore_errors` and `no_auto` options:
 
 ```yaml
   commands:
