@@ -267,12 +267,7 @@ func (cmd *Cmd) getScriptCommand() string {
 		return ""
 	}
 
-	envs := make([]string, 0, len(cmd.Environment))
-	for k, v := range cmd.Environment {
-		envs = append(envs, fmt.Sprintf("%s='%s'", k, v))
-	}
-	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
-
+	envs := cmd.genEnv()
 	res := "sh -c \""
 	if len(envs) > 0 {
 		res += strings.Join(envs, " ") + " "
@@ -302,12 +297,7 @@ func (cmd *Cmd) getScriptFile() io.Reader {
 	buf.WriteString("#!/bin/sh\n") // add hashbang
 	buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
 
-	envs := make([]string, 0, len(cmd.Environment))
-	for k, v := range cmd.Environment {
-		envs = append(envs, fmt.Sprintf("%s='%s'", k, v))
-	}
-	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
-
+	envs := cmd.genEnv()
 	// set environment variables for the script
 	if len(envs) > 0 {
 		for _, env := range envs {
@@ -332,4 +322,13 @@ func (cmd *Cmd) getScriptFile() io.Reader {
 	}
 
 	return &buf
+}
+
+func (cmd *Cmd) genEnv() []string {
+	envs := make([]string, 0, len(cmd.Environment))
+	for k, v := range cmd.Environment {
+		envs = append(envs, fmt.Sprintf("%s='%s'", k, v))
+	}
+	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
+	return envs
 }
