@@ -11,14 +11,22 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	c, err := New("testdata/f1.yml", nil)
-	require.NoError(t, err)
-	t.Logf("%+v", c)
-	assert.Equal(t, 1, len(c.Tasks), "single task")
-	assert.Equal(t, "umputun", c.User, "user")
 
-	tsk := c.Tasks["deploy-remark42"]
-	assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+	t.Run("good file", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
+		t.Logf("%+v", c)
+		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Equal(t, "umputun", c.User, "user")
+
+		tsk := c.Tasks["deploy-remark42"]
+		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+	})
+
+	t.Run("bad file", func(t *testing.T) {
+		_, err := New("testdata/bad.yml", nil)
+		assert.EqualError(t, err, "can't read config testdata/bad.yml: open testdata/bad.yml: no such file or directory")
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
@@ -168,6 +176,52 @@ func TestPlayBook_TargetHosts(t *testing.T) {
 			assert.Equal(t, tc.expectedError, actualError, tc.name)
 		})
 	}
+}
+
+func TestPlayBook_TargetHostsInventory(t *testing.T) {
+	t.Run("get hosts directly", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
+		res, err := c.TargetHosts("remark42")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"h1.example.com:22", "h2.example.com:22"}, res)
+	})
+
+	t.Run("get hosts from file", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
+
+		// set inventory file
+		tg := c.Targets["remark42"]
+		tg.InventoryFile = "testdata/hosts"
+		tg.Hosts = nil
+		c.Targets["remark42"] = tg
+
+		res, err := c.TargetHosts("remark42")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"hh1.example.com:22", "h2.example.com:2233"}, res)
+	})
+
+	t.Run("get hosts from url", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err := w.Write([]byte("h11.example.com:2223\nh22.example.com"))
+			require.NoError(t, err)
+		}))
+		defer ts.Close()
+
+		// set inventory url
+		tg := c.Targets["remark42"]
+		tg.InventoryURL = ts.URL
+		tg.Hosts = nil
+		c.Targets["remark42"] = tg
+
+		res, err := c.TargetHosts("remark42")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"h11.example.com:2223", "h22.example.com:22"}, res)
+	})
 }
 
 func TestPlayBook_TargetHostsOverrides(t *testing.T) {
