@@ -124,6 +124,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		params := execCmdParams{cmd: cmd, host: host, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
 			params.exec = &executor.Local{}
+			params.host = "localhost"
 		}
 		details, err := p.execCommand(ctx, params)
 		if err != nil {
