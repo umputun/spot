@@ -23,7 +23,12 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
 	})
 
-	t.Run("bad file", func(t *testing.T) {
+	t.Run("incorrectly formatted file", func(t *testing.T) {
+		_, err := New("testdata/bad-format.yml", nil)
+		assert.ErrorContains(t, err, "can't unmarshal config testdata/bad-format.yml")
+	})
+
+	t.Run("missing file", func(t *testing.T) {
 		_, err := New("testdata/bad.yml", nil)
 		assert.EqualError(t, err, "can't read config testdata/bad.yml: open testdata/bad.yml: no such file or directory")
 	})
@@ -179,6 +184,7 @@ func TestPlayBook_TargetHosts(t *testing.T) {
 }
 
 func TestPlayBook_TargetHostsInventory(t *testing.T) {
+
 	t.Run("get hosts directly", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil)
 		require.NoError(t, err)
@@ -202,6 +208,11 @@ func TestPlayBook_TargetHostsInventory(t *testing.T) {
 		assert.Equal(t, []string{"hh1.example.com:22", "h2.example.com:2233"}, res)
 	})
 
+	t.Run("get hosts from missing file", func(t *testing.T) {
+		_, err := New("testdata/f_missing.yml", nil)
+		require.ErrorContains(t, err, "can't read config testdata/f_missing.yml")
+	})
+
 	t.Run("get hosts from url", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil)
 		require.NoError(t, err)
@@ -221,6 +232,23 @@ func TestPlayBook_TargetHostsInventory(t *testing.T) {
 		res, err := c.TargetHosts("remark42")
 		require.NoError(t, err)
 		assert.Equal(t, []string{"h11.example.com:2223", "h22.example.com:22"}, res)
+	})
+
+	t.Run("get hosts from url 404", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer ts.Close()
+
+		// set inventory url
+		tg := c.Targets["remark42"]
+		tg.InventoryURL = ts.URL
+		tg.Hosts = nil
+		c.Targets["remark42"] = tg
+
+		_, err = c.TargetHosts("remark42")
+		require.ErrorContains(t, err, "status: 404 Not Found")
 	})
 }
 
