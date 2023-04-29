@@ -236,6 +236,7 @@ func TestPlayBook_TargetHostsInventory(t *testing.T) {
 
 	t.Run("get hosts from url 404", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 		}))
