@@ -1,0 +1,14 @@
+tasks:
+  default:
+    commands:
+      - name: some command
+        script: |
+          ls -laR /tmp
+          du -hcs /srv
+          cat /tmp/conf.yml
+          echo all good, 123
+        options: {local: true}
+
+      - name: show content
+        script: ls -laR /tmp
+        options: {local: true}

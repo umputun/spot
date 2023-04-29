@@ -18,6 +18,15 @@ import (
 	"github.com/umputun/simplotask/app/config"
 )
 
+func Test_main(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	args := []string{"simplotask", "--dbg", "--file=runner/testdata/conf-local.yml", "--user=test", "--key=runner/testdata/test_ssh_key", "--target=" + hostAndPort}
+	os.Args = args
+	main()
+}
+
 func Test_runCompleted(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
