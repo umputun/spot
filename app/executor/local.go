@@ -21,8 +21,8 @@ type Local struct{}
 func (l *Local) Run(ctx context.Context, cmd string) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(&stdOutLogWriter{prefix: ">", level: "DEBUG"}, &stdoutBuf)
-	command.Stdout, command.Stderr = mwr, &stdOutLogWriter{prefix: "!", level: "WARN"}
+	mwr := io.MultiWriter(NewStdOutLogWriter(">", "DEBUG"), &stdoutBuf)
+	command.Stdout, command.Stderr = mwr, NewStdOutLogWriter("!", "WARN")
 	err = command.Run()
 	if err != nil {
 		return nil, err

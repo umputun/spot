@@ -1,9 +1,11 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -75,8 +77,9 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	if err != nil && tsk.OnError != "" {
 		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
-		onErrCmd.Stdout = os.Stdout
-		onErrCmd.Stderr = os.Stderr
+		var stdoutBuf bytes.Buffer
+		mwr := io.MultiWriter(executor.NewStdOutLogWriter(">", "DEBUG"), &stdoutBuf)
+		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdOutLogWriter("!", "WARN")
 		if exErr := onErrCmd.Run(); exErr != nil {
 			log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
 		}

@@ -19,13 +19,18 @@ type Interface interface {
 	Close() error
 }
 
-// stdOutLogWriter is a writer that writes log with a prefix and a log level.
-type stdOutLogWriter struct {
+// StdOutLogWriter is a writer that writes log with a prefix and a log level.
+type StdOutLogWriter struct {
 	prefix string
 	level  string
 }
 
-func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
+// NewStdOutLogWriter creates a new StdOutLogWriter.
+func NewStdOutLogWriter(prefix, level string) *StdOutLogWriter {
+	return &StdOutLogWriter{prefix: prefix, level: level}
+}
+
+func (w *StdOutLogWriter) Write(p []byte) (n int, err error) {
 	lines := strings.Split(string(p), "\n")
 	for _, line := range lines {
 		if line == "" {

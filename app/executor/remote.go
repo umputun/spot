@@ -199,8 +199,8 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	defer session.Close()
 
 	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(&stdOutLogWriter{prefix: ">", level: "DEBUG"}, &stdoutBuf)
-	session.Stdout, session.Stderr = mwr, &stdOutLogWriter{prefix: "!", level: "WARN"}
+	mwr := io.MultiWriter(NewStdOutLogWriter(">", "DEBUG"), &stdoutBuf)
+	session.Stdout, session.Stderr = mwr, NewStdOutLogWriter("!", "WARN")
 
 	done := make(chan error)
 	go func() {

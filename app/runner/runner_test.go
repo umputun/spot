@@ -1,8 +1,10 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -52,6 +54,31 @@ func TestProcess_RunFailed(t *testing.T) {
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
 	require.ErrorContains(t, err, `can't run command "bad command" on host`)
+}
+
+func TestProcess_RunFailed_WithOnError(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+
+	_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
+	require.ErrorContains(t, err, `can't run command "bad command" on host`)
+	t.Log(buf.String())
+	require.Contains(t, buf.String(), "onerror called")
 }
 
 func TestProcess_RunFailedErrIgnored(t *testing.T) {

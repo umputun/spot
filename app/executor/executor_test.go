@@ -72,7 +72,7 @@ func TestStdOutLogWriter(t *testing.T) {
 			log.SetOutput(&buf)
 			log.SetFlags(0)
 
-			writer := &stdOutLogWriter{
+			writer := &StdOutLogWriter{
 				prefix: tc.prefix,
 				level:  tc.level,
 			}

@@ -39,3 +39,13 @@ tasks:
         script: echo bad command && exit 1
       - name: good command
         script: echo good command 2
+
+  failed_task_with_onerror:
+    on_error: echo onerror called
+    commands:
+      - name: good command
+        script: echo good command 1
+      - name: bad command
+        script: echo bad command && exit 1
+      - name: good command
+        script: echo good command 2
