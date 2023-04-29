@@ -304,6 +304,8 @@ func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep
 	if err = tmp.Close(); err != nil {
 		return "", nil, fmt.Errorf("can't close temporary file: %w", err)
 	}
+
+	// make the script executable locally, upload preserves the permissions
 	if err = os.Chmod(tmp.Name(), 0o700); err != nil { //nolint
 		return "", nil, fmt.Errorf("can't chmod temporary file: %w", err)
 	}
@@ -318,7 +320,7 @@ func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep
 	remoteCmd := fmt.Sprintf("sh -c %s", dst)
 
 	teardown := func() error {
-		// remove the script from the remote host, called by the caller
+		// remove the script from the remote host, should be invoked by the caller after the command is executed
 		if err := ep.exec.Delete(ctx, dst, false); err != nil {
 			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ep.host, err)
 		}
