@@ -304,6 +304,9 @@ func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep
 	if err := tmp.Close(); err != nil {
 		return "", nil, fmt.Errorf("can't close temporary file: %w", err)
 	}
+	if err = os.Chmod(tmp.Name(), 0700); err != nil {
+		return "", nil, fmt.Errorf("can't chmod temporary file: %w", err)
+	}
 
 	// get temp file name for remote host
 	dst := filepath.Join("/tmp", filepath.Base(tmp.Name()))
@@ -312,7 +315,7 @@ func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep
 	if err := ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
 		return "", nil, fmt.Errorf("can't upload script to %s: %w", ep.host, err)
 	}
-	remoteCmd := fmt.Sprintf("sh -c 'chmod +x %s && %s'", dst, dst)
+	remoteCmd := fmt.Sprintf("sh -c %s", dst)
 
 	teardown := func() error {
 		// remove the script from the remote host, called by the caller
