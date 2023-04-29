@@ -242,6 +242,12 @@ func TestExecuter_Delete(t *testing.T) {
 	})
 }
 
+func TestRemote_CloseNoSession(t *testing.T) {
+	sess := &Remote{}
+	err := sess.Close()
+	assert.NoError(t, err)
+}
+
 func TestExecuter_findUnmatchedFiles(t *testing.T) {
 	tbl := []struct {
 		name    string
