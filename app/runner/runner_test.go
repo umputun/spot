@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -98,6 +99,30 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
 	require.NoError(t, err, "error ignored")
+}
+
+func TestProcess_RunTaskWithWait(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+	}
+
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+
+	_, err = p.Run(ctx, "with_wait", hostAndPort)
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "wait done")
 }
 
 func TestProcess_applyTemplates(t *testing.T) {

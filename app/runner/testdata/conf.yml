@@ -49,3 +49,11 @@ tasks:
         script: echo bad command && exit 1
       - name: good command
         script: echo good command 2
+
+
+  with_wait:
+    commands:
+      - name: good command
+        script: echo good command 1
+      - name: wait
+        wait: {cmd: "echo wait done", timeout: 5s, interval: 1s}
