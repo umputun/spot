@@ -103,7 +103,7 @@ func TestUploadAndDownload(t *testing.T) {
 
 				dstFile := filepath.Join(dstDir, filepath.Base(srcFile.Name()))
 
-				err = l.Upload(context.Background(), srcFile.Name(), dstFile, tc.mkdir)
+				err = fn.fn(context.Background(), srcFile.Name(), dstFile, tc.mkdir)
 
 				if tc.expectError {
 					assert.Error(t, err, "expected an error")
