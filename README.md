@@ -2,7 +2,7 @@
 
 SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
-<div style="text-align: center;">
+<div style="display: flex; justify-content: center;">
   <img class="logo" src="https://github.com/umputun/simplotask/raw/master/site/spot-bg.png" width="400px" alt="SimploTask | Effortless Deployment"/>
 </div>
 
@@ -23,7 +23,7 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 - A single binary with no dependencies.
 ----
 
-<div style="text-align: center;">
+<div style="display: flex; justify-content: center;">
 
 [![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/simplotask.svg)](https://pkg.go.dev/github.com/umputun/simplotask)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/simplotask.svg)](https://github.com/umputun/simplotask/releases)
 </div>
