@@ -1,4 +1,4 @@
-package runner
+package executor
 
 import (
 	"context"

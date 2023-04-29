@@ -1,4 +1,4 @@
-package remote
+package executor
 
 import (
 	"bytes"
@@ -17,14 +17,14 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Executer executes commands on remote server, via ssh. Not thread-safe.
-type Executer struct {
+// Remote executes commands on remote server, via ssh. Not thread-safe.
+type Remote struct {
 	client *ssh.Client
 	host   string
 }
 
 // Close connection to remote server.
-func (ex *Executer) Close() error {
+func (ex *Remote) Close() error {
 	if ex.client != nil {
 		return ex.client.Close()
 	}
@@ -32,7 +32,7 @@ func (ex *Executer) Close() error {
 }
 
 // Run command on remote server.
-func (ex *Executer) Run(ctx context.Context, cmd string) (out []string, err error) {
+func (ex *Remote) Run(ctx context.Context, cmd string) (out []string, err error) {
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
@@ -42,7 +42,7 @@ func (ex *Executer) Run(ctx context.Context, cmd string) (out []string, err erro
 }
 
 // Upload file to remote server with scp
-func (ex *Executer) Upload(ctx context.Context, local, remote string, mkdir bool) (err error) {
+func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
@@ -65,7 +65,7 @@ func (ex *Executer) Upload(ctx context.Context, local, remote string, mkdir bool
 }
 
 // Download file from remote server with scp
-func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bool) (err error) {
+func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
@@ -88,7 +88,7 @@ func (ex *Executer) Download(ctx context.Context, remote, local string, mkdir bo
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, del bool) ([]string, error) {
+func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
@@ -122,7 +122,7 @@ func (ex *Executer) Sync(ctx context.Context, localDir, remoteDir string, del bo
 
 // Delete file on remote server. Recursively if recursive is true.
 // if file or directory does not exist, returns nil, i.e. no error.
-func (ex *Executer) Delete(ctx context.Context, remoteFile string, recursive bool) (err error) {
+func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
@@ -190,7 +190,7 @@ func (ex *Executer) Delete(ctx context.Context, remoteFile string, recursive boo
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to remote process.
-func (ex *Executer) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
+func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
 	if err != nil {
@@ -236,7 +236,7 @@ type sftpReq struct {
 	client     *ssh.Client
 }
 
-func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
+func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	log.Printf("[DEBUG] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) {
 		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
@@ -297,7 +297,7 @@ func (ex *Executer) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	return nil
 }
-func (ex *Executer) sftpDownload(ctx context.Context, req sftpReq) error {
+func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
 
@@ -350,7 +350,7 @@ type fileProperties struct {
 }
 
 // getLocalFilesProperties returns map of file properties for all files in the local directory.
-func (ex *Executer) getLocalFilesProperties(dir string) (map[string]fileProperties, error) {
+func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties, error) {
 	fileProps := make(map[string]fileProperties)
 
 	// walk local directory and get file properties
@@ -376,7 +376,7 @@ func (ex *Executer) getLocalFilesProperties(dir string) (map[string]fileProperti
 	return fileProps, nil
 }
 
-func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (map[string]fileProperties, error) {
+func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map[string]fileProperties, error) {
 	sftpClient, err := sftp.NewClient(ex.client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sftp client: %v", err)
@@ -417,7 +417,7 @@ func (ex *Executer) getRemoteFilesProperties(ctx context.Context, dir string) (m
 	return fileProps, nil
 }
 
-func (ex *Executer) findUnmatchedFiles(local, remote map[string]fileProperties) (updatedFiles, deletedFiles []string) {
+func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties) (updatedFiles, deletedFiles []string) {
 	isWithinOneSecond := func(t1, t2 time.Time) bool {
 		diff := t1.Sub(t2)
 		if diff < 0 {

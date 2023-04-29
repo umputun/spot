@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/executor"
 )
 
 // ConnectorMock is a mock implementation of runner.Connector.
@@ -16,7 +16,7 @@ import (
 //
 //		// make and configure a mocked runner.Connector
 //		mockedConnector := &ConnectorMock{
-//			ConnectFunc: func(ctx context.Context, host string) (*remote.Executer, error) {
+//			ConnectFunc: func(ctx context.Context, host string) (*executor.Remote, error) {
 //				panic("mock out the Connect method")
 //			},
 //			UserFunc: func() string {
@@ -30,7 +30,7 @@ import (
 //	}
 type ConnectorMock struct {
 	// ConnectFunc mocks the Connect method.
-	ConnectFunc func(ctx context.Context, host string) (*remote.Executer, error)
+	ConnectFunc func(ctx context.Context, host string) (*executor.Remote, error)
 
 	// UserFunc mocks the User method.
 	UserFunc func() string
@@ -53,7 +53,7 @@ type ConnectorMock struct {
 }
 
 // Connect calls ConnectFunc.
-func (mock *ConnectorMock) Connect(ctx context.Context, host string) (*remote.Executer, error) {
+func (mock *ConnectorMock) Connect(ctx context.Context, host string) (*executor.Remote, error) {
 	if mock.ConnectFunc == nil {
 		panic("ConnectorMock.ConnectFunc: method is nil but Connector.Connect was just called")
 	}

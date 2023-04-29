@@ -18,7 +18,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/umputun/simplotask/app/config"
-	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/executor"
 	"github.com/umputun/simplotask/app/runner"
 )
 
@@ -88,7 +88,7 @@ func run(opts options) error {
 		return fmt.Errorf("can't read config: %w", err)
 	}
 
-	connector, err := remote.NewConnector(sshUserAndKey(opts, conf))
+	connector, err := executor.NewConnector(sshUserAndKey(opts, conf))
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}

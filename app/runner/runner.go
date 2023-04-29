@@ -15,7 +15,7 @@ import (
 	"github.com/go-pkgz/syncs"
 
 	"github.com/umputun/simplotask/app/config"
-	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/executor"
 )
 
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
@@ -31,9 +31,9 @@ type Process struct {
 	Only []string
 }
 
-// Connector is an interface for connecting to a host, and returning an Executer.
+// Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
-	Connect(ctx context.Context, host string) (*remote.Executer, error)
+	Connect(ctx context.Context, host string) (*executor.Remote, error)
 	User() string
 }
 
@@ -96,11 +96,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		return false
 	}
 
-	sess, err := p.Connector.Connect(ctx, host)
+	remote, err := p.Connector.Connect(ctx, host)
 	if err != nil {
 		return 0, fmt.Errorf("can't connect to %s: %w", host, err)
 	}
-	defer sess.Close()
+	defer remote.Close()
 
 	count := 0
 	for _, cmd := range tsk.Commands {
@@ -117,9 +117,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 
 		log.Printf("[INFO] run command %q on host %s", cmd.Name, host)
 		st := time.Now()
-		params := execCmdParams{cmd: cmd, host: host, tsk: tsk, exec: sess}
+		params := execCmdParams{cmd: cmd, host: host, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
-			params.exec = &Local{}
+			params.exec = &executor.Local{}
 		}
 		details, err := p.execCommand(ctx, params)
 		if err != nil {
@@ -140,19 +140,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	return count, nil
 }
 
-type executor interface {
-	Run(ctx context.Context, c string) (out []string, err error)
-	Upload(ctx context.Context, local, remote string, mkdir bool) (err error)
-	Download(ctx context.Context, remote, local string, mkdir bool) (err error)
-	Sync(ctx context.Context, localDir, remoteDir string, del bool) ([]string, error)
-	Delete(ctx context.Context, remoteFile string, recursive bool) (err error)
-}
-
 type execCmdParams struct {
 	cmd  config.Cmd
 	host string
 	tsk  *config.Task
-	exec executor
+	exec executor.Interface
 }
 
 func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
@@ -204,7 +196,7 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 
 // wait waits for a command to complete on a target host. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
-func (p *Process) wait(ctx context.Context, sess executor, params config.WaitInternal) error {
+func (p *Process) wait(ctx context.Context, sess executor.Interface, params config.WaitInternal) error {
 	if params.Timeout == 0 {
 		return nil
 	}

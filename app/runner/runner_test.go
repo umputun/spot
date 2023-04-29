@@ -12,7 +12,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"github.com/umputun/simplotask/app/config"
-	"github.com/umputun/simplotask/app/remote"
+	"github.com/umputun/simplotask/app/executor"
 	"github.com/umputun/simplotask/app/runner/mocks"
 )
 
@@ -21,7 +21,7 @@ func TestProcess_Run(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestProcess_RunFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -59,7 +59,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -188,7 +188,7 @@ func TestProcess_waitPassed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
 	sess, err := connector.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestProcess_waitFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := remote.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
 	require.NoError(t, err)
 	sess, err := connector.Connect(ctx, hostAndPort)
 	require.NoError(t, err)
