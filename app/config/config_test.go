@@ -207,8 +207,8 @@ func TestPlayBook_TargetHostsInventory(t *testing.T) {
 		require.NoError(t, err)
 
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := w.Write([]byte("h11.example.com:2223\nh22.example.com"))
-			require.NoError(t, err)
+			_, e := w.Write([]byte("h11.example.com:2223\nh22.example.com"))
+			require.NoError(t, e)
 		}))
 		defer ts.Close()
 

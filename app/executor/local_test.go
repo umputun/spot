@@ -44,7 +44,7 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestUpload(t *testing.T) {
+func TestUploadAndDownload(t *testing.T) {
 	testCases := []struct {
 		name        string
 		srcContent  string
@@ -73,40 +73,49 @@ func TestUpload(t *testing.T) {
 		},
 	}
 
+	// we want to test both upload and download, so we create a function type. those functions should do the same thing
+	type fn func(ctx context.Context, src, dst string, mkdir bool) (err error)
+	l := &Local{}
+	fns := []struct {
+		name string
+		fn   fn
+	}{{"upload", l.Upload}, {"download", l.Download}}
+
 	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			srcFile, err := os.CreateTemp("", "src")
-			require.NoError(t, err)
-			defer os.Remove(srcFile.Name())
+		for _, fn := range fns {
+			t.Run(tc.name+"#"+fn.name, func(t *testing.T) {
+				srcFile, err := os.CreateTemp("", "src")
+				require.NoError(t, err)
+				defer os.Remove(srcFile.Name())
 
-			_, err = srcFile.WriteString(tc.srcContent)
-			require.NoError(t, err)
-			srcFile.Close()
+				_, err = srcFile.WriteString(tc.srcContent)
+				require.NoError(t, err)
+				srcFile.Close()
 
-			baseDstDir, err := os.MkdirTemp("", "dst")
-			require.NoError(t, err)
-			defer os.RemoveAll(baseDstDir)
+				baseDstDir, err := os.MkdirTemp("", "dst")
+				require.NoError(t, err)
+				defer os.RemoveAll(baseDstDir)
 
-			dstDir := baseDstDir
-			if tc.dstDir != "" {
-				dstDir = filepath.Join(baseDstDir, tc.dstDir)
-			}
+				dstDir := baseDstDir
+				if tc.dstDir != "" {
+					dstDir = filepath.Join(baseDstDir, tc.dstDir)
+				}
 
-			dstFile := filepath.Join(dstDir, filepath.Base(srcFile.Name()))
+				dstFile := filepath.Join(dstDir, filepath.Base(srcFile.Name()))
 
-			l := &Local{}
-			err = l.Upload(context.Background(), srcFile.Name(), dstFile, tc.mkdir)
+				err = l.Upload(context.Background(), srcFile.Name(), dstFile, tc.mkdir)
 
-			if tc.expectError {
-				assert.Error(t, err, "expected an error")
-				return
-			}
+				if tc.expectError {
+					assert.Error(t, err, "expected an error")
+					return
+				}
 
-			assert.NoError(t, err, "unexpected error")
-			dstContent, err := os.ReadFile(dstFile)
-			require.NoError(t, err)
-			assert.Equal(t, tc.srcContent, string(dstContent), "uploaded content should match source content")
-		})
+				assert.NoError(t, err, "unexpected error")
+				dstContent, err := os.ReadFile(dstFile)
+				require.NoError(t, err)
+				assert.Equal(t, tc.srcContent, string(dstContent), "uploaded content should match source content")
+			})
+		}
 	}
 }
 
