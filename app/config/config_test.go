@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -242,7 +241,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := tt.cmd.getScriptFile()
-			scriptContentBytes, err := ioutil.ReadAll(reader)
+			scriptContentBytes, err := io.ReadAll(reader)
 			assert.NoError(t, err)
 			scriptContent := string(scriptContentBytes)
 			assert.Equal(t, tt.expected, scriptContent)

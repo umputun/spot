@@ -278,7 +278,7 @@ func (p *Process) applyTemplates(inp string, tdata templateData) string {
 	return res
 }
 
-func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep execCmdParams) (string, func() error, error) {
+func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep execCmdParams) (c string, td func() error, err error) {
 	if single != "" { // single command, nothing to do just apply templates
 		single = p.applyTemplates(single, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
 		return single, nil, nil
@@ -288,7 +288,7 @@ func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep
 
 	// read the script from the reader and apply templates
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, r); err != nil {
+	if _, err = io.Copy(&buf, r); err != nil {
 		return "", nil, fmt.Errorf("can't read script: %w", err)
 	}
 	rdr := bytes.NewBuffer([]byte(p.applyTemplates(buf.String(), templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})))
@@ -298,21 +298,21 @@ func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep
 	if err != nil {
 		return "", nil, fmt.Errorf("can't create temporary file: %w", err)
 	}
-	if _, err := io.Copy(tmp, rdr); err != nil {
+	if _, err = io.Copy(tmp, rdr); err != nil {
 		return "", nil, fmt.Errorf("can't copy script to temporary file: %w", err)
 	}
-	if err := tmp.Close(); err != nil {
+	if err = tmp.Close(); err != nil {
 		return "", nil, fmt.Errorf("can't close temporary file: %w", err)
 	}
-	if err = os.Chmod(tmp.Name(), 0700); err != nil {
+	if err = os.Chmod(tmp.Name(), 0o700); err != nil { //nolint
 		return "", nil, fmt.Errorf("can't chmod temporary file: %w", err)
 	}
 
 	// get temp file name for remote host
-	dst := filepath.Join("/tmp", filepath.Base(tmp.Name()))
+	dst := filepath.Join("/tmp", filepath.Base(tmp.Name())) //nolint
 
 	// upload the script to the remote host
-	if err := ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
+	if err = ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
 		return "", nil, fmt.Errorf("can't upload script to %s: %w", ep.host, err)
 	}
 	remoteCmd := fmt.Sprintf("sh -c %s", dst)
