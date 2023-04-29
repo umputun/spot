@@ -190,12 +190,12 @@ func TestLocal_Sync(t *testing.T) {
 			defer os.RemoveAll(dstDir)
 
 			for name, content := range tc.srcStructure {
-				err := os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0o644)
+				err = os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0o644)
 				require.NoError(t, err)
 			}
 
 			for name, content := range tc.dstStructure {
-				err := os.WriteFile(filepath.Join(dstDir, name), []byte(content), 0o644)
+				err = os.WriteFile(filepath.Join(dstDir, name), []byte(content), 0o644)
 				require.NoError(t, err)
 			}
 
@@ -266,23 +266,23 @@ func TestDelete(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			var remoteFile string
+			var err error
 			if tc.isDir {
-				remoteFile, err := os.MkdirTemp("", "test")
+				remoteFile, err = os.MkdirTemp("", "test")
 				require.NoError(t, err)
 
-				subFile, err := os.CreateTemp(remoteFile, "subfile")
-				require.NoError(t, err)
+				subFile, e := os.CreateTemp(remoteFile, "subfile")
+				require.NoError(t, e)
 				subFile.Close()
 			} else {
-				tempFile, err := os.CreateTemp("", "test")
-				require.NoError(t, err)
+				tempFile, e := os.CreateTemp("", "test")
+				require.NoError(t, e)
 				tempFile.Close()
 				remoteFile = tempFile.Name()
 			}
 
 			l := &Local{}
-			err := l.Delete(context.Background(), remoteFile, tc.recursive)
-
+			err = l.Delete(context.Background(), remoteFile, tc.recursive)
 			if tc.expectError {
 				assert.Error(t, err, "expected an error")
 			} else {

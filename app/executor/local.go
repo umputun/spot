@@ -17,6 +17,7 @@ import (
 // Local is a runner for local execution. Similar to remote, but without ssh, just exec on localhost and local copy/delete/sync
 type Local struct{}
 
+// Run executes command on local host, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 	var stdoutBuf bytes.Buffer
@@ -37,7 +38,7 @@ func (l *Local) Run(ctx context.Context, cmd string) (out []string, err error) {
 // Upload just copy file from one place to another
 func (l *Local) Upload(_ context.Context, src, dst string, mkdir bool) (err error) {
 	if mkdir {
-		if err := os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+		if err = os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return fmt.Errorf("can't create local dir %s: %w", filepath.Dir(dst), err)
 		}
 	}
@@ -148,6 +149,7 @@ func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error 
 	})
 }
 
+// nolint
 func (l *Local) copyFile(src, dst string) error {
 	srcFile, err := os.Open(src)
 	if err != nil {
