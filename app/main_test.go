@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/signal"
 	"testing"
@@ -33,6 +35,32 @@ func Test_runCompleted(t *testing.T) {
 	err := run(opts)
 	require.NoError(t, err)
 	assert.True(t, time.Since(st) >= 5*time.Second)
+}
+
+func Test_runCompletedAllTasks(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf2.yml",
+		TargetName:   hostAndPort,
+	}
+	setupLog(true)
+
+	wr := &bytes.Buffer{}
+	log.SetOutput(wr)
+
+	st := time.Now()
+	err := run(opts)
+	require.NoError(t, err)
+	assert.True(t, time.Since(st) >= 1*time.Second)
+	assert.Contains(t, wr.String(), "task1")
+	assert.Contains(t, wr.String(), "task2")
+	assert.Contains(t, wr.String(), "all good, 123")
+	assert.Contains(t, wr.String(), "good command 2")
+
 }
 
 func Test_runCanceled(t *testing.T) {
