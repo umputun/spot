@@ -55,6 +55,7 @@ func Test_runCompletedAllTasks(t *testing.T) {
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf2.yml",
 		TargetName:   hostAndPort,
+		Dbg:          true,
 	}
 	setupLog(true)
 
@@ -63,12 +64,14 @@ func Test_runCompletedAllTasks(t *testing.T) {
 
 	st := time.Now()
 	err := run(opts)
+	t.Log("dbg: ", wr.String())
 	require.NoError(t, err)
 	assert.True(t, time.Since(st) >= 1*time.Second)
 	assert.Contains(t, wr.String(), "task1")
 	assert.Contains(t, wr.String(), "task2")
 	assert.Contains(t, wr.String(), "all good, 123")
 	assert.Contains(t, wr.String(), "good command 2")
+	assert.Contains(t, wr.String(), "all good, 123 - foo-val bar-val")
 
 }
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -245,16 +246,30 @@ func (p *PlayBook) parseInventory(r io.Reader) (res []string, err error) {
 	return res, nil
 }
 
-// GetScript concatenates all script line in commands into one a string to be executed by shell.
+// GetScript returns a script string and an io.Reader based on the command being single line or multiline.
+func (cmd *Cmd) GetScript() (string, io.Reader) {
+	if cmd.Script == "" {
+		return "", nil
+	}
+
+	elems := strings.Split(cmd.Script, "\n")
+	if len(elems) > 1 {
+		return "", cmd.getScriptFile()
+	}
+
+	return cmd.getScriptCommand(), nil
+}
+
+// GetScriptCommand concatenates all script line in commands into one a string to be executed by shell.
 // Empty string is returned if no script is defined.
-func (cmd *Cmd) GetScript() string {
+func (cmd *Cmd) getScriptCommand() string {
 	if cmd.Script == "" {
 		return ""
 	}
 
 	envs := make([]string, 0, len(cmd.Environment))
 	for k, v := range cmd.Environment {
-		envs = append(envs, fmt.Sprintf("%s=%s", k, v))
+		envs = append(envs, fmt.Sprintf("%s='%s'", k, v))
 	}
 	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 
@@ -277,4 +292,44 @@ func (cmd *Cmd) GetScript() string {
 	}
 	res += strings.Join(parts, "; ") + "\""
 	return res
+}
+
+// GetScriptFile returns a reader for script file. All the line in the command used as a script, with hashbang,
+// set -e and environment variables.
+func (cmd *Cmd) getScriptFile() io.Reader {
+	var buf bytes.Buffer
+
+	buf.WriteString("#!/bin/sh\n") // add hashbang
+	buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
+
+	envs := make([]string, 0, len(cmd.Environment))
+	for k, v := range cmd.Environment {
+		envs = append(envs, fmt.Sprintf("%s='%s'", k, v))
+	}
+	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
+
+	// set environment variables for the script
+	if len(envs) > 0 {
+		for _, env := range envs {
+			buf.WriteString(fmt.Sprintf("export %s\n", env))
+		}
+	}
+
+	elems := strings.Split(cmd.Script, "\n")
+	for _, el := range elems {
+		c := strings.TrimSpace(el)
+		if len(c) < 2 {
+			continue
+		}
+		if strings.HasPrefix(c, "#") {
+			continue
+		}
+		if i := strings.Index(c, "#"); i > 0 {
+			c = strings.TrimSpace(c[:i])
+		}
+		buf.WriteString(c)
+		buf.WriteString("\n")
+	}
+
+	return &buf
 }

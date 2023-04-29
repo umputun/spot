@@ -151,6 +151,58 @@ example setting `ignore_errors` and `no_auto` options:
         options: {ignore_errors: true, no_auto: true}
 ```
 
+### Script Execution
+
+SimploTask allows executing scripts on remote hosts, or locally if `options.local` is set to true. Scripts can be executed in two different ways, depending on whether they are single-line or multi-line scripts.
+
+**Single-line Script Execution**
+
+For single-line scripts, they are executed directly inside the shell with the optional parameters set to the command line. For example:
+
+```yaml
+  commands:
+      - name: some command
+        script: ls -laR /tmp
+        env: {FOO: bar, BAR: qux} 
+```        
+this will be executed as: `FOO='bar' BAR='qux'ls -laR /tmp FOO=bar BAR=qux` inside the shell on the remote host(s), i.e. `sh -c "FOO='bar' BAR='qux'ls -laR /tmp FOO=bar BAR=qux"`.
+
+**Multi-line Script Execution**
+
+For multi-line scripts, SimploTask creates a temporary script containing all the commands, uploads it to the remote host (or keeps it locally if `options.local` is set to true), and executes the script. Environment variables are set inside the script, allowing you to create complex scripts that include setting variables, conditionals, loops, and other advanced functionality. Scripts run with "set -e" to fail on error. For example:
+
+```yaml
+commands:
+  - name: multi_line_script
+    script: |
+      touch /tmp/file1
+      echo "Hello World" > /tmp/file2
+      echo "Executing loop..."
+      for i in {1..5}; do
+        echo "Iteration $i"
+      done
+      echo "All done! $FOO $BAR
+    env: {FOO: bar, BAR: qux}
+```
+
+this will create a temporary script on the remote host(s) with the following content and execute it:
+
+```bash
+#!/bin/sh
+set -e
+export FOO='bar'
+export BAR='qux'
+touch /tmp/file1
+echo "Hello World" > /tmp/file2
+echo "Executing loop..."
+for i in {1..5}; do
+  echo "Iteration $i"
+done
+echo "All done! $FOO $BAR"
+```
+
+By using this approach, SimploTask enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
+
 ## Targets
 
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
