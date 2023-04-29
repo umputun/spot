@@ -278,10 +278,12 @@ func (p *Process) applyTemplates(inp string, tdata templateData) string {
 	return res
 }
 
-func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep execCmdParams) (c string, td func() error, err error) {
-	if single != "" { // single command, nothing to do just apply templates
-		single = p.applyTemplates(single, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
-		return single, nil, nil
+type tdFn func() error // tdFn is a type for teardown functions, should be called after the command execution
+
+func (p *Process) prepScript(ctx context.Context, s string, r io.Reader, ep execCmdParams) (cmd string, td tdFn, err error) {
+	if s != "" { // single command, nothing to do just apply templates
+		s = p.applyTemplates(s, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		return s, nil, nil
 	}
 
 	// multiple commands, create a temporary script
