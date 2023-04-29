@@ -138,6 +138,23 @@ func Test_sshUserAndKey(t *testing.T) {
 			expectedUser: "cmd_user",
 			expectedKey:  "cmd_key",
 		},
+		{
+			name: "Tilde expansion in key path",
+			opts: options{
+				TaskName: "test_task",
+				SSHUser:  "cmd_user",
+				SSHKey:   "~/cmd_key",
+			},
+			conf: config.PlayBook{
+				User:   "default_user",
+				SSHKey: "~/default_key",
+				Tasks: map[string]config.Task{
+					"test_task": {User: "task_user"},
+				},
+			},
+			expectedUser: "cmd_user",
+			expectedKey:  fmt.Sprintf("%s/cmd_key", os.Getenv("HOME")),
+		},
 	}
 
 	for _, tc := range testCases {
