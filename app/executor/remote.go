@@ -448,19 +448,3 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties) (u
 
 	return updatedFiles, deletedFiles
 }
-
-type stdOutLogWriter struct {
-	prefix string
-	level  string
-}
-
-func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
-	lines := strings.Split(string(p), "\n")
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		log.Printf("[%s] %s %s", w.level, w.prefix, line)
-	}
-	return len(p), nil
-}

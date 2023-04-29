@@ -19,14 +19,15 @@ type Local struct{}
 
 func (l *Local) Run(ctx context.Context, cmd string) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
-	var output bytes.Buffer
-	command.Stdout = &output
+	var stdoutBuf bytes.Buffer
+	mwr := io.MultiWriter(&stdOutLogWriter{prefix: ">", level: "DEBUG"}, &stdoutBuf)
+	command.Stdout, command.Stderr = mwr, &stdOutLogWriter{prefix: "!", level: "WARN"}
 	err = command.Run()
 	if err != nil {
 		return nil, err
 	}
 
-	scanner := bufio.NewScanner(&output)
+	scanner := bufio.NewScanner(&stdoutBuf)
 	for scanner.Scan() {
 		out = append(out, scanner.Text())
 	}
@@ -74,6 +75,9 @@ func (l *Local) Delete(_ context.Context, remoteFile string, recursive bool) (er
 	}
 	return os.RemoveAll(remoteFile)
 }
+
+// Close does nothing for local
+func (l *Local) Close() error { return nil }
 
 func (l *Local) syncSrcToDst(ctx context.Context, src, dst string) ([]string, error) {
 	var copiedFiles []string

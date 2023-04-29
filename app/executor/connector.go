@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Connector provides factory methods to create Executer. Each Executer is connected to a single SSH host.
+// Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH host.
 type Connector struct {
 	user       string
 	privateKey string
@@ -32,7 +32,7 @@ func (c *Connector) User() string {
 	return c.user
 }
 
-// Connect connects to a remote host and returns an Executer, caller must close the Executer.
+// Connect connects to a remote host and returns a remote executer, caller must close.
 func (c *Connector) Connect(ctx context.Context, host string) (*Remote, error) {
 	log.Printf("[DEBUG] connect to %s", host)
 	client, err := c.sshClient(ctx, host)
