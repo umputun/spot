@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -154,7 +155,19 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 	switch {
 	case ep.cmd.Script != "":
 		log.Printf("[DEBUG] run script on %s", ep.host)
-		c := p.applyTemplates(ep.cmd.GetScript(), templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		single, multiRdr := ep.cmd.GetScript()
+		c, teardown, err := p.prepScript(ctx, single, multiRdr, ep)
+		if err != nil {
+			return details, fmt.Errorf("can't prepare script on %s: %w", ep.host, err)
+		}
+		defer func() {
+			if teardown == nil {
+				return
+			}
+			if err := teardown(); err != nil {
+				log.Printf("[WARN] can't teardown script on %s: %v", ep.host, err)
+			}
+		}()
 		details = fmt.Sprintf(" {script: %s}", c)
 		if _, err := ep.exec.Run(ctx, c); err != nil {
 			return details, fmt.Errorf("can't run script on %s: %w", ep.host, err)
@@ -263,4 +276,51 @@ func (p *Process) applyTemplates(inp string, tdata templateData) string {
 	}
 
 	return res
+}
+
+func (p *Process) prepScript(ctx context.Context, single string, r io.Reader, ep execCmdParams) (string, func() error, error) {
+	if single != "" { // single command, nothing to do just apply templates
+		single = p.applyTemplates(single, templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})
+		return single, nil, nil
+	}
+
+	// multiple commands, create a temporary script
+
+	// read the script from the reader and apply templates
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		return "", nil, fmt.Errorf("can't read script: %w", err)
+	}
+	rdr := bytes.NewBuffer([]byte(p.applyTemplates(buf.String(), templateData{host: ep.host, task: ep.tsk, command: ep.cmd.Name})))
+
+	// make a temporary file and copy the script to it
+	tmp, err := os.CreateTemp("", "spot-script")
+	if err != nil {
+		return "", nil, fmt.Errorf("can't create temporary file: %w", err)
+	}
+	if _, err := io.Copy(tmp, rdr); err != nil {
+		return "", nil, fmt.Errorf("can't copy script to temporary file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return "", nil, fmt.Errorf("can't close temporary file: %w", err)
+	}
+
+	// get temp file name for remote host
+	dst := filepath.Join("/tmp", filepath.Base(tmp.Name()))
+
+	// upload the script to the remote host
+	if err := ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
+		return "", nil, fmt.Errorf("can't upload script to %s: %w", ep.host, err)
+	}
+	remoteCmd := fmt.Sprintf("sh -c 'chmod +x %s && %s'", dst, dst)
+
+	teardown := func() error {
+		// remove the script from the remote host, called by the caller
+		if err := ep.exec.Delete(ctx, dst, false); err != nil {
+			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ep.host, err)
+		}
+		return nil
+	}
+
+	return remoteCmd, teardown, nil
 }
