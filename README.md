@@ -2,7 +2,7 @@
 
 SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
-<div align="center">
+<div style="text-align: center;">
   <img class="logo" src="https://github.com/umputun/simplotask/raw/master/site/spot-bg.png" width="400px" alt="SimploTask | Effortless Deployment"/>
 </div>
 
@@ -23,7 +23,7 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 - A single binary with no dependencies.
 ----
 
-<div align="center">
+<div style="text-align: center;">
 
 [![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/simplotask.svg)](https://pkg.go.dev/github.com/umputun/simplotask)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/simplotask.svg)](https://github.com/umputun/simplotask/releases)
 </div>
@@ -31,7 +31,7 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 ## Getting Started
 
 - Install SimploTask by download the latest release from the [Releases](https://github.com/umputun/simplotask/releases) page.
-- Create a configuration file, as shown in the example below, and save it as `spot.yml`.
+- Create a configuration file, as shown in the [example below](#example-playbook), and save it as `spot.yml`.
 - Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
 - To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
 - To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
