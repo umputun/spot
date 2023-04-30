@@ -302,21 +302,23 @@ func (p *PlayBook) parseInventory(r io.Reader) (res []Destination, err error) {
 			continue
 		}
 		dest := Destination{User: p.User} // default user from playbook
-		elems := strings.Split(line, " ")
-		dest.Host = elems[0]
-		if !strings.Contains(elems[0], ":") { // no port defined, use default 22
+		hostUserElems := strings.Split(line, " ")
+		dest.Host = hostUserElems[0]
+		if len(hostUserElems) > 1 { // user defined as well, i.e. "host1:port1 user"
+			dest.User = hostUserElems[1]
+		}
+		if !strings.Contains(hostUserElems[0], ":") { // no port defined, use default 22
 			dest.Port = 22
 		} else {
-			elems = strings.Split(elems[0], ":")
-			port, err := strconv.Atoi(elems[1])
+			hostElems := strings.Split(hostUserElems[0], ":")
+			port, err := strconv.Atoi(hostElems[1])
 			if err != nil {
-				return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
+				return nil, fmt.Errorf("can't parse port %s: %w", hostElems[1], err)
 			}
+			dest.Host = hostElems[0]
 			dest.Port = port
 		}
-		if len(elems) > 1 { // user defined as well, i.e. "host1:port1 user"
-			dest.User = elems[1]
-		}
+
 		res = append(res, dest)
 	}
 	return res, nil
