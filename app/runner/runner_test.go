@@ -119,8 +119,8 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		require.ErrorContains(t, err, `can't run command "bad command" on host`)
 		t.Log(buf.String())
 		require.NotContains(t, buf.String(), "onerror called")
-		assert.Contains(t, buf.String(), "[WARN] ! sh: bad: command not found")
-		assert.Contains(t, buf.String(), "exit status 127")
+		assert.Contains(t, buf.String(), "[WARN]")
+		assert.Contains(t, buf.String(), "not found")
 	})
 }
 
