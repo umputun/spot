@@ -378,7 +378,7 @@ func TestLocalCopyFile(t *testing.T) {
 		dst := filepath.Join(tmpDir, "destination_file.txt")
 
 		// create a source file
-		err = os.WriteFile(src, []byte("content"), 0644)
+		err = os.WriteFile(src, []byte("content"), 0o644)
 		assert.NoError(t, err, "creating a source file should not return an error")
 
 		// call copyFile
@@ -425,7 +425,7 @@ func TestLocalCopyFile(t *testing.T) {
 		dst := filepath.Join(tmpDir, "destination_dir", "destination_file.txt")
 
 		// create a source file
-		err = os.WriteFile(src, []byte("content"), 0644)
+		err = os.WriteFile(src, []byte("content"), 0o644)
 		assert.NoError(t, err, "creating a source file should not return an error")
 
 		err = l.copyFile(src, dst)
@@ -443,7 +443,7 @@ func TestLocalCopyFile(t *testing.T) {
 		dst := filepath.Join(tmpDir, "destination_file.txt")
 
 		// create a source file
-		err = os.WriteFile(src, []byte("content"), 0644)
+		err = os.WriteFile(src, []byte("content"), 0o644)
 		assert.NoError(t, err, "creating a source file should not return an error")
 
 		// call copyFile
@@ -451,7 +451,7 @@ func TestLocalCopyFile(t *testing.T) {
 		assert.NoError(t, err, "copying an existing source file should not return an error")
 
 		// remove write permission from the destination file
-		err = os.Chmod(dst, 0444)
+		err = os.Chmod(dst, 0o444)
 		assert.NoError(t, err, "changing permissions of the destination file should not return an error")
 
 		// call copyFile again
