@@ -161,7 +161,7 @@ type execCmdParams struct {
 func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
 	switch {
 	case ep.cmd.Script != "":
-		log.Printf("[DEBUG] run script on %s", ep.host)
+		log.Printf("[DEBUG] execute script %q on %s", ep.cmd.Name, ep.host)
 		single, multiRdr := ep.cmd.GetScript()
 		c, teardown, err := p.prepScript(ctx, single, multiRdr, ep)
 		if err != nil {
