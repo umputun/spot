@@ -31,8 +31,8 @@ type PlayBook struct {
 // Target defines hosts to run commands on
 type Target struct {
 	Hosts         []Destination `yaml:"hosts"`
-	InventoryFile string        `yaml:"inventory_file"`
-	InventoryURL  string        `yaml:"inventory_url"`
+	InventoryFile Inventory     `yaml:"inventory_file"`
+	InventoryURL  Inventory     `yaml:"inventory_url"`
 }
 
 // Task defines multiple commands runs together
@@ -103,6 +103,12 @@ type Overrides struct {
 	Environment   map[string]string
 }
 
+// Inventory defines external inventory file or url
+type Inventory struct {
+	Group    string `yaml:"group"`
+	Location string `yaml:"location"`
+}
+
 // New makes new config from yml
 func New(fname string, overrides *Overrides) (*PlayBook, error) {
 	res := &PlayBook{overrides: overrides}
@@ -166,20 +172,20 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 // It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
-	loadInventoryFile := func(fname string) ([]Destination, error) {
+	loadInventoryFile := func(fname, gr string) ([]Destination, error) {
 		fh, err := os.Open(fname) // nolint
 		if err != nil {
 			return nil, fmt.Errorf("can't open inventory file %s: %w", fname, err)
 		}
 		defer fh.Close() // nolint
-		hosts, err := p.parseInventory(fh)
+		hosts, err := p.parseInventory(fh, gr)
 		if err != nil {
 			return nil, fmt.Errorf("can't parse inventory file %s: %w", fname, err)
 		}
 		return hosts, nil
 	}
 
-	loadInventoryURL := func(url string) ([]Destination, error) {
+	loadInventoryURL := func(url, gr string) ([]Destination, error) {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
@@ -189,7 +195,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("can't get inventory from http %s, status: %s", url, resp.Status)
 		}
-		hosts, err := p.parseInventory(resp.Body)
+		hosts, err := p.parseInventory(resp.Body, gr)
 		if err != nil {
 			return nil, fmt.Errorf("can't parse inventory from http %s: %w", url, err)
 		}
@@ -221,11 +227,11 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	// check if we have overrides for inventory file, this is second priority
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
-		return loadInventoryFile(p.overrides.InventoryFile)
+		return loadInventoryFile(p.overrides.InventoryFile, "all")
 	}
 	// check if we have overrides for inventory http, this is third priority
 	if p.overrides != nil && p.overrides.InventoryURL != "" {
-		return loadInventoryURL(p.overrides.InventoryURL)
+		return loadInventoryURL(p.overrides.InventoryURL, "all")
 	}
 
 	// no overrides, check if we have target in config
@@ -272,13 +278,13 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	}
 
 	// target has no hosts, check if it has inventory file
-	if t.InventoryFile != "" {
-		return loadInventoryFile(t.InventoryFile)
+	if t.InventoryFile.Location != "" {
+		return loadInventoryFile(t.InventoryFile.Location, t.InventoryFile.Group)
 	}
 
 	// target has no hosts, check if it has inventory http
-	if t.InventoryURL != "" {
-		return loadInventoryURL(t.InventoryURL)
+	if t.InventoryURL.Location != "" {
+		return loadInventoryURL(t.InventoryURL.Location, t.InventoryFile.Group)
 	}
 
 	if t.Hosts == nil {
@@ -288,19 +294,34 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	return t.Hosts, nil
 }
 
-// parseInventory parses inventory file or url and returns a list of hosts.
-// inventory file format is: host1:port1<\n>host2:port2 user<\n>...
-// user is optional, if not set, it is assumed to defined in playbook.
-func (p *PlayBook) parseInventory(r io.Reader) (res []Destination, err error) {
+// parseInventory parses inventory file or url and returns a list of hosts for the specified group.
+// If "all" or empty group name is passed, it returns all entries.
+// inventory file format is: [group1]\nhost1:port1\nhost2:port2 user\n...\n[group2]\n...
+// user is optional, if not set, it is assumed to be defined in playbook.
+func (p *PlayBook) parseInventory(r io.Reader, groupName string) ([]Destination, error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("inventory reader failed: %w", err)
 	}
+
+	res := []Destination{}
+	currentGroup := "all"
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
+		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") { // skip empty lines and comments
 			continue
 		}
+
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") { // group definition
+			currentGroup = line[1 : len(line)-1]
+			continue
+		}
+
+		if groupName != "all" && groupName != "" && currentGroup != groupName {
+			continue
+		}
+
 		dest := Destination{User: p.User} // default user from playbook
 		hostUserElems := strings.Split(line, " ")
 		dest.Host = hostUserElems[0]
