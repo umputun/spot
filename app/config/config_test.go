@@ -260,7 +260,7 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 				},
 			},
 			"target2": {
-				InventoryFile: Inventory{Location: "testdata/hosts", Group: "gr1"},
+				InventoryFile: Inventory{Location: "testdata/hosts", Groups: []string{"gr1"}},
 			},
 			"target3": {},
 		},
@@ -487,13 +487,13 @@ h6.example.com user3
 
 	tests := []struct {
 		name         string
-		groupName    string
+		grpups       []string
 		want         []Destination
 		removeGroups bool
 	}{
 		{
-			name:      "All groups",
-			groupName: "all",
+			name:   "All groups",
+			grpups: nil,
 			want: []Destination{
 				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
 				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
@@ -504,8 +504,8 @@ h6.example.com user3
 			},
 		},
 		{
-			name:      "Group 1",
-			groupName: "gr1",
+			name:   "Group 1",
+			grpups: []string{"gr1"},
 			want: []Destination{
 				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
 				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
@@ -514,16 +514,28 @@ h6.example.com user3
 			},
 		},
 		{
-			name:      "Group 2",
-			groupName: "gr2",
+			name:   "Group 2",
+			grpups: []string{"gr2"},
 			want: []Destination{
 				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
 				{Host: "h6.example.com", Port: 22, User: "user3"},
 			},
 		},
 		{
-			name:      "Empty group name",
-			groupName: "",
+			name:   "Group 1 and 2",
+			grpups: []string{"gr1", "gr2"},
+			want: []Destination{
+				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
+				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Host: "h3.example.com", Port: 22, User: "user1"},
+				{Host: "h4.example.com", Port: 2233, User: "user2"},
+				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
+				{Host: "h6.example.com", Port: 22, User: "user3"},
+			},
+		},
+		{
+			name:   "Empty groups",
+			grpups: []string{},
 			want: []Destination{
 				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
 				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
@@ -535,7 +547,6 @@ h6.example.com user3
 		},
 		{
 			name:         "No-group inventory",
-			groupName:    "",
 			removeGroups: true,
 			want: []Destination{
 				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
@@ -548,7 +559,7 @@ h6.example.com user3
 		},
 		{
 			name:         "No-group inventory but name is set to all",
-			groupName:    "all",
+			grpups:       []string{"all"},
 			removeGroups: true,
 			want: []Destination{
 				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
@@ -560,9 +571,9 @@ h6.example.com user3
 			},
 		},
 		{
-			name:      "Non-existent group",
-			groupName: "non-existent",
-			want:      []Destination{},
+			name:   "Non-existent group",
+			grpups: []string{"non-existent"},
+			want:   []Destination{},
 		},
 	}
 
@@ -576,7 +587,7 @@ h6.example.com user3
 			} else {
 				reader = strings.NewReader(inventoryContent)
 			}
-			got, err := playbook.parseInventory(reader, tt.groupName)
+			got, err := playbook.parseInventory(reader, tt.grpups)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})

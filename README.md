@@ -73,11 +73,11 @@ targets:
   prod:
     hosts: ["h1.example.com", "h2.example.com"]
   staging:
-    inventory_file: {location: "testdata/inventory", group: "staging"}
+    inventory_file: {location: "testdata/inventory", groups: ["staging"]}
   dev:
-    inventory_url: {location: "http://localhost:8080/inventory", group: "dev"}
+    inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev"]}
   dev_and_staging:
-    inventory_file: {location: "testdata/inventory", group: all}
+    inventory_file: {location: "testdata/inventory"}
 
 # list of tasks, i.e. commands to execute
 tasks:
@@ -211,7 +211,7 @@ By using this approach, SimploTask enables users to write and execute more compl
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
 
 - `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: test}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override)  will be used. If no port is specified, port 22 will be used.
-- `inventory_file`: a path to the inventory file to use and group to use. Example: `inventory_file: {"location": "testdata/inventory", "group": "gr1"}`. If `group` not defined or set to `all` all the groups will be used.  The file contains a list of host names or IP addresses, one per line with options `[group]` values.
+- `inventory_file`: a path to the inventory file to use and groups to use. Example: `inventory_file: {"location": "testdata/inventory", "groups": []{"gr1"} }`. If `groups` not defined all the groups will be used. The [inventory file](#inventory-file-format) contains a list of host names or IP addresses, one per line with optional `[group]` values.
 - `inventory_url`: a URL to the inventory file to use. Example: `inventory_url: {"location": "http://localhost:8080/inventory"}`. The response contains a list of host names or IP addresses, one per line. The same support for groups as for `inventory_file` is available.
 
 Targets contains environments each of which represents a set of hosts, for example:
@@ -221,9 +221,9 @@ targets:
   prod:
     hosts: [{host: "h1.example.com", user: "test"}, {"h2.example.com", "port": 2222}]
   staging:
-    inventory_file: {location: "testdata/inventory", group: "staging"}
+    inventory_file: {location: "testdata/inventory", groups: ["staging"]}
   dev:
-    inventory_url: {location: "http://localhost:8080/inventory"}
+    inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev", "staging"]}
 ```
 
 ### Inventory file format

@@ -105,8 +105,8 @@ type Overrides struct {
 
 // Inventory defines external inventory file or url
 type Inventory struct {
-	Group    string `yaml:"group"`
-	Location string `yaml:"location"`
+	Groups   []string `yaml:"groups"`
+	Location string   `yaml:"location"`
 }
 
 // New makes new config from yml
@@ -172,20 +172,20 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 // It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
-	loadInventoryFile := func(fname, gr string) ([]Destination, error) {
+	loadInventoryFile := func(fname string, grs []string) ([]Destination, error) {
 		fh, err := os.Open(fname) // nolint
 		if err != nil {
 			return nil, fmt.Errorf("can't open inventory file %s: %w", fname, err)
 		}
 		defer fh.Close() // nolint
-		hosts, err := p.parseInventory(fh, gr)
+		hosts, err := p.parseInventory(fh, grs)
 		if err != nil {
 			return nil, fmt.Errorf("can't parse inventory file %s: %w", fname, err)
 		}
 		return hosts, nil
 	}
 
-	loadInventoryURL := func(url, gr string) ([]Destination, error) {
+	loadInventoryURL := func(url string, grs []string) ([]Destination, error) {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
@@ -195,7 +195,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("can't get inventory from http %s, status: %s", url, resp.Status)
 		}
-		hosts, err := p.parseInventory(resp.Body, gr)
+		hosts, err := p.parseInventory(resp.Body, grs)
 		if err != nil {
 			return nil, fmt.Errorf("can't parse inventory from http %s: %w", url, err)
 		}
@@ -227,11 +227,11 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	// check if we have overrides for inventory file, this is second priority
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
-		return loadInventoryFile(p.overrides.InventoryFile, "all")
+		return loadInventoryFile(p.overrides.InventoryFile, nil)
 	}
 	// check if we have overrides for inventory http, this is third priority
 	if p.overrides != nil && p.overrides.InventoryURL != "" {
-		return loadInventoryURL(p.overrides.InventoryURL, "all")
+		return loadInventoryURL(p.overrides.InventoryURL, nil)
 	}
 
 	// no overrides, check if we have target in config
@@ -279,12 +279,12 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	// target has no hosts, check if it has inventory file
 	if t.InventoryFile.Location != "" {
-		return loadInventoryFile(t.InventoryFile.Location, t.InventoryFile.Group)
+		return loadInventoryFile(t.InventoryFile.Location, t.InventoryFile.Groups)
 	}
 
 	// target has no hosts, check if it has inventory http
 	if t.InventoryURL.Location != "" {
-		return loadInventoryURL(t.InventoryURL.Location, t.InventoryFile.Group)
+		return loadInventoryURL(t.InventoryURL.Location, t.InventoryFile.Groups)
 	}
 
 	if t.Hosts == nil {
@@ -298,7 +298,20 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 // If "all" or empty group name is passed, it returns all entries.
 // inventory file format is: [group1]\nhost1:port1\nhost2:port2 user\n...\n[group2]\n...
 // user is optional, if not set, it is assumed to be defined in playbook.
-func (p *PlayBook) parseInventory(r io.Reader, groupName string) ([]Destination, error) {
+func (p *PlayBook) parseInventory(r io.Reader, groups []string) ([]Destination, error) {
+
+	contains := func(s []string, e string) bool {
+		if len(s) == 0 {
+			return true
+		}
+		for _, a := range s {
+			if a == e {
+				return true
+			}
+		}
+		return false
+	}
+
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("inventory reader failed: %w", err)
@@ -318,7 +331,7 @@ func (p *PlayBook) parseInventory(r io.Reader, groupName string) ([]Destination,
 			continue
 		}
 
-		if groupName != "all" && groupName != "" && currentGroup != groupName {
+		if !contains(groups, currentGroup) {
 			continue
 		}
 
