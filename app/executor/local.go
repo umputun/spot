@@ -21,14 +21,7 @@ type Local struct{}
 func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 
-	var outLog, errLog io.Writer
-	if verbose {
-		outLog = NewColorizedWriter(os.Stdout, ">", "localhost")
-		errLog = NewColorizedWriter(os.Stdout, "!", "localhost")
-	} else {
-		outLog = NewStdoutLogWriter(">", "DEBUG")
-		errLog = NewStdoutLogWriter("!", "WARN")
-	}
+	outLog, errLog := makeOutAndErrWriters("localhost", verbose)
 	outLog.Write([]byte(cmd)) //nolint
 
 	var stdoutBuf bytes.Buffer

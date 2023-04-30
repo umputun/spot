@@ -3,7 +3,9 @@ package executor
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"log"
+	"os"
 	"strings"
 	"testing"
 
@@ -149,4 +151,43 @@ func TestColorizedWriter(t *testing.T) {
 			assert.Equal(t, len(tc.expectedLines), lineIndex)
 		})
 	}
+}
+
+func TestMakeOutAndErrWriters(t *testing.T) {
+	host := "example.com"
+	outMsg := "Hello, out!"
+	errMsg := "Hello, err!"
+
+	t.Run("verbose", func(t *testing.T) {
+		originalStdout := os.Stdout
+
+		rOut, wOut, _ := os.Pipe()
+		os.Stdout = wOut
+
+		outWriter, errWriter := makeOutAndErrWriters(host, true)
+		io.WriteString(outWriter, outMsg)
+		io.WriteString(errWriter, errMsg)
+
+		wOut.Close()
+		os.Stdout = originalStdout
+
+		var bufOut bytes.Buffer
+		io.Copy(&bufOut, rOut)
+
+		t.Logf("bufOut:\n%s", bufOut.String())
+		assert.Contains(t, bufOut.String(), "[example.com] > Hello, out!", "captured stdout should contain the out message")
+		assert.Contains(t, bufOut.String(), "[example.com] ! Hello, err!", "captured stderr should contain the err message")
+	})
+
+	t.Run("non-verbose", func(t *testing.T) {
+		outWriter, errWriter := makeOutAndErrWriters(host, false)
+		bufOut := bytes.Buffer{}
+		log.SetOutput(&bufOut)
+		io.WriteString(outWriter, outMsg)
+		io.WriteString(errWriter, errMsg)
+
+		t.Logf("bufOut:\n%s", bufOut.String())
+		assert.Contains(t, bufOut.String(), "[DEBUG] > Hello, out!", "captured stdout should contain the out message")
+		assert.Contains(t, bufOut.String(), "[WARN] ! Hello, err!", "captured stderr should contain the err message")
+	})
 }

@@ -198,14 +198,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 	defer session.Close()
 
-	var outLog, errLog io.Writer
-	if verbose {
-		outLog = NewColorizedWriter(os.Stdout, ">", ex.host)
-		errLog = NewColorizedWriter(os.Stdout, "!", ex.host)
-	} else {
-		outLog = NewStdoutLogWriter(">", "DEBUG")
-		errLog = NewStdoutLogWriter("!", "WARN")
-	}
+	outLog, errLog := makeOutAndErrWriters(ex.host, verbose)
 	outLog.Write([]byte(command)) //nolint
 
 	var stdoutBuf bytes.Buffer
