@@ -206,7 +206,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 		outLog = NewStdoutLogWriter(">", "DEBUG")
 		errLog = NewStdoutLogWriter("!", "WARN")
 	}
-	outLog.Write([]byte(command))
+	outLog.Write([]byte(command)) //nolint
 
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(outLog, &stdoutBuf)

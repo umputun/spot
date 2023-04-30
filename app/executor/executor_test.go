@@ -3,7 +3,6 @@ package executor
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -114,8 +113,8 @@ func TestColorizedWriter(t *testing.T) {
 			host:   "localhost",
 			input:  "This is a test message\nThis is another test message",
 			expectedLines: []string{
-				fmt.Sprintf("[localhost] INFO This is a test message"),
-				fmt.Sprintf("[localhost] INFO This is another test message"),
+				"[localhost] INFO This is a test message",
+				"[localhost] INFO This is another test message",
 			},
 		},
 		{
@@ -124,8 +123,8 @@ func TestColorizedWriter(t *testing.T) {
 			host:   "localhost",
 			input:  "This is a test message\nThis is another test message",
 			expectedLines: []string{
-				fmt.Sprintf("[localhost] This is a test message"),
-				fmt.Sprintf("[localhost] This is another test message"),
+				"[localhost] This is a test message",
+				"[localhost] This is another test message",
 			},
 		},
 	}

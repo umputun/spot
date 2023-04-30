@@ -20,9 +20,20 @@ type Local struct{}
 // Run executes command on local host, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
+
+	var outLog, errLog io.Writer
+	if verbose {
+		outLog = NewColorizedWriter(os.Stdout, ">", "localhost")
+		errLog = NewColorizedWriter(os.Stdout, "!", "localhost")
+	} else {
+		outLog = NewStdoutLogWriter(">", "DEBUG")
+		errLog = NewStdoutLogWriter("!", "WARN")
+	}
+	outLog.Write([]byte(cmd)) //nolint
+
 	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(NewStdoutLogWriter(">", "DEBUG"), &stdoutBuf)
-	command.Stdout, command.Stderr = mwr, NewStdoutLogWriter("!", "WARN")
+	mwr := io.MultiWriter(outLog, &stdoutBuf)
+	command.Stdout, command.Stderr = mwr, errLog
 	err = command.Run()
 	if err != nil {
 		return nil, err

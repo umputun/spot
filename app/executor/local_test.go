@@ -31,15 +31,27 @@ func TestRun(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			l := &Local{}
-			out, err := l.Run(context.Background(), tc.cmd, false)
-
-			if tc.expectError {
-				assert.Error(t, err, "expected an error")
-				return
+			{
+				out, err := l.Run(context.Background(), tc.cmd, false)
+				if tc.expectError {
+					assert.Error(t, err, "expected an error")
+					return
+				}
+				assert.NoError(t, err, "unexpected error")
+				require.Equal(t, 1, len(out), "output should have exactly one line")
+				assert.Equal(t, "Hello, World!", out[0], "output line should match expected value")
 			}
-			assert.NoError(t, err, "unexpected error")
-			require.Equal(t, 1, len(out), "output should have exactly one line")
-			assert.Equal(t, "Hello, World!", out[0], "output line should match expected value")
+			{
+				out, err := l.Run(context.Background(), tc.cmd, true)
+				if tc.expectError {
+					assert.Error(t, err, "expected an error")
+					return
+				}
+				assert.NoError(t, err, "unexpected error")
+				require.Equal(t, 1, len(out), "output should have exactly one line")
+				assert.Equal(t, "Hello, World!", out[0], "output line should match expected value")
+			}
+
 		})
 	}
 }

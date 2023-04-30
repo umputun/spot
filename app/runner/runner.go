@@ -112,9 +112,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	}
 	defer remote.Close()
 
-	wr := p.ColorWriter.WithHost(host)
-	fmt.Fprintf(wr, "run task %s, commands: %d\n", tsk.Name, len(tsk.Commands))
-
+	fmt.Fprintf(p.ColorWriter.WithHost(host), "run task %s, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
 	for _, cmd := range tsk.Commands {
 		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
@@ -141,17 +139,15 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 				return count, fmt.Errorf("can't run command %q on host %s: %w", cmd.Name, host, err)
 			}
 
-			wr := p.ColorWriter.WithHost(host)
-			fmt.Fprintf(wr, "failed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+			fmt.Fprintf(p.ColorWriter.WithHost(host), "failed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 			continue
 		}
 
-		fmt.Fprintf(wr, "completed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+		fmt.Fprintf(p.ColorWriter.WithHost(host), "completed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 		count++
 	}
 
-	wr = p.ColorWriter.WithHost(host)
-	fmt.Fprintf(wr, "completed task %s, commands: %d\n", tsk.Name, count)
+	fmt.Fprintf(p.ColorWriter.WithHost(host), "completed task %s, commands: %d\n", tsk.Name, count)
 
 	return count, nil
 }
