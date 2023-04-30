@@ -23,7 +23,7 @@ import (
 )
 
 type options struct {
-	PlaybookFile string `short:"f" long:"file" env:"SPT_FILE" description:"playbook file" default:"spt.yml"`
+	PlaybookFile string `short:"f" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
 	TaskName     string `short:"t" long:"task" description:"task name"`
 	TargetName   string `short:"d" long:"target" description:"target name" default:"default"`
 	Concurrent   int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
