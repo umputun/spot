@@ -99,6 +99,22 @@ func Test_runCanceled(t *testing.T) {
 	signal.NotifyContext(ctx, os.Interrupt)
 }
 
+func Test_runFailed(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf-local-failed.yml",
+		TaskName:     "default",
+		TargetName:   hostAndPort,
+	}
+	setupLog(true)
+	err := run(opts)
+	assert.ErrorContains(t, err, `can't run command "show content"`)
+}
+
 func Test_sshUserAndKey(t *testing.T) {
 	testCases := []struct {
 		name         string
