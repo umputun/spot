@@ -2,7 +2,7 @@ targets:
   remark42:
     hosts: [{host: "h1.example.com"}, {host: "h2.example.com"}]
   staging:
-    inventory_file: "testdata/inventory"
+    inventory_file: {location: "testdata/inventory"}
 
 
 tasks:

@@ -1,9 +1,9 @@
-- user: umputun
+-user: umputun # this is intentionally wrong
 
 targets:
-    - remark42:
+  - remark42:
       hosts: ["h1.example.com", "h2.example.com"]
-    staging:
+  - staging:
       inventory: "file://inventory/staging.yml"
 
 
