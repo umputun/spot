@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"log"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/go-pkgz/syncs"
 
 	"github.com/umputun/simplotask/app/config"
@@ -29,6 +27,7 @@ type Process struct {
 	Concurrency int
 	Connector   Connector
 	Config      *config.PlayBook
+	Colorizer   func(host string) func(format string, a ...interface{}) string
 
 	Skip []string
 	Only []string
@@ -106,6 +105,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	}
 	defer remote.Close()
 
+	outLine := p.Colorizer(host)("[%s] run task %s, commands: %d\n", host, tsk.Name, len(tsk.Commands))
+	_, _ = os.Stdout.WriteString(outLine)
+
 	count := 0
 	for _, cmd := range tsk.Commands {
 		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
@@ -131,16 +133,19 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 			if !cmd.Options.IgnoreErrors {
 				return count, fmt.Errorf("can't run command %q on host %s: %w", cmd.Name, host, err)
 			}
-			outLine := p.colorize(host)("[%s] failed %s%s (%v)\n",
+			outLine := p.Colorizer(host)("[%s] failed %s%s (%v)\n",
 				host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 			_, _ = os.Stdout.WriteString(outLine)
 			continue
 		}
 
-		outLine := p.colorize(host)("[%s] %s%s (%v)\n", host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+		outLine := p.Colorizer(host)("[%s] %s%s (%v)\n", host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 		_, _ = os.Stdout.WriteString(outLine)
 		count++
 	}
+
+	outLine = p.Colorizer(host)("[%s] completed task %s, commands: %d\n", host, tsk.Name, count)
+	_, _ = os.Stdout.WriteString(outLine)
 
 	return count, nil
 }
@@ -238,15 +243,6 @@ func (p *Process) wait(ctx context.Context, sess executor.Interface, params conf
 			}
 		}
 	}
-}
-
-// colorize returns a function that formats a string with a color based on the host name.
-func (p *Process) colorize(host string) func(format string, a ...interface{}) string {
-	colors := []color.Attribute{color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
-		color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan, color.FgCyan, color.FgMagenta,
-		color.FgBlue, color.FgYellow, color.FgGreen, color.FgRed}
-	i := crc32.ChecksumIEEE([]byte(host)) % uint32(len(colors))
-	return color.New(colors[i]).SprintfFunc()
 }
 
 type templateData struct {

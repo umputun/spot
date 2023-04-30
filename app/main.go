@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"log"
 	"os"
@@ -43,7 +44,8 @@ type options struct {
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `short:"o" long:"only" description:"run only commands"`
 
-	Dbg bool `long:"dbg" description:"debug mode"`
+	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
+	Dbg     bool `long:"dbg" description:"debug mode"`
 }
 
 var revision = "latest"
@@ -98,6 +100,7 @@ func run(opts options) error {
 		Config:      conf,
 		Only:        opts.Only,
 		Skip:        opts.Skip,
+		Colorizer:   hostColorizer,
 	}
 
 	if opts.TaskName != "" { // run single task
@@ -150,6 +153,15 @@ func sshUserAndKey(opts options, conf *config.PlayBook) (uname, key string) {
 	}
 
 	return sshUser, sshKey
+}
+
+// hostColorizer returns a function that formats a string with a color based on the host name.
+func hostColorizer(host string) func(format string, a ...interface{}) string {
+	colors := []color.Attribute{color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
+		color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan, color.FgCyan, color.FgMagenta,
+		color.FgBlue, color.FgYellow, color.FgGreen, color.FgRed}
+	i := crc32.ChecksumIEEE([]byte(host)) % uint32(len(colors))
+	return color.New(colors[i]).SprintfFunc()
 }
 
 func setupLog(dbg bool) {
