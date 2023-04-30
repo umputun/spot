@@ -98,13 +98,30 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
 	}
 
-	var buf bytes.Buffer
-	log.SetOutput(&buf)
+	t.Run("onerror called", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
 
-	_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
-	require.ErrorContains(t, err, `can't run command "bad command" on host`)
-	t.Log(buf.String())
-	require.Contains(t, buf.String(), "onerror called")
+		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
+		require.ErrorContains(t, err, `can't run command "bad command" on host`)
+		t.Log(buf.String())
+		require.Contains(t, buf.String(), "onerror called")
+	})
+
+	t.Run("onerror failed", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		tsk := p.Config.Tasks["failed_task_with_onerror"]
+		tsk.OnError = "bad command"
+		p.Config.Tasks["failed_task_with_onerror"] = tsk
+		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
+		require.ErrorContains(t, err, `can't run command "bad command" on host`)
+		t.Log(buf.String())
+		require.NotContains(t, buf.String(), "onerror called")
+		assert.Contains(t, buf.String(), "[WARN] ! sh: bad: command not found")
+		assert.Contains(t, buf.String(), "exit status 127")
+	})
 }
 
 func TestProcess_RunFailedErrIgnored(t *testing.T) {

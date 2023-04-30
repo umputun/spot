@@ -102,7 +102,7 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 	return color.New(colors[i]).SprintfFunc()
 }
 
-func makeOutAndErrWriters(host string, verbose bool) (outWr, errWr io.Writer) {
+func MakeOutAndErrWriters(host string, verbose bool) (outWr, errWr io.Writer) {
 	var outLog, errLog io.Writer
 	if verbose {
 		outLog = NewColorizedWriter(os.Stdout, ">", host)

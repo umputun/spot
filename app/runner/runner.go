@@ -78,8 +78,13 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	if err != nil && tsk.OnError != "" {
 		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
+
+		outLog, errLog := executor.MakeOutAndErrWriters("localhost", p.Verbose)
+		outLog.Write([]byte(tsk.OnError)) //nolint
+
 		var stdoutBuf bytes.Buffer
-		mwr := io.MultiWriter(executor.NewStdoutLogWriter(">", "DEBUG"), &stdoutBuf)
+		mwr := io.MultiWriter(outLog, &stdoutBuf)
+		onErrCmd.Stdout, onErrCmd.Stderr = mwr, errLog
 		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN")
 		if exErr := onErrCmd.Run(); exErr != nil {
 			log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)

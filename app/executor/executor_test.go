@@ -164,7 +164,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		rOut, wOut, _ := os.Pipe()
 		os.Stdout = wOut
 
-		outWriter, errWriter := makeOutAndErrWriters(host, true)
+		outWriter, errWriter := MakeOutAndErrWriters(host, true)
 		io.WriteString(outWriter, outMsg)
 		io.WriteString(errWriter, errMsg)
 
@@ -180,7 +180,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 	})
 
 	t.Run("non-verbose", func(t *testing.T) {
-		outWriter, errWriter := makeOutAndErrWriters(host, false)
+		outWriter, errWriter := MakeOutAndErrWriters(host, false)
 		bufOut := bytes.Buffer{}
 		log.SetOutput(&bufOut)
 		io.WriteString(outWriter, outMsg)
