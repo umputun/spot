@@ -115,6 +115,36 @@ func Test_runFailed(t *testing.T) {
 	assert.ErrorContains(t, err, `can't run command "show content"`)
 }
 
+func Test_runNoConfig(t *testing.T) {
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf-not-found.yml",
+		TaskName:     "task1",
+		TargetName:   "localhost",
+		Only:         []string{"wait"},
+	}
+	setupLog(true)
+	err := run(opts)
+	require.ErrorContains(t, err, " can't read config runner/testdata/conf-not-found.yml")
+}
+
+func Test_connectFailed(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "bad_user",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf.yml",
+		TaskName:     "task1",
+		TargetName:   hostAndPort,
+	}
+	setupLog(true)
+	err := run(opts)
+	assert.ErrorContains(t, err, `ssh: unable to authenticate`)
+}
+
 func Test_sshUserAndKey(t *testing.T) {
 	testCases := []struct {
 		name         string
