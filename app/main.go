@@ -43,7 +43,8 @@ type options struct {
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `short:"o" long:"only" description:"run only commands"`
 
-	Dbg bool `long:"dbg" description:"debug mode"`
+	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
+	Dbg     bool `long:"dbg" description:"debug mode"`
 }
 
 var revision = "latest"
@@ -98,6 +99,8 @@ func run(opts options) error {
 		Config:      conf,
 		Only:        opts.Only,
 		Skip:        opts.Skip,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		Verbose:     opts.Verbose,
 	}
 
 	if opts.TaskName != "" { // run single task

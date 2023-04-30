@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"hash/crc32"
 	"io"
 	"log"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/go-pkgz/syncs"
 
 	"github.com/umputun/simplotask/app/config"
@@ -29,6 +27,8 @@ type Process struct {
 	Concurrency int
 	Connector   Connector
 	Config      *config.PlayBook
+	ColorWriter *executor.ColorizedWriter
+	Verbose     bool
 
 	Skip []string
 	Only []string
@@ -38,6 +38,12 @@ type Process struct {
 type Connector interface {
 	Connect(ctx context.Context, host string) (*executor.Remote, error)
 	User() string
+}
+
+// ColorWriter is an interface for writing to a colorized output.
+type ColorWriter interface {
+	io.Writer
+	WithHost(host string) ColorWriter
 }
 
 // ProcStats holds the information about processed commands and hosts.
@@ -79,8 +85,8 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
 		var stdoutBuf bytes.Buffer
-		mwr := io.MultiWriter(executor.NewStdOutLogWriter(">", "DEBUG"), &stdoutBuf)
-		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdOutLogWriter("!", "WARN")
+		mwr := io.MultiWriter(executor.NewStdoutLogWriter(">", "DEBUG"), &stdoutBuf)
+		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN")
 		if exErr := onErrCmd.Run(); exErr != nil {
 			log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
 		}
@@ -106,6 +112,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 	}
 	defer remote.Close()
 
+	fmt.Fprintf(p.ColorWriter.WithHost(host), "run task %s, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
 	for _, cmd := range tsk.Commands {
 		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
@@ -131,16 +138,16 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 			if !cmd.Options.IgnoreErrors {
 				return count, fmt.Errorf("can't run command %q on host %s: %w", cmd.Name, host, err)
 			}
-			outLine := p.colorize(host)("[%s] failed %s%s (%v)\n",
-				host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
-			_, _ = os.Stdout.WriteString(outLine)
+
+			fmt.Fprintf(p.ColorWriter.WithHost(host), "failed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 			continue
 		}
 
-		outLine := p.colorize(host)("[%s] %s%s (%v)\n", host, cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
-		_, _ = os.Stdout.WriteString(outLine)
+		fmt.Fprintf(p.ColorWriter.WithHost(host), "completed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 		count++
 	}
+
+	fmt.Fprintf(p.ColorWriter.WithHost(host), "completed task %s, commands: %d\n", tsk.Name, count)
 
 	return count, nil
 }
@@ -170,7 +177,7 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 			}
 		}()
 		details = fmt.Sprintf(" {script: %s}", c)
-		if _, err := ep.exec.Run(ctx, c); err != nil {
+		if _, err := ep.exec.Run(ctx, c, p.Verbose); err != nil {
 			return details, fmt.Errorf("can't run script on %s: %w", ep.host, err)
 		}
 	case ep.cmd.Copy.Source != "" && ep.cmd.Copy.Dest != "":
@@ -233,20 +240,11 @@ func (p *Process) wait(ctx context.Context, sess executor.Interface, params conf
 		case <-timeoutTk.C:
 			return fmt.Errorf("timeout exceeded")
 		case <-checkTk.C:
-			if _, err := sess.Run(ctx, params.Command); err == nil {
+			if _, err := sess.Run(ctx, params.Command, false); err == nil {
 				return nil
 			}
 		}
 	}
-}
-
-// colorize returns a function that formats a string with a color based on the host name.
-func (p *Process) colorize(host string) func(format string, a ...interface{}) string {
-	colors := []color.Attribute{color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
-		color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan, color.FgCyan, color.FgMagenta,
-		color.FgBlue, color.FgYellow, color.FgGreen, color.FgRed}
-	i := crc32.ChecksumIEEE([]byte(host)) % uint32(len(colors))
-	return color.New(colors[i]).SprintfFunc()
 }
 
 type templateData struct {

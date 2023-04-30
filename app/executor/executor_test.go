@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"bufio"
 	"bytes"
 	"log"
 	"strings"
@@ -94,6 +95,58 @@ func TestStdOutLogWriter(t *testing.T) {
 			for i, expectedLine := range tc.expectedLines {
 				assert.Equal(t, expectedLine, lines[i], "the output line should match the expected line")
 			}
+		})
+	}
+}
+
+func TestColorizedWriter(t *testing.T) {
+	testCases := []struct {
+		name          string
+		prefix        string
+		host          string
+		input         string
+		expectedLines []string
+	}{
+		{
+			name:   "WithPrefix",
+			prefix: "INFO",
+			host:   "localhost",
+			input:  "This is a test message\nThis is another test message",
+			expectedLines: []string{
+				"[localhost] INFO This is a test message",
+				"[localhost] INFO This is another test message",
+			},
+		},
+		{
+			name:   "WithoutPrefix",
+			prefix: "",
+			host:   "localhost",
+			input:  "This is a test message\nThis is another test message",
+			expectedLines: []string{
+				"[localhost] This is a test message",
+				"[localhost] This is another test message",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			buffer := bytes.NewBuffer([]byte{})
+			writer := NewColorizedWriter(buffer, tc.prefix, tc.host)
+
+			_, err := writer.Write([]byte(tc.input))
+			assert.NoError(t, err)
+
+			scanner := bufio.NewScanner(buffer)
+			lineIndex := 0
+
+			for scanner.Scan() {
+				assert.Contains(t, scanner.Text(), tc.expectedLines[lineIndex])
+				lineIndex++
+			}
+
+			assert.NoError(t, scanner.Err())
+			assert.Equal(t, len(tc.expectedLines), lineIndex)
 		})
 	}
 }
