@@ -7,12 +7,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"regexp"
-	"strconv"
 	"testing"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -181,64 +178,6 @@ func Test_sshUserAndKey(t *testing.T) {
 	}
 }
 
-func TestHostColorizer(t *testing.T) {
-	getColorAttributeFromFormattedString := func(s string) (color.Attribute, error) {
-		colorCodeRegExp := regexp.MustCompile(`\x1b\[(\d+)m`)
-		matches := colorCodeRegExp.FindStringSubmatch(s)
-		if len(matches) == 2 {
-			colorCode, err := strconv.Atoi(matches[1])
-			if err != nil {
-				return 0, err
-			}
-			return color.Attribute(colorCode), nil
-		}
-		return 0, fmt.Errorf("no color code found in string")
-	}
-
-	hostColorizerTestCases := []struct {
-		name string
-		host string
-	}{
-		{
-			name: "Case 1",
-			host: "example1.com",
-		},
-		{
-			name: "Case 2",
-			host: "example2.com",
-		},
-		{
-			name: "Case 3",
-			host: "example3.com",
-		},
-		// Add more test cases here
-	}
-
-	for _, tc := range hostColorizerTestCases {
-		t.Run(tc.name, func(t *testing.T) {
-			colorizer := hostColorizer(tc.host)
-
-			// Test the colorizer function with a sample string
-			testString := "Test string"
-			colorizedString := colorizer(testString)
-
-			// Check if the output string is different from the input string
-			assert.NotEqual(t, testString, colorizedString, "Colorized output should be different from the input string")
-
-			// Get color attribute from the colorized string
-			colorAttr, err := getColorAttributeFromFormattedString(colorizedString)
-			assert.NoError(t, err, "Error should be nil when extracting color attribute")
-
-			// Check if the same host produces the same color
-			for i := 0; i < 5; i++ {
-				colorizedStringRepeated := colorizer(testString)
-				colorAttrRepeated, err := getColorAttributeFromFormattedString(colorizedStringRepeated)
-				assert.NoError(t, err, "Error should be nil when extracting color attribute")
-				assert.Equal(t, colorAttr, colorAttrRepeated, "Color attribute should remain the same for the same host")
-			}
-		})
-	}
-}
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	t.Helper()
 	ctx := context.Background()

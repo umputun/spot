@@ -32,13 +32,13 @@ func (ex *Remote) Close() error {
 }
 
 // Run command on remote server.
-func (ex *Remote) Run(ctx context.Context, cmd string) (out []string, err error) {
+func (ex *Remote) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
 	log.Printf("[DEBUG] run %s", cmd)
 
-	return ex.sshRun(ctx, ex.client, cmd)
+	return ex.sshRun(ctx, ex.client, cmd, verbose)
 }
 
 // Upload file to remote server with scp
@@ -190,7 +190,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool)
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to remote process.
-func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
+func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string, verbose bool) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
 	if err != nil {
@@ -198,9 +198,19 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 	defer session.Close()
 
+	var outLog, errLog io.Writer
+	if verbose {
+		outLog = NewColorizedWriter(os.Stdout, ">", ex.host)
+		errLog = NewColorizedWriter(os.Stdout, "!", ex.host)
+	} else {
+		outLog = NewStdoutLogWriter(">", "DEBUG")
+		errLog = NewStdoutLogWriter("!", "WARN")
+	}
+	outLog.Write([]byte(command))
+
 	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(NewStdOutLogWriter(">", "DEBUG"), &stdoutBuf)
-	session.Stdout, session.Stderr = mwr, NewStdOutLogWriter("!", "WARN")
+	mwr := io.MultiWriter(outLog, &stdoutBuf)
+	session.Stdout, session.Stderr = mwr, errLog
 
 	done := make(chan error)
 	go func() {

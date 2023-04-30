@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"testing"
@@ -33,6 +34,28 @@ func TestProcess_Run(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+	}
+	_, err = p.Run(ctx, "task1", hostAndPort)
+	require.NoError(t, err)
+}
+
+func TestProcess_RunVerbose(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	log.SetOutput(io.Discard)
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		Verbose:     true,
 	}
 	_, err = p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
@@ -52,6 +75,7 @@ func TestProcess_RunFailed(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
 	require.ErrorContains(t, err, `can't run command "bad command" on host`)
@@ -71,6 +95,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
 	}
 
 	var buf bytes.Buffer
@@ -96,6 +121,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
 	require.NoError(t, err, "error ignored")
@@ -115,6 +141,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
 	}
 
 	var buf bytes.Buffer
@@ -247,7 +274,7 @@ func TestProcess_waitPassed(t *testing.T) {
 
 	p := Process{Connector: connector}
 	time.AfterFunc(time.Second, func() {
-		_, _ = sess.Run(ctx, "touch /tmp/wait.done")
+		_, _ = sess.Run(ctx, "touch /tmp/wait.done", false)
 	})
 	err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
 		Command: "cat /tmp/wait.done"})

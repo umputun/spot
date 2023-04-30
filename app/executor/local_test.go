@@ -31,7 +31,7 @@ func TestRun(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			l := &Local{}
-			out, err := l.Run(context.Background(), tc.cmd)
+			out, err := l.Run(context.Background(), tc.cmd, false)
 
 			if tc.expectError {
 				assert.Error(t, err, "expected an error")

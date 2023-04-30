@@ -135,7 +135,7 @@ func TestExecuter_Run(t *testing.T) {
 	defer sess.Close()
 
 	t.Run("single line out", func(t *testing.T) {
-		out, e := sess.Run(ctx, "sh -c 'echo hello world'")
+		out, e := sess.Run(ctx, "sh -c 'echo hello world'", false)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
@@ -146,7 +146,7 @@ func TestExecuter_Run(t *testing.T) {
 		err = sess.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
 		assert.NoError(t, err)
 
-		out, err := sess.Run(ctx, "ls -1 /tmp/st")
+		out, err := sess.Run(ctx, "ls -1 /tmp/st", false)
 		require.NoError(t, err)
 		t.Logf("out: %v", out)
 		assert.Equal(t, 2, len(out))
@@ -156,7 +156,7 @@ func TestExecuter_Run(t *testing.T) {
 
 	t.Run("find out", func(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
-		out, e := sess.Run(ctx, cmd)
+		out, e := sess.Run(ctx, cmd, true)
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"/tmp/st/data1.txt:68", "/tmp/st/data2.txt:68"}, out)
@@ -180,7 +180,7 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;")
+		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;", true)
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
@@ -218,7 +218,7 @@ func TestExecuter_Delete(t *testing.T) {
 	t.Run("delete file", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest/file1.txt", false)
 		assert.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest")
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", false)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"d1", "file2.txt"}, out)
 	})
@@ -226,7 +226,7 @@ func TestExecuter_Delete(t *testing.T) {
 	t.Run("delete dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest", true)
 		assert.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/")
+		out, e := sess.Run(ctx, "ls -1 /tmp/", true)
 		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
 	})
