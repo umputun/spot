@@ -102,6 +102,7 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 	return color.New(colors[i]).SprintfFunc()
 }
 
+// MakeOutAndErrWriters creates a new StdoutLogWriter and StdoutLogWriter for the given host.
 func MakeOutAndErrWriters(host string, verbose bool) (outWr, errWr io.Writer) {
 	var outLog, errLog io.Writer
 	if verbose {
