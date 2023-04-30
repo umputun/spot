@@ -36,7 +36,7 @@ func Test_runCompleted(t *testing.T) {
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf.yml",
 		TaskName:     "task1",
-		TargetName:   hostAndPort,
+		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
 	}
 	setupLog(true)
@@ -54,7 +54,7 @@ func Test_runCompletedAllTasks(t *testing.T) {
 		SSHUser:      "test",
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf2.yml",
-		TargetName:   hostAndPort,
+		Targets:      []string{hostAndPort},
 		Dbg:          true,
 	}
 	setupLog(true)
@@ -84,7 +84,7 @@ func Test_runCanceled(t *testing.T) {
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf.yml",
 		TaskName:     "task1",
-		TargetName:   hostAndPort,
+		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
 	}
 	setupLog(true)
@@ -108,7 +108,7 @@ func Test_runFailed(t *testing.T) {
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf-local-failed.yml",
 		TaskName:     "default",
-		TargetName:   hostAndPort,
+		Targets:      []string{hostAndPort},
 	}
 	setupLog(true)
 	err := run(opts)
@@ -121,7 +121,7 @@ func Test_runNoConfig(t *testing.T) {
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf-not-found.yml",
 		TaskName:     "task1",
-		TargetName:   "localhost",
+		Targets:      []string{"localhost"},
 		Only:         []string{"wait"},
 	}
 	setupLog(true)
@@ -138,7 +138,7 @@ func Test_connectFailed(t *testing.T) {
 		SSHKey:       "runner/testdata/test_ssh_key",
 		PlaybookFile: "runner/testdata/conf.yml",
 		TaskName:     "task1",
-		TargetName:   hostAndPort,
+		Targets:      []string{hostAndPort},
 	}
 	setupLog(true)
 	err := run(opts)

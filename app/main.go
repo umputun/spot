@@ -23,15 +23,14 @@ import (
 )
 
 type options struct {
-	PlaybookFile string `short:"f" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
-	TaskName     string `short:"t" long:"task" description:"task name"`
-	TargetName   string `short:"d" long:"target" description:"target name" default:"default"`
-	Concurrent   int    `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
+	PlaybookFile string   `short:"f" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
+	TaskName     string   `short:"t" long:"task" description:"task name"`
+	Targets      []string `short:"d" long:"target" description:"target name" default:"default"`
+	Concurrent   int      `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 
 	// target overrides
-	TargetHosts   []string `short:"h" long:"host" description:"destination host"`
-	InventoryFile string   `long:"inventory-file" description:"inventory file"`
-	InventoryURL  string   `long:"inventory-url" description:"inventory http url"`
+	InventoryFile string `long:"inventory-file" description:"inventory file"`
+	InventoryURL  string `long:"inventory-url" description:"inventory http url"`
 
 	// connection overrides
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
@@ -73,12 +72,10 @@ func main() {
 
 func run(opts options) error {
 	st := time.Now()
-
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
 	overrides := config.Overrides{
-		TargetHosts:   opts.TargetHosts,
 		InventoryFile: opts.InventoryFile,
 		InventoryURL:  opts.InventoryURL,
 		Environment:   opts.Env,
@@ -105,21 +102,34 @@ func run(opts options) error {
 	}
 
 	if opts.TaskName != "" { // run single task
-		stats, err := r.Run(ctx, opts.TaskName, opts.TargetName)
-		if err != nil {
-			return err
+		for _, targetName := range opts.Targets {
+			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName); err != nil {
+				return err
+			}
 		}
-		fmt.Printf("completed: hosts:%d, commands:%d in %v\n",
-			stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
 		return nil
 	}
 
 	// run all tasks
 	for taskName := range conf.Tasks {
-		if _, err := r.Run(ctx, taskName, opts.TargetName); err != nil {
-			return err
+		for _, targetName := range opts.Targets {
+			if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
+				return err
+			}
 		}
 	}
+	log.Printf("[INFO] completed all %d targets in %v", len(opts.Targets), time.Since(st).Truncate(100*time.Millisecond))
+	return nil
+}
+
+func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetName string) error {
+	st := time.Now()
+	stats, err := r.Run(ctx, taskName, targetName)
+	if err != nil {
+		return fmt.Errorf("can't run task %q for target %q: %w", taskName, targetName, err)
+	}
+	fmt.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
+		stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
 	return nil
 }
 
