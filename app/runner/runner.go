@@ -40,12 +40,6 @@ type Connector interface {
 	User() string
 }
 
-// ColorWriter is an interface for writing to a colorized output.
-type ColorWriter interface {
-	io.Writer
-	WithHost(host string) ColorWriter
-}
-
 // ProcStats holds the information about processed commands and hosts.
 type ProcStats struct {
 	Commands int
