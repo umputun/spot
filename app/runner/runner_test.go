@@ -36,8 +36,56 @@ func TestProcess_Run(t *testing.T) {
 		Config:      conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
 	}
-	_, err = p.Run(ctx, "task1", hostAndPort)
+	res, err := p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
+	assert.Equal(t, 6, res.Commands)
+	assert.Equal(t, 1, res.Hosts)
+}
+
+func TestProcess_RunOnly(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		Only:        []string{"show content"},
+	}
+	res, err := p.Run(ctx, "task1", hostAndPort)
+	require.NoError(t, err)
+	assert.Equal(t, 1, res.Commands)
+	assert.Equal(t, 1, res.Hosts)
+}
+
+func TestProcess_RunOnlyNoAuto(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		Only:        []string{"show content", "no auto cmd"},
+	}
+	res, err := p.Run(ctx, "task1", hostAndPort)
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Commands)
+	assert.Equal(t, 1, res.Hosts)
 }
 
 func TestProcess_RunVerbose(t *testing.T) {

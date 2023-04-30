@@ -31,6 +31,10 @@ tasks:
       - name: show content
         script: ls -laR /tmp
 
+      - name: no auto cmd
+        script: echo "no auto cmd"
+        options: {no_auto: true}
+
   failed_task:
     commands:
       - name: good command
