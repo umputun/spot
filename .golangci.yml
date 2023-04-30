@@ -39,7 +39,6 @@ linters:
     - unconvert
     - megacheck
     - gas
-    - gocyclo
     - dupl
     - misspell
     - unused

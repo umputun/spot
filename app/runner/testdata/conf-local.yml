@@ -1,3 +1,5 @@
+user: test
+
 tasks:
   default:
     commands:

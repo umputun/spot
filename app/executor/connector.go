@@ -13,29 +13,22 @@ import (
 
 // Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH host.
 type Connector struct {
-	user       string
 	privateKey string
-	conf       *ssh.ClientConfig
 }
 
 // NewConnector creates a new Connector for a given user and private key.
-func NewConnector(user, privateKey string) (res *Connector, err error) {
-	res = &Connector{user: user, privateKey: privateKey}
-	if res.conf, err = res.sshConfig(user, privateKey); err != nil {
-		return nil, err
+func NewConnector(privateKey string) (res *Connector, err error) {
+	res = &Connector{privateKey: privateKey}
+	if _, err := os.Stat(privateKey); os.IsNotExist(err) {
+		return nil, fmt.Errorf("private key file %q does not exist", privateKey)
 	}
 	return res, nil
 }
 
-// User returns username used to connect to remote host.
-func (c *Connector) User() string {
-	return c.user
-}
-
 // Connect connects to a remote host and returns a remote executer, caller must close.
-func (c *Connector) Connect(ctx context.Context, host string) (*Remote, error) {
-	log.Printf("[DEBUG] connect to %s", host)
-	client, err := c.sshClient(ctx, host)
+func (c *Connector) Connect(ctx context.Context, host, user string) (*Remote, error) {
+	log.Printf("[DEBUG] connect to %q, user %q", host, user)
+	client, err := c.sshClient(ctx, host, user)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client connection to %s: %v", host, err)
 	}
@@ -43,8 +36,8 @@ func (c *Connector) Connect(ctx context.Context, host string) (*Remote, error) {
 }
 
 // sshClient creates ssh client connected to remote server. Caller must close session.
-func (c *Connector) sshClient(ctx context.Context, host string) (session *ssh.Client, err error) {
-	log.Printf("[DEBUG] create ssh session to %s", host)
+func (c *Connector) sshClient(ctx context.Context, host, user string) (session *ssh.Client, err error) {
+	log.Printf("[DEBUG] create ssh session to %s, user %s", host, user)
 	if !strings.Contains(host, ":") {
 		host += ":22"
 	}
@@ -55,7 +48,11 @@ func (c *Connector) sshClient(ctx context.Context, host string) (session *ssh.Cl
 		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 
-	ncc, chans, reqs, err := ssh.NewClientConn(conn, host, c.conf)
+	conf, err := c.sshConfig(user, c.privateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ssh config: %w", err)
+	}
+	ncc, chans, reqs, err := ssh.NewClientConn(conn, host, conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client connection to %s: %v", host, err)
 	}

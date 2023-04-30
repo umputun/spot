@@ -17,7 +17,6 @@ import (
 
 	"github.com/umputun/simplotask/app/config"
 	"github.com/umputun/simplotask/app/executor"
-	"github.com/umputun/simplotask/app/runner/mocks"
 )
 
 func TestProcess_Run(t *testing.T) {
@@ -25,7 +24,7 @@ func TestProcess_Run(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -47,7 +46,7 @@ func TestProcess_RunOnly(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -70,7 +69,7 @@ func TestProcess_RunOnlyNoAuto(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -93,7 +92,7 @@ func TestProcess_RunSkip(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -117,7 +116,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 	defer teardown()
 
 	log.SetOutput(io.Discard)
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -140,7 +139,7 @@ func TestProcess_RunLocal(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf-local.yml", nil)
 	require.NoError(t, err)
@@ -163,7 +162,7 @@ func TestProcess_RunFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -183,7 +182,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -226,7 +225,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -246,7 +245,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -277,18 +276,16 @@ func TestProcess_applyTemplates(t *testing.T) {
 		{
 			name: "all_variables",
 			inp:  "${SPOT_REMOTE_HOST}:${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "example.com:user:ls",
 		},
 		{
 			name: "no_variables",
 			inp:  "no_variables_here",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
@@ -299,55 +296,50 @@ func TestProcess_applyTemplates(t *testing.T) {
 		{
 			name: "single_dollar_variable",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "example.com:user:ls",
 		},
 		{
 			name: "mixed_variables",
 			inp:  "{SPOT_REMOTE_HOST}:$SPOT_REMOTE_USER:${SPOT_COMMAND}:{SPOT_TASK}",
-			user: "user2",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user2"},
 			},
 			expected: "example.com:user2:ls:task1",
 		},
 		{
 			name: "escaped_variables",
 			inp:  "\\${SPOT_REMOTE_HOST}:\\$SPOT_REMOTE_USER:\\${SPOT_COMMAND}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "\\example.com:\\user:\\ls",
 		},
 		{
 			name: "variables with normal text",
 			inp:  "${SPOT_REMOTE_HOST} blah ${SPOT_TASK} ${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
-			user: "user2",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user2"},
 			},
 			expected: "example.com blah task1 user2:ls",
 		},
 		{
 			name: "with error msg",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 				err:     fmt.Errorf("some error"),
 			},
 			expected: "example.com:user:ls some error",
@@ -355,11 +347,10 @@ func TestProcess_applyTemplates(t *testing.T) {
 		{
 			name: "with error msg but no error",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 				err:     nil,
 			},
 			expected: "example.com:user:ls ",
@@ -368,8 +359,7 @@ func TestProcess_applyTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c := &mocks.ConnectorMock{UserFunc: func() string { return tt.user }}
-			p := Process{Connector: c}
+			p := Process{}
 			actual := p.applyTemplates(tt.inp, tt.tdata)
 			require.Equal(t, tt.expected, actual)
 		})
@@ -381,9 +371,9 @@ func TestProcess_waitPassed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, hostAndPort)
+	sess, err := connector.Connect(ctx, hostAndPort, "test")
 	require.NoError(t, err)
 
 	p := Process{Connector: connector}
@@ -400,9 +390,9 @@ func TestProcess_waitFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("test", "testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, hostAndPort)
+	sess, err := connector.Connect(ctx, hostAndPort, "test")
 	require.NoError(t, err)
 
 	p := Process{Connector: connector}
