@@ -3,11 +3,11 @@ ssh_key: ~/.ssh/id_rsa
 
 targets:
   prod:
-    hosts: ["h1.example.com", "h2.example.com"]
+    hosts: [{host: "h1.example.com", port: 2222, user: "app-user"}, {host: "h2.example.com"}]
   staging:
-    inventory_file: "testdata/inventory"
+    inventory_file: {location: "testdata/inventory"}
   dev:
-    inventory_url: "http://localhost:8080/inventory"
+    inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev", "test"]}
 
 tasks:
 
