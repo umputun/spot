@@ -71,7 +71,7 @@ ssh_key: keys/id_rsa
 # list of targets, i.e. hosts, inventory files or inventory URLs
 targets:
   prod:
-    hosts: ["h1.example.com", "h2.example.com"]
+    hosts: [{host: "h1.example.com", user: "user2"}, {"h2.example.com", port: 2222}]
   staging:
     inventory_file: {location: "testdata/inventory", groups: ["staging"]}
   dev:
