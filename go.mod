@@ -8,7 +8,6 @@ require (
 	github.com/go-pkgz/lgr v0.11.0
 	github.com/go-pkgz/syncs v1.3.0
 	github.com/jessevdk/go-flags v1.5.0
-	github.com/jinzhu/copier v0.3.5
 	github.com/pkg/sftp v1.13.5
 	github.com/stretchr/testify v1.8.2
 	github.com/testcontainers/testcontainers-go v0.19.0

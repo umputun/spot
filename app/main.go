@@ -90,7 +90,7 @@ func run(opts options) error {
 		return fmt.Errorf("can't read config: %w", err)
 	}
 
-	connector, err := executor.NewConnector(sshdKey(opts, conf))
+	connector, err := executor.NewConnector(sshKey(opts, conf))
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
@@ -123,7 +123,7 @@ func run(opts options) error {
 	return nil
 }
 
-func sshdKey(opts options, conf *config.PlayBook) (key string) {
+func sshKey(opts options, conf *config.PlayBook) (key string) {
 	expandPath := func(path string) (string, error) {
 		if strings.HasPrefix(path, "~") {
 			usr, err := user.Current()

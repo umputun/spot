@@ -13,8 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jinzhu/copier"
 	"gopkg.in/yaml.v3"
+
+	"github.com/umputun/simplotask/app/config/deepcopy"
 )
 
 // PlayBook defines top-level config yaml
@@ -125,15 +126,22 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 
 // Task returns task by name
 func (p *PlayBook) Task(name string) (*Task, error) {
-	res := Task{}
 	if t, ok := p.Tasks[name]; ok {
-		if err := copier.Copy(&res, &t); err != nil { // deep copy to avoid side effects
-			return nil, fmt.Errorf("can't copy task %s: %w", name, err)
+		cp := deepcopy.Copy(&t) // deep copy to avoid side effects of overrides on original config
+		res, ok := cp.(*Task)
+		if !ok {
+			return nil, fmt.Errorf("can't copy task %s", name)
 		}
 		res.Name = name
 		if res.User == "" {
 			res.User = p.User // if user not set in task, use default from playbook
 		}
+
+		// apply overrides of user
+		if p.overrides != nil && p.overrides.User != "" {
+			res.User = p.overrides.User
+		}
+
 		// apply overrides of environment variables, to each script command
 		if p.overrides != nil && p.overrides.Environment != nil {
 			for envKey, envVal := range p.overrides.Environment {
@@ -149,7 +157,7 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 			}
 		}
 
-		return &res, nil
+		return res, nil
 	}
 	return nil, fmt.Errorf("task %s not found", name)
 }
@@ -188,9 +196,9 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		return hosts, nil
 	}
 
-	// check if we have override for user, this is the highest priority
+	user := p.User // default user from playbook
 	if p.overrides != nil && p.overrides.User != "" {
-		p.User = p.overrides.User
+		user = p.overrides.User // override user if set
 	}
 
 	// check if we have overrides for target hosts, this is the highest priority
@@ -199,13 +207,13 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		for i := range p.overrides.TargetHosts {
 			elems := strings.Split(p.overrides.TargetHosts[i], ":") // get host and port (optional)
 			if len(elems) == 1 {
-				res = append(res, Destination{Host: elems[0], Port: 22, User: p.User})
+				res = append(res, Destination{Host: elems[0], Port: 22, User: user})
 			} else {
 				port, err := strconv.Atoi(elems[1])
 				if err != nil {
 					return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 				}
-				res = append(res, Destination{Host: elems[0], Port: port, User: p.User})
+				res = append(res, Destination{Host: elems[0], Port: port, User: user})
 			}
 		}
 		return res, nil
@@ -236,14 +244,14 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 		if isValidTarget {
 			if !strings.Contains(name, ":") {
-				return []Destination{{Host: name, Port: 22, User: p.User}}, nil // default port is 22 if not set
+				return []Destination{{Host: name, Port: 22, User: user}}, nil // default port is 22 if not set
 			}
 			elems := strings.Split(name, ":")
 			port, err := strconv.Atoi(elems[1])
 			if err != nil {
 				return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 			}
-			return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil // it is a host, sent as ip
+			return []Destination{{Host: elems[0], Port: port, User: user}}, nil // it is a host, sent as ip
 		}
 		return nil, fmt.Errorf("target %s not found", name)
 	}
@@ -256,7 +264,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 				h.Port = 22 // default port is 22 if not set
 			}
 			if h.User == "" {
-				h.User = p.User // default user is playbook user if not set
+				h.User = user // default user is playbook's user or override, if not set
 			}
 			res[i] = h
 		}
@@ -293,21 +301,20 @@ func (p *PlayBook) parseInventory(r io.Reader) (res []Destination, err error) {
 		if line == "" || strings.HasPrefix(line, "#") { // skip empty lines and comments
 			continue
 		}
-		dest := Destination{User: p.User}
+		dest := Destination{User: p.User} // default user from playbook
 		elems := strings.Split(line, " ")
+		dest.Host = elems[0]
 		if !strings.Contains(elems[0], ":") { // no port defined, use default 22
-			dest.Host = elems[0]
 			dest.Port = 22
 		} else {
-			elems := strings.Split(elems[0], ":")
-			dest.Host = elems[0]
+			elems = strings.Split(elems[0], ":")
 			port, err := strconv.Atoi(elems[1])
 			if err != nil {
 				return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 			}
 			dest.Port = port
 		}
-		if len(elems) > 1 {
+		if len(elems) > 1 { // user defined as well, i.e. "host1:port1 user"
 			dest.User = elems[1]
 		}
 		res = append(res, dest)

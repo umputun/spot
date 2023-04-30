@@ -217,8 +217,7 @@ func Test_sshUserAndKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			user, key := sshUserAndKey(tc.opts, &tc.conf)
-			assert.Equal(t, tc.expectedUser, user, "user should match expected user")
+			key := sshKey(tc.opts, &tc.conf)
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
 		})
 	}

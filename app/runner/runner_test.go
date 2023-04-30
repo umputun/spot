@@ -276,18 +276,16 @@ func TestProcess_applyTemplates(t *testing.T) {
 		{
 			name: "all_variables",
 			inp:  "${SPOT_REMOTE_HOST}:${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "example.com:user:ls",
 		},
 		{
 			name: "no_variables",
 			inp:  "no_variables_here",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
@@ -298,55 +296,50 @@ func TestProcess_applyTemplates(t *testing.T) {
 		{
 			name: "single_dollar_variable",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "example.com:user:ls",
 		},
 		{
 			name: "mixed_variables",
 			inp:  "{SPOT_REMOTE_HOST}:$SPOT_REMOTE_USER:${SPOT_COMMAND}:{SPOT_TASK}",
-			user: "user2",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user2"},
 			},
 			expected: "example.com:user2:ls:task1",
 		},
 		{
 			name: "escaped_variables",
 			inp:  "\\${SPOT_REMOTE_HOST}:\\$SPOT_REMOTE_USER:\\${SPOT_COMMAND}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "\\example.com:\\user:\\ls",
 		},
 		{
 			name: "variables with normal text",
 			inp:  "${SPOT_REMOTE_HOST} blah ${SPOT_TASK} ${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
-			user: "user2",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user2"},
 			},
 			expected: "example.com blah task1 user2:ls",
 		},
 		{
 			name: "with error msg",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 				err:     fmt.Errorf("some error"),
 			},
 			expected: "example.com:user:ls some error",
@@ -354,11 +347,10 @@ func TestProcess_applyTemplates(t *testing.T) {
 		{
 			name: "with error msg but no error",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
-			user: "user",
 			tdata: templateData{
 				host:    "example.com",
 				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				task:    &config.Task{Name: "task1", User: "user"},
 				err:     nil,
 			},
 			expected: "example.com:user:ls ",
