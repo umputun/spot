@@ -49,34 +49,39 @@ func (w *StdOutLogWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// ColorizedWriter is a writer that colorizes the output based on the host name.
+// ColorizedWriter is a writer that colorizes the output based on the hostAddr name.
 type ColorizedWriter struct {
-	wr     io.Writer
-	prefix string
-	host   string
+	wr       io.Writer
+	prefix   string
+	hostAddr string
+	hostName string
 }
 
-// NewColorizedWriter creates a new ColorizedWriter with the given host name.
-func NewColorizedWriter(wr io.Writer, prefix, host string) *ColorizedWriter {
-	return &ColorizedWriter{wr: wr, host: host, prefix: prefix}
+// NewColorizedWriter creates a new ColorizedWriter with the given hostAddr name.
+func NewColorizedWriter(wr io.Writer, prefix, hostAddr, hostName string) *ColorizedWriter {
+	return &ColorizedWriter{wr: wr, hostAddr: hostAddr, hostName: hostName, prefix: prefix}
 }
 
-// WithHost creates a new StdoutColorWriter with the given host name.
-func (s *ColorizedWriter) WithHost(host string) *ColorizedWriter {
-	return &ColorizedWriter{wr: s.wr, host: host, prefix: s.prefix}
+// WithHost creates a new StdoutColorWriter with the given hostAddr name.
+func (s *ColorizedWriter) WithHost(hostAddr, hostName string) *ColorizedWriter {
+	return &ColorizedWriter{wr: s.wr, hostAddr: hostAddr, hostName: hostName, prefix: s.prefix}
 }
 
-// Write writes the given byte slice to stdout with the colorized host prefix for each line.
+// Write writes the given byte slice to stdout with the colorized hostAddr prefix for each line.
 // If the input does not end with a newline, one is added.
 func (s *ColorizedWriter) Write(p []byte) (n int, err error) {
 	scanner := bufio.NewScanner(bytes.NewReader(p))
 	for scanner.Scan() {
 		line := scanner.Text()
-		formattedOutput := fmt.Sprintf("[%s] %s %s", s.host, s.prefix, line)
-		if s.prefix == "" {
-			formattedOutput = fmt.Sprintf("[%s] %s", s.host, line)
+		hostID := s.hostAddr
+		if s.hostName != "" {
+			hostID = s.hostName + " " + s.hostAddr
 		}
-		colorizer := hostColorizer(s.host)
+		formattedOutput := fmt.Sprintf("[%s] %s %s", hostID, s.prefix, line)
+		if s.prefix == "" {
+			formattedOutput = fmt.Sprintf("[%s] %s", hostID, line)
+		}
+		colorizer := hostColorizer(s.hostAddr)
 		colorizedOutput := colorizer("%s\n", formattedOutput)
 		_, err = io.WriteString(s.wr, colorizedOutput)
 		if err != nil {
@@ -90,7 +95,7 @@ func (s *ColorizedWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// hostColorizer returns a function that formats a string with a color based on the host name.
+// hostColorizer returns a function that formats a string with a color based on the hostAddr name.
 func hostColorizer(host string) func(format string, a ...interface{}) string {
 	colors := []color.Attribute{
 		color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
@@ -102,12 +107,12 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 	return color.New(colors[i]).SprintfFunc()
 }
 
-// MakeOutAndErrWriters creates a new StdoutLogWriter and StdoutLogWriter for the given host.
-func MakeOutAndErrWriters(host string, verbose bool) (outWr, errWr io.Writer) {
+// MakeOutAndErrWriters creates a new StdoutLogWriter and StdoutLogWriter for the given hostAddr.
+func MakeOutAndErrWriters(hostAddr, hostName string, verbose bool) (outWr, errWr io.Writer) {
 	var outLog, errLog io.Writer
 	if verbose {
-		outLog = NewColorizedWriter(os.Stdout, ">", host)
-		errLog = NewColorizedWriter(os.Stdout, "!", host)
+		outLog = NewColorizedWriter(os.Stdout, ">", hostAddr, hostName)
+		errLog = NewColorizedWriter(os.Stdout, "!", hostAddr, hostName)
 	} else {
 		outLog = NewStdoutLogWriter(">", "DEBUG")
 		errLog = NewStdoutLogWriter("!", "WARN")

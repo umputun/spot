@@ -36,7 +36,7 @@ type Process struct {
 
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
-	Connect(ctx context.Context, host, user string) (*executor.Remote, error)
+	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
 }
 
 // ProcStats holds the information about processed commands and hosts.
@@ -64,7 +64,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	for i, host := range targetHosts {
 		i, host := i, host
 		wg.Go(func() error {
-			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port))
+			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(count))
 			}
@@ -78,7 +78,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
 
-		outLog, errLog := executor.MakeOutAndErrWriters("localhost", p.Verbose)
+		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose)
 		outLog.Write([]byte(tsk.OnError)) //nolint
 
 		var stdoutBuf bytes.Buffer
@@ -94,7 +94,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 }
 
 // runTaskOnHost executes all commands of a task on a target host. host can be a remote host or localhost with port.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host string) (int, error) {
+func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName string) (int, error) {
 	contains := func(list []string, s string) bool {
 		for _, v := range list {
 			if strings.EqualFold(v, s) {
@@ -104,13 +104,13 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		return false
 	}
 
-	remote, err := p.Connector.Connect(ctx, host, tsk.User)
+	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, tsk.User)
 	if err != nil {
-		return 0, fmt.Errorf("can't connect to %s: %w", host, err)
+		return 0, fmt.Errorf("can't connect to %s: %w", hostAddr, err)
 	}
 	defer remote.Close()
 
-	fmt.Fprintf(p.ColorWriter.WithHost(host), "run task %s, commands: %d\n", tsk.Name, len(tsk.Commands))
+	fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "run task %s, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
 	for _, cmd := range tsk.Commands {
 		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
@@ -124,9 +124,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 			continue
 		}
 
-		log.Printf("[INFO] run command %q on host %s", cmd.Name, host)
+		log.Printf("[INFO] run command %q on host %s (%s)", cmd.Name, hostAddr, hostName)
 		st := time.Now()
-		params := execCmdParams{cmd: cmd, host: host, tsk: tsk, exec: remote}
+		params := execCmdParams{cmd: cmd, host: hostAddr, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
 			params.exec = &executor.Local{}
 			params.host = "localhost"
@@ -134,18 +134,21 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		details, err := p.execCommand(ctx, params)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
-				return count, fmt.Errorf("can't run command %q on host %s: %w", cmd.Name, host, err)
+				return count, fmt.Errorf("can't run command %q on host %s (%s): %w", cmd.Name, hostAddr, hostName, err)
 			}
 
-			fmt.Fprintf(p.ColorWriter.WithHost(host), "failed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "failed %s%s (%v)",
+				cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 			continue
 		}
 
-		fmt.Fprintf(p.ColorWriter.WithHost(host), "completed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
+			"completed %s%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
 		count++
 	}
 
-	fmt.Fprintf(p.ColorWriter.WithHost(host), "completed task %s, commands: %d\n", tsk.Name, count)
+	fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
+		"completed task %s, commands: %d\n", tsk.Name, count)
 
 	return count, nil
 }

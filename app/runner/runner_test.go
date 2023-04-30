@@ -33,7 +33,7 @@ func TestProcess_Run(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestProcess_RunOnly(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Only:        []string{"show content"},
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
@@ -78,7 +78,7 @@ func TestProcess_RunOnlyNoAuto(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Only:        []string{"show content", "no auto cmd"},
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
@@ -101,7 +101,7 @@ func TestProcess_RunSkip(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Skip:        []string{"wait", "show content"},
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
@@ -124,7 +124,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Verbose:     true,
 	}
 	_, err = p.Run(ctx, "task1", hostAndPort)
@@ -147,7 +147,7 @@ func TestProcess_RunLocal(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Verbose:     true,
 	}
 	res, err := p.Run(ctx, "default", hostAndPort)
@@ -171,7 +171,7 @@ func TestProcess_RunFailed(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
 	require.ErrorContains(t, err, `can't run command "bad command" on host`)
@@ -191,7 +191,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 
 	t.Run("onerror called", func(t *testing.T) {
@@ -234,7 +234,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
 	require.NoError(t, err, "error ignored")
@@ -254,7 +254,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 
 	var buf bytes.Buffer
@@ -373,7 +373,7 @@ func TestProcess_waitPassed(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, hostAndPort, "test")
+	sess, err := connector.Connect(ctx, hostAndPort, "my-host", "test")
 	require.NoError(t, err)
 
 	p := Process{Connector: connector}
@@ -392,7 +392,7 @@ func TestProcess_waitFailed(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, hostAndPort, "test")
+	sess, err := connector.Connect(ctx, hostAndPort, "my-host", "test")
 	require.NoError(t, err)
 
 	p := Process{Connector: connector}

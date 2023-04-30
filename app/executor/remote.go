@@ -19,8 +19,9 @@ import (
 
 // Remote executes commands on remote server, via ssh. Not thread-safe.
 type Remote struct {
-	client *ssh.Client
-	host   string
+	client   *ssh.Client
+	hostAddr string
+	hostName string
 }
 
 // Close connection to remote server.
@@ -48,9 +49,9 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) 
 	}
 	log.Printf("[DEBUG] upload %s to %s", local, remote)
 
-	host, port, err := net.SplitHostPort(ex.host)
+	host, port, err := net.SplitHostPort(ex.hostAddr)
 	if err != nil {
-		return fmt.Errorf("failed to split host and port: %w", err)
+		return fmt.Errorf("failed to split hostAddr and port: %w", err)
 	}
 
 	req := sftpReq{
@@ -71,9 +72,9 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool
 	}
 	log.Printf("[DEBUG] upload %s to %s", local, remote)
 
-	host, port, err := net.SplitHostPort(ex.host)
+	host, port, err := net.SplitHostPort(ex.hostAddr)
 	if err != nil {
-		return fmt.Errorf("failed to split host and port: %w", err)
+		return fmt.Errorf("failed to split hostAddr and port: %w", err)
 	}
 
 	req := sftpReq{
@@ -198,7 +199,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 	defer session.Close()
 
-	outLog, errLog := MakeOutAndErrWriters(ex.host, verbose)
+	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose)
 	outLog.Write([]byte(command)) //nolint
 
 	var stdoutBuf bytes.Buffer

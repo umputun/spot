@@ -2,7 +2,7 @@ user: test
 
 targets:
   remark42:
-    hosts: [{host: "h1.example.com"}, {host: "h2.example.com"}]
+    hosts: [{host: "h1.example.com", name: "host1"}, {host: "h2.example.com", name: "host2"}]
   staging:
     inventory_file: {location: "testdata/inventory"}
 

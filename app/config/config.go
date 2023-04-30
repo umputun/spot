@@ -62,6 +62,7 @@ type Cmd struct {
 
 // Destination defines destination info
 type Destination struct {
+	Name string `yaml:"name"`
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 	User string `yaml:"user"`

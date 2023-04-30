@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH host.
+// Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH hostAddr.
 type Connector struct {
 	privateKey string
 }
@@ -25,14 +25,14 @@ func NewConnector(privateKey string) (res *Connector, err error) {
 	return res, nil
 }
 
-// Connect connects to a remote host and returns a remote executer, caller must close.
-func (c *Connector) Connect(ctx context.Context, host, user string) (*Remote, error) {
-	log.Printf("[DEBUG] connect to %q, user %q", host, user)
-	client, err := c.sshClient(ctx, host, user)
+// Connect connects to a remote hostAddr and returns a remote executer, caller must close.
+func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string) (*Remote, error) {
+	log.Printf("[DEBUG] connect to %q (%s), user %q", hostAddr, hostName, user)
+	client, err := c.sshClient(ctx, hostAddr, user)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client connection to %s: %v", host, err)
+		return nil, fmt.Errorf("failed to create client connection to %s: %v", hostAddr, err)
 	}
-	return &Remote{client: client, host: host}, nil
+	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName}, nil
 }
 
 // sshClient creates ssh client connected to remote server. Caller must close session.

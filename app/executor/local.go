@@ -17,11 +17,11 @@ import (
 // Local is a runner for local execution. Similar to remote, but without ssh, just exec on localhost and local copy/delete/sync
 type Local struct{}
 
-// Run executes command on local host, inside the shell
+// Run executes command on local hostAddr, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 
-	outLog, errLog := MakeOutAndErrWriters("localhost", verbose)
+	outLog, errLog := MakeOutAndErrWriters("localhost", "", verbose)
 	outLog.Write([]byte(cmd)) //nolint
 
 	var stdoutBuf bytes.Buffer

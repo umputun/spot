@@ -105,28 +105,51 @@ func TestColorizedWriter(t *testing.T) {
 	testCases := []struct {
 		name          string
 		prefix        string
-		host          string
+		hostAddr      string
+		hostName      string
 		input         string
 		expectedLines []string
 	}{
 		{
-			name:   "WithPrefix",
-			prefix: "INFO",
-			host:   "localhost",
-			input:  "This is a test message\nThis is another test message",
+			name:     "WithPrefix no host name",
+			prefix:   "INFO",
+			hostAddr: "localhost",
+			input:    "This is a test message\nThis is another test message",
 			expectedLines: []string{
 				"[localhost] INFO This is a test message",
 				"[localhost] INFO This is another test message",
 			},
 		},
 		{
-			name:   "WithoutPrefix",
-			prefix: "",
-			host:   "localhost",
-			input:  "This is a test message\nThis is another test message",
+			name:     "WithPrefix with host name",
+			prefix:   "INFO",
+			hostAddr: "localhost",
+			hostName: "my-host",
+			input:    "This is a test message\nThis is another test message",
+			expectedLines: []string{
+				"[my-host localhost] INFO This is a test message",
+				"[my-host localhost] INFO This is another test message",
+			},
+		},
+		{
+			name:     "WithoutPrefix no host name",
+			prefix:   "",
+			hostAddr: "localhost",
+			input:    "This is a test message\nThis is another test message",
 			expectedLines: []string{
 				"[localhost] This is a test message",
 				"[localhost] This is another test message",
+			},
+		},
+		{
+			name:     "WithoutPrefix with host name",
+			prefix:   "",
+			hostAddr: "localhost",
+			hostName: "my-host",
+			input:    "This is a test message\nThis is another test message",
+			expectedLines: []string{
+				"[my-host localhost] This is a test message",
+				"[my-host localhost] This is another test message",
 			},
 		},
 	}
@@ -134,7 +157,7 @@ func TestColorizedWriter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buffer := bytes.NewBuffer([]byte{})
-			writer := NewColorizedWriter(buffer, tc.prefix, tc.host)
+			writer := NewColorizedWriter(buffer, tc.prefix, tc.hostAddr, tc.hostName)
 
 			_, err := writer.Write([]byte(tc.input))
 			assert.NoError(t, err)
@@ -154,7 +177,7 @@ func TestColorizedWriter(t *testing.T) {
 }
 
 func TestMakeOutAndErrWriters(t *testing.T) {
-	host := "example.com"
+	hostAddr := "example.com"
 	outMsg := "Hello, out!"
 	errMsg := "Hello, err!"
 
@@ -164,7 +187,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		rOut, wOut, _ := os.Pipe()
 		os.Stdout = wOut
 
-		outWriter, errWriter := MakeOutAndErrWriters(host, true)
+		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", true)
 		io.WriteString(outWriter, outMsg)
 		io.WriteString(errWriter, errMsg)
 
@@ -180,7 +203,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 	})
 
 	t.Run("non-verbose", func(t *testing.T) {
-		outWriter, errWriter := MakeOutAndErrWriters(host, false)
+		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", false)
 		bufOut := bytes.Buffer{}
 		log.SetOutput(&bufOut)
 		io.WriteString(outWriter, outMsg)
