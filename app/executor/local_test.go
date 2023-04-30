@@ -364,3 +364,99 @@ func TestUpload_SpecialCharacterInPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "", string(dstContent), "uploaded content should match source content")
 }
+
+func TestLocalCopyFile(t *testing.T) {
+	l := &Local{}
+
+	t.Run("happy path", func(t *testing.T) {
+		// create a temporary directory
+		tmpDir, err := os.MkdirTemp("", "copy_file_test")
+		assert.NoError(t, err, "creating a temporary directory should not return an error")
+		defer os.RemoveAll(tmpDir)
+
+		src := filepath.Join(tmpDir, "source_file.txt")
+		dst := filepath.Join(tmpDir, "destination_file.txt")
+
+		// create a source file
+		err = os.WriteFile(src, []byte("content"), 0644)
+		assert.NoError(t, err, "creating a source file should not return an error")
+
+		// call copyFile
+		err = l.copyFile(src, dst)
+		assert.NoError(t, err, "copying an existing source file should not return an error")
+
+		// check if the destination file was created and has the correct content
+		content, err := os.ReadFile(dst)
+		assert.NoError(t, err, "reading the destination file should not return an error")
+		assert.Equal(t, "content", string(content), "destination file content should be the same as the source file")
+
+		// check if the destination file has the same permissions as the source file
+		srcInfo, err := os.Stat(src)
+		assert.NoError(t, err, "getting source file info should not return an error")
+
+		dstInfo, err := os.Stat(dst)
+		assert.NoError(t, err, "getting destination file info should not return an error")
+
+		assert.Equal(t, srcInfo.Mode(), dstInfo.Mode(), "destination file permissions should be the same as the source file")
+	})
+
+	t.Run("nonexistent source file", func(t *testing.T) {
+		// create a temporary directory
+		tmpDir, err := os.MkdirTemp("", "copy_file_test")
+		assert.NoError(t, err, "creating a temporary directory should not return an error")
+		defer os.RemoveAll(tmpDir)
+
+		src := filepath.Join(tmpDir, "nonexistent_file.txt")
+		dst := filepath.Join(tmpDir, "destination_file.txt")
+
+		// call copyFile
+		err = l.copyFile(src, dst)
+		assert.ErrorContains(t, err, "nonexistent_file.txt: no such file or directory",
+			"copying a nonexistent source file should return an error")
+	})
+
+	t.Run("cannot create destination file", func(t *testing.T) {
+		// create a temporary directory
+		tmpDir, err := os.MkdirTemp("", "copy_file_test")
+		assert.NoError(t, err, "creating a temporary directory should not return an error")
+		defer os.RemoveAll(tmpDir)
+
+		src := filepath.Join(tmpDir, "source_file.txt")
+		dst := filepath.Join(tmpDir, "destination_dir", "destination_file.txt")
+
+		// create a source file
+		err = os.WriteFile(src, []byte("content"), 0644)
+		assert.NoError(t, err, "creating a source file should not return an error")
+
+		err = l.copyFile(src, dst)
+		assert.ErrorContains(t, err, "destination_file.txt: no such file or directory",
+			"creating a destination file in a nonexistent directory should return an error")
+	})
+
+	t.Run("error during chmod", func(t *testing.T) {
+		// create a temporary directory
+		tmpDir, err := os.MkdirTemp("", "copy_file_test")
+		assert.NoError(t, err, "creating a temporary directory should not return an error")
+		defer os.RemoveAll(tmpDir)
+
+		src := filepath.Join(tmpDir, "source_file.txt")
+		dst := filepath.Join(tmpDir, "destination_file.txt")
+
+		// create a source file
+		err = os.WriteFile(src, []byte("content"), 0644)
+		assert.NoError(t, err, "creating a source file should not return an error")
+
+		// call copyFile
+		err = l.copyFile(src, dst)
+		assert.NoError(t, err, "copying an existing source file should not return an error")
+
+		// remove write permission from the destination file
+		err = os.Chmod(dst, 0444)
+		assert.NoError(t, err, "changing permissions of the destination file should not return an error")
+
+		// call copyFile again
+		err = l.copyFile(src, dst)
+		assert.ErrorContains(t, err, "destination_file.txt: permission denied",
+			"copying to a read-only destination file should return an error")
+	})
+}
