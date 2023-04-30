@@ -460,3 +460,33 @@ func TestLocalCopyFile(t *testing.T) {
 			"copying to a read-only destination file should return an error")
 	})
 }
+
+func TestSyncSrcToDst_UnhappyPath(t *testing.T) {
+	l := &Local{}
+
+	t.Run("context canceled", func(t *testing.T) {
+		tmpSrcDir, err := os.MkdirTemp("", "src")
+		assert.NoError(t, err, "creating a temporary source directory should not return an error")
+		defer os.RemoveAll(tmpSrcDir)
+
+		tmpDstDir, err := os.MkdirTemp("", "dst")
+		assert.NoError(t, err, "creating a temporary destination directory should not return an error")
+		defer os.RemoveAll(tmpDstDir)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err = l.syncSrcToDst(ctx, tmpSrcDir, tmpDstDir)
+		assert.Error(t, err, "syncSrcToDst should return an error when the context is canceled")
+	})
+
+	t.Run("error while walking source directory", func(t *testing.T) {
+		invalidSrcPath := "invalid-src-path"
+		tmpDstDir, err := os.MkdirTemp("", "dst")
+		assert.NoError(t, err, "creating a temporary destination directory should not return an error")
+		defer os.RemoveAll(tmpDstDir)
+
+		_, err = l.syncSrcToDst(context.Background(), invalidSrcPath, tmpDstDir)
+		assert.Error(t, err, "syncSrcToDst should return an error when there's an error while walking the source directory")
+	})
+}
