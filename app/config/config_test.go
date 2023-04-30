@@ -570,9 +570,9 @@ h6.example.com user3
 		t.Run(tt.name, func(t *testing.T) {
 			var reader io.Reader
 			if tt.removeGroups {
-				inventoryContent := strings.ReplaceAll(inventoryContent, "[gr1]", "")
-				inventoryContent = strings.ReplaceAll(inventoryContent, "[gr2]", "")
-				reader = strings.NewReader(inventoryContent)
+				inventoryContentCleaned := strings.ReplaceAll(inventoryContent, "[gr1]", "")
+				inventoryContentCleaned = strings.ReplaceAll(inventoryContentCleaned, "[gr2]", "")
+				reader = strings.NewReader(inventoryContentCleaned)
 			} else {
 				reader = strings.NewReader(inventoryContent)
 			}
