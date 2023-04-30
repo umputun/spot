@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/jinzhu/copier"
 	"gopkg.in/yaml.v3"
 )
 
@@ -27,9 +29,9 @@ type PlayBook struct {
 
 // Target defines hosts to run commands on
 type Target struct {
-	Hosts         []string `yaml:"hosts"`
-	InventoryFile string   `yaml:"inventory_file"`
-	InventoryURL  string   `yaml:"inventory_url"`
+	Hosts         []Destination `yaml:"hosts"`
+	InventoryFile string        `yaml:"inventory_file"`
+	InventoryURL  string        `yaml:"inventory_url"`
 }
 
 // Task defines multiple commands runs together
@@ -55,6 +57,13 @@ type Cmd struct {
 		NoAuto       bool `yaml:"no_auto"`
 		Local        bool `yaml:"local"`
 	} `yaml:"options"`
+}
+
+// Destination defines destination info
+type Destination struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
+	User string `yaml:"user"`
 }
 
 // CopyInternal defines copy command, implemented internally
@@ -86,6 +95,7 @@ type WaitInternal struct {
 
 // Overrides defines override for task passed from cli
 type Overrides struct {
+	User          string
 	TargetHosts   []string
 	InventoryFile string
 	InventoryURL  string
@@ -115,33 +125,40 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 
 // Task returns task by name
 func (p *PlayBook) Task(name string) (*Task, error) {
+	res := Task{}
 	if t, ok := p.Tasks[name]; ok {
-		t.Name = name
-
+		if err := copier.Copy(&res, &t); err != nil { // deep copy to avoid side effects
+			return nil, fmt.Errorf("can't copy task %s: %w", name, err)
+		}
+		res.Name = name
+		if res.User == "" {
+			res.User = p.User // if user not set in task, use default from playbook
+		}
 		// apply overrides of environment variables, to each script command
 		if p.overrides != nil && p.overrides.Environment != nil {
 			for envKey, envVal := range p.overrides.Environment {
-				for cmdIdx := range t.Commands {
-					if t.Commands[cmdIdx].Script == "" {
+				for cmdIdx := range res.Commands {
+					if res.Commands[cmdIdx].Script == "" {
 						continue
 					}
-					if t.Commands[cmdIdx].Environment == nil {
-						t.Commands[cmdIdx].Environment = make(map[string]string)
+					if res.Commands[cmdIdx].Environment == nil {
+						res.Commands[cmdIdx].Environment = make(map[string]string)
 					}
-					t.Commands[cmdIdx].Environment[envKey] = envVal
+					res.Commands[cmdIdx].Environment[envKey] = envVal
 				}
 			}
 		}
-		return &t, nil
+
+		return &res, nil
 	}
 	return nil, fmt.Errorf("task %s not found", name)
 }
 
 // TargetHosts returns target hosts for given target name.
 // It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
-func (p *PlayBook) TargetHosts(name string) ([]string, error) {
+func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
-	loadInventoryFile := func(fname string) ([]string, error) {
+	loadInventoryFile := func(fname string) ([]Destination, error) {
 		fh, err := os.Open(fname) // nolint
 		if err != nil {
 			return nil, fmt.Errorf("can't open inventory file %s: %w", fname, err)
@@ -154,7 +171,7 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return hosts, nil
 	}
 
-	loadInventoryURL := func(url string) ([]string, error) {
+	loadInventoryURL := func(url string) ([]Destination, error) {
 		client := &http.Client{Timeout: 10 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
@@ -171,10 +188,29 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return hosts, nil
 	}
 
+	// check if we have override for user, this is the highest priority
+	if p.overrides != nil && p.overrides.User != "" {
+		p.User = p.overrides.User
+	}
+
 	// check if we have overrides for target hosts, this is the highest priority
 	if p.overrides != nil && len(p.overrides.TargetHosts) > 0 {
-		return p.overrides.TargetHosts, nil
+		res := make([]Destination, 0, len(p.overrides.TargetHosts))
+		for i := range p.overrides.TargetHosts {
+			elems := strings.Split(p.overrides.TargetHosts[i], ":") // get host and port (optional)
+			if len(elems) == 1 {
+				res = append(res, Destination{Host: elems[0], Port: 22, User: p.User})
+			} else {
+				port, err := strconv.Atoi(elems[1])
+				if err != nil {
+					return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
+				}
+				res = append(res, Destination{Host: elems[0], Port: port, User: p.User})
+			}
+		}
+		return res, nil
 	}
+
 	// check if we have overrides for inventory file, this is second priority
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
 		return loadInventoryFile(p.overrides.InventoryFile)
@@ -188,27 +224,39 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 	t, ok := p.Targets[name]
 	if !ok {
 		// no target, check if it is a host and if so return it as a single host target
-		if ip := net.ParseIP(name); ip != nil {
-			if !strings.Contains(name, ":") {
-				name += ":22"
+		isValidTarget := func(name string) bool {
+			if ip := net.ParseIP(name); ip != nil {
+				return true
 			}
-			return []string{name}, nil // it is a host, sent as ip
-		}
-		if strings.Contains(name, ".") || strings.Contains(name, "localhost") {
-			if !strings.Contains(name, ":") {
-				name += ":22"
+			if strings.Contains(name, ".") || strings.HasPrefix(name, "localhost") {
+				return true
 			}
-			return []string{name}, nil // is a valid FQDN
+			return false
+		}(name)
+
+		if isValidTarget {
+			if !strings.Contains(name, ":") {
+				return []Destination{{Host: name, Port: 22, User: p.User}}, nil // default port is 22 if not set
+			}
+			elems := strings.Split(name, ":")
+			port, err := strconv.Atoi(elems[1])
+			if err != nil {
+				return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
+			}
+			return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil // it is a host, sent as ip
 		}
 		return nil, fmt.Errorf("target %s not found", name)
 	}
 
 	// target found, check if it has hosts
 	if len(t.Hosts) > 0 {
-		res := make([]string, len(t.Hosts))
+		res := make([]Destination, len(t.Hosts))
 		for i, h := range t.Hosts {
-			if !strings.Contains(h, ":") {
-				h += ":22"
+			if h.Port == 0 {
+				h.Port = 22 // default port is 22 if not set
+			}
+			if h.User == "" {
+				h.User = p.User // default user is playbook user if not set
 			}
 			res[i] = h
 		}
@@ -225,23 +273,44 @@ func (p *PlayBook) TargetHosts(name string) ([]string, error) {
 		return loadInventoryURL(t.InventoryURL)
 	}
 
+	if t.Hosts == nil {
+		return nil, fmt.Errorf("target %s has no hosts", name)
+	}
+
 	return t.Hosts, nil
 }
 
-func (p *PlayBook) parseInventory(r io.Reader) (res []string, err error) {
+// parseInventory parses inventory file or url and returns a list of hosts.
+// inventory file format is: host1:port1<\n>host2:port2 user<\n>...
+// user is optional, if not set, it is assumed to defined in playbook.
+func (p *PlayBook) parseInventory(r io.Reader) (res []Destination, err error) {
 	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("inventory reader failed: %w", err)
 	}
 	lines := strings.Split(string(data), "\n")
 	for _, line := range lines {
-		if line == "" || strings.HasPrefix(line, "#") {
+		if line == "" || strings.HasPrefix(line, "#") { // skip empty lines and comments
 			continue
 		}
-		if !strings.Contains(line, ":") {
-			line += ":22"
+		dest := Destination{User: p.User}
+		elems := strings.Split(line, " ")
+		if !strings.Contains(elems[0], ":") { // no port defined, use default 22
+			dest.Host = elems[0]
+			dest.Port = 22
+		} else {
+			elems := strings.Split(elems[0], ":")
+			dest.Host = elems[0]
+			port, err := strconv.Atoi(elems[1])
+			if err != nil {
+				return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
+			}
+			dest.Port = port
 		}
-		res = append(res, line)
+		if len(elems) > 1 {
+			dest.User = elems[1]
+		}
+		res = append(res, dest)
 	}
 	return res, nil
 }

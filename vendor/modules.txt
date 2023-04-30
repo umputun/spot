@@ -93,6 +93,9 @@ github.com/google/uuid
 # github.com/jessevdk/go-flags v1.5.0
 ## explicit; go 1.15
 github.com/jessevdk/go-flags
+# github.com/jinzhu/copier v0.3.5
+## explicit; go 1.13
+github.com/jinzhu/copier
 # github.com/klauspost/compress v1.16.5
 ## explicit; go 1.18
 github.com/klauspost/compress

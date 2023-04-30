@@ -82,6 +82,7 @@ func run(opts options) error {
 		InventoryFile: opts.InventoryFile,
 		InventoryURL:  opts.InventoryURL,
 		Environment:   opts.Env,
+		User:          opts.SSHUser,
 	}
 
 	conf, err := config.New(opts.PlaybookFile, &overrides)
@@ -89,7 +90,7 @@ func run(opts options) error {
 		return fmt.Errorf("can't read config: %w", err)
 	}
 
-	connector, err := executor.NewConnector(sshUserAndKey(opts, conf))
+	connector, err := executor.NewConnector(sshdKey(opts, conf))
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
@@ -122,7 +123,7 @@ func run(opts options) error {
 	return nil
 }
 
-func sshUserAndKey(opts options, conf *config.PlayBook) (uname, key string) {
+func sshdKey(opts options, conf *config.PlayBook) (key string) {
 	expandPath := func(path string) (string, error) {
 		if strings.HasPrefix(path, "~") {
 			usr, err := user.Current()
@@ -135,14 +136,6 @@ func sshUserAndKey(opts options, conf *config.PlayBook) (uname, key string) {
 		return path, nil
 	}
 
-	sshUser := conf.User // default to global config user
-	if tsk, ok := conf.Tasks[opts.TaskName]; ok && tsk.User != "" {
-		sshUser = tsk.User // override with task config
-	}
-	if opts.SSHUser != "" { // override with command line
-		sshUser = opts.SSHUser
-	}
-
 	sshKey := conf.SSHKey  // default to global config key
 	if opts.SSHKey != "" { // override with command line
 		sshKey = opts.SSHKey
@@ -152,7 +145,7 @@ func sshUserAndKey(opts options, conf *config.PlayBook) (uname, key string) {
 		sshKey = p
 	}
 
-	return sshUser, sshKey
+	return sshKey
 }
 
 func setupLog(dbg bool) {

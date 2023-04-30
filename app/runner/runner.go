@@ -36,8 +36,7 @@ type Process struct {
 
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
-	Connect(ctx context.Context, host string) (*executor.Remote, error)
-	User() string
+	Connect(ctx context.Context, host, user string) (*executor.Remote, error)
 }
 
 // ProcStats holds the information about processed commands and hosts.
@@ -65,7 +64,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	for i, host := range targetHosts {
 		i, host := i, host
 		wg.Go(func() error {
-			count, e := p.runTaskOnHost(ctx, tsk, host)
+			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port))
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(count))
 			}
@@ -94,7 +93,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	return ProcStats{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands))}, err
 }
 
-// runTaskOnHost executes all commands of a task on a target host.
+// runTaskOnHost executes all commands of a task on a target host. host can be a remote host or localhost with port.
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host string) (int, error) {
 	contains := func(list []string, s string) bool {
 		for _, v := range list {
@@ -105,7 +104,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host stri
 		return false
 	}
 
-	remote, err := p.Connector.Connect(ctx, host)
+	remote, err := p.Connector.Connect(ctx, host, tsk.User)
 	if err != nil {
 		return 0, fmt.Errorf("can't connect to %s: %w", host, err)
 	}
@@ -265,7 +264,7 @@ func (p *Process) applyTemplates(inp string, tdata templateData) string {
 	res := inp
 	res = apply(res, "SPOT_REMOTE_HOST", tdata.host)
 	res = apply(res, "SPOT_COMMAND", tdata.command)
-	res = apply(res, "SPOT_REMOTE_USER", p.Connector.User())
+	res = apply(res, "SPOT_REMOTE_USER", tdata.task.User)
 	res = apply(res, "SPOT_TASK", tdata.task.Name)
 	if tdata.err != nil {
 		res = apply(res, "SPOT_ERROR", tdata.err.Error())

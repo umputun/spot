@@ -16,11 +16,8 @@ import (
 //
 //		// make and configure a mocked runner.Connector
 //		mockedConnector := &ConnectorMock{
-//			ConnectFunc: func(ctx context.Context, host string) (*executor.Remote, error) {
+//			ConnectFunc: func(ctx context.Context, host string, user string) (*executor.Remote, error) {
 //				panic("mock out the Connect method")
-//			},
-//			UserFunc: func() string {
-//				panic("mock out the User method")
 //			},
 //		}
 //
@@ -30,10 +27,7 @@ import (
 //	}
 type ConnectorMock struct {
 	// ConnectFunc mocks the Connect method.
-	ConnectFunc func(ctx context.Context, host string) (*executor.Remote, error)
-
-	// UserFunc mocks the User method.
-	UserFunc func() string
+	ConnectFunc func(ctx context.Context, host string, user string) (*executor.Remote, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -43,31 +37,31 @@ type ConnectorMock struct {
 			Ctx context.Context
 			// Host is the host argument value.
 			Host string
-		}
-		// User holds details about calls to the User method.
-		User []struct {
+			// User is the user argument value.
+			User string
 		}
 	}
 	lockConnect sync.RWMutex
-	lockUser    sync.RWMutex
 }
 
 // Connect calls ConnectFunc.
-func (mock *ConnectorMock) Connect(ctx context.Context, host string) (*executor.Remote, error) {
+func (mock *ConnectorMock) Connect(ctx context.Context, host string, user string) (*executor.Remote, error) {
 	if mock.ConnectFunc == nil {
 		panic("ConnectorMock.ConnectFunc: method is nil but Connector.Connect was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
 		Host string
+		User string
 	}{
 		Ctx:  ctx,
 		Host: host,
+		User: user,
 	}
 	mock.lockConnect.Lock()
 	mock.calls.Connect = append(mock.calls.Connect, callInfo)
 	mock.lockConnect.Unlock()
-	return mock.ConnectFunc(ctx, host)
+	return mock.ConnectFunc(ctx, host, user)
 }
 
 // ConnectCalls gets all the calls that were made to Connect.
@@ -77,40 +71,15 @@ func (mock *ConnectorMock) Connect(ctx context.Context, host string) (*executor.
 func (mock *ConnectorMock) ConnectCalls() []struct {
 	Ctx  context.Context
 	Host string
+	User string
 } {
 	var calls []struct {
 		Ctx  context.Context
 		Host string
+		User string
 	}
 	mock.lockConnect.RLock()
 	calls = mock.calls.Connect
 	mock.lockConnect.RUnlock()
-	return calls
-}
-
-// User calls UserFunc.
-func (mock *ConnectorMock) User() string {
-	if mock.UserFunc == nil {
-		panic("ConnectorMock.UserFunc: method is nil but Connector.User was just called")
-	}
-	callInfo := struct {
-	}{}
-	mock.lockUser.Lock()
-	mock.calls.User = append(mock.calls.User, callInfo)
-	mock.lockUser.Unlock()
-	return mock.UserFunc()
-}
-
-// UserCalls gets all the calls that were made to User.
-// Check the length with:
-//
-//	len(mockedConnector.UserCalls())
-func (mock *ConnectorMock) UserCalls() []struct {
-} {
-	var calls []struct {
-	}
-	mock.lockUser.RLock()
-	calls = mock.calls.User
-	mock.lockUser.RUnlock()
 	return calls
 }
