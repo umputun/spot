@@ -11,7 +11,7 @@ targets:
 
 tasks:
 
-  deploy-things:
+  - name: deploy-things
     commands:
       - name: wait
         script: sleep 5s
@@ -36,7 +36,7 @@ tasks:
       - name: show content
         script: ls -laR /tmp
 
-  docker:
+  - name: docker
     commands:
       - name: docker pull and start
         script: |
