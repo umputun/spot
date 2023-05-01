@@ -1,5 +1,5 @@
 tasks:
-  default:
+  - name: default
     commands:
       - name: some command
         script: |

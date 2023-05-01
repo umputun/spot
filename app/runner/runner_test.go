@@ -208,9 +208,10 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		var buf bytes.Buffer
 		log.SetOutput(&buf)
 
-		tsk := p.Config.Tasks["failed_task_with_onerror"]
+		tsk := p.Config.Tasks[2]
+		require.Equal(t, "failed_task_with_onerror", tsk.Name)
 		tsk.OnError = "bad command"
-		p.Config.Tasks["failed_task_with_onerror"] = tsk
+		p.Config.Tasks[2] = tsk
 		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
 		require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
 		t.Log(buf.String())
@@ -229,7 +230,8 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
-	conf.Tasks["failed_task"].Commands[1].Options.IgnoreErrors = true
+	require.Equal(t, "failed_task", conf.Tasks[1].Name)
+	conf.Tasks[1].Commands[1].Options.IgnoreErrors = true
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,

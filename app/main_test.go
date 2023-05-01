@@ -159,7 +159,7 @@ func Test_sshUserAndKey(t *testing.T) {
 			conf: config.PlayBook{
 				User:   "default_user",
 				SSHKey: "default_key",
-				Tasks:  map[string]config.Task{},
+				Tasks:  []config.Task{},
 			},
 			expectedUser: "default_user",
 			expectedKey:  "default_key",
@@ -172,8 +172,8 @@ func Test_sshUserAndKey(t *testing.T) {
 			conf: config.PlayBook{
 				User:   "default_user",
 				SSHKey: "default_key",
-				Tasks: map[string]config.Task{
-					"test_task": {User: "task_user"},
+				Tasks: []config.Task{
+					{Name: "test_task", User: "task_user"},
 				},
 			},
 			expectedUser: "task_user",
@@ -189,8 +189,8 @@ func Test_sshUserAndKey(t *testing.T) {
 			conf: config.PlayBook{
 				User:   "default_user",
 				SSHKey: "default_key",
-				Tasks: map[string]config.Task{
-					"test_task": {User: "task_user"},
+				Tasks: []config.Task{
+					{Name: "test_task", User: "task_user"},
 				},
 			},
 			expectedUser: "cmd_user",
@@ -206,8 +206,8 @@ func Test_sshUserAndKey(t *testing.T) {
 			conf: config.PlayBook{
 				User:   "default_user",
 				SSHKey: "~/default_key",
-				Tasks: map[string]config.Task{
-					"test_task": {User: "task_user"},
+				Tasks: []config.Task{
+					{Name: "test_task", User: "task_user"},
 				},
 			},
 			expectedUser: "cmd_user",

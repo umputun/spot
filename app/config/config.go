@@ -23,13 +23,14 @@ type PlayBook struct {
 	User    string            `yaml:"user"`
 	SSHKey  string            `yaml:"ssh_key"`
 	Targets map[string]Target `yaml:"targets"`
-	Tasks   map[string]Task   `yaml:"tasks"`
+	Tasks   []Task            `yaml:"tasks"`
 
 	overrides *Overrides
 }
 
 // Target defines hosts to run commands on
 type Target struct {
+	Name          string        `yaml:"name"`
 	Hosts         []Destination `yaml:"hosts"`
 	InventoryFile Inventory     `yaml:"inventory_file"`
 	InventoryURL  Inventory     `yaml:"inventory_url"`
@@ -128,10 +129,17 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 		return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
 	}
 
+	for i, t := range res.Tasks {
+		if t.Name == "" {
+			log.Printf("[WARN] missing name for task #%d", i)
+			return nil, fmt.Errorf("task name is required")
+		}
+	}
+
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
-	for tnm, tsk := range res.Tasks {
+	for _, tsk := range res.Tasks {
 		for _, c := range tsk.Commands {
-			log.Printf("[DEBUG] load task %s command %s", tnm, c.Name)
+			log.Printf("[DEBUG] load task %s command %s", tsk.Name, c.Name)
 		}
 	}
 	return res, nil
@@ -139,40 +147,51 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 
 // Task returns task by name
 func (p *PlayBook) Task(name string) (*Task, error) {
-	if t, ok := p.Tasks[name]; ok {
-		cp := deepcopy.Copy(&t) // deep copy to avoid side effects of overrides on original config
-		res, ok := cp.(*Task)
-		if !ok {
-			return nil, fmt.Errorf("can't copy task %s", name)
-		}
-		res.Name = name
-		if res.User == "" {
-			res.User = p.User // if user not set in task, use default from playbook
-		}
-
-		// apply overrides of user
-		if p.overrides != nil && p.overrides.User != "" {
-			res.User = p.overrides.User
-		}
-
-		// apply overrides of environment variables, to each script command
-		if p.overrides != nil && p.overrides.Environment != nil {
-			for envKey, envVal := range p.overrides.Environment {
-				for cmdIdx := range res.Commands {
-					if res.Commands[cmdIdx].Script == "" {
-						continue
-					}
-					if res.Commands[cmdIdx].Environment == nil {
-						res.Commands[cmdIdx].Environment = make(map[string]string)
-					}
-					res.Commands[cmdIdx].Environment[envKey] = envVal
-				}
+	searchTask := func(tsk []Task, name string) (*Task, error) {
+		for _, t := range tsk {
+			if strings.EqualFold(t.Name, name) {
+				return &t, nil
 			}
 		}
-
-		return res, nil
+		return nil, fmt.Errorf("task %q not found", name)
 	}
-	return nil, fmt.Errorf("task %s not found", name)
+
+	t, err := searchTask(p.Tasks, name)
+	if err != nil {
+		return nil, err
+	}
+
+	cp := deepcopy.Copy(t) // deep copy to avoid side effects of overrides on original config
+	res, ok := cp.(*Task)
+	if !ok {
+		return nil, fmt.Errorf("can't copy task %s", name)
+	}
+	res.Name = name
+	if res.User == "" {
+		res.User = p.User // if user not set in task, use default from playbook
+	}
+
+	// apply overrides of user
+	if p.overrides != nil && p.overrides.User != "" {
+		res.User = p.overrides.User
+	}
+
+	// apply overrides of environment variables, to each script command
+	if p.overrides != nil && p.overrides.Environment != nil {
+		for envKey, envVal := range p.overrides.Environment {
+			for cmdIdx := range res.Commands {
+				if res.Commands[cmdIdx].Script == "" {
+					continue
+				}
+				if res.Commands[cmdIdx].Environment == nil {
+					res.Commands[cmdIdx].Environment = make(map[string]string)
+				}
+				res.Commands[cmdIdx].Environment[envKey] = envVal
+			}
+		}
+	}
+
+	return res, nil
 }
 
 // TargetHosts returns target hosts for given target name.
