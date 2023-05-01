@@ -54,11 +54,11 @@ func Test_runAdhoc(t *testing.T) {
 	defer teardown()
 
 	opts := options{
-		SSHUser:  "test",
-		SSHKey:   "runner/testdata/test_ssh_key",
-		Targets:  []string{hostAndPort},
-		AdHocCmd: "echo hello",
+		SSHUser: "test",
+		SSHKey:  "runner/testdata/test_ssh_key",
+		Targets: []string{hostAndPort},
 	}
+	opts.PositionalArgs.AdHocCmd = "echo hello"
 	setupLog(true)
 	err := run(opts)
 	require.NoError(t, err)

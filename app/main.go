@@ -24,32 +24,29 @@ import (
 )
 
 type options struct {
+	PositionalArgs struct {
+		AdHocCmd string `positional-arg-name:"command" description:"run ad-hoc command on target hosts"`
+	} `positional-args:"yes" positional-optional:"yes"`
+
 	PlaybookFile string        `short:"p" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
 	TaskName     string        `short:"t" long:"task" description:"task name"`
 	Targets      []string      `short:"d" long:"target" description:"target name" default:"default"`
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout   time.Duration `long:"timeout" description:"ssh timeout" default:"30s"`
 
-	// target overrides
-	Filter        []string `short:"f" long:"filter" description:"filter target hosts"`
-	InventoryFile string   `long:"inventory-file" env:"SPOT_INVENTORY" description:"inventory file"`
-	InventoryURL  string   `long:"inventory-url" description:"inventory http url"`
-
-	// connection overrides
-	SSHUser string `short:"u" long:"user" description:"ssh user"`
-	SSHKey  string `short:"k" long:"key" description:"ssh key"`
-
-	Env map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
+	// overrides
+	Inventory string            `short:"i" long:"inventory" description:"inventory file or url"`
+	SSHUser   string            `short:"u" long:"user" description:"ssh user"`
+	SSHKey    string            `short:"k" long:"key" description:"ssh key"`
+	Env       map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
 
 	// commands filter
 	Skip []string `long:"skip" description:"skip commands"`
 	Only []string `long:"only" description:"run only commands"`
 
-	AdHocCmd string `long:"cmd" description:"run ad-hoc command on target hosts"`
-
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
-	Help    bool `long:"help" description:"show help"`
+	Help    bool `short:"h" long:"help" description:"show help"`
 }
 
 var revision = "latest"
@@ -85,12 +82,10 @@ func run(opts options) error {
 	defer cancel()
 
 	overrides := config.Overrides{
-		InventoryFile: opts.InventoryFile,
-		InventoryURL:  opts.InventoryURL,
-		Environment:   opts.Env,
-		User:          opts.SSHUser,
-		FilterHosts:   opts.Filter,
-		AdHocCommand:  opts.AdHocCmd,
+		Inventory:    opts.Inventory,
+		Environment:  opts.Env,
+		User:         opts.SSHUser,
+		AdHocCommand: opts.PositionalArgs.AdHocCmd,
 	}
 
 	conf, err := config.New(opts.PlaybookFile, &overrides)
@@ -98,7 +93,7 @@ func run(opts options) error {
 		return fmt.Errorf("can't read config: %w", err)
 	}
 
-	if opts.AdHocCmd != "" {
+	if opts.PositionalArgs.AdHocCmd != "" {
 		if err = adHocConf(opts, conf, &defaultUserInfoProvider{}); err != nil {
 			return fmt.Errorf("can't setup ad-hoc config: %w", err)
 		}
@@ -119,7 +114,7 @@ func run(opts options) error {
 	}
 
 	errs := new(multierror.Error)
-	if opts.AdHocCmd != "" { // run ad-hoc command
+	if opts.PositionalArgs.AdHocCmd != "" { // run ad-hoc command
 		r.Verbose = true // always verbose for ad-hoc
 		for _, targetName := range opts.Targets {
 			if err := runTaskForTarget(ctx, r, "ad-hoc", targetName); err != nil {
