@@ -129,11 +129,17 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 		return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
 	}
 
+	names := make(map[string]bool)
 	for i, t := range res.Tasks {
 		if t.Name == "" {
 			log.Printf("[WARN] missing name for task #%d", i)
 			return nil, fmt.Errorf("task name is required")
 		}
+		if names[t.Name] {
+			log.Printf("[WARN] duplicate task name %q", t.Name)
+			return nil, fmt.Errorf("duplicate task name %q", t.Name)
+		}
+		names[t.Name] = true
 	}
 
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))

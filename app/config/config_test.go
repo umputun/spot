@@ -40,6 +40,11 @@ func TestNew(t *testing.T) {
 		_, err := New("testdata/no-task-name.yml", nil)
 		require.ErrorContains(t, err, "task name is required")
 	})
+
+	t.Run("duplicate task name", func(t *testing.T) {
+		_, err := New("testdata/dup-task-name.yml", nil)
+		require.ErrorContains(t, err, `duplicate task name "deploy"`)
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
