@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -242,13 +243,18 @@ func Test_sshUserAndKey(t *testing.T) {
 
 type mockUserInfoProvider struct {
 	user *user.User
+	err  error
 }
 
 func (p *mockUserInfoProvider) Current() (*user.User, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
 	return p.user, nil
 }
 
 func TestAdHocConf(t *testing.T) {
+
 	t.Run("default SSH user and key", func(t *testing.T) {
 		mockUser := &user.User{
 			Username: "testuser",
@@ -274,7 +280,7 @@ func TestAdHocConf(t *testing.T) {
 		}
 		mockProvider := &mockUserInfoProvider{user: mockUser}
 
-		// Call adHocConf with custom SSH user and key options and mock provider.
+		// call adHocConf with custom SSH user and key options and mock provider.
 		opts := options{
 			SSHUser: "customuser",
 			SSHKey:  "/tmp/custom-key",
@@ -285,10 +291,42 @@ func TestAdHocConf(t *testing.T) {
 		}
 		err := adHocConf(opts, conf, mockProvider)
 
-		// Check if the function correctly sets the custom user and the SSH key.
+		// check if the function correctly sets the custom user and the SSH key.
 		require.NoError(t, err)
 		assert.Equal(t, opts.SSHUser, conf.User)
 		assert.Equal(t, opts.SSHKey, conf.SSHKey)
+	})
+
+	t.Run("error getting current user", func(t *testing.T) {
+		mockProvider := &mockUserInfoProvider{err: errors.New("user error")}
+
+		// call adHocConf with empty options and mock provider that returns an error
+		opts := options{}
+		conf := &config.PlayBook{}
+		err := adHocConf(opts, conf, mockProvider)
+
+		// check if the function returns the expected error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't get current user")
+	})
+
+	t.Run("error getting current user when SSH key is empty", func(t *testing.T) {
+		mockUser := &user.User{
+			Username: "testuser",
+			HomeDir:  "/tmp/test-home",
+		}
+		mockProvider := &mockUserInfoProvider{user: mockUser, err: errors.New("user error")}
+
+		// call adHocConf with custom SSH user and mock provider that returns an error
+		opts := options{
+			SSHUser: "customuser",
+		}
+		conf := &config.PlayBook{}
+		err := adHocConf(opts, conf, mockProvider)
+
+		// check if the function returns the expected error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't get current user")
 	})
 }
 
