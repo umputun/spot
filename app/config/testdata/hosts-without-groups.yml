@@ -1,0 +1,6 @@
+hosts:
+  - {host: "hh1.example.com", name: "hh1"}
+  - {host: "hh2.example.com", port: 2233, name: "hh2", user: "user1"}
+  - {host: "h2.example.com", port: 2233, name: "h2"}
+  - {host: "h3.example.com", user: "user1", name: "h3"}
+  - {host: "h4.example.com", user: "user2", name: "h4"}

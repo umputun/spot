@@ -174,7 +174,7 @@ func TestProcess_RunFailed(t *testing.T) {
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
-	require.ErrorContains(t, err, `can't run command "bad command" on host`)
+	require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
 }
 
 func TestProcess_RunFailed_WithOnError(t *testing.T) {
@@ -199,7 +199,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		log.SetOutput(&buf)
 
 		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
-		require.ErrorContains(t, err, `can't run command "bad command" on host`)
+		require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
 		t.Log(buf.String())
 		require.Contains(t, buf.String(), "onerror called")
 	})
@@ -212,7 +212,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		tsk.OnError = "bad command"
 		p.Config.Tasks["failed_task_with_onerror"] = tsk
 		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
-		require.ErrorContains(t, err, `can't run command "bad command" on host`)
+		require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
 		t.Log(buf.String())
 		require.NotContains(t, buf.String(), "onerror called")
 		assert.Contains(t, buf.String(), "[WARN]")
@@ -275,41 +275,43 @@ func TestProcess_applyTemplates(t *testing.T) {
 	}{
 		{
 			name: "all_variables",
-			inp:  "${SPOT_REMOTE_HOST}:${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
+			inp:  "${SPOT_REMOTE_HOST}:${SPOT_REMOTE_USER}:${SPOT_COMMAND}:{SPOT_REMOTE_NAME}",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user"},
+				hostAddr: "example.com",
+				hostName: "example",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
 			},
-			expected: "example.com:user:ls",
+			expected: "example.com:user:ls:example",
 		},
 		{
 			name: "no_variables",
 			inp:  "no_variables_here",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1"},
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1"},
 			},
 			expected: "no_variables_here",
 		},
 		{
 			name: "single_dollar_variable",
-			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND",
+			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND:$SPOT_REMOTE_NAME",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user"},
+				hostAddr: "example.com",
+				hostName: "example",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
 			},
-			expected: "example.com:user:ls",
+			expected: "example.com:user:ls:example",
 		},
 		{
 			name: "mixed_variables",
 			inp:  "{SPOT_REMOTE_HOST}:$SPOT_REMOTE_USER:${SPOT_COMMAND}:{SPOT_TASK}",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user2"},
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user2"},
 			},
 			expected: "example.com:user2:ls:task1",
 		},
@@ -317,9 +319,9 @@ func TestProcess_applyTemplates(t *testing.T) {
 			name: "escaped_variables",
 			inp:  "\\${SPOT_REMOTE_HOST}:\\$SPOT_REMOTE_USER:\\${SPOT_COMMAND}",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user"},
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
 			},
 			expected: "\\example.com:\\user:\\ls",
 		},
@@ -327,9 +329,9 @@ func TestProcess_applyTemplates(t *testing.T) {
 			name: "variables with normal text",
 			inp:  "${SPOT_REMOTE_HOST} blah ${SPOT_TASK} ${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user2"},
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user2"},
 			},
 			expected: "example.com blah task1 user2:ls",
 		},
@@ -337,10 +339,10 @@ func TestProcess_applyTemplates(t *testing.T) {
 			name: "with error msg",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user"},
-				err:     fmt.Errorf("some error"),
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
+				err:      fmt.Errorf("some error"),
 			},
 			expected: "example.com:user:ls some error",
 		},
@@ -348,10 +350,10 @@ func TestProcess_applyTemplates(t *testing.T) {
 			name: "with error msg but no error",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
 			tdata: templateData{
-				host:    "example.com",
-				command: "ls",
-				task:    &config.Task{Name: "task1", User: "user"},
-				err:     nil,
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
+				err:      nil,
 			},
 			expected: "example.com:user:ls ",
 		},
@@ -373,7 +375,7 @@ func TestProcess_waitPassed(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, hostAndPort, "my-host", "test")
+	sess, err := connector.Connect(ctx, hostAndPort, "my-hostAddr", "test")
 	require.NoError(t, err)
 
 	p := Process{Connector: connector}
@@ -392,7 +394,7 @@ func TestProcess_waitFailed(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, hostAndPort, "my-host", "test")
+	sess, err := connector.Connect(ctx, hostAndPort, "my-hostAddr", "test")
 	require.NoError(t, err)
 
 	p := Process{Connector: connector}

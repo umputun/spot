@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -260,7 +261,7 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 				},
 			},
 			"target2": {
-				InventoryFile: Inventory{Location: "testdata/hosts", Groups: []string{"gr1"}},
+				InventoryFile: Inventory{Location: "testdata/hosts-with-groups.yml", Groups: []string{"gr1"}},
 			},
 			"target3": {},
 		},
@@ -372,10 +373,10 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 			name:       "valid target with inventory file",
 			targetName: "target2",
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "default_user"},
-				{Host: "h2.example.com", Port: 2233, User: "default_user"},
+				{Host: "h1.example.com", Port: 22, User: "default_user", Name: "h1"},
+				{Host: "h2.example.com", Port: 2233, User: "default_user", Name: "h2"},
 				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
+				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
 			},
 			wantErr: false,
 		},
@@ -383,7 +384,7 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 			name:       "overrides inventory file",
 			targetName: "target2",
 			overrides: &Overrides{
-				InventoryFile: "testdata/override_inventory",
+				InventoryFile: "testdata/override_inventory.yml",
 			},
 			want: []Destination{
 				{Host: "host3", Port: 22, User: "default_user"},
@@ -418,17 +419,16 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 	})
 
 	t.Run("override hosts with file", func(t *testing.T) {
-		c, err := New("testdata/f1.yml", &Overrides{InventoryFile: "testdata/hosts"})
+		c, err := New("testdata/f1.yml", &Overrides{InventoryFile: "testdata/hosts-without-groups.yml"})
 		require.NoError(t, err)
 		res, err := c.TargetHosts("blah")
 		require.NoError(t, err)
 		assert.Equal(t, []Destination{
-			{Host: "hh1.example.com", Port: 22, User: "umputun"},
-			{Host: "h2.example.com", Port: 2233, User: "umputun"},
-			{Host: "h3.example.com", Port: 22, User: "user1"},
-			{Host: "h4.example.com", Port: 2233, User: "user2"},
-			{Host: "h5.example.com", Port: 2233, User: "umputun"},
-			{Host: "h6.example.com", Port: 22, User: "user3"},
+			{Name: "h2", Host: "h2.example.com", Port: 2233, User: "umputun"},
+			{Name: "h3", Host: "h3.example.com", Port: 22, User: "user1"},
+			{Name: "h4", Host: "h4.example.com", Port: 22, User: "user2"},
+			{Name: "hh1", Host: "hh1.example.com", Port: 22, User: "umputun"},
+			{Name: "hh2", Host: "hh2.example.com", Port: 2233, User: "user1"},
 		}, res)
 	})
 
@@ -442,7 +442,10 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 
 	t.Run("override hosts with http", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, err := w.Write([]byte("h1.example.com:2223 user2\nh2.example.com\nlocalhost:2222\n8.8.8.8 user3\n"))
+			fh, err := os.Open("testdata/hosts-without-groups.yml")
+			require.NoError(t, err)
+			defer fh.Close()
+			_, err = io.Copy(w, fh)
 			require.NoError(t, err)
 		}))
 		defer ts.Close()
@@ -451,10 +454,11 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 		res, err := c.TargetHosts("blah")
 		require.NoError(t, err)
 		assert.Equal(t, []Destination{
-			{Host: "h1.example.com", Port: 2223, User: "user2"},
-			{Host: "h2.example.com", Port: 22, User: "umputun"},
-			{Host: "localhost", Port: 2222, User: "umputun"},
-			{Host: "8.8.8.8", Port: 22, User: "user3"},
+			{Name: "h2", Host: "h2.example.com", Port: 2233, User: "umputun"},
+			{Name: "h3", Host: "h3.example.com", Port: 22, User: "user1"},
+			{Name: "h4", Host: "h4.example.com", Port: 22, User: "user2"},
+			{Name: "hh1", Host: "hh1.example.com", Port: 22, User: "umputun"},
+			{Name: "hh2", Host: "hh2.example.com", Port: 2233, User: "user1"},
 		}, res)
 	})
 
@@ -471,123 +475,109 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 	})
 }
 
-func TestPlayBook_parseInventory(t *testing.T) {
-	inventoryContent := `[gr1]
-hh1.example.com
-#blah blah blah
-h2.example.com:2233
-h3.example.com user1
-h4.example.com:2233 user2
-
-[gr2]
-h5.example.com:2233
-h6.example.com user3
-`
+func TestPlayBook_parseInventoryGroups(t *testing.T) {
 	playbook := &PlayBook{User: "defaultUser"}
 
 	tests := []struct {
-		name         string
-		grpups       []string
-		want         []Destination
-		removeGroups bool
+		name      string
+		inventory string
+		groups    []string
+		want      []Destination
 	}{
 		{
-			name:   "All groups",
-			grpups: nil,
+			name:      "all groups",
+			inventory: "testdata/hosts-with-groups.yml",
+			groups:    nil,
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
-				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Host: "h1.example.com", Port: 22, User: "defaultUser", Name: "h1"},
+				{Host: "h2.example.com", Port: 2233, User: "defaultUser", Name: "h2"},
 				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
-				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h6.example.com", Port: 22, User: "user3"},
+				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
+				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
+				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
 			},
 		},
 		{
-			name:   "Group 1",
-			grpups: []string{"gr1"},
+			name:      "group 1",
+			inventory: "testdata/hosts-with-groups.yml",
+			groups:    []string{"gr1"},
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
-				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Host: "h1.example.com", Port: 22, User: "defaultUser", Name: "h1"},
+				{Host: "h2.example.com", Port: 2233, User: "defaultUser", Name: "h2"},
 				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
+				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
 			},
 		},
 		{
-			name:   "Group 2",
-			grpups: []string{"gr2"},
+			name:      "group 2",
+			inventory: "testdata/hosts-with-groups.yml",
+			groups:    []string{"gr2"},
 			want: []Destination{
-				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h6.example.com", Port: 22, User: "user3"},
+				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
+				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
 			},
 		},
 		{
-			name:   "Group 1 and 2",
-			grpups: []string{"gr1", "gr2"},
+			name:      "group 1 and 2",
+			inventory: "testdata/hosts-with-groups.yml",
+			groups:    []string{"gr1", "gr2"},
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
-				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Host: "h1.example.com", Port: 22, User: "defaultUser", Name: "h1"},
+				{Host: "h2.example.com", Port: 2233, User: "defaultUser", Name: "h2"},
 				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
-				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h6.example.com", Port: 22, User: "user3"},
+				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
+				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
+				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
 			},
 		},
 		{
-			name:   "Empty groups",
-			grpups: []string{},
+			name:      "empty group",
+			inventory: "testdata/hosts-with-groups.yml",
+			groups:    []string{},
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
-				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Host: "h1.example.com", Port: 22, User: "defaultUser", Name: "h1"},
+				{Host: "h2.example.com", Port: 2233, User: "defaultUser", Name: "h2"},
 				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
-				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h6.example.com", Port: 22, User: "user3"},
+				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
+				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
+				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
 			},
 		},
 		{
-			name:         "No-group inventory",
-			removeGroups: true,
+			name:      "non-existent group",
+			inventory: "testdata/hosts-with-groups.yml",
+			groups:    []string{"non-existent"},
+			want:      []Destination{},
+		},
+		{
+			name:      "hosts inventory",
+			inventory: "testdata/hosts-without-groups.yml",
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
-				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
-				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h6.example.com", Port: 22, User: "user3"},
-			},
+				{Name: "h2", Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Name: "h3", Host: "h3.example.com", Port: 22, User: "user1"},
+				{Name: "h4", Host: "h4.example.com", Port: 22, User: "user2"},
+				{Name: "hh1", Host: "hh1.example.com", Port: 22, User: "defaultUser"},
+				{Name: "hh2", Host: "hh2.example.com", Port: 2233, User: "user1"}},
 		},
 		{
-			name:         "No-group inventory but name is set to all",
-			grpups:       []string{"all"},
-			removeGroups: true,
+			name:      "hosts inventory but group name set",
+			inventory: "testdata/hosts-without-groups.yml",
+			groups:    []string{"some"},
 			want: []Destination{
-				{Host: "hh1.example.com", Port: 22, User: "defaultUser"},
-				{Host: "h2.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h3.example.com", Port: 22, User: "user1"},
-				{Host: "h4.example.com", Port: 2233, User: "user2"},
-				{Host: "h5.example.com", Port: 2233, User: "defaultUser"},
-				{Host: "h6.example.com", Port: 22, User: "user3"},
-			},
-		},
-		{
-			name:   "Non-existent group",
-			grpups: []string{"non-existent"},
-			want:   []Destination{},
+				{Name: "h2", Host: "h2.example.com", Port: 2233, User: "defaultUser"},
+				{Name: "h3", Host: "h3.example.com", Port: 22, User: "user1"},
+				{Name: "h4", Host: "h4.example.com", Port: 22, User: "user2"},
+				{Name: "hh1", Host: "hh1.example.com", Port: 22, User: "defaultUser"},
+				{Name: "hh2", Host: "hh2.example.com", Port: 2233, User: "user1"}},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var reader io.Reader
-			if tt.removeGroups {
-				inventoryContentCleaned := strings.ReplaceAll(inventoryContent, "[gr1]", "")
-				inventoryContentCleaned = strings.ReplaceAll(inventoryContentCleaned, "[gr2]", "")
-				reader = strings.NewReader(inventoryContentCleaned)
-			} else {
-				reader = strings.NewReader(inventoryContent)
-			}
-			got, err := playbook.parseInventory(reader, tt.grpups)
+			reader, err := os.Open(tt.inventory)
+			require.NoError(t, err)
+			defer reader.Close()
+			got, err := playbook.parseInventory(reader, tt.groups)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})

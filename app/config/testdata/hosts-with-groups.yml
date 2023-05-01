@@ -1,0 +1,9 @@
+groups:
+  gr1:
+    - {host: "h1.example.com", name: "h1"}
+    - {host: "h2.example.com", port: 2233, name: "h2"}
+    - {host: "h3.example.com", user: "user1"}
+    - {host: "h4.example.com", user: "user2", name: "h4"}
+  gr2:
+    - {host: "h5.example.com", port: 2233, name: "h5"}
+    - {host: "h6.example.com", user: "user3", name: "h6"}
