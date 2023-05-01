@@ -56,6 +56,7 @@ SimploTask supports the following command-line options:
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1=VALUE1 -e VAR2=VALUE2`.
+- `cmd`: Executes the specified command on the remote hosts. This is useful for running an adhoc command without creating a playbook file. Should be used with the `-d` flag to specify the destination hosts. 
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
 - `--help`: Displays the help message, listing all available command-line options.
@@ -299,6 +300,15 @@ tasks:
         delete: {"loc": "/tmp/things/{SPOT_REMOTE_USER}", "recur": true}
 
 ```
+
+## Adhoc commands
+
+SimploTask supports adhoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command passed as `--cmd=<command>` flag and should always be accompanied by the `--tarbget=<host>` (`-d <host>) flags. Example: `spot --cmd="ls -la" -d h1.example.com -d h2.example.com`. 
+
+All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, SimploTask will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory-file=inventory.yml` or `--inventory-url=http://localhost:8080/inventory` as well as `--filter` (`-f`) to filter the hosts to execute the command on.
+
+Adhoc commands always set `verbose` to `true` automatically, so the user can see the output of the command.
+
 
 ## Rolling Updates
 

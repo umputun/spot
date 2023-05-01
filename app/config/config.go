@@ -103,6 +103,7 @@ type Overrides struct {
 	InventoryFile string
 	InventoryURL  string
 	Environment   map[string]string
+	AdHocCommand  string
 }
 
 // Inventory defines external inventory file or url
@@ -122,6 +123,9 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 	res := &PlayBook{overrides: overrides}
 	data, err := os.ReadFile(fname) // nolint
 	if err != nil {
+		if overrides != nil && overrides.AdHocCommand != "" {
+			return res, nil // no config file but adhoc set, just return empty config with overrides
+		}
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
 	}
 
@@ -154,6 +158,10 @@ func New(fname string, overrides *Overrides) (*PlayBook, error) {
 // Task returns task by name
 func (p *PlayBook) Task(name string) (*Task, error) {
 	searchTask := func(tsk []Task, name string) (*Task, error) {
+		if name == "ad-hoc" && p.overrides.AdHocCommand != "" {
+			// special case for ad-hoc command, make a fake task with a single command from overrides.AdHocCommand
+			return &Task{Name: "ad-hoc", Commands: []Cmd{{Name: "ad-hoc", Script: p.overrides.AdHocCommand}}}, nil
+		}
 		for _, t := range tsk {
 			if strings.EqualFold(t.Name, name) {
 				return &t, nil

@@ -46,6 +46,21 @@ func Test_runCompleted(t *testing.T) {
 	assert.True(t, time.Since(st) >= 5*time.Second)
 }
 
+func Test_runAdhoc(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:  "test",
+		SSHKey:   "runner/testdata/test_ssh_key",
+		Targets:  []string{hostAndPort},
+		AdHocCmd: "echo hello",
+	}
+	setupLog(true)
+	err := run(opts)
+	require.NoError(t, err)
+}
+
 func Test_runCompletedAllTasks(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()

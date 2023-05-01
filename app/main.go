@@ -43,6 +43,8 @@ type options struct {
 	Skip []string `long:"skip" description:"skip commands"`
 	Only []string `long:"only" description:"run only commands"`
 
+	AdHocCmd string `long:"cmd" description:"run ad-hoc command on target hosts"`
+
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
 	Help    bool `long:"help" description:"show help"`
@@ -86,11 +88,18 @@ func run(opts options) error {
 		Environment:   opts.Env,
 		User:          opts.SSHUser,
 		FilterHosts:   opts.Filter,
+		AdHocCommand:  opts.AdHocCmd,
 	}
 
 	conf, err := config.New(opts.PlaybookFile, &overrides)
 	if err != nil {
 		return fmt.Errorf("can't read config: %w", err)
+	}
+
+	if opts.AdHocCmd != "" {
+		if err := adHocConf(opts, conf); err != nil {
+			return fmt.Errorf("can't setup ad-hoc config: %w", err)
+		}
 	}
 
 	connector, err := executor.NewConnector(sshKey(opts, conf))
@@ -105,6 +114,16 @@ func run(opts options) error {
 		Skip:        opts.Skip,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Verbose:     opts.Verbose,
+	}
+
+	if opts.AdHocCmd != "" { // run ad-hoc command
+		r.Verbose = true // always verbose for ad-hoc
+		for _, targetName := range opts.Targets {
+			if err := runTaskForTarget(ctx, r, "ad-hoc", targetName); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	if opts.TaskName != "" { // run single task
@@ -134,7 +153,7 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 	if err != nil {
 		return fmt.Errorf("can't run task %q for target %q: %w", taskName, targetName, err)
 	}
-	fmt.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
+	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
 		stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
 	return nil
 }
@@ -152,16 +171,33 @@ func sshKey(opts options, conf *config.PlayBook) (key string) {
 		return path, nil
 	}
 
-	sshKey := conf.SSHKey  // default to global config key
-	if opts.SSHKey != "" { // override with command line
-		sshKey = opts.SSHKey
+	sshKey := opts.SSHKey
+	if sshKey == "" && (conf == nil || conf.SSHKey != "") {
+		sshKey = conf.SSHKey // default to config key
 	}
-
 	if p, err := expandPath(sshKey); err == nil {
 		sshKey = p
 	}
-
 	return sshKey
+}
+
+// adHocConf prepares config for ad-hoc command
+func adHocConf(opts options, conf *config.PlayBook) error {
+	if opts.SSHUser == "" {
+		u, err := user.Current()
+		if err != nil {
+			return fmt.Errorf("can't get current user: %w", err)
+		}
+		conf.User = u.Username
+	}
+	if opts.SSHKey == "" {
+		u, err := user.Current()
+		if err != nil {
+			return fmt.Errorf("can't get current user: %w", err)
+		}
+		conf.SSHKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
+	}
+	return nil
 }
 
 func setupLog(dbg bool) {
