@@ -34,7 +34,7 @@ type Process struct {
 	Only []string
 }
 
-// Connector is an interface for connecting to a hostAddr, and returning remote executer.
+// Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
 }
@@ -45,7 +45,8 @@ type ProcStats struct {
 	Hosts    int
 }
 
-// Run runs a task for a set of target hosts. Runs in parallel with limited concurrency, each hostAddr is processed in separate goroutine.
+// Run runs a task for a set of target hosts. Runs in parallel with limited concurrency,
+// each host is processed in separate goroutine.
 func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, err error) {
 	tsk, err := p.Config.Task(task)
 	if err != nil {
@@ -67,6 +68,10 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, host.User)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(count))
+			}
+			if e != nil {
+				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose)
+				errLog.Write([]byte(e.Error())) //nolint
 			}
 			return e
 		})
@@ -93,7 +98,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	return ProcStats{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands))}, err
 }
 
-// runTaskOnHost executes all commands of a task on a target hostAddr. hostAddr can be a remote hostAddr or localhost with port.
+// runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, error) {
 	contains := func(list []string, s string) bool {
 		for _, v := range list {
@@ -124,7 +129,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			continue
 		}
 
-		log.Printf("[INFO] run command %q on hostAddr %s (%s)", cmd.Name, hostAddr, hostName)
+		log.Printf("[INFO] run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
 		st := time.Now()
 		params := execCmdParams{cmd: cmd, hostAddr: hostAddr, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
@@ -134,7 +139,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		details, err := p.execCommand(ctx, params)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
-				return count, fmt.Errorf("can't run command %q on hostAddr %s (%s): %w", cmd.Name, hostAddr, hostName, err)
+				return count, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, hostAddr, hostName, err)
 			}
 
 			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "failed %s%s (%v)",

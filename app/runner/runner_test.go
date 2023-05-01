@@ -24,7 +24,7 @@ func TestProcess_Run(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestProcess_RunOnly(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -69,7 +69,7 @@ func TestProcess_RunOnlyNoAuto(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestProcess_RunSkip(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 	defer teardown()
 
 	log.SetOutput(io.Discard)
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestProcess_RunLocal(t *testing.T) {
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf-local.yml", nil)
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestProcess_RunFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -174,7 +174,7 @@ func TestProcess_RunFailed(t *testing.T) {
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 	}
 	_, err = p.Run(ctx, "failed_task", hostAndPort)
-	require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
+	require.ErrorContains(t, err, `failed command "bad command" on host`)
 }
 
 func TestProcess_RunFailed_WithOnError(t *testing.T) {
@@ -182,7 +182,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -199,7 +199,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		log.SetOutput(&buf)
 
 		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
-		require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
+		require.ErrorContains(t, err, `failed command "bad command" on host`)
 		t.Log(buf.String())
 		require.Contains(t, buf.String(), "onerror called")
 	})
@@ -213,7 +213,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		tsk.OnError = "bad command"
 		p.Config.Tasks[2] = tsk
 		_, err = p.Run(ctx, "failed_task_with_onerror", hostAndPort)
-		require.ErrorContains(t, err, `can't run command "bad command" on hostAddr`)
+		require.ErrorContains(t, err, `failed command "bad command" on host`)
 		t.Log(buf.String())
 		require.NotContains(t, buf.String(), "onerror called")
 		assert.Contains(t, buf.String(), "[WARN]")
@@ -226,7 +226,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil)
 	require.NoError(t, err)
@@ -375,7 +375,7 @@ func TestProcess_waitPassed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := connector.Connect(ctx, hostAndPort, "my-hostAddr", "test")
 	require.NoError(t, err)
@@ -394,7 +394,7 @@ func TestProcess_waitFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	connector, err := executor.NewConnector("testdata/test_ssh_key")
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := connector.Connect(ctx, hostAndPort, "my-hostAddr", "test")
 	require.NoError(t, err)

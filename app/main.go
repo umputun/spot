@@ -15,6 +15,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/go-pkgz/lgr"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/umputun/simplotask/app/config"
@@ -23,10 +24,11 @@ import (
 )
 
 type options struct {
-	PlaybookFile string   `short:"p" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
-	TaskName     string   `short:"t" long:"task" description:"task name"`
-	Targets      []string `short:"d" long:"target" description:"target name" default:"default"`
-	Concurrent   int      `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
+	PlaybookFile string        `short:"p" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
+	TaskName     string        `short:"t" long:"task" description:"task name"`
+	Targets      []string      `short:"d" long:"target" description:"target name" default:"default"`
+	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
+	SSHTimeout   time.Duration `long:"ssh-timeout" description:"ssh timeout" default:"30s"`
 
 	// target overrides
 	Filter        []string `short:"f" long:"filter" description:"filter target hosts"`
@@ -72,7 +74,7 @@ func main() {
 		if opts.Dbg {
 			log.Panicf("[ERROR] %v", err)
 		}
-		fmt.Printf("failed: %v\n", err)
+		fmt.Printf("failed, %v", err)
 		os.Exit(1)
 	}
 }
@@ -102,7 +104,7 @@ func run(opts options) error {
 		}
 	}
 
-	connector, err := executor.NewConnector(sshKey(opts, conf))
+	connector, err := executor.NewConnector(sshKey(opts, conf), opts.SSHTimeout)
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
@@ -116,14 +118,15 @@ func run(opts options) error {
 		Verbose:     opts.Verbose,
 	}
 
+	errs := new(multierror.Error)
 	if opts.AdHocCmd != "" { // run ad-hoc command
 		r.Verbose = true // always verbose for ad-hoc
 		for _, targetName := range opts.Targets {
 			if err := runTaskForTarget(ctx, r, "ad-hoc", targetName); err != nil {
-				return err
+				errs = multierror.Append(errs, err)
 			}
 		}
-		return nil
+		return errs.ErrorOrNil()
 	}
 
 	if opts.TaskName != "" { // run single task

@@ -20,7 +20,7 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
@@ -49,7 +49,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -65,7 +65,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestExecuter_ConnectCanceled(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	_, err = c.Connect(ctx, hostAndPort, "h1", "test")
 	assert.ErrorContains(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
@@ -128,7 +128,7 @@ func TestExecuter_Run(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestExecuter_Sync(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -204,7 +204,7 @@ func TestExecuter_Delete(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key")
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)

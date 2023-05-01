@@ -7,6 +7,7 @@ require (
 	github.com/go-pkgz/fileutils v0.2.0
 	github.com/go-pkgz/lgr v0.11.0
 	github.com/go-pkgz/syncs v1.3.0
+	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/pkg/sftp v1.13.5
 	github.com/stretchr/testify v1.8.2
@@ -29,6 +30,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/uuid v1.3.0 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.16.5 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.1.0 // indirect

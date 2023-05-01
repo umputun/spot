@@ -130,7 +130,7 @@ func Test_runFailed(t *testing.T) {
 	}
 	setupLog(true)
 	err := run(opts)
-	assert.ErrorContains(t, err, `can't run command "show content"`)
+	assert.ErrorContains(t, err, `failed command "show content"`)
 }
 
 func Test_runNoConfig(t *testing.T) {

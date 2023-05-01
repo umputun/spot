@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -14,11 +15,12 @@ import (
 // Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH hostAddr.
 type Connector struct {
 	privateKey string
+	timeout    time.Duration
 }
 
 // NewConnector creates a new Connector for a given user and private key.
-func NewConnector(privateKey string) (res *Connector, err error) {
-	res = &Connector{privateKey: privateKey}
+func NewConnector(privateKey string, timeout time.Duration) (res *Connector, err error) {
+	res = &Connector{privateKey: privateKey, timeout: timeout}
 	if _, err := os.Stat(privateKey); os.IsNotExist(err) {
 		return nil, fmt.Errorf("private key file %q does not exist", privateKey)
 	}
@@ -42,7 +44,7 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 		host += ":22"
 	}
 
-	dialer := net.Dialer{}
+	dialer := net.Dialer{Timeout: c.timeout}
 	conn, err := dialer.DialContext(ctx, "tcp", host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial: %w", err)
