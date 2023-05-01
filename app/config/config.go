@@ -226,7 +226,7 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 // It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
-	userOveride := func(u string) string {
+	userOverride := func(u string) string {
 		if p.overrides != nil && p.overrides.User != "" {
 			return p.overrides.User
 		}
@@ -246,7 +246,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 				if h.Port == 0 {
 					h.Port = 22 // default port is 22 if not set
 				}
-				h.User = userOveride(h.User)
+				h.User = userOverride(h.User)
 				res[i] = h
 			}
 			return res, nil
@@ -274,7 +274,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		res := make([]Destination, len(hosts))
 		copy(res, hosts)
 		for i, r := range res {
-			r.User = userOveride(r.User)
+			r.User = userOverride(r.User)
 			res[i] = r
 		}
 		return res, nil
@@ -284,7 +284,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	for _, h := range p.inventory.Groups["all"] {
 		if strings.EqualFold(h.Name, name) {
 			res := []Destination{h}
-			res[0].User = userOveride(h.User)
+			res[0].User = userOverride(h.User)
 			return res, nil
 		}
 	}
@@ -293,7 +293,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	for _, h := range p.inventory.Groups["all"] {
 		if strings.EqualFold(h.Host, name) {
 			res := []Destination{h}
-			res[0].User = userOveride(h.User)
+			res[0].User = userOverride(h.User)
 			return res, nil
 		}
 	}
@@ -305,11 +305,11 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
-		return []Destination{{Host: elems[0], Port: port, User: userOveride("")}}, nil
+		return []Destination{{Host: elems[0], Port: port, User: userOverride("")}}, nil
 	}
 
 	// we assume it is a host name, with default port 22
-	return []Destination{{Host: name, Port: 22, User: userOveride("")}}, nil
+	return []Destination{{Host: name, Port: 22, User: userOverride("")}}, nil
 }
 
 // loadInventoryFile loads inventory from file and returns a struct with groups.

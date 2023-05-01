@@ -47,20 +47,16 @@ Spot supports the following command-line options:
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name or IP instead of the target name for a quick override. Providing the `-d`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-d prod -d dev` or `-d example1.com -d example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
 - `timeout`: Sets the SSH timeout. Defaults to `30s`.
-- `-f`, `--filter=`: Filter destinations for the specified target. Providing the `-f` flag multiple times with different name, or hosts names or ips/fqdns allow multiple destination hosts from the selected target, e.g., `-f apollo -f h2.example2.com`
-- `--inventory-file=`: Specifies the inventory file to use for the task execution. Overrides the inventory file defined in the
-  playbook file.
-- `--inventory-url=`: Specifies the inventory HTTP URL to use for the task execution. Overrides the inventory URL defined in the
-  playbook file.
+- `--inventory=`: Specifies the inventory file or url to use for the task execution. Overrides the inventory file defined in the
+  playbook file. User can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
 - `-k`, `--key=`: Specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the playbook file.
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1=VALUE1 -e VAR2=VALUE2`.
-- `cmd`: Executes the specified command on the remote hosts. This is useful for running an adhoc command without creating a playbook file. Should be used with the `-d` flag to specify the destination hosts. 
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
-- `--help`: Displays the help message, listing all available command-line options.
+- `-h` `--help`: Displays the help message, listing all available command-line options.
 
 ## Example playbook
 
@@ -309,9 +305,9 @@ tasks:
 
 ```
 
-## Adhoc commands
+## Ad-hoc commands
 
-Spot supports adhoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp`  and should always be accompanied by the `--target=<host>` (`-d <host>`) flags. Example: `spot "ls -la" -d h1.example.com -d h2.example.com`. 
+Spot supports ad-hoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp`  and should always be accompanied by the `--target=<host>` (`-d <host>`) flags. Example: `spot "ls -la" -d h1.example.com -d h2.example.com`. 
 
 All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, Spot will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory=inventory.yml`.
 
