@@ -333,14 +333,14 @@ func TestTargetHosts(t *testing.T) {
 				"all": {
 					{Host: "host1.example.com", Port: 22, User: "user1"},
 					{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2"},
-					{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3"},
+					{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}},
 				},
 				"group1": {
 					{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2"},
 				},
 			},
 			Hosts: []Destination{
-				{Host: "host3.example.com", Port: 22, Name: "host3"},
+				{Host: "host3.example.com", Port: 22, Name: "host3", Tags: []string{"tag1", "tag2"}},
 			},
 		},
 	}
@@ -368,13 +368,18 @@ func TestTargetHosts(t *testing.T) {
 			false,
 		},
 		{
+			"target as a tag from inventory", "tag2", nil,
+			[]Destination{{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}}},
+			false,
+		},
+		{
 			"target as single host by name from inventory", "host3", nil,
-			[]Destination{{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3"}},
+			[]Destination{{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}}},
 			false,
 		},
 		{
 			"target as single host from inventory", "host3.example.com", nil,
-			[]Destination{{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3"}},
+			[]Destination{{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}}},
 			false,
 		},
 		{
@@ -394,7 +399,7 @@ func TestTargetHosts(t *testing.T) {
 		},
 		{
 			"user override", "host3", &Overrides{User: "overriddenuser"},
-			[]Destination{{Host: "host3.example.com", Port: 22, User: "overriddenuser", Name: "host3"}},
+			[]Destination{{Host: "host3.example.com", Port: 22, User: "overriddenuser", Name: "host3", Tags: []string{"tag1", "tag2"}}},
 			false,
 		},
 	}

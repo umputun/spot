@@ -219,7 +219,7 @@ Targets contains environments each of which represents a set of hosts, for examp
 ```yaml
 targets:
   prod:
-    hosts: [{host: "h1.example.com", user: "test"}, {"h2.example.com", "port": 2222}]
+    hosts: [{host: "h1.example.com", user: "test"}, {"h2.example.com", "port": 2222, name: "h2"}]
   staging:
     groups: ["staging"]
   dev:
@@ -237,6 +237,19 @@ There are several ways to override or alter the target defined in the playbook f
 - `--user` set the ssh user to run the playbook on remote hosts. Example: `--user=test`.
 - `--key` set the ssh key to run the playbook on remote hosts. Example: `--key=/path/to/key`.
 
+### Target selection
+
+The target selection is done in the following order:
+
+- if `--target` is set, it will be used.
+  - first Spot will try to match on target name in the playbook file.
+  - if no match found, Spot will try to match on group name in the inventory file.
+  - if no match found, Spot will try to match on tags in the inventory file.
+  - if no match found, Spot will try to match on host name in the inventory file.
+  - if no match found, Spot will try to match on host address in the playbook file.
+  - if no match found, Spot will use it as a host name.
+- if `--target` is not set, Spot will assume the `default` target.
+
 ### Inventory 
 
 The inventory file is a simple yml what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
@@ -248,7 +261,7 @@ This is an example of the inventory file with groups
 ```yaml
 groups:
   dev:
-    - {host: "h1.example.com", name: "h1"}
+    - {host: "h1.example.com", name: "h1", tags:["us-east1", "vpc-1234567"]}
     - {host: "h2.example.com", port: 2233, name: "h2"}
     - {host: "h3.example.com", user: "user1"}
     - {host: "h4.example.com", user: "user2", name: "h4"}
@@ -257,9 +270,13 @@ groups:
     - {host: "h6.example.com", user: "user3", name: "h6"}
 ```
 
-In case if port not defined, the default port 22 will be used. If user not defined, the playbook's user will be used. 
+- host: the host name or IP address of the remote host.
+- port: the ssh port of the remote host. Optional, default is 22.
+- user: the ssh user of the remote host. Optional, default is the user defined in the playbook file or `--user` flag.
+- name: the name of the remote host. Optional.
+- tags: the list of tags of the remote host. Optional.
 
-note: the `name` field is optional and used only to make reports/log more readable.
+In case if port not defined, the default port 22 will be used. If user not defined, the playbook's user will be used. 
 
 This is an example of the inventory file with hosts only (no groups)
 
@@ -267,7 +284,7 @@ This is an example of the inventory file with hosts only (no groups)
 hosts:
   - {host: "hh1.example.com", name: "hh1"}
   - {host: "hh2.example.com", port: 2233, name: "hh2", user: "user1"}
-  - {host: "h2.example.com", port: 2233, name: "h2"}
+  - {host: "h2.example.com", port: 2233, name: "h2", tags:["us-east1", "vpc-1234567"]}
   - {host: "h3.example.com", user: "user1", name: "h3"}
   - {host: "h4.example.com", user: "user2", name: "h4"}
 ```
