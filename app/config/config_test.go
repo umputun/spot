@@ -21,8 +21,9 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, 1, len(c.Tasks), "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 
-		tsk := c.Tasks["deploy-remark42"]
+		tsk := c.Tasks[0]
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
 
 	t.Run("incorrectly formatted file", func(t *testing.T) {
@@ -34,6 +35,16 @@ func TestNew(t *testing.T) {
 		_, err := New("testdata/bad.yml", nil)
 		assert.EqualError(t, err, "can't read config testdata/bad.yml: open testdata/bad.yml: no such file or directory")
 	})
+
+	t.Run("missing task name", func(t *testing.T) {
+		_, err := New("testdata/no-task-name.yml", nil)
+		require.ErrorContains(t, err, "task name is required")
+	})
+
+	t.Run("duplicate task name", func(t *testing.T) {
+		_, err := New("testdata/dup-task-name.yml", nil)
+		require.ErrorContains(t, err, `duplicate task name "deploy"`)
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
@@ -42,7 +53,7 @@ func TestPlayBook_Task(t *testing.T) {
 
 	t.Run("not-found", func(t *testing.T) {
 		_, err = c.Task("no-such-task")
-		assert.EqualError(t, err, "task no-such-task not found")
+		assert.EqualError(t, err, `task "no-such-task" not found`)
 	})
 
 	t.Run("found", func(t *testing.T) {
@@ -181,21 +192,21 @@ func TestCmd_getScriptCommand(t *testing.T) {
 	assert.Equal(t, 1, len(c.Tasks), "single task")
 
 	t.Run("script", func(t *testing.T) {
-		cmd := c.Tasks["deploy-remark42"].Commands[3]
+		cmd := c.Tasks[0].Commands[3]
 		assert.Equal(t, "git", cmd.Name, "name")
 		res := cmd.getScriptCommand()
 		assert.Equal(t, `sh -c "git clone https://example.com/remark42.git /srv || true; cd /srv; git pull"`, res)
 	})
 
 	t.Run("no-script", func(t *testing.T) {
-		cmd := c.Tasks["deploy-remark42"].Commands[1]
+		cmd := c.Tasks[0].Commands[1]
 		assert.Equal(t, "copy configuration", cmd.Name)
 		res := cmd.getScriptCommand()
 		assert.Equal(t, "", res)
 	})
 
 	t.Run("script with env", func(t *testing.T) {
-		cmd := c.Tasks["deploy-remark42"].Commands[4]
+		cmd := c.Tasks[0].Commands[4]
 		assert.Equal(t, "docker", cmd.Name)
 		res := cmd.getScriptCommand()
 		assert.Equal(t, `sh -c "BAR='qux' FOO='bar' docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest"`, res)

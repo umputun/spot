@@ -8,7 +8,12 @@ targets:
 
 
 tasks:
-  - name: deploy-remark42
+  - name: deploy
+    commands:
+      - name: wait
+        script: sleep 5
+
+  - name: deploy
     commands:
       - name: wait
         script: sleep 5
@@ -41,3 +46,4 @@ tasks:
         env:
           FOO: bar
           BAR: qux
+

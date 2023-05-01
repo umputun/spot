@@ -9,7 +9,7 @@ targets:
 
 tasks:
 
-  task1:
+  - name: task1
     commands:
       - name: wait
         script: sleep 5s
@@ -37,7 +37,7 @@ tasks:
         script: echo "no auto cmd"
         options: {no_auto: true}
 
-  failed_task:
+  - name: failed_task
     commands:
       - name: good command
         script: echo good command 1
@@ -46,7 +46,7 @@ tasks:
       - name: good command
         script: echo good command 2
 
-  failed_task_with_onerror:
+  - name: failed_task_with_onerror
     on_error: echo onerror called
     commands:
       - name: good command
@@ -57,7 +57,7 @@ tasks:
         script: echo good command 2
 
 
-  with_wait:
+  - name: with_wait
     commands:
       - name: good command
         script: echo good command 1

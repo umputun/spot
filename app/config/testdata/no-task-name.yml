@@ -8,8 +8,7 @@ targets:
 
 
 tasks:
-  - name: deploy-remark42
-    commands:
+    - commands:
       - name: wait
         script: sleep 5
 

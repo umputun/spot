@@ -111,9 +111,9 @@ func run(opts options) error {
 	}
 
 	// run all tasks
-	for taskName := range conf.Tasks {
+	for _, taskName := range conf.Tasks {
 		for _, targetName := range opts.Targets {
-			if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
+			if err := runTaskForTarget(ctx, r, taskName.Name, targetName); err != nil {
 				return err
 			}
 		}

@@ -80,7 +80,7 @@ targets:
 
 # list of tasks, i.e. commands to execute
 tasks:
-  deploy-things:
+  - name: deploy-things
     on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
     commands:
       - name: wait
@@ -105,7 +105,7 @@ tasks:
       - name: show content
         script: ls -laR /tmp
 
-  docker:
+  - name: docker
     commands:
       - name: docker pull and start
         script: |
@@ -125,6 +125,7 @@ Each task consists of a list of commands that will be executed on the remote hos
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
 - `ssh_key`: specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the top section of playbook file for the specified task.
 
+All tasks are executed sequentially one a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with missing `name` field will fail to execute immediately. Duplicate task names are not allowed either.
 
 ## Command Types
 

@@ -7,7 +7,7 @@ targets:
 
 tasks:
 
-  task1:
+  - name: task1
     commands:
       - name: wait
         script: sleep 1s
@@ -24,7 +24,7 @@ tasks:
       - name: show content
         script: ls -laR /tmp
 
-  task2:
+  - name: task2
     commands:
       - name: good command
         script: echo good command 1
