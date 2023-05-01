@@ -42,7 +42,7 @@ SimploTask supports the following command-line options:
 
 - `-f`, `--file=`: Specifies the playbook file to be used. Defaults to `spot.yml`. You can also set the environment
   variable `$SPOT_FILE` to define the playbook file path.
-- `t`, `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
+- `-t`, `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
   If not specified all the tasks will be executed.
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name or IP instead of the target name for a quick override. Providing the `-d`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-d prod -d dev` or `-d example1.com -d example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
