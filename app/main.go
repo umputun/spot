@@ -23,13 +23,13 @@ import (
 )
 
 type options struct {
-	PlaybookFile string   `short:"f" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
+	PlaybookFile string   `short:"p" long:"file" env:"SPOT_FILE" description:"playbook file" default:"spot.yml"`
 	TaskName     string   `short:"t" long:"task" description:"task name"`
 	Targets      []string `short:"d" long:"target" description:"target name" default:"default"`
 	Concurrent   int      `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 
 	// target overrides
-	Filter        []string `short:"i" long:"filter" description:"filter target hosts"`
+	Filter        []string `short:"f" long:"filter" description:"filter target hosts"`
 	InventoryFile string   `long:"inventory-file" description:"inventory file"`
 	InventoryURL  string   `long:"inventory-url" description:"inventory http url"`
 
