@@ -249,11 +249,19 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	// check if we have overrides for inventory file, this is second priority
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
-		return loadInventoryFile(p.overrides.InventoryFile, nil)
+		res, err := loadInventoryFile(p.overrides.InventoryFile, nil)
+		if err != nil {
+			return nil, err
+		}
+		return p.filterHosts(res, p.overrides), nil
 	}
 	// check if we have overrides for inventory http, this is third priority
 	if p.overrides != nil && p.overrides.InventoryURL != "" {
-		return loadInventoryURL(p.overrides.InventoryURL, nil)
+		res, err := loadInventoryURL(p.overrides.InventoryURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		return p.filterHosts(res, p.overrides), nil
 	}
 
 	// no overrides, check if we have target in config

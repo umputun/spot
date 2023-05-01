@@ -28,7 +28,7 @@ type options struct {
 	TaskName     string        `short:"t" long:"task" description:"task name"`
 	Targets      []string      `short:"d" long:"target" description:"target name" default:"default"`
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
-	SSHTimeout   time.Duration `long:"ssh-timeout" description:"ssh timeout" default:"30s"`
+	SSHTimeout   time.Duration `long:"timeout" description:"ssh timeout" default:"30s"`
 
 	// target overrides
 	Filter        []string `short:"f" long:"filter" description:"filter target hosts"`

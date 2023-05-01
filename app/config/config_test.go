@@ -469,6 +469,17 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 		}, res)
 	})
 
+	t.Run("override hosts with file, filtered", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", &Overrides{InventoryFile: "testdata/hosts-without-groups.yml", FilterHosts: []string{"h2", "h3"}})
+		require.NoError(t, err)
+		res, err := c.TargetHosts("blah")
+		require.NoError(t, err)
+		assert.Equal(t, []Destination{
+			{Name: "h2", Host: "h2.example.com", Port: 2233, User: "umputun"},
+			{Name: "h3", Host: "h3.example.com", Port: 22, User: "user1"},
+		}, res)
+	})
+
 	t.Run("override hosts with file not found", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", &Overrides{InventoryFile: "testdata/hosts_not_found"})
 		require.NoError(t, err)
@@ -499,6 +510,24 @@ func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 		}, res)
 	})
 
+	t.Run("override hosts with http, filtered", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			fh, err := os.Open("testdata/hosts-without-groups.yml")
+			require.NoError(t, err)
+			defer fh.Close()
+			_, err = io.Copy(w, fh)
+			require.NoError(t, err)
+		}))
+		defer ts.Close()
+		c, err := New("testdata/f1.yml", &Overrides{InventoryURL: ts.URL, FilterHosts: []string{"h3", "h4.example.com"}})
+		require.NoError(t, err)
+		res, err := c.TargetHosts("blah")
+		require.NoError(t, err)
+		assert.Equal(t, []Destination{
+			{Name: "h3", Host: "h3.example.com", Port: 22, User: "user1"},
+			{Name: "h4", Host: "h4.example.com", Port: 22, User: "user2"},
+		}, res)
+	})
 	t.Run("override hosts with http failed", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
