@@ -37,8 +37,8 @@ archives:
 
 nfpms:
   -
-    id: simplotask
-    package_name: simplotask
+    id: spot
+    package_name: spot
     file_name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
     vendor: Umputun
     homepage: https://simpliotask.com
