@@ -30,7 +30,7 @@ type options struct {
 
 	// target overrides
 	Filter        []string `short:"f" long:"filter" description:"filter target hosts"`
-	InventoryFile string   `long:"inventory-file" description:"inventory file"`
+	InventoryFile string   `long:"inventory-file" env:"SPOT_INVENTORY" description:"inventory file"`
 	InventoryURL  string   `long:"inventory-url" description:"inventory http url"`
 
 	// connection overrides
