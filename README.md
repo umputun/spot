@@ -65,19 +65,22 @@ SimploTask supports the following command-line options:
 ## Example playbook
 
 ```yaml
-user: umputun
-ssh_key: keys/id_rsa
+user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
+ssh_key: keys/id_rsa                # ssh key
+inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory-file flag
 
 # list of targets, i.e. hosts, inventory files or inventory URLs
 targets:
   prod:
-    hosts: [{host: "h1.example.com", user: "user2"}, {"h2.example.com", port: 2222}]
+    hosts: # list of hosts, user, name and port optional. 
+      - {host: "h1.example.com", user: "user2", name: "h1"}
+      - {host: "h2.example.com", port: 2222}
   staging:
-    inventory_file: {location: "/srv/etc/inventory.yml", groups: ["staging"]}
+    groups: ["dev", "staging"] # list of groups from inventory file
   dev:
-    inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev"]}
-  dev_and_staging:
-    inventory_file: {location: "testdata/inventory"}
+    groups: ["dev"] # list of groups from inventory file
+  all:
+    groups: ["all"] # all hosts from all groups from inventory file
 
 # list of tasks, i.e. commands to execute
 tasks:
@@ -211,9 +214,9 @@ By using this approach, SimploTask enables users to write and execute more compl
 
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
 
-- `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: test}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override)  will be used. If no port is specified, port 22 will be used.
-- `inventory_file`: a path to the inventory file to use and groups to use. Example: `inventory_file: {"location": "testdata/inventory", "groups": [{"gr1", "gr2"}] }`. If `groups` not defined all the groups will be used. The [inventory file](#inventory-file-format) contains a list of host names or IP addresses, one per line with optional `[group]` values.
-- `inventory_url`: a URL to the inventory file to use. Example: `inventory_url: {"location": "http://localhost:8080/inventory"}`. The response contains a list of host names or IP addresses, one per line. The same support for groups as for `inventory_file` is available.
+- `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: "test", name: "h1}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override) will be used. If no port is specified, port 22 will be used.
+- `groups`: a list of groups from inventory to use. Example: `groups: ["dev", "staging"}`. Special group `all` combines all the groups. The [inventory file](#inventory-file-format) contains a list of hosts and groups with hosts.
+
 
 Targets contains environments each of which represents a set of hosts, for example:
 
@@ -222,25 +225,28 @@ targets:
   prod:
     hosts: [{host: "h1.example.com", user: "test"}, {"h2.example.com", "port": 2222}]
   staging:
-    inventory_file: {location: "testdata/inventory", groups: ["staging"]}
+    groups: ["staging"]
   dev:
-    inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev", "staging"]}
+    groups: ["dev", "staging"]
+  all-servers:
+    groups: ["all"]
 ```
 
 ### Target overrides
 
 There are several ways to override or alter the target defined in the playbook file:
 
-- `--inventory-file` set hosts from the provided inventory file. Example: `--inventory-file=inventory.yml`.
-- `--inventory-url` set hosts from the provided inventory URL. Example: `--inventory-url=http://localhost:8080/inventory`.
-- `--filter`, `-i`: Set the allowed hosts using the provided name or host address. This flag acts as a filter for the hosts defined in the playbook file or inventory. For instance, if a user has a playbook file with 10 hosts but only wants to execute the tasks on 3 of them, the `--host` flag can be used to specify (filter) the desired host names and host addresses to execute the tasks on. Example usage: `--host=h1.example.com --host=h2.example.com -h=my-cool-host`.
+- `--inventory` set hosts from the provided inventory file or url. Example: `--inventory=inventory.yml` or `--inventory=http://localhost:8080/inventory`.
+- `--target` set groups from inventory or directly hosts to run playbook on. Example: `--target=prod` (will run on all hosts in group `prod`) or `--target=example.com:2222` (will run on host `example.com` with port `2222`).
+- `--user` set the ssh user to run the playbook on remote hosts. Example: `--user=test`.
+- `--key` set the ssh key to run the playbook on remote hosts. Example: `--key=/path/to/key`.
 
-
-### Inventory file format
+### Inventory 
 
 The inventory file is a simple yml what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
 
-
+By default, inventory loaded from the file/url set in `SPOT_INVENTORY` environment variable. This is the lowest priority and can be overridden by `inventory` from the playbook (next priority) and `--inventory` flag (highest priority)
+. 
 This is an example of the inventory file with groups
 
 ```yaml
@@ -255,7 +261,7 @@ groups:
     - {host: "h6.example.com", user: "user3", name: "h6"}
 ```
 
-In case if port not defined, the default port 22 will be used. If user not defined, the playbooks user will be used. 
+In case if port not defined, the default port 22 will be used. If user not defined, the playbook's user will be used. 
 
 note: the `name` field is optional and used only to make reports/log more readable.
 
@@ -271,6 +277,7 @@ hosts:
 ```
 This format is useful when you want to define a list of hosts without groups.
 
+In each case inventory automatically merged and a special group `all` will be created that contains all the hosts.
 
 ## Runtime variables
 
@@ -304,11 +311,11 @@ tasks:
 
 ## Adhoc commands
 
-SimploTask supports adhoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command passed as `--cmd=<command>` flag and should always be accompanied by the `--tarbget=<host>` (`-d <host>) flags. Example: `spot --cmd="ls -la" -d h1.example.com -d h2.example.com`. 
+SimploTask supports adhoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp`  and should always be accompanied by the `--target=<host>` (`-d <host>`) flags. Example: `spot "ls -la" -d h1.example.com -d h2.example.com`. 
 
-All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, SimploTask will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory-file=inventory.yml` or `--inventory-url=http://localhost:8080/inventory` as well as `--filter` (`-f`) to filter the hosts to execute the command on.
+All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, SimploTask will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory=inventory.yml`.
 
-Adhoc commands always set `verbose` to `true` automatically, so the user can see the output of the command.
+Adhoc commands always sets `verbose` to `true` automatically, so the user can see the output of the command.
 
 
 ## Rolling Updates

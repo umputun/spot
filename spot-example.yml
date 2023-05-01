@@ -1,13 +1,16 @@
 user: app
 ssh_key: ~/.ssh/id_rsa
+inventory: "testdata/hosts-with-groups.yml"
 
 targets:
   prod:
-    hosts: [{host: "h1.example.com", port: 2222, user: "app-user"}, {host: "h2.example.com"}]
+    hosts:
+      - {host: "h1.example.com", port: 2222, user: "app-user"}
+      - {host: "h2.example.com"}
   staging:
-    inventory_file: {location: "inventory.yml"}
+    groups: ["staging", "dev"]
   dev:
-    inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev", "test"]}
+    groups: ["dev"]
 
 tasks:
 
