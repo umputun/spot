@@ -63,10 +63,11 @@ type Cmd struct {
 
 // Destination defines destination info
 type Destination struct {
-	Name string `yaml:"name"`
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
-	User string `yaml:"user"`
+	Name string   `yaml:"name"`
+	Host string   `yaml:"host"`
+	Port int      `yaml:"port"`
+	User string   `yaml:"user"`
+	Tags []string `yaml:"tags"`
 }
 
 // CopyInternal defines copy command, implemented internally
@@ -282,6 +283,20 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 			res[i] = r
 		}
 		return res, nil
+	}
+
+	// try as a tag in inventory
+	for _, h := range p.inventory.Groups["all"] {
+		if len(h.Tags) == 0 {
+			continue
+		}
+		for _, t := range h.Tags {
+			if strings.EqualFold(t, name) {
+				res := []Destination{h}
+				res[0].User = userOverride(h.User)
+				return res, nil
+			}
+		}
 	}
 
 	// try as single host name in inventory
