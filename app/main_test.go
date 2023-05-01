@@ -3,10 +3,13 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/signal"
+	"os/user"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -44,6 +47,21 @@ func Test_runCompleted(t *testing.T) {
 	err := run(opts)
 	require.NoError(t, err)
 	assert.True(t, time.Since(st) >= 5*time.Second)
+}
+
+func Test_runAdhoc(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:  "test",
+		SSHKey:   "runner/testdata/test_ssh_key",
+		Targets:  []string{hostAndPort},
+		AdHocCmd: "echo hello",
+	}
+	setupLog(true)
+	err := run(opts)
+	require.NoError(t, err)
 }
 
 func Test_runCompletedAllTasks(t *testing.T) {
@@ -221,6 +239,95 @@ func Test_sshUserAndKey(t *testing.T) {
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
 		})
 	}
+}
+
+type mockUserInfoProvider struct {
+	user *user.User
+	err  error
+}
+
+func (p *mockUserInfoProvider) Current() (*user.User, error) {
+	if p.err != nil {
+		return nil, p.err
+	}
+	return p.user, nil
+}
+
+func TestAdHocConf(t *testing.T) {
+
+	t.Run("default SSH user and key", func(t *testing.T) {
+		mockUser := &user.User{
+			Username: "testuser",
+			HomeDir:  "/tmp/test-home",
+		}
+		mockProvider := &mockUserInfoProvider{user: mockUser}
+
+		// call adHocConf with empty options and mock provider.
+		opts := options{}
+		conf := &config.PlayBook{}
+		err := adHocConf(opts, conf, mockProvider)
+
+		// check if the function correctly sets the user and the SSH key.
+		require.NoError(t, err)
+		assert.Equal(t, mockUser.Username, conf.User)
+		assert.Equal(t, filepath.Join(mockUser.HomeDir, ".ssh", "id_rsa"), conf.SSHKey)
+	})
+
+	t.Run("provided SSH user and key", func(t *testing.T) {
+		mockUser := &user.User{
+			Username: "testuser",
+			HomeDir:  "/tmp/test-home",
+		}
+		mockProvider := &mockUserInfoProvider{user: mockUser}
+
+		// call adHocConf with custom SSH user and key options and mock provider.
+		opts := options{
+			SSHUser: "customuser",
+			SSHKey:  "/tmp/custom-key",
+		}
+		conf := &config.PlayBook{
+			User:   "customuser",
+			SSHKey: "/tmp/custom-key",
+		}
+		err := adHocConf(opts, conf, mockProvider)
+
+		// check if the function correctly sets the custom user and the SSH key.
+		require.NoError(t, err)
+		assert.Equal(t, opts.SSHUser, conf.User)
+		assert.Equal(t, opts.SSHKey, conf.SSHKey)
+	})
+
+	t.Run("error getting current user", func(t *testing.T) {
+		mockProvider := &mockUserInfoProvider{err: errors.New("user error")}
+
+		// call adHocConf with empty options and mock provider that returns an error
+		opts := options{}
+		conf := &config.PlayBook{}
+		err := adHocConf(opts, conf, mockProvider)
+
+		// check if the function returns the expected error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't get current user")
+	})
+
+	t.Run("error getting current user when SSH key is empty", func(t *testing.T) {
+		mockUser := &user.User{
+			Username: "testuser",
+			HomeDir:  "/tmp/test-home",
+		}
+		mockProvider := &mockUserInfoProvider{user: mockUser, err: errors.New("user error")}
+
+		// call adHocConf with custom SSH user and mock provider that returns an error
+		opts := options{
+			SSHUser: "customuser",
+		}
+		conf := &config.PlayBook{}
+		err := adHocConf(opts, conf, mockProvider)
+
+		// check if the function returns the expected error
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't get current user")
+	})
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {

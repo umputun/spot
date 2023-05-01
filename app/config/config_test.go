@@ -26,6 +26,12 @@ func TestNew(t *testing.T) {
 		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
 
+	t.Run("adhoc mode", func(t *testing.T) {
+		c, err := New("no-such-thing", &Overrides{AdHocCommand: "echo 123", User: "umputun"})
+		require.NoError(t, err)
+		assert.Equal(t, 0, len(c.Tasks), "empty config, no task just overrides")
+	})
+
 	t.Run("incorrectly formatted file", func(t *testing.T) {
 		_, err := New("testdata/bad-format.yml", nil)
 		assert.ErrorContains(t, err, "can't unmarshal config testdata/bad-format.yml")
@@ -48,19 +54,31 @@ func TestNew(t *testing.T) {
 }
 
 func TestPlayBook_Task(t *testing.T) {
-	c, err := New("testdata/f1.yml", nil)
-	require.NoError(t, err)
 
 	t.Run("not-found", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
 		_, err = c.Task("no-such-task")
 		assert.EqualError(t, err, `task "no-such-task" not found`)
 	})
 
 	t.Run("found", func(t *testing.T) {
+		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
 		tsk, err := c.Task("deploy-remark42")
 		require.NoError(t, err)
 		assert.Equal(t, 5, len(tsk.Commands))
 		assert.Equal(t, "deploy-remark42", tsk.Name)
+	})
+
+	t.Run("adhoc", func(t *testing.T) {
+		c, err := New("", &Overrides{AdHocCommand: "echo 123", User: "umputun"})
+		require.NoError(t, err)
+		tsk, err := c.Task("ad-hoc")
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(tsk.Commands))
+		assert.Equal(t, "ad-hoc", tsk.Name)
+		assert.Equal(t, "echo 123", tsk.Commands[0].Script)
 	})
 }
 
