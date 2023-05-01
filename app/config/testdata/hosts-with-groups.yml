@@ -7,3 +7,4 @@ groups:
   gr2:
     - {host: "h5.example.com", port: 2233, name: "h5"}
     - {host: "h6.example.com", user: "user3", name: "h6"}
+    - {host: "h7.example.com", user: "user3"}

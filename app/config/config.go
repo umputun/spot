@@ -99,7 +99,7 @@ type WaitInternal struct {
 // Overrides defines override for task passed from cli
 type Overrides struct {
 	User          string
-	TargetHosts   []string
+	FilterHosts   []string
 	InventoryFile string
 	InventoryURL  string
 	Environment   map[string]string
@@ -239,24 +239,6 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		user = p.overrides.User // override user if set
 	}
 
-	// check if we have overrides for target hosts, this is the highest priority
-	if p.overrides != nil && len(p.overrides.TargetHosts) > 0 {
-		res := make([]Destination, 0, len(p.overrides.TargetHosts))
-		for i := range p.overrides.TargetHosts {
-			elems := strings.Split(p.overrides.TargetHosts[i], ":") // get host and port (optional)
-			if len(elems) == 1 {
-				res = append(res, Destination{Host: elems[0], Port: 22, User: user})
-			} else {
-				port, err := strconv.Atoi(elems[1])
-				if err != nil {
-					return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
-				}
-				res = append(res, Destination{Host: elems[0], Port: port, User: user})
-			}
-		}
-		return res, nil
-	}
-
 	// check if we have overrides for inventory file, this is second priority
 	if p.overrides != nil && p.overrides.InventoryFile != "" {
 		return loadInventoryFile(p.overrides.InventoryFile, nil)
@@ -306,24 +288,79 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 			}
 			res[i] = h
 		}
-		return res, nil
+		return p.filterHosts(res, p.overrides), nil
 	}
 
 	// target has no hosts, check if it has inventory file
 	if t.InventoryFile.Location != "" {
-		return loadInventoryFile(t.InventoryFile.Location, t.InventoryFile.Groups)
+		res, err := loadInventoryFile(t.InventoryFile.Location, t.InventoryFile.Groups)
+		if err != nil {
+			return nil, fmt.Errorf("can't load inventory file %s: %w", t.InventoryFile.Location, err)
+		}
+		return p.filterHosts(res, p.overrides), nil
 	}
 
 	// target has no hosts, check if it has inventory http
 	if t.InventoryURL.Location != "" {
-		return loadInventoryURL(t.InventoryURL.Location, t.InventoryFile.Groups)
+		res, err := loadInventoryURL(t.InventoryURL.Location, t.InventoryFile.Groups)
+		if err != nil {
+			return nil, fmt.Errorf("can't load inventory http %s: %w", t.InventoryURL.Location, err)
+		}
+		return p.filterHosts(res, p.overrides), nil
 	}
 
 	if t.Hosts == nil {
 		return nil, fmt.Errorf("target %s has no hosts", name)
 	}
 
-	return t.Hosts, nil
+	return p.filterHosts(t.Hosts, p.overrides), nil
+}
+
+// filterHosts filters hosts by host name first and if not matched, by address.
+func (p *PlayBook) filterHosts(inp []Destination, overrides *Overrides) []Destination {
+	if overrides == nil || len(overrides.FilterHosts) == 0 { // no filter, return all
+		return inp
+	}
+	filter := overrides.FilterHosts
+	res := []Destination{}
+	matchedNames := map[string]bool{} // map of matched names
+
+	// first filter by name
+	for _, h := range inp {
+		for _, f := range filter {
+			if h.Name == f {
+				res = append(res, h)
+				matchedNames[h.Name] = true
+			}
+		}
+	}
+
+	// then filter by address
+	for _, h := range inp {
+		if matchedNames[h.Name] {
+			continue // already matched by name, skip
+		}
+		for _, f := range filter {
+			if h.Host == f {
+				res = append(res, h)
+			}
+		}
+	}
+
+	return res
+}
+
+// parseAddress parses address in format host:port and returns host and port.
+func (p *PlayBook) parseAddress(addr string) (host string, port int, err error) {
+	if !strings.Contains(addr, ":") {
+		return addr, 22, nil // default port is 22 if not set
+	}
+	elems := strings.Split(addr, ":")
+	port, err = strconv.Atoi(elems[1])
+	if err != nil {
+		return "", 0, fmt.Errorf("can't parse port %s: %w", elems[1], err)
+	}
+	return elems[0], port, nil
 }
 
 // parseInventory parses inventory yml file or url and returns a list of hosts for the specified group.
