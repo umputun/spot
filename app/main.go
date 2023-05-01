@@ -97,7 +97,7 @@ func run(opts options) error {
 	}
 
 	if opts.AdHocCmd != "" {
-		if err := adHocConf(opts, conf); err != nil {
+		if err = adHocConf(opts, conf); err != nil {
 			return fmt.Errorf("can't setup ad-hoc config: %w", err)
 		}
 	}
