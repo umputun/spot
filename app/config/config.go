@@ -122,8 +122,12 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	if err != nil {
 		if overrides != nil && overrides.AdHocCommand != "" {
 			// no config file but adhoc set, just return empty config with overrides
-			if overrides.Inventory != "" { // load inventory if set in cli
-				res.inventory, err = res.loadInventory(overrides.Inventory)
+			inventoryLoc := os.Getenv("SPOT_INVENTORY") // default inventory location from env
+			if overrides.Inventory != "" {
+				inventoryLoc = overrides.Inventory // inventory set in cli overrides
+			}
+			if inventoryLoc != "" { // load inventory if set in cli or env
+				res.inventory, err = res.loadInventory(inventoryLoc)
 				if err != nil {
 					return nil, fmt.Errorf("can't load inventory %s: %w", overrides.Inventory, err)
 				}

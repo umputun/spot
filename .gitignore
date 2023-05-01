@@ -19,4 +19,5 @@ bin/
 *.gpg
 spot-private.yml
 spot-inventory-private.yml
+spot-inventory-private2.yml
 site/public/
