@@ -97,7 +97,7 @@ func run(opts options) error {
 	}
 
 	if opts.AdHocCmd != "" {
-		if err = adHocConf(opts, conf); err != nil {
+		if err = adHocConf(opts, conf, &defaultUserInfoProvider{}); err != nil {
 			return fmt.Errorf("can't setup ad-hoc config: %w", err)
 		}
 	}
@@ -181,17 +181,27 @@ func sshKey(opts options, conf *config.PlayBook) (key string) {
 	return sshKey
 }
 
+type userInfoProvider interface {
+	Current() (*user.User, error)
+}
+
+type defaultUserInfoProvider struct{}
+
+func (p *defaultUserInfoProvider) Current() (*user.User, error) {
+	return user.Current()
+}
+
 // adHocConf prepares config for ad-hoc command
-func adHocConf(opts options, conf *config.PlayBook) error {
+func adHocConf(opts options, conf *config.PlayBook, provider userInfoProvider) error {
 	if opts.SSHUser == "" {
-		u, err := user.Current()
+		u, err := provider.Current()
 		if err != nil {
 			return fmt.Errorf("can't get current user: %w", err)
 		}
 		conf.User = u.Username
 	}
 	if opts.SSHKey == "" {
-		u, err := user.Current()
+		u, err := provider.Current()
 		if err != nil {
 			return fmt.Errorf("can't get current user: %w", err)
 		}
