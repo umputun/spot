@@ -72,7 +72,7 @@ targets:
   prod:
     hosts: [{host: "h1.example.com", user: "user2"}, {"h2.example.com", port: 2222}]
   staging:
-    inventory_file: {location: "testdata/inventory", groups: ["staging"]}
+    inventory_file: {location: "/srv/etc/inventory.yml", groups: ["staging"]}
   dev:
     inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev"]}
   dev_and_staging:
@@ -227,32 +227,46 @@ targets:
 
 ### Inventory file format
 
-The inventory file is a simple text file with a list of host names or IP addresses, one per line. The file can contain groups, each group is defined by a line with the group name in square brackets `[group]` followed by a list of hosts that belong to the group. For example:
+The inventory file is a simple yml what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
 
-```text
-[group1]
-h1.example.com
-h2.example.com:2222
-h3.example.com user1
 
-[group2]
-h4.example.com:2222 user2
+This is an example of the inventory file with groups
+
+```yaml
+groups:
+  dev:
+    - {host: "h1.example.com", name: "h1"}
+    - {host: "h2.example.com", port: 2233, name: "h2"}
+    - {host: "h3.example.com", user: "user1"}
+    - {host: "h4.example.com", user: "user2", name: "h4"}
+  staging:
+    - {host: "h5.example.com", port: 2233, name: "h5"}
+    - {host: "h6.example.com", user: "user3", name: "h6"}
 ```
 
-In case if groups not needed, the file can contain only a list of hosts, for example:
+In case if port not defined, the default port 22 will be used. If user not defined, the playbooks user will be used. 
 
-```text
-h1.example.com
-h2.example.com:2222
-h3.example.com user1
-h4.example.com:2222 user2
+note: the `name` field is optional and used only to make reports/log more readable.
+
+This is an example of the inventory file with hosts only (no groups)
+
+```yaml
+hosts:
+  - {host: "hh1.example.com", name: "hh1"}
+  - {host: "hh2.example.com", port: 2233, name: "hh2", user: "user1"}
+  - {host: "h2.example.com", port: 2233, name: "h2"}
+  - {host: "h3.example.com", user: "user1", name: "h3"}
+  - {host: "h4.example.com", user: "user2", name: "h4"}
 ```
+This format is useful when you want to define a list of hosts without groups.
+
 
 ## Runtime variables
 
 SimploTask supports runtime variables that can be used in the playbook file. The following variables are supported:
 
 - `{SPOT_REMOTE_HOST}`: The remote host name or IP address.
+- `{SPOT_REMOTE_NAME}`: The remote custom name, set in inventory or playbook as `name`.
 - `{SPOT_REMOTE_USER}`: The remote username.
 - `{SPOT_COMMAND}`: The command name.
 - `{SPOT_TASK}`: The task name.

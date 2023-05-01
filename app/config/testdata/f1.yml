@@ -2,7 +2,7 @@ user: umputun
 
 targets:
     remark42:
-      hosts: [{host: "h1.example.com"}, {host: "h2.example.com"}]
+      hosts: [{name: "h1", host: "h1.example.com"}, {host: "h2.example.com"}]
     staging:
       inventory: "file://inventory/staging.txt"
 

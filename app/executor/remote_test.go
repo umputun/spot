@@ -23,7 +23,7 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
 
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -51,7 +51,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -67,7 +67,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -83,7 +83,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -100,7 +100,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -118,7 +118,7 @@ func TestExecuter_ConnectCanceled(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	_, err = c.Connect(ctx, hostAndPort, "test")
+	_, err = c.Connect(ctx, hostAndPort, "h1", "test")
 	assert.ErrorContains(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
 }
 
@@ -130,7 +130,7 @@ func TestExecuter_Run(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -171,7 +171,7 @@ func TestExecuter_Sync(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 
@@ -206,7 +206,7 @@ func TestExecuter_Delete(t *testing.T) {
 
 	c, err := NewConnector("testdata/test_ssh_key")
 	require.NoError(t, err)
-	sess, err := c.Connect(ctx, hostAndPort, "test")
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
 	defer sess.Close()
 

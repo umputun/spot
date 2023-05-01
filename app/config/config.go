@@ -62,6 +62,7 @@ type Cmd struct {
 
 // Destination defines destination info
 type Destination struct {
+	Name string `yaml:"name"`
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
 	User string `yaml:"user"`
@@ -107,6 +108,12 @@ type Overrides struct {
 type Inventory struct {
 	Groups   []string `yaml:"groups"`
 	Location string   `yaml:"location"`
+}
+
+// InventoryData defines inventory data format
+type InventoryData struct {
+	Groups map[string][]Destination `yaml:"groups"`
+	Hosts  []Destination            `yaml:"hosts"`
 }
 
 // New makes new config from yml
@@ -294,12 +301,9 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	return t.Hosts, nil
 }
 
-// parseInventory parses inventory file or url and returns a list of hosts for the specified group.
-// If "all" or empty group name is passed, it returns all entries.
-// inventory file format is: [group1]\nhost1:port1\nhost2:port2 user\n...\n[group2]\n...
-// user is optional, if not set, it is assumed to be defined in playbook.
+// parseInventory parses inventory yml file or url and returns a list of hosts for the specified group.
+// user is optional, if not set, it is assumed to be defined in playbook. name is optional too.
 func (p *PlayBook) parseInventory(r io.Reader, groups []string) ([]Destination, error) {
-
 	contains := func(s []string, e string) bool {
 		if len(s) == 0 {
 			return true
@@ -312,49 +316,39 @@ func (p *PlayBook) parseInventory(r io.Reader, groups []string) ([]Destination, 
 		return false
 	}
 
-	data, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("inventory reader failed: %w", err)
+	var data InventoryData
+	if err := yaml.NewDecoder(r).Decode(&data); err != nil {
+		return nil, fmt.Errorf("inventory decoder failed: %w", err)
+	}
+
+	if len(data.Hosts) == 0 && len(data.Groups) == 0 {
+		return nil, fmt.Errorf("no hosts or groups defined in inventory")
 	}
 
 	res := []Destination{}
-	currentGroup := "all"
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") { // skip empty lines and comments
-			continue
-		}
-
-		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") { // group definition
-			currentGroup = line[1 : len(line)-1]
-			continue
-		}
-
-		if !contains(groups, currentGroup) {
-			continue
-		}
-
-		dest := Destination{User: p.User} // default user from playbook
-		hostUserElems := strings.Split(line, " ")
-		dest.Host = hostUserElems[0]
-		if len(hostUserElems) > 1 { // user defined as well, i.e. "host1:port1 user"
-			dest.User = hostUserElems[1]
-		}
-		if !strings.Contains(hostUserElems[0], ":") { // no port defined, use default 22
-			dest.Port = 22
-		} else {
-			hostElems := strings.Split(hostUserElems[0], ":")
-			port, err := strconv.Atoi(hostElems[1])
-			if err != nil {
-				return nil, fmt.Errorf("can't parse port %s: %w", hostElems[1], err)
-			}
-			dest.Host = hostElems[0]
-			dest.Port = port
-		}
-
-		res = append(res, dest)
+	if len(data.Hosts) > 0 { // hosts defined directly, use them
+		res = append(res, data.Hosts...)
 	}
+
+	if len(data.Hosts) == 0 { // no hosts defined directly, use groups
+		for grName, hosts := range data.Groups {
+			if !contains(groups, grName) {
+				continue
+			}
+			res = append(res, hosts...)
+		}
+	}
+
+	sort.Slice(res, func(i, j int) bool { return res[i].Host < res[j].Host })
+	for i, h := range res {
+		if h.Port == 0 {
+			res[i].Port = 22 // default port is 22 if not set
+		}
+		if h.User == "" {
+			res[i].User = p.User // default user is playbook's user or override, if not set in inventory
+		}
+	}
+
 	return res, nil
 }
 
