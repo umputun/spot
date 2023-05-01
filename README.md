@@ -233,7 +233,7 @@ There are several ways to override or alter the target defined in the playbook f
 
 - `--inventory-file` set hosts from the provided inventory file. Example: `--inventory-file=inventory.yml`.
 - `--inventory-url` set hosts from the provided inventory URL. Example: `--inventory-url=http://localhost:8080/inventory`.
-- `--filter`, `-i`: Set the allowed hosts using the provided name or host address. This flag acts as a filter for the hosts defined in the playbook file or inventory. For instance, if a user has a playbook file with 10 hosts but only wants to execute the tasks on 3 of them, the `--host` flag can be used to specify (filter) the desired host names and host addresses to execute the tasks on. Example usage: `--host=h1.example.com --host=h2.example.com -h=my-cool-host`.
+- `--filter`, `-f`: Set the allowed hosts using the provided name or host address. This flag acts as a filter for the hosts defined in the playbook file or inventory. For instance, if a user has a playbook file with 10 hosts but only wants to execute the tasks on 3 of them, the `--filter` flag can be used to specify (filter) the desired host names and host addresses to execute the tasks on. Example usage: `--filter=h1.example.com --filter=h2.example.com -f=my-cool-host`.
 
 
 ### Inventory file format
