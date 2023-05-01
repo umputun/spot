@@ -1,9 +1,9 @@
-# SimploTask - SPOT
+# Spot
 
-SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. SimploTask supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
+Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with the list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. Spot supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
 <div align="center">
-  <img class="logo" src="https://github.com/umputun/simplotask/raw/master/site/spot-bg.png" width="400px" alt="SimploTask | Effortless Deployment"/>
+  <img class="logo" src="https://github.com/umputun/simplotask/raw/master/site/spot-bg.png" width="400px" alt="Spot | Effortless Deployment"/>
 </div>
 
 ## Features
@@ -25,20 +25,20 @@ SimploTask (aka `spot`) is a powerful and easy-to-use tool for effortless deploy
 
 <div align="center">
 
-[![build](https://github.com/umputun/simplotask/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/simplotask/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/simplotask/badge.svg?branch=master)](https://coveralls.io/github/umputun/simplotask?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/simplotask)](https://goreportcard.com/report/github.com/umputun/simplotask)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/simplotask.svg)](https://pkg.go.dev/github.com/umputun/simplotask)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/simplotask.svg)](https://github.com/umputun/simplotask/releases)
+[![build](https://github.com/umputun/spot/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/spot/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/spot/badge.svg?branch=master)](https://coveralls.io/github/umputun/spot?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/spot)](https://goreportcard.com/report/github.com/umputun/spot)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/spot.svg)](https://pkg.go.dev/github.com/umputun/spot)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/spot.svg)](https://github.com/umputun/spot/releases)
 </div>
 
 ## Getting Started
 
-- Install SimploTask by download the latest release from the [Releases](https://github.com/umputun/simplotask/releases) page.
+- Install Spot by download the latest release from the [Releases](https://github.com/umputun/spot/releases) page.
 - Create a configuration file, as shown in the [example below](#example-playbook), and save it as `spot.yml`.
-- Run SimploTask using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
+- Run Spot using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
 - To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
 - To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
 
 ## Options
 
-SimploTask supports the following command-line options:
+Spot supports the following command-line options:
 
 - `-p`, `--file=`: Specifies the playbook file to be used. Defaults to `spot.yml`. You can also set the environment
   variable `$SPOT_FILE` to define the playbook file path.
@@ -133,7 +133,7 @@ All tasks are executed sequentially one a given host, one after another. If a ta
 
 ## Command Types
 
-SimploTask supports the following command types:
+Spot supports the following command types:
 
 - `script`: can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
 - `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash.
@@ -160,7 +160,7 @@ example setting `ignore_errors` and `no_auto` options:
 
 ### Script Execution
 
-SimploTask allows executing scripts on remote hosts, or locally if `options.local` is set to true. Scripts can be executed in two different ways, depending on whether they are single-line or multi-line scripts.
+Spot allows executing scripts on remote hosts, or locally if `options.local` is set to true. Scripts can be executed in two different ways, depending on whether they are single-line or multi-line scripts.
 
 **Single-line Script Execution**
 
@@ -176,7 +176,7 @@ this will be executed as: `FOO='bar' BAR='qux'ls -laR /tmp FOO=bar BAR=qux` insi
 
 **Multi-line Script Execution**
 
-For multi-line scripts, SimploTask creates a temporary script containing all the commands, uploads it to the remote host (or keeps it locally if `options.local` is set to true), and executes the script. Environment variables are set inside the script, allowing you to create complex scripts that include setting variables, conditionals, loops, and other advanced functionality. Scripts run with "set -e" to fail on error. For example:
+For multi-line scripts, Spot creates a temporary script containing all the commands, uploads it to the remote host (or keeps it locally if `options.local` is set to true), and executes the script. Environment variables are set inside the script, allowing the user to create complex scripts that include setting variables, conditionals, loops, and other advanced functionality. Scripts run with "set -e" to fail on error. For example:
 
 ```yaml
 commands:
@@ -208,7 +208,7 @@ done
 echo "All done! $FOO $BAR"
 ```
 
-By using this approach, SimploTask enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
+By using this approach, Spot enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
 
 ## Targets
 
@@ -281,7 +281,7 @@ In each case inventory automatically merged and a special group `all` will be cr
 
 ## Runtime variables
 
-SimploTask supports runtime variables that can be used in the playbook file. The following variables are supported:
+Spot supports runtime variables that can be used in the playbook file. The following variables are supported:
 
 - `{SPOT_REMOTE_HOST}`: The remote host name or IP address.
 - `{SPOT_REMOTE_NAME}`: The remote custom name, set in inventory or playbook as `name`.
@@ -311,47 +311,47 @@ tasks:
 
 ## Adhoc commands
 
-SimploTask supports adhoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp`  and should always be accompanied by the `--target=<host>` (`-d <host>`) flags. Example: `spot "ls -la" -d h1.example.com -d h2.example.com`. 
+Spot supports adhoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp`  and should always be accompanied by the `--target=<host>` (`-d <host>`) flags. Example: `spot "ls -la" -d h1.example.com -d h2.example.com`. 
 
-All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, SimploTask will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory=inventory.yml`.
+All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, Spot will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory=inventory.yml`.
 
 Adhoc commands always sets `verbose` to `true` automatically, so the user can see the output of the command.
 
 
 ## Rolling Updates
 
-SimploTask supports rolling updates, which means that the tasks will be executed on the hosts one by one, waiting for the previous host to finish before starting the next one. This is useful when you need to update a service running on multiple hosts, but want to avoid downtime. To enable rolling updates, use the `--concurrent=N` flag when running the `spot` command. `N` is the number of hosts to execute the tasks on concurrently. Example: `spot --concurrent=2`. In addition, user can use a builtin `wait` command to wait for a service to start before executing the next command. See the [Command Types](#command-types) section for more details. Practically, user will have a task with a series of commands, where the last command will wait for the service to start by running a command like `curl -s --fail localhost:8080` and then the task will be executed on the next host.
+Spot supports rolling updates, which means that the tasks will be executed on the hosts one by one, waiting for the previous host to finish before starting the next one. This is useful when you need to update a service running on multiple hosts, but want to avoid downtime. To enable rolling updates, use the `--concurrent=N` flag when running the `spot` command. `N` is the number of hosts to execute the tasks on concurrently. Example: `spot --concurrent=2`. In addition, user can use a builtin `wait` command to wait for a service to start before executing the next command. See the [Command Types](#command-types) section for more details. Practically, user will have a task with a series of commands, where the last command will wait for the service to start by running a command like `curl -s --fail localhost:8080` and then the task will be executed on the next host.
 
 
-## Why SimploTask?
+## Why Spot?
 
-SimploTask is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
+Spot is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
 It addresses the need for a tool that is easy to set up and use, while still offering powerful features for managing infrastructure.
-Below are some of the reasons why you should consider using SimploTask:
+Below are some of the reasons why you should consider using Spot:
 
-1. **Simplicity**: SimploTask's primary goal is to be as simple as possible without sacrificing functionality. Its configuration is written in YAML, making it easy to read and understand. You can quickly create and manage tasks, targets, and commands without dealing with complex structures or concepts.
-2. **Flexibility**: SimploTask is designed to be flexible and adaptable to various deployment and configuration scenarios. You can use it to manage different targets, such as production, staging, and development environments. It supports executing tasks on remote hosts directly or through inventory files and URLs, allowing you to use existing inventory management solutions.
-3. **Extensibility**: SimploTask is built to be extensible, allowing you to define custom scripts for execution on remote hosts, as well as offering built-in commands for common operations such as copy, sync, and delete. This extensibility enables you to create complex workflows for deployment and configuration management, tailored to your specific needs.
-4. **Concurrent Execution**: SimploTask supports concurrent execution of tasks, allowing you to speed up the deployment and configuration processes by running multiple tasks simultaneously. This can be particularly helpful when managing large-scale infrastructure or when time is of the essence.
-5. **Customizable**: SimploTask provides various command-line options and environment variables that enable you to customize its behavior according to your requirements. You can easily modify the playbook file, task, target, and other parameters, as well as control the execution flow by skipping or running specific commands.
-6. **Lightweight**: SimploTask is a lightweight tool, written in Go, that does not require heavy dependencies or a complex setup process. It can be easily installed and run on various platforms, making it an ideal choice for teams looking for a low-overhead solution for deployment and configuration management.
+1. **Simplicity**: Spot's primary goal is to be as simple as possible without sacrificing functionality. Its configuration is written in YAML, making it easy to read and understand. You can quickly create and manage tasks, targets, and commands without dealing with complex structures or concepts.
+2. **Flexibility**: Spot is designed to be flexible and adaptable to various deployment and configuration scenarios. You can use it to manage different targets, such as production, staging, and development environments. It supports executing tasks on remote hosts directly or through inventory files and URLs, allowing you to use existing inventory management solutions.
+3. **Extensibility**: Spot is built to be extensible, allowing you to define custom scripts for execution on remote hosts, as well as offering built-in commands for common operations such as copy, sync, and delete. This extensibility enables you to create complex workflows for deployment and configuration management, tailored to your specific needs.
+4. **Concurrent Execution**: Spot supports concurrent execution of tasks, allowing you to speed up the deployment and configuration processes by running multiple tasks simultaneously. This can be particularly helpful when managing large-scale infrastructure or when time is of the essence.
+5. **Customizable**: Spot provides various command-line options and environment variables that enable you to customize its behavior according to your requirements. You can easily modify the playbook file, task, target, and other parameters, as well as control the execution flow by skipping or running specific commands.
+6. **Lightweight**: Spot is a lightweight tool, written in Go, that does not require heavy dependencies or a complex setup process. It can be easily installed and run on various platforms, making it an ideal choice for teams looking for a low-overhead solution for deployment and configuration management.
 
-In conclusion, SimploTask is a powerful and easy-to-use tool that simplifies the process of deployment and configuration management while offering the flexibility and extensibility needed to cater to various use cases. If you value simplicity, efficiency, and a customizable experience, SimploTask is a great choice for your infrastructure management needs.
+In conclusion, Spot is a powerful and easy-to-use tool that simplifies the process of deployment and configuration management while offering the flexibility and extensibility needed to cater to various use cases. If you value simplicity, efficiency, and a customizable experience, Spot is a great choice for your infrastructure management needs.
 
 
 ### Is it replacing Ansible?
 
-SimploTask is not intended to be a direct replacement for Ansible. While both tools can be used for deployment and configuration management, there are some key differences between them:
+Spot is not intended to be a direct replacement for Ansible. While both tools can be used for deployment and configuration management, there are some key differences between them:
 
-- **Complexity**: Ansible is a more feature-rich and mature tool, offering a wide range of modules and plugins that can automate many different aspects of infrastructure management. SimploTask, on the other hand, is designed to be simple and lightweight, focusing on a few core features to streamline the deployment and configuration process.
-- **Learning Curve**: Due to its simplicity, SimploTask has a lower learning curve compared to Ansible. It's easier to get started with SimploTask, making it more suitable for smaller projects or teams with limited experience in infrastructure automation. Ansible, while more powerful, can be more complex to learn and configure, especially for newcomers. 
-- **Customization**: While both tools offer customization options, Ansible has a more extensive set of built-in modules and plugins that can handle a wide range of tasks out-of-the-box. SimploTask, in contrast, relies on custom scripts and a limited set of built-in commands for its functionality, which might require more manual configuration and scripting for certain use cases.
-- **Community and Ecosystem**: Ansible has a large and active community, as well as a vast ecosystem of roles, modules, and integrations. This can be beneficial when dealing with common tasks or integrating with third-party systems. SimploTask, being a smaller and simpler tool, doesn't have the same level of community support or ecosystem.
-- **Ease of installation and external dependencies**: One of the most significant benefits of SimploTask is that it has no dependencies. Being written in Go, it is compiled into a single binary that can be easily distributed and executed on various platforms. This eliminates the need to install or manage any additional software, libraries, or dependencies to use SimploTask. Ansible, on the other hand, is written in Python and requires Python to be installed on both the control host (where Ansible is run) and the managed nodes (remote hosts being managed). Additionally, Ansible depends on several Python libraries, which need to be installed and maintained on the control host. Some Ansible modules may also require specific libraries or packages to be installed on the managed nodes, adding to the complexity of managing dependencies.
+- **Complexity**: Ansible is a more feature-rich and mature tool, offering a wide range of modules and plugins that can automate many different aspects of infrastructure management. Spot, on the other hand, is designed to be simple and lightweight, focusing on a few core features to streamline the deployment and configuration process.
+- **Learning Curve**: Due to its simplicity, Spot has a lower learning curve compared to Ansible. It's easier to get started with Spot, making it more suitable for smaller projects or teams with limited experience in infrastructure automation. Ansible, while more powerful, can be more complex to learn and configure, especially for newcomers. 
+- **Customization**: While both tools offer customization options, Ansible has a more extensive set of built-in modules and plugins that can handle a wide range of tasks out-of-the-box. Spot, in contrast, relies on custom scripts and a limited set of built-in commands for its functionality, which might require more manual configuration and scripting for certain use cases.
+- **Community and Ecosystem**: Ansible has a large and active community, as well as a vast ecosystem of roles, modules, and integrations. This can be beneficial when dealing with common tasks or integrating with third-party systems. Spot, being a smaller and simpler tool, doesn't have the same level of community support or ecosystem.
+- **Ease of installation and external dependencies**: One of the most significant benefits of Spot is that it has no dependencies. Being written in Go, it is compiled into a single binary that can be easily distributed and executed on various platforms. This eliminates the need to install or manage any additional software, libraries, or dependencies to use Spot. Ansible, on the other hand, is written in Python and requires Python to be installed on both the control host (where Ansible is run) and the managed nodes (remote hosts being managed). Additionally, Ansible depends on several Python libraries, which need to be installed and maintained on the control host. Some Ansible modules may also require specific libraries or packages to be installed on the managed nodes, adding to the complexity of managing dependencies.
 
-SimploTask can be a good choice if you're looking for a lightweight, simple, and easy-to-use tool for deployment and configuration management, particularly for smaller projects or when you don't need the extensive features offered by Ansible. However, if you require a more comprehensive solution with a wide range of built-in modules, plugins, and integrations, Ansible might be a better fit for your needs. 
+Spot can be a good choice if you're looking for a lightweight, simple, and easy-to-use tool for deployment and configuration management, particularly for smaller projects or when you don't need the extensive features offered by Ansible. However, if you require a more comprehensive solution with a wide range of built-in modules, plugins, and integrations, Ansible might be a better fit for your needs. 
 
-The simplicity of SimploTask's single binary distribution and lack of dependencies make it an attractive choice for teams who want a lightweight, easy-to-install, and low-maintenance solution for deployment and configuration management. While Ansible offers more advanced features and a comprehensive ecosystem, its dependency on Python and additional libraries can be a hurdle for some users, particularly in environments with strict control over software installations or limited resources.
+The simplicity of Spot's single binary distribution and lack of dependencies make it an attractive choice for teams who want a lightweight, easy-to-install, and low-maintenance solution for deployment and configuration management. While Ansible offers more advanced features and a comprehensive ecosystem, its dependency on Python and additional libraries can be a hurdle for some users, particularly in environments with strict control over software installations or limited resources.
 
 
 ## Status
