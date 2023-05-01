@@ -46,8 +46,7 @@ SimploTask supports the following command-line options:
   If not specified all the tasks will be executed.
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name or IP instead of the target name for a quick override. Providing the `-d`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-d prod -d dev` or `-d example1.com -d example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
-  for the specified target. Providing the `-h` flag multiple times with different hosts names or ips sets multiple destination hosts,
-  e.g., `-h example1.com -h example2.com`
+- `-h`, `--host=`: Filter destinations for the specified target. Providing the `-h` flag multiple times with different name, or hosts names or ips allow multiple destination hosts from the same target, e.g., `-h example1.com -h example2.com`
 - `--inventory-file=`: Specifies the inventory file to use for the task execution. Overrides the inventory file defined in the
   playbook file.
 - `--inventory-url=`: Specifies the inventory HTTP URL to use for the task execution. Overrides the inventory URL defined in the
@@ -59,7 +58,7 @@ SimploTask supports the following command-line options:
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1=VALUE1 -e VAR2=VALUE2`.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
-- `-h`, `--help`: Displays the help message, listing all available command-line options.
+- `--help`: Displays the help message, listing all available command-line options.
 
 ## Example playbook
 
@@ -211,7 +210,7 @@ By using this approach, SimploTask enables users to write and execute more compl
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
 
 - `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: test}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override)  will be used. If no port is specified, port 22 will be used.
-- `inventory_file`: a path to the inventory file to use and groups to use. Example: `inventory_file: {"location": "testdata/inventory", "groups": []{"gr1"} }`. If `groups` not defined all the groups will be used. The [inventory file](#inventory-file-format) contains a list of host names or IP addresses, one per line with optional `[group]` values.
+- `inventory_file`: a path to the inventory file to use and groups to use. Example: `inventory_file: {"location": "testdata/inventory", "groups": [{"gr1", "gr2"}] }`. If `groups` not defined all the groups will be used. The [inventory file](#inventory-file-format) contains a list of host names or IP addresses, one per line with optional `[group]` values.
 - `inventory_url`: a URL to the inventory file to use. Example: `inventory_url: {"location": "http://localhost:8080/inventory"}`. The response contains a list of host names or IP addresses, one per line. The same support for groups as for `inventory_file` is available.
 
 Targets contains environments each of which represents a set of hosts, for example:
@@ -225,6 +224,15 @@ targets:
   dev:
     inventory_url: {location: "http://localhost:8080/inventory", groups: ["dev", "staging"]}
 ```
+
+### Target overrides
+
+There are several ways to override or alter the target defined in the playbook file:
+
+- `--inventory-file` set hosts from the provided inventory file. Example: `--inventory-file=inventory.yml`.
+- `--inventory-url` set hosts from the provided inventory URL. Example: `--inventory-url=http://localhost:8080/inventory`.
+- `--filter`, `-i`: Set the allowed hosts using the provided name or host address. This flag acts as a filter for the hosts defined in the playbook file or inventory. For instance, if a user has a playbook file with 10 hosts but only wants to execute the tasks on 3 of them, the `--host` flag can be used to specify (filter) the desired host names and host addresses to execute the tasks on. Example usage: `--host=h1.example.com --host=h2.example.com -h=my-cool-host`.
+
 
 ### Inventory file format
 

@@ -29,8 +29,9 @@ type options struct {
 	Concurrent   int      `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 
 	// target overrides
-	InventoryFile string `long:"inventory-file" description:"inventory file"`
-	InventoryURL  string `long:"inventory-url" description:"inventory http url"`
+	Filter        []string `short:"i" long:"filter" description:"filter target hosts"`
+	InventoryFile string   `long:"inventory-file" description:"inventory file"`
+	InventoryURL  string   `long:"inventory-url" description:"inventory http url"`
 
 	// connection overrides
 	SSHUser string `short:"u" long:"user" description:"ssh user"`
@@ -39,11 +40,12 @@ type options struct {
 	Env map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
 
 	// commands filter
-	Skip []string `short:"s" long:"skip" description:"skip commands"`
-	Only []string `short:"o" long:"only" description:"run only commands"`
+	Skip []string `long:"skip" description:"skip commands"`
+	Only []string `long:"only" description:"run only commands"`
 
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
+	Help    bool `long:"help" description:"show help"`
 }
 
 var revision = "latest"
@@ -52,13 +54,16 @@ func main() {
 	fmt.Printf("simplotask %s\n", revision)
 
 	var opts options
-	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
+	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash)
 	if _, err := p.Parse(); err != nil {
-		if err.(*flags.Error).Type != flags.ErrHelp {
-			os.Exit(1)
-		}
+		os.Exit(1)
+	}
+
+	if opts.Help {
+		p.WriteHelp(os.Stdout)
 		os.Exit(2)
 	}
+
 	setupLog(opts.Dbg)
 
 	if err := run(opts); err != nil {
@@ -80,6 +85,7 @@ func run(opts options) error {
 		InventoryURL:  opts.InventoryURL,
 		Environment:   opts.Env,
 		User:          opts.SSHUser,
+		FilterHosts:   opts.Filter,
 	}
 
 	conf, err := config.New(opts.PlaybookFile, &overrides)

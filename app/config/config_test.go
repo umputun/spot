@@ -268,13 +268,16 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 				Hosts: []Destination{
 					{Host: "host1", Port: 22, User: "user1"},
 					{Host: "host2", Port: 2222},
-					{Host: "host3"},
+					{Host: "host3", Name: "host3_name", Port: 2020, User: "user3"},
 				},
 			},
 			"target2": {
 				InventoryFile: Inventory{Location: "testdata/hosts-with-groups.yml", Groups: []string{"gr1"}},
 			},
 			"target3": {},
+			"target4": {
+				InventoryFile: Inventory{Location: "testdata/hosts-with-groups.yml"},
+			},
 		},
 	}
 
@@ -291,42 +294,55 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 			want: []Destination{
 				{Host: "host1", Port: 22, User: "user1"},
 				{Host: "host2", Port: 2222, User: "default_user"},
-				{Host: "host3", Port: 22, User: "default_user"},
+				{Name: "host3_name", Host: "host3", Port: 2020, User: "user3"},
 			},
 			wantErr: false,
 		},
 		{
-			name:       "target from config, user from overrides",
-			targetName: "target1",
-			want: []Destination{
-				{Host: "host1", Port: 22, User: "user1"},
-				{Host: "host2", Port: 2222, User: "user2"},
-				{Host: "host3", Port: 22, User: "user2"},
-			},
+			name:       "overrides target hosts from inventory, name match",
+			targetName: "target4",
 			overrides: &Overrides{
-				User: "user2",
+				FilterHosts: []string{"h6", "h5"},
+			},
+			want: []Destination{
+				{Name: "h5", Host: "h5.example.com", Port: 2233, User: "default_user"},
+				{Name: "h6", Host: "h6.example.com", Port: 22, User: "user3"},
 			},
 			wantErr: false,
 		},
 		{
-			name:       "overrides target hosts with port",
-			targetName: "target1",
+			name:       "overrides target hosts from inventory address match",
+			targetName: "target4",
 			overrides: &Overrides{
-				TargetHosts: []string{"host2:2222"},
+				FilterHosts: []string{"h5.example.com", "h7.example.com"},
 			},
 			want: []Destination{
-				{Host: "host2", Port: 2222, User: "default_user"},
+				{Name: "h5", Host: "h5.example.com", Port: 2233, User: "default_user"},
+				{Name: "", Host: "h7.example.com", Port: 22, User: "user3"},
 			},
 			wantErr: false,
 		},
 		{
-			name:       "overrides target hosts without port",
+			name:       "overrides target hosts direct, name and address match",
 			targetName: "target1",
 			overrides: &Overrides{
-				TargetHosts: []string{"host2"},
+				FilterHosts: []string{"host3_name", "bad-host", "host2"},
 			},
 			want: []Destination{
-				{Host: "host2", Port: 22, User: "default_user"},
+				{Name: "host3_name", Host: "host3", Port: 2020, User: "user3"},
+				{Name: "", Host: "host2", Port: 2222, User: "default_user"},
+			},
+			wantErr: false,
+		},
+		{
+			name:       "overrides target hosts direct, address match",
+			targetName: "target1",
+			overrides: &Overrides{
+				FilterHosts: []string{"host1", "bad-host", "host2"},
+			},
+			want: []Destination{
+				{Name: "", Host: "host1", Port: 22, User: "user1"},
+				{Name: "", Host: "host2", Port: 2222, User: "default_user"},
 			},
 			wantErr: false,
 		},
@@ -421,14 +437,6 @@ func TestPlaybook_TargetHosts(t *testing.T) {
 
 func TestPlayBook_TargetHostsOverrides(t *testing.T) {
 
-	t.Run("override hosts directly", func(t *testing.T) {
-		c, err := New("testdata/f1.yml", &Overrides{TargetHosts: []string{"h1", "h2"}})
-		require.NoError(t, err)
-		res, err := c.TargetHosts("blah") // no such target
-		require.NoError(t, err)
-		assert.Equal(t, []Destination{{Host: "h1", Port: 22, User: "umputun"}, {Host: "h2", Port: 22, User: "umputun"}}, res)
-	})
-
 	t.Run("override hosts with file", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", &Overrides{InventoryFile: "testdata/hosts-without-groups.yml"})
 		require.NoError(t, err)
@@ -506,6 +514,7 @@ func TestPlayBook_parseInventoryGroups(t *testing.T) {
 				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
 				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
 				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
+				{Host: "h7.example.com", Port: 22, User: "user3"},
 			},
 		},
 		{
@@ -526,6 +535,7 @@ func TestPlayBook_parseInventoryGroups(t *testing.T) {
 			want: []Destination{
 				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
 				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
+				{Host: "h7.example.com", Port: 22, User: "user3"},
 			},
 		},
 		{
@@ -539,6 +549,7 @@ func TestPlayBook_parseInventoryGroups(t *testing.T) {
 				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
 				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
 				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
+				{Host: "h7.example.com", Port: 22, User: "user3"},
 			},
 		},
 		{
@@ -552,6 +563,7 @@ func TestPlayBook_parseInventoryGroups(t *testing.T) {
 				{Host: "h4.example.com", Port: 22, User: "user2", Name: "h4"},
 				{Host: "h5.example.com", Port: 2233, User: "defaultUser", Name: "h5"},
 				{Host: "h6.example.com", Port: 22, User: "user3", Name: "h6"},
+				{Host: "h7.example.com", Port: 22, User: "user3"},
 			},
 		},
 		{
