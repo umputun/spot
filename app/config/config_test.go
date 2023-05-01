@@ -338,11 +338,11 @@ func TestTargetHosts(t *testing.T) {
 			Groups: map[string][]Destination{
 				"all": {
 					{Host: "host1.example.com", Port: 22, User: "user1"},
-					{Host: "host2.example.com", Port: 22, User: "defaultuser"},
+					{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2"},
 					{Host: "host3.example.com", Port: 22, User: "defaultuser"},
 				},
 				"group1": {
-					{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host1"},
+					{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2"},
 				},
 			},
 			Hosts: []Destination{
@@ -378,7 +378,7 @@ func TestTargetHosts(t *testing.T) {
 					Host: "host2.example.com",
 					Port: 2222,
 					User: "defaultuser",
-					Name: "host1",
+					Name: "host2",
 				},
 			},
 			expectError: false,
@@ -391,7 +391,7 @@ func TestTargetHosts(t *testing.T) {
 					Host: "host2.example.com",
 					Port: 2222,
 					User: "defaultuser",
-					Name: "host1",
+					Name: "host2",
 				},
 			},
 			expectError: false,
@@ -416,6 +416,19 @@ func TestTargetHosts(t *testing.T) {
 					Host: "host4.example.com",
 					Port: 2222,
 					User: "defaultuser",
+				},
+			},
+			expectError: false,
+		},
+		{
+			name:       "target as single host address",
+			targetName: "host2.example.com",
+			expected: []Destination{
+				{
+					Host: "host2.example.com",
+					Port: 22,
+					User: "defaultuser",
+					Name: "host2",
 				},
 			},
 			expectError: false,

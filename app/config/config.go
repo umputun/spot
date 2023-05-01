@@ -272,9 +272,16 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		return res, nil
 	}
 
-	// try as single host in inventory
+	// try as single host name in inventory
 	for _, h := range p.inventory.Groups["all"] {
-		if h.Host == name {
+		if strings.EqualFold(h.Name, name) {
+			return []Destination{h}, nil
+		}
+	}
+
+	// try as a single host address in inventory
+	for _, h := range p.inventory.Groups["all"] {
+		if strings.EqualFold(h.Host, name) {
 			return []Destination{h}, nil
 		}
 	}
@@ -306,17 +313,17 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't get inventory from http %s: %w", loc, err)
 		}
-		defer resp.Body.Close() //nolint
+		defer resp.Body.Close() // nolint
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("can't get inventory from http %s, status: %s", loc, resp.Status)
 		}
 		rdr = resp.Body
 	} else { // location is a file
-		f, err := os.Open(loc) //nolint
+		f, err := os.Open(loc) // nolint
 		if err != nil {
 			return nil, fmt.Errorf("can't open inventory file %s: %w", loc, err)
 		}
-		defer f.Close() //nolint
+		defer f.Close() // nolint
 		rdr = f
 	}
 
