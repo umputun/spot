@@ -64,7 +64,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	for i, host := range targetHosts {
 		i, host := i, host
 		wg.Go(func() error {
-			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name)
+			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, host.User)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(count))
 			}
@@ -94,7 +94,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 }
 
 // runTaskOnHost executes all commands of a task on a target hostAddr. hostAddr can be a remote hostAddr or localhost with port.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName string) (int, error) {
+func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, error) {
 	contains := func(list []string, s string) bool {
 		for _, v := range list {
 			if strings.EqualFold(v, s) {
@@ -104,7 +104,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		return false
 	}
 
-	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, tsk.User)
+	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, user)
 	if err != nil {
 		return 0, fmt.Errorf("can't connect to %s: %w", hostAddr, err)
 	}
