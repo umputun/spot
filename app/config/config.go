@@ -350,19 +350,6 @@ func (p *PlayBook) filterHosts(inp []Destination, overrides *Overrides) []Destin
 	return res
 }
 
-// parseAddress parses address in format host:port and returns host and port.
-func (p *PlayBook) parseAddress(addr string) (host string, port int, err error) {
-	if !strings.Contains(addr, ":") {
-		return addr, 22, nil // default port is 22 if not set
-	}
-	elems := strings.Split(addr, ":")
-	port, err = strconv.Atoi(elems[1])
-	if err != nil {
-		return "", 0, fmt.Errorf("can't parse port %s: %w", elems[1], err)
-	}
-	return elems[0], port, nil
-}
-
 // parseInventory parses inventory yml file or url and returns a list of hosts for the specified group.
 // user is optional, if not set, it is assumed to be defined in playbook. name is optional too.
 func (p *PlayBook) parseInventory(r io.Reader, groups []string) ([]Destination, error) {
