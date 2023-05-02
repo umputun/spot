@@ -9,6 +9,7 @@ require (
 	github.com/go-pkgz/syncs v1.3.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/jessevdk/go-flags v1.5.0
+	github.com/pelletier/go-toml/v2 v2.0.7
 	github.com/pkg/sftp v1.13.5
 	github.com/stretchr/testify v1.8.2
 	github.com/testcontainers/testcontainers-go v0.19.0
