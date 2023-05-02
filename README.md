@@ -66,7 +66,7 @@ Spot supports the following command-line options:
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
-inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory-file flag
+inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
 # list of targets, i.e. hosts, inventory files or inventory URLs
 targets:
@@ -77,7 +77,7 @@ targets:
   staging:
     groups: ["dev", "staging"] # list of groups from inventory file
   dev:
-    groups: ["dev"] # list of groups from inventory file
+    names: ["devbox1", "devbox2"] # list of server names from inventory file
   all:
     groups: ["all"] # all hosts from all groups from inventory file
 
