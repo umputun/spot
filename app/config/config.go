@@ -228,18 +228,55 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 }
 
 // TargetHosts returns target hosts for given target name.
-// It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
+// After it gets destinations from targetHosts(name) it applies overrides of user, set default port 22 if needed
+// and deduplicate results.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
+	dedup := func(in []Destination) []Destination {
+		var res []Destination
+		seen := make(map[string]struct{})
+		for _, d := range in {
+			key := d.Host + ":" + strconv.Itoa(d.Port) + ":" + d.User
+			if _, ok := seen[key]; !ok {
+				seen[key] = struct{}{}
+				res = append(res, d)
+			}
+		}
+		return res
+	}
+
 	userOverride := func(u string) string {
+		// apply overrides of user
 		if p.overrides != nil && p.overrides.User != "" {
 			return p.overrides.User
 		}
+		// no overrides, use user from target if set
 		if u != "" {
 			return u
 		}
+		// no overrides, no user in target, use default from playbook
 		return p.User
 	}
+
+	res, err := p.targetHosts(name)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, h := range res {
+		if h.Port == 0 {
+			h.Port = 22 // default port is 22 if not set
+		}
+		h.User = userOverride(h.User)
+		res[i] = h
+	}
+
+	return dedup(res), nil
+}
+
+// targetHosts returns target hosts for given target name.
+// It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
+func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 
 	t, ok := p.Targets[name] // get target from playbook
 	if ok {
@@ -247,13 +284,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		if len(t.Hosts) > 0 {
 			// target is hosts
 			res := make([]Destination, len(t.Hosts))
-			for i, h := range t.Hosts {
-				if h.Port == 0 {
-					h.Port = 22 // default port is 22 if not set
-				}
-				h.User = userOverride(h.User)
-				res[i] = h
-			}
+			copy(res, t.Hosts)
 			return res, nil
 		}
 		if len(t.Groups) > 0 {
@@ -278,10 +309,6 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	if ok {
 		res := make([]Destination, len(hosts))
 		copy(res, hosts)
-		for i, r := range res {
-			r.User = userOverride(r.User)
-			res[i] = r
-		}
 		return res, nil
 	}
 
@@ -293,7 +320,6 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		}
 		for _, t := range h.Tags {
 			if strings.EqualFold(t, name) {
-				h.User = userOverride(h.User)
 				res = append(res, h)
 			}
 		}
@@ -305,18 +331,14 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	// try as single host name in inventory
 	for _, h := range p.inventory.Groups["all"] {
 		if strings.EqualFold(h.Name, name) {
-			res := []Destination{h}
-			res[0].User = userOverride(h.User)
-			return res, nil
+			return []Destination{h}, nil
 		}
 	}
 
 	// try as a single host address in inventory
 	for _, h := range p.inventory.Groups["all"] {
 		if strings.EqualFold(h.Host, name) {
-			res := []Destination{h}
-			res[0].User = userOverride(h.User)
-			return res, nil
+			return []Destination{h}, nil
 		}
 	}
 
@@ -327,11 +349,11 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
-		return []Destination{{Host: elems[0], Port: port, User: userOverride("")}}, nil
+		return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil
 	}
 
 	// we assume it is a host name, with default port 22
-	return []Destination{{Host: name, Port: 22, User: userOverride("")}}, nil
+	return []Destination{{Host: name, Port: 22, User: p.User}}, nil
 }
 
 // loadInventoryFile loads inventory from file and returns a struct with groups.

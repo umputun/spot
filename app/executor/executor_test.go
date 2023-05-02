@@ -198,8 +198,8 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		io.Copy(&bufOut, rOut)
 
 		t.Logf("bufOut:\n%s", bufOut.String())
-		assert.Contains(t, bufOut.String(), "[example.com] > Hello, out!", "captured stdout should contain the out message")
-		assert.Contains(t, bufOut.String(), "[example.com] ! Hello, err!", "captured stderr should contain the err message")
+		assert.Contains(t, bufOut.String(), "[example.com]  > Hello, out!", "captured stdout should contain the out message")
+		assert.Contains(t, bufOut.String(), "[example.com]  ! Hello, err!", "captured stderr should contain the err message")
 	})
 
 	t.Run("non-verbose", func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		io.WriteString(errWriter, errMsg)
 
 		t.Logf("bufOut:\n%s", bufOut.String())
-		assert.Contains(t, bufOut.String(), "[DEBUG] > Hello, out!", "captured stdout should contain the out message")
-		assert.Contains(t, bufOut.String(), "[WARN] ! Hello, err!", "captured stderr should contain the err message")
+		assert.Contains(t, bufOut.String(), "[DEBUG]  > Hello, out!", "captured stdout should contain the out message")
+		assert.Contains(t, bufOut.String(), "[WARN]  ! Hello, err!", "captured stderr should contain the err message")
 	})
 }

@@ -332,6 +332,7 @@ func TestTargetHosts(t *testing.T) {
 			Groups: map[string][]Destination{
 				"all": {
 					{Host: "host1.example.com", Port: 22, User: "user1"},
+					{Host: "host1.example.com", Port: 22, User: "user1"}, // intentionally duplicated
 					{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}},
 					{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}},
 				},
