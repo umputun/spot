@@ -25,7 +25,7 @@ func Test_main(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	args := []string{"simplotask", "--dbg", "--file=runner/testdata/conf-local.yml", "--user=test", "--key=runner/testdata/test_ssh_key", "--target=" + hostAndPort}
+	args := []string{"simplotask", "--dbg", "--playbook=runner/testdata/conf-local.yml", "--user=test", "--key=runner/testdata/test_ssh_key", "--target=" + hostAndPort}
 	os.Args = args
 	main()
 }
