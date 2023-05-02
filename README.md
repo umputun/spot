@@ -8,10 +8,10 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 
 ## Features
 
-- Define tasks with a list of commands.
+- Define tasks with a list of commands and the list of target hosts.
 - Support for remote hosts specified directly or through inventory files/URLs.
 - Everything can be defined in a simple YAML file.
-- Run scripts on remote hosts.
+- Run scripts on remote hosts as well as on the localhost.
 - Built-in commands: copy, sync, delete and wait.
 - Concurrent execution of task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
