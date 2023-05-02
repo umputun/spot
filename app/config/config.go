@@ -286,17 +286,20 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	}
 
 	// try as a tag in inventory
+	res := []Destination{}
 	for _, h := range p.inventory.Groups["all"] {
 		if len(h.Tags) == 0 {
 			continue
 		}
 		for _, t := range h.Tags {
 			if strings.EqualFold(t, name) {
-				res := []Destination{h}
-				res[0].User = userOverride(h.User)
-				return res, nil
+				h.User = userOverride(h.User)
+				res = append(res, h)
 			}
 		}
+	}
+	if len(res) > 0 {
+		return res, nil
 	}
 
 	// try as single host name in inventory

@@ -332,11 +332,11 @@ func TestTargetHosts(t *testing.T) {
 			Groups: map[string][]Destination{
 				"all": {
 					{Host: "host1.example.com", Port: 22, User: "user1"},
-					{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2"},
+					{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}},
 					{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}},
 				},
 				"group1": {
-					{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2"},
+					{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}},
 				},
 			},
 			Hosts: []Destination{
@@ -359,17 +359,24 @@ func TestTargetHosts(t *testing.T) {
 		},
 		{
 			"target with groups", "target2", nil,
-			[]Destination{{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2"}},
+			[]Destination{{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
 			false,
 		},
 		{
 			"target as group from inventory", "group1", nil,
-			[]Destination{{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2"}},
+			[]Destination{{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
 			false,
 		},
 		{
 			"target as a tag from inventory", "tag2", nil,
 			[]Destination{{Host: "host3.example.com", Port: 22, User: "defaultuser", Name: "host3", Tags: []string{"tag1", "tag2"}}},
+			false,
+		},
+		{
+			"target as a tag matching multiple from inventory", "tag1", nil,
+			[]Destination{
+				{Name: "host2", Host: "host2.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1"}},
+				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}}},
 			false,
 		},
 		{
@@ -389,7 +396,7 @@ func TestTargetHosts(t *testing.T) {
 		},
 		{
 			"target as single host address", "host2.example.com", nil,
-			[]Destination{{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2"}},
+			[]Destination{{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
 			false,
 		},
 		{"invalid host:port format", "host5.example.com:invalid", nil, nil, true},
