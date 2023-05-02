@@ -41,6 +41,29 @@ func TestProcess_Run(t *testing.T) {
 	assert.Equal(t, 1, res.Hosts)
 }
 
+func TestProcess_RunDry(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Config:      conf,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		Dry:         true,
+	}
+	res, err := p.Run(ctx, "task1", hostAndPort)
+	require.NoError(t, err)
+	assert.Equal(t, 6, res.Commands)
+	assert.Equal(t, 1, res.Hosts)
+}
+
 func TestProcess_RunOnly(t *testing.T) {
 	ctx := context.Background()
 	hostAndPort, teardown := startTestContainer(t)

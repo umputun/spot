@@ -70,7 +70,7 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
-	log.Printf("[DEBUG] upload %s to %s", local, remote)
+	log.Printf("[DEBUG] download %s to %s", local, remote)
 
 	host, port, err := net.SplitHostPort(ex.hostAddr)
 	if err != nil {
