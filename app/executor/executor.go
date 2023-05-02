@@ -100,8 +100,8 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 	colors := []color.Attribute{
 		color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
 		color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan,
-		color.FgCyan, color.FgMagenta, color.FgBlue,
-		color.FgYellow, color.FgGreen, color.FgRed,
+		color.FgRed, color.FgGreen, color.FgYellow,
+		color.FgBlue, color.FgMagenta, color.FgCyan,
 	}
 	i := crc32.ChecksumIEEE([]byte(host)) % uint32(len(colors))
 	return color.New(colors[i]).SprintfFunc()
@@ -111,11 +111,11 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 func MakeOutAndErrWriters(hostAddr, hostName string, verbose bool) (outWr, errWr io.Writer) {
 	var outLog, errLog io.Writer
 	if verbose {
-		outLog = NewColorizedWriter(os.Stdout, ">", hostAddr, hostName)
-		errLog = NewColorizedWriter(os.Stdout, "!", hostAddr, hostName)
+		outLog = NewColorizedWriter(os.Stdout, " >", hostAddr, hostName)
+		errLog = NewColorizedWriter(os.Stdout, " !", hostAddr, hostName)
 	} else {
-		outLog = NewStdoutLogWriter(">", "DEBUG")
-		errLog = NewStdoutLogWriter("!", "WARN")
+		outLog = NewStdoutLogWriter(" >", "DEBUG")
+		errLog = NewStdoutLogWriter(" !", "WARN")
 	}
 	return outLog, errLog
 }
