@@ -108,7 +108,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 		return false
 	}
-	st := time.Now()
+	stTask := time.Now()
 	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, user)
 	if err != nil {
 		return 0, fmt.Errorf("can't connect to %s: %w", hostAddr, err)
@@ -130,7 +130,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 
 		log.Printf("[INFO] run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
-		st := time.Now()
+		stCmd := time.Now()
 		params := execCmdParams{cmd: cmd, hostAddr: hostAddr, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
 			params.exec = &executor.Local{}
@@ -142,18 +142,18 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 				return count, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, hostAddr, hostName, err)
 			}
 
-			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "failed %s%s (%v)",
-				cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "failed command %s%s (%v)",
+				cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
 			continue
 		}
 
 		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
-			"completed command %q%s (%v)", cmd.Name, details, time.Since(st).Truncate(time.Millisecond))
+			"completed command %q%s (%v)", cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
 		count++
 	}
 
 	fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
-		"completed task %q, commands: %d (%v)\n", tsk.Name, count, time.Since(st).Truncate(time.Millisecond))
+		"completed task %q, commands: %d (%v)\n", tsk.Name, count, time.Since(stTask).Truncate(time.Millisecond))
 
 	return count, nil
 }
