@@ -29,6 +29,7 @@ type Process struct {
 	Config      *config.PlayBook
 	ColorWriter *executor.ColorizedWriter
 	Verbose     bool
+	Dry         bool
 
 	Skip []string
 	Only []string
@@ -136,6 +137,14 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			params.exec = &executor.Local{}
 			params.hostAddr = "localhost"
 		}
+
+		if p.Dry {
+			params.exec = executor.NewDry(hostAddr, hostName)
+			if cmd.Options.Local {
+				params.hostAddr = "localhost"
+			}
+		}
+
 		details, err := p.execCommand(ctx, params)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {

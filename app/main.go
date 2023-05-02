@@ -44,6 +44,7 @@ type options struct {
 	Skip []string `long:"skip" description:"skip commands"`
 	Only []string `long:"only" description:"run only commands"`
 
+	Dry     bool `long:"dry" description:"dry run"`
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
 	Help    bool `short:"h" long:"help" description:"show help"`
@@ -52,7 +53,7 @@ type options struct {
 var revision = "latest"
 
 func main() {
-	fmt.Printf("simplotask %s\n", revision)
+	fmt.Printf("spot %s\n", revision)
 
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash)
@@ -67,6 +68,11 @@ func main() {
 
 	setupLog(opts.Dbg)
 
+	if opts.Dry {
+		msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
+		fmt.Print(msg)
+	}
+
 	if err := run(opts); err != nil {
 		if opts.Dbg {
 			log.Panicf("[ERROR] %v", err)
@@ -77,6 +83,10 @@ func main() {
 }
 
 func run(opts options) error {
+	if opts.Dry {
+		log.Printf("[WARN] dry run, no changes will be made and no commands will be executed")
+	}
+
 	st := time.Now()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -111,6 +121,7 @@ func run(opts options) error {
 		Skip:        opts.Skip,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
 		Verbose:     opts.Verbose,
+		Dry:         opts.Dry,
 	}
 
 	errs := new(multierror.Error)
