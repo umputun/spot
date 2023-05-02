@@ -275,31 +275,31 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 }
 
 // targetHosts returns target hosts for given target name.
-// It applies overrides if any set and also retrieves hosts from inventory file or url if any set.
+// The result is not deduplicated and not modified with overrides.
 func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
-
 	t, ok := p.Targets[name] // get target from playbook
 	if ok {
+		res := []Destination{}
 		// we have found target in playbook, check it is host or group
 		if len(t.Hosts) > 0 {
-			// target is hosts
-			res := make([]Destination, len(t.Hosts))
-			copy(res, t.Hosts)
-			return res, nil
+			// target is hosts, return them
+			res = append(res, t.Hosts...)
+			// we don't return here, as we may have hosts and groups in target
 		}
 		if len(t.Groups) > 0 {
 			// target is group, get hosts from inventory
 			if p.inventory == nil {
 				return nil, fmt.Errorf("inventory is not loaded")
 			}
-			res := make([]Destination, 0)
 			for _, g := range t.Groups {
 				// we don't set default port and user here, as they are set in inventory already
 				res = append(res, p.inventory.Groups[g]...)
 			}
-			return res, nil
 		}
-		return nil, fmt.Errorf("target %q has no hosts or groups", name)
+		if len(res) == 0 {
+			return nil, fmt.Errorf("target %q has no hosts or groups", name)
+		}
+		return res, nil
 	}
 
 	// target not found in playbook

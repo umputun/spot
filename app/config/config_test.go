@@ -327,6 +327,9 @@ func TestTargetHosts(t *testing.T) {
 		Targets: map[string]Target{
 			"target1": {Name: "target1", Hosts: []Destination{{Host: "host1.example.com", Port: 22}}},
 			"target2": {Name: "target2", Groups: []string{"group1"}},
+			"target3": {Name: "target3", Groups: []string{"group1"},
+				Hosts: []Destination{{Host: "host4.example.com", Port: 22, Name: "host4", Tags: []string{"tag4"}, User: "user4"}},
+			},
 		},
 		inventory: &InventoryData{
 			Groups: map[string][]Destination{
@@ -361,6 +364,13 @@ func TestTargetHosts(t *testing.T) {
 		{
 			"target with groups", "target2", nil,
 			[]Destination{{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
+			false,
+		},
+		{
+			"target with both hosts and group", "target3", nil,
+			[]Destination{
+				{Name: "host4", Host: "host4.example.com", Port: 22, User: "user4", Tags: []string{"tag4"}},
+				{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
 			false,
 		},
 		{
