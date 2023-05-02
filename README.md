@@ -48,7 +48,7 @@ Spot supports the following command-line options:
   If not specified all the tasks will be executed.
 - `-d`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name or IP instead of the target name for a quick override. Providing the `-d`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-d prod -d dev` or `-d example1.com -d example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
-- `timeout`: Sets the SSH timeout. Defaults to `30s`.
+- `--timeout`: Sets the SSH timeout. Defaults to `30s`.
 - `--inventory=`: Specifies the inventory file or url to use for the task execution. Overrides the inventory file defined in the
   playbook file. User can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
