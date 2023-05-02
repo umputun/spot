@@ -1,0 +1,63 @@
+user = "umputun"
+
+[[targets.remark42.hosts]]
+name = "h1"
+host = "h1.example.com"
+
+[[targets.remark42.hosts]]
+host = "h2.example.com"
+
+[targets.staging]
+inventory = "file://inventory/staging.txt"
+
+[[tasks]]
+name = "deploy-remark42"
+
+[[tasks.commands]]
+name = "wait"
+script = "sleep 5"
+
+[[tasks.commands]]
+name = "copy configuration"
+
+[tasks.commands.copy]
+src = "/local/remark42.yml"
+dst = "/srv/remark42.yml"
+mkdir = true
+
+[[tasks.commands]]
+name = "some local command"
+script = """
+ls -la /srv
+du -hcs /srv
+"""
+
+[tasks.commands.options]
+local = true
+
+[[tasks.commands]]
+name = "git"
+before = "echo before git"
+after = "echo after git"
+onerror = "echo onerror git"
+script = """
+git clone https://example.com/remark42.git /srv || true # clone if doesn't exists, but don't fail if exists
+cd /srv
+git pull
+"""
+
+[[tasks.commands]]
+name = "docker"
+script = """
+docker pull umputun/remark42:latest
+docker stop remark42 || true
+docker rm remark42 || true
+docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
+"""
+
+[tasks.commands.options]
+no_auto = true
+
+[tasks.commands.env]
+FOO = "bar"
+BAR = "qux"

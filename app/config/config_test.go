@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,6 +17,18 @@ func TestNew(t *testing.T) {
 
 	t.Run("good file", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil)
+		require.NoError(t, err)
+		t.Logf("%+v", c)
+		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Equal(t, "umputun", c.User, "user")
+
+		tsk := c.Tasks[0]
+		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
+	})
+
+	t.Run("good toml file", func(t *testing.T) {
+		c, err := New("testdata/f1.toml", nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
 		assert.Equal(t, 1, len(c.Tasks), "single task")
@@ -444,12 +457,8 @@ func TestTargetHosts(t *testing.T) {
 }
 
 func TestPlayBook_loadInventory(t *testing.T) {
-	// create temporary inventory file
-	tmpFile, err := os.CreateTemp("", "inventory-*.yaml")
-	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-
-	_, err = tmpFile.WriteString(`---
+	// create temporary inventory files
+	yamlData := []byte(`
 groups:
   group1:
     - host: example.com
@@ -459,43 +468,58 @@ groups:
 hosts:
   - {host: one.example.com, port: 2222}
 `)
-	require.NoError(t, err)
+	yamlFile, _ := os.CreateTemp("", "inventory-*.yaml")
+	defer os.Remove(yamlFile.Name())
+	_ = os.WriteFile(yamlFile.Name(), yamlData, 0o644)
 
+	tomlData := []byte(`
+[groups]
+  group1 = [
+    { host = "example.com", port = 22 },
+  ]
+
+  group2 = [
+    { host = "another.com" },
+  ]
+
+[[hosts]]
+  host = "one.example.com"
+  port = 2222
+`)
+	tomlFile, _ := os.CreateTemp("", "inventory-*.toml")
+	defer os.Remove(tomlFile.Name())
+	_ = os.WriteFile(tomlFile.Name(), tomlData, 0o644)
+
+	// create test HTTP server
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, tmpFile.Name())
+		switch filepath.Ext(r.URL.Path) {
+		case ".toml":
+			http.ServeFile(w, r, tomlFile.Name())
+		default:
+			http.ServeFile(w, r, yamlFile.Name())
+		}
 	}))
 	defer ts.Close()
 
+	// create test cases
 	testCases := []struct {
 		name        string
 		loc         string
 		expectError bool
 	}{
-		{
-			name: "load from file",
-			loc:  tmpFile.Name(),
-		},
-		{
-			name: "load from url",
-			loc:  ts.URL,
-		},
-		{
-			name:        "invalid url",
-			loc:         "http://not-a-valid-url",
-			expectError: true,
-		},
-		{
-			name:        "file not found",
-			loc:         "nonexistent-file.yaml",
-			expectError: true,
-		},
+		{"load YAML from file", yamlFile.Name(), false},
+		{"load YAML from URL", ts.URL + "/inventory.yaml", false},
+		{"load YAML from URL without extension", ts.URL + "/inventory", false},
+		{"load TOML from file", tomlFile.Name(), false},
+		{"load TOML from URL", ts.URL + "/inventory.toml", false},
+		{"invalid URL", "http://not-a-valid-url", true},
+		{"file not found", "nonexistent-file.yaml", true},
 	}
 
+	// run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := &PlayBook{
-				User: "testuser",
-			}
+			p := &PlayBook{User: "testuser"}
 			inv, err := p.loadInventory(tc.loc)
 
 			if tc.expectError {
@@ -508,9 +532,8 @@ hosts:
 			require.Len(t, inv.Groups, 3)
 			require.Len(t, inv.Hosts, 1)
 
-			// check "all" group
 			allGroup := inv.Groups["all"]
-			require.Len(t, allGroup, 3, "all group should contain all hosts")
+			require.Len(t, allGroup, 3)
 			assert.Equal(t, "another.com", allGroup[0].Host)
 			assert.Equal(t, 22, allGroup[0].Port)
 			assert.Equal(t, "example.com", allGroup[1].Host)
@@ -518,19 +541,16 @@ hosts:
 			assert.Equal(t, "one.example.com", allGroup[2].Host)
 			assert.Equal(t, 2222, allGroup[2].Port)
 
-			// check "group1"
 			group1 := inv.Groups["group1"]
 			require.Len(t, group1, 1)
 			assert.Equal(t, "example.com", group1[0].Host)
 			assert.Equal(t, 22, group1[0].Port)
 
-			// check "group2"
 			group2 := inv.Groups["group2"]
 			require.Len(t, group2, 1)
 			assert.Equal(t, "another.com", group2[0].Host)
 			assert.Equal(t, 22, group2[0].Port)
 
-			// check hosts
 			assert.Equal(t, "one.example.com", inv.Hosts[0].Host)
 			assert.Equal(t, 2222, inv.Hosts[0].Port)
 		})

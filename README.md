@@ -10,7 +10,7 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 
 - Define tasks with a list of commands and the list of target hosts.
 - Support for remote hosts specified directly or through inventory files/URLs.
-- Everything can be defined in a simple YAML file.
+- Everything can be defined in a simple YAML or TOML file.
 - Run scripts on remote hosts as well as on the localhost.
 - Built-in commands: copy, sync, delete and wait.
 - Concurrent execution of task on multiple hosts.
@@ -119,6 +119,9 @@ tasks:
         env: {FOO: bar, BAR: qux} # set environment variables for the command
       - wait: {cmd: "curl -s localhost:8080/health", timeout: "10s", interval: "1s"} # wait for health check to pass
 ```
+
+*Alternatively, the playbook can be represented using the TOML format.*
+
 
 ## Task details
 
@@ -297,6 +300,8 @@ hosts:
 This format is useful when you want to define a list of hosts without groups.
 
 In each case inventory automatically merged and a special group `all` will be created that contains all the hosts.
+
+*Alternatively, the inventory can be represented using the TOML format.*
 
 ## Runtime variables
 

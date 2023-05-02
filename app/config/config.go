@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
 	"github.com/umputun/simplotask/app/config/deepcopy"
@@ -19,11 +20,11 @@ import (
 
 // PlayBook defines top-level config yaml
 type PlayBook struct {
-	User      string            `yaml:"user"`      // ssh user
-	SSHKey    string            `yaml:"ssh_key"`   // ssh key
-	Inventory string            `yaml:"inventory"` // inventory file or url
-	Targets   map[string]Target `yaml:"targets"`   // list of targets/environments
-	Tasks     []Task            `yaml:"tasks"`     // list of tasks
+	User      string            `yaml:"user" toml:"user"`           // ssh user
+	SSHKey    string            `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
+	Inventory string            `yaml:"inventory" toml:"inventory"` // inventory file or url
+	Targets   map[string]Target `yaml:"targets" toml:"targets"`     // list of targets/environments
+	Tasks     []Task            `yaml:"tasks" toml:"tasks"`         // list of tasks
 
 	inventory *InventoryData // loaded inventory
 	overrides *Overrides     // overrides passed from cli
@@ -31,71 +32,71 @@ type PlayBook struct {
 
 // Target defines hosts to run commands on
 type Target struct {
-	Name   string        `yaml:"name"`
-	Hosts  []Destination `yaml:"hosts"`  // direct list of hosts to run commands on, no need to use inventory
-	Groups []string      `yaml:"groups"` // list of groups to run commands on, matches to inventory
-	Names  []string      `yaml:"names"`  // list of host names to run commands on, matches to inventory
+	Name   string        `yaml:"name" toml:"name"`     // name of target
+	Hosts  []Destination `yaml:"hosts" toml:"hosts"`   // direct list of hosts to run commands on, no need to use inventory
+	Groups []string      `yaml:"groups" toml:"groups"` // list of groups to run commands on, matches to inventory
+	Names  []string      `yaml:"names" toml:"names"`   // list of host names to run commands on, matches to inventory
 }
 
 // Task defines multiple commands runs together
 type Task struct {
-	Name     string // name of target, set by config caller
-	User     string `yaml:"user"`
-	SSHKey   string `yaml:"ssh_key"`
-	Commands []Cmd  `yaml:"commands"`
-	OnError  string `yaml:"on_error"`
+	Name     string `yaml:"name" toml:"name"` // name of target, set by config caller
+	User     string `yaml:"user" toml:"user"`
+	SSHKey   string `yaml:"ssh_key" toml:"ssh_key"`
+	Commands []Cmd  `yaml:"commands" toml:"commands"`
+	OnError  string `yaml:"on_error" toml:"on_error"`
 }
 
 // Cmd defines a single command
 type Cmd struct {
-	Name        string            `yaml:"name"`
-	Copy        CopyInternal      `yaml:"copy"`
-	Sync        SyncInternal      `yaml:"sync"`
-	Delete      DeleteInternal    `yaml:"delete"`
-	Wait        WaitInternal      `yaml:"wait"`
-	Script      string            `yaml:"script"`
-	Environment map[string]string `yaml:"env"`
+	Name        string            `yaml:"name" toml:"name"`
+	Copy        CopyInternal      `yaml:"copy" toml:"copy"`
+	Sync        SyncInternal      `yaml:"sync" toml:"sync"`
+	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
+	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
+	Script      string            `yaml:"script" toml:"script,multiline"`
+	Environment map[string]string `yaml:"env" toml:"env"`
 	Options     struct {
-		IgnoreErrors bool `yaml:"ignore_errors"`
-		NoAuto       bool `yaml:"no_auto"`
-		Local        bool `yaml:"local"`
-	} `yaml:"options"`
+		IgnoreErrors bool `yaml:"ignore_errors" toml:"ignore_errors"`
+		NoAuto       bool `yaml:"no_auto" toml:"no_auto"`
+		Local        bool `yaml:"local" toml:"local"`
+	} `yaml:"options" toml:"options,omitempty"`
 }
 
 // Destination defines destination info
 type Destination struct {
-	Name string   `yaml:"name"`
-	Host string   `yaml:"host"`
-	Port int      `yaml:"port"`
-	User string   `yaml:"user"`
-	Tags []string `yaml:"tags"`
+	Name string   `yaml:"name" toml:"name"`
+	Host string   `yaml:"host" toml:"host"`
+	Port int      `yaml:"port" toml:"port"`
+	User string   `yaml:"user" toml:"user"`
+	Tags []string `yaml:"tags" toml:"tags"`
 }
 
 // CopyInternal defines copy command, implemented internally
 type CopyInternal struct {
-	Source string `yaml:"src"`
-	Dest   string `yaml:"dst"`
-	Mkdir  bool   `yaml:"mkdir"`
+	Source string `yaml:"src" toml:"src"`
+	Dest   string `yaml:"dst" toml:"dst"`
+	Mkdir  bool   `yaml:"mkdir" toml:"mkdir"`
 }
 
 // SyncInternal defines sync command (recursive copy), implemented internally
 type SyncInternal struct {
-	Source string `yaml:"src"`
-	Dest   string `yaml:"dst"`
-	Delete bool   `yaml:"delete"`
+	Source string `yaml:"src" toml:"src"`
+	Dest   string `yaml:"dst" toml:"dst"`
+	Delete bool   `yaml:"delete" toml:"delete"`
 }
 
 // DeleteInternal defines delete command, implemented internally
 type DeleteInternal struct {
-	Location  string `yaml:"path"`
-	Recursive bool   `yaml:"recur"`
+	Location  string `yaml:"path" toml:"path"`
+	Recursive bool   `yaml:"recur" toml:"recur"`
 }
 
 // WaitInternal defines wait command, implemented internally
 type WaitInternal struct {
-	Timeout       time.Duration `yaml:"timeout"`
-	CheckDuration time.Duration `yaml:"interval"`
-	Command       string        `yaml:"cmd"`
+	Timeout       time.Duration `yaml:"timeout" toml:"timeout"`
+	CheckDuration time.Duration `yaml:"interval" toml:"interval"`
+	Command       string        `yaml:"cmd" toml:"cmd,multiline"`
 }
 
 // Overrides defines override for task passed from cli
@@ -108,8 +109,8 @@ type Overrides struct {
 
 // InventoryData defines inventory data format
 type InventoryData struct {
-	Groups map[string][]Destination `yaml:"groups"`
-	Hosts  []Destination            `yaml:"hosts"`
+	Groups map[string][]Destination `yaml:"groups" toml:"groups"`
+	Hosts  []Destination            `yaml:"hosts" toml:"hosts"`
 }
 
 const allHostsGrp = "all"
@@ -141,8 +142,17 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
 	}
 
-	if err = yaml.Unmarshal(data, res); err != nil {
-		return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+	switch {
+	case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
+		if err = yaml.Unmarshal(data, res); err != nil {
+			return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+		}
+	case strings.HasSuffix(fname, ".toml"):
+		if err = toml.Unmarshal(data, res); err != nil {
+			return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+		}
+	default:
+		return nil, fmt.Errorf("unknown config format %s", fname)
 	}
 
 	if err = res.checkConfig(); err != nil {
@@ -408,8 +418,15 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 	defer rdr.Close() // nolint
 
 	var data InventoryData
-	if err := yaml.NewDecoder(rdr).Decode(&data); err != nil {
-		return nil, fmt.Errorf("inventory decoder failed: %w", err)
+	if !strings.HasSuffix(loc, ".toml") {
+		// we assume it is yaml. Can't do strict check, as we can have urls unrelated to file extension
+		if err = yaml.NewDecoder(rdr).Decode(&data); err != nil {
+			return nil, fmt.Errorf("can't parse inventory %s: %w", loc, err)
+		}
+	} else {
+		if err = toml.NewDecoder(rdr).Decode(&data); err != nil {
+			return nil, fmt.Errorf("can't parse inventory %s: %w", loc, err)
+		}
 	}
 
 	if len(data.Groups) > 0 {
