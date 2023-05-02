@@ -429,6 +429,10 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 		}
 	}
 
+	if len(data.Groups[allHostsGrp]) > 0 {
+		return nil, fmt.Errorf("group %q is reserved for all hosts", allHostsGrp)
+	}
+
 	if len(data.Groups) > 0 {
 		// create group "all" with all hosts from all groups
 		data.Groups[allHostsGrp] = []Destination{}

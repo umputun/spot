@@ -556,3 +556,25 @@ hosts:
 		})
 	}
 }
+
+func TestPlayBook_loadInventoryWitAllGroup(t *testing.T) {
+	// create temporary inventory files
+	yamlData := []byte(`
+groups:
+  all:
+    - host: example.com
+      port: 22
+  group2:
+    - host: another.com
+hosts:
+  - {host: one.example.com, port: 2222}
+`)
+
+	yamlFile, _ := os.CreateTemp("", "inventory-*.yaml")
+	defer os.Remove(yamlFile.Name())
+	_ = os.WriteFile(yamlFile.Name(), yamlData, 0o644)
+
+	p := &PlayBook{User: "testuser"}
+	_, err := p.loadInventory(yamlFile.Name())
+	require.EqualError(t, err, `group "all" is reserved for all hosts`)
+}
