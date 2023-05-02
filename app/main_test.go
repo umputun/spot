@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -328,6 +329,33 @@ func TestAdHocConf(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
+}
+
+func TestExpandPath(t *testing.T) {
+	testCases := []struct {
+		name         string
+		input        string
+		expectedPath string
+		expectedErr  error
+	}{
+		{"expand absolute path", "/home/testuser/myfile.txt", "/home/testuser/myfile.txt", nil},
+		{"expand relative path", "testdata/myfile.txt", "testdata/myfile.txt", nil},
+		{"expand tilde path", "~/myfile.txt", filepath.Join(os.Getenv("HOME"), "myfile.txt"), nil},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// replace the tilde with the home directory
+			if strings.HasPrefix(tc.input, "~/") {
+				tc.input = filepath.Join(os.Getenv("HOME"), tc.input[2:])
+			}
+
+			// call expandPath with the modified input
+			p, err := expandPath(tc.input)
+			require.Equal(t, tc.expectedErr, err)
+			assert.Equal(t, tc.expectedPath, p)
+		})
+	}
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {

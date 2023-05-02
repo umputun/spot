@@ -91,16 +91,26 @@ func run(opts options) error {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	exInventory, err := expandPath(opts.Inventory)
+	if err != nil {
+		return fmt.Errorf("can't expand inventory path %q: %w", exInventory, err)
+	}
+
 	overrides := config.Overrides{
-		Inventory:    opts.Inventory,
+		Inventory:    exInventory,
 		Environment:  opts.Env,
 		User:         opts.SSHUser,
 		AdHocCommand: opts.PositionalArgs.AdHocCmd,
 	}
 
-	conf, err := config.New(opts.PlaybookFile, &overrides)
+	exPlaybookFile, err := expandPath(opts.PlaybookFile)
 	if err != nil {
-		return fmt.Errorf("can't read config: %w", err)
+		return fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
+	}
+
+	conf, err := config.New(exPlaybookFile, &overrides)
+	if err != nil {
+		return fmt.Errorf("can't read config %s: %w", exPlaybookFile, err)
 	}
 
 	if opts.PositionalArgs.AdHocCmd != "" {
@@ -168,18 +178,6 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 }
 
 func sshKey(opts options, conf *config.PlayBook) (key string) {
-	expandPath := func(path string) (string, error) {
-		if strings.HasPrefix(path, "~") {
-			usr, err := user.Current()
-			if err != nil {
-				return "", err
-			}
-			home := usr.HomeDir
-			return filepath.Join(home, path[1:]), nil
-		}
-		return path, nil
-	}
-
 	sshKey := opts.SSHKey
 	if sshKey == "" && (conf == nil || conf.SSHKey != "") {
 		sshKey = conf.SSHKey // default to config key
@@ -188,6 +186,18 @@ func sshKey(opts options, conf *config.PlayBook) (key string) {
 		sshKey = p
 	}
 	return sshKey
+}
+
+func expandPath(path string) (string, error) {
+	if strings.HasPrefix(path, "~") {
+		usr, err := user.Current()
+		if err != nil {
+			return "", err
+		}
+		home := usr.HomeDir
+		return filepath.Join(home, path[1:]), nil
+	}
+	return path, nil
 }
 
 type userInfoProvider interface {
