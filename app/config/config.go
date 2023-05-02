@@ -288,7 +288,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		}
 		if len(t.Groups) > 0 {
 			// target is group, get hosts from inventory
-			if p.inventory == nil {
+			if p.inventory == nil && len(t.Hosts) == 0 { // if inventory is not loaded and target has no hosts, return error
 				return nil, fmt.Errorf("inventory is not loaded")
 			}
 			for _, g := range t.Groups {
