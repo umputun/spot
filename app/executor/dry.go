@@ -44,11 +44,11 @@ func (ex *Dry) Upload(_ context.Context, local, remote string, mkdir bool) (err 
 		outLog, outErr := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, true)
 		outErr.Write([]byte("command script " + remote)) //nolint
 		// read local file and write it to outLog
-		f, err := os.Open(local)
+		f, err := os.Open(local) //nolint
 		if err != nil {
 			return err
 		}
-		defer f.Close()
+		defer f.Close() //nolint ro file
 
 		scanner := bufio.NewScanner(f)
 		for scanner.Scan() {

@@ -70,7 +70,7 @@ func main() {
 
 	if opts.Dry {
 		msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
-		fmt.Printf(msg)
+		fmt.Print(msg)
 	}
 
 	if err := run(opts); err != nil {

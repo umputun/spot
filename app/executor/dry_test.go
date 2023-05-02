@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"testing"
@@ -23,12 +22,12 @@ func TestDry_Run(t *testing.T) {
 }
 
 func TestDryUpload(t *testing.T) {
-	tempFile, err := ioutil.TempFile("", "spot-script")
+	tempFile, err := os.CreateTemp("", "spot-script")
 	require.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
 	content := "line1\nline2\nline3\n"
-	_, err = tempFile.Write([]byte(content))
+	_, err = tempFile.WriteString(content)
 	require.NoError(t, err)
 	tempFile.Close()
 
