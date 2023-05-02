@@ -212,9 +212,11 @@ Targets are used to define the remote hosts to execute the tasks on. Targets can
 
 - `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: "test", name: "h1}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override) will be used. If no port is specified, port 22 will be used.
 - `groups`: a list of groups from inventory to use. Example: `groups: ["dev", "staging"}`. Special group `all` combines all the groups. The [inventory file](#inventory-file-format) contains a list of hosts and groups with hosts.
+- `names`: a list of names of hosts from inventory to use. Example: `names: ["h1", "h2"]`.
 
+All the target types can be combined, i.e. `hosts` and `groups` and `hosts` and `names` all can be used together in the same target. To avoid possible duplicates of the hosts, the final list of hosts is deduplicated by the host+ip+user. 
 
-Targets contains environments each of which represents a set of hosts, for example:
+example of targets in the playbook file:
 
 ```yaml
 targets:
@@ -224,6 +226,7 @@ targets:
     groups: ["staging"]
   dev:
     groups: ["dev", "staging"]
+    names: ["host1", "host2"]
   all-servers:
     groups: ["all"]
 ```

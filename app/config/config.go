@@ -34,6 +34,7 @@ type Target struct {
 	Name   string        `yaml:"name"`
 	Hosts  []Destination `yaml:"hosts"`  // direct list of hosts to run commands on, no need to use inventory
 	Groups []string      `yaml:"groups"` // list of groups to run commands on, matches to inventory
+	Names  []string      `yaml:"names"`  // list of host names to run commands on, matches to inventory
 }
 
 // Task defines multiple commands runs together
@@ -111,6 +112,8 @@ type InventoryData struct {
 	Hosts  []Destination            `yaml:"hosts"`
 }
 
+const allHostsGrp = "all"
+
 // New makes new config from yml
 func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	res = &PlayBook{
@@ -168,7 +171,7 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 		}
 	}
 	if len(res.inventory.Groups) > 0 { // even with hosts only it will make a group "all"
-		log.Printf("[INFO] inventory loaded with %d hosts", len(res.inventory.Groups["all"]))
+		log.Printf("[INFO] inventory loaded with %d hosts", len(res.inventory.Groups[allHostsGrp]))
 	}
 
 	return res, nil
@@ -279,26 +282,41 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 	t, ok := p.Targets[name] // get target from playbook
 	if ok {
-		res := []Destination{}
-		// we have found target in playbook, check it is host or group
-		if len(t.Hosts) > 0 {
-			// target is hosts, return them
-			res = append(res, t.Hosts...)
-			// we don't return here, as we may have hosts and groups in target
+		if len(t.Hosts) == 0 && len(t.Names) == 0 && len(t.Groups) == 0 {
+			return nil, fmt.Errorf("target %q has no hosts, names or groups", name)
 		}
-		if len(t.Groups) > 0 {
-			// target is group, get hosts from inventory
-			if p.inventory == nil && len(t.Hosts) == 0 { // if inventory is not loaded and target has no hosts, return error
-				return nil, fmt.Errorf("inventory is not loaded")
+		// we have found target in playbook, process hosts, names and group
+		res := []Destination{}
+
+		if len(t.Hosts) > 0 {
+			// target has "hosts", use all of them as is
+			res = append(res, t.Hosts...)
+		}
+
+		if len(t.Names) > 0 && p.inventory != nil {
+			// target has "names", match them to "all" group in inventory by name
+			for _, n := range t.Names {
+				for _, h := range p.inventory.Groups[allHostsGrp] {
+					if strings.EqualFold(h.Name, n) {
+						res = append(res, h)
+						break
+					}
+				}
 			}
+		}
+
+		if len(t.Groups) > 0 && p.inventory != nil {
+			// target has "groups", get all hosts from inventory for each group
 			for _, g := range t.Groups {
 				// we don't set default port and user here, as they are set in inventory already
 				res = append(res, p.inventory.Groups[g]...)
 			}
 		}
+
 		if len(res) == 0 {
-			return nil, fmt.Errorf("target %q has no hosts or groups", name)
+			return nil, fmt.Errorf("hosts for target %q not found", name)
 		}
+
 		return res, nil
 	}
 
@@ -314,7 +332,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 
 	// try as a tag in inventory
 	res := []Destination{}
-	for _, h := range p.inventory.Groups["all"] {
+	for _, h := range p.inventory.Groups[allHostsGrp] {
 		if len(h.Tags) == 0 {
 			continue
 		}
@@ -329,14 +347,14 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 	}
 
 	// try as single host name in inventory
-	for _, h := range p.inventory.Groups["all"] {
+	for _, h := range p.inventory.Groups[allHostsGrp] {
 		if strings.EqualFold(h.Name, name) {
 			return []Destination{h}, nil
 		}
 	}
 
 	// try as a single host address in inventory
-	for _, h := range p.inventory.Groups["all"] {
+	for _, h := range p.inventory.Groups[allHostsGrp] {
 		if strings.EqualFold(h.Host, name) {
 			return []Destination{h}, nil
 		}
@@ -361,27 +379,33 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 // as well and also to their own group.
 func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 
-	// get reader for inventory file or url
-	var rdr io.Reader
-	if strings.HasPrefix(loc, "http") { // location is a url
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Get(loc)
-		if err != nil {
-			return nil, fmt.Errorf("can't get inventory from http %s: %w", loc, err)
+	reader := func(loc string) (r io.ReadCloser, err error) {
+		// get reader for inventory file or url
+		switch {
+		case strings.HasPrefix(loc, "http"): // location is a url
+			client := &http.Client{Timeout: 10 * time.Second}
+			resp, err := client.Get(loc)
+			if err != nil {
+				return nil, fmt.Errorf("can't get inventory from http %s: %w", loc, err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("can't get inventory from http %s, status: %s", loc, resp.Status)
+			}
+			return resp.Body, nil
+		default: // location is a file
+			f, err := os.Open(loc) // nolint
+			if err != nil {
+				return nil, fmt.Errorf("can't open inventory file %s: %w", loc, err)
+			}
+			return f, nil
 		}
-		defer resp.Body.Close() // nolint
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("can't get inventory from http %s, status: %s", loc, resp.Status)
-		}
-		rdr = resp.Body
-	} else { // location is a file
-		f, err := os.Open(loc) // nolint
-		if err != nil {
-			return nil, fmt.Errorf("can't open inventory file %s: %w", loc, err)
-		}
-		defer f.Close() // nolint
-		rdr = f
 	}
+
+	rdr, err := reader(loc) // inventory reader, has to be closed
+	if err != nil {
+		return nil, err
+	}
+	defer rdr.Close() // nolint
 
 	var data InventoryData
 	if err := yaml.NewDecoder(rdr).Decode(&data); err != nil {
@@ -390,12 +414,12 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 
 	if len(data.Groups) > 0 {
 		// create group "all" with all hosts from all groups
-		data.Groups["all"] = []Destination{}
+		data.Groups[allHostsGrp] = []Destination{}
 		for key, g := range data.Groups {
 			if key == "all" {
 				continue
 			}
-			data.Groups["all"] = append(data.Groups["all"], g...)
+			data.Groups[allHostsGrp] = append(data.Groups[allHostsGrp], g...)
 		}
 	}
 	if len(data.Hosts) > 0 {
@@ -403,24 +427,24 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 		if data.Groups == nil {
 			data.Groups = make(map[string][]Destination)
 		}
-		if _, ok := data.Groups["all"]; !ok {
-			data.Groups["all"] = []Destination{}
+		if _, ok := data.Groups[allHostsGrp]; !ok {
+			data.Groups[allHostsGrp] = []Destination{}
 		}
-		data.Groups["all"] = append(data.Groups["all"], data.Hosts...)
+		data.Groups[allHostsGrp] = append(data.Groups[allHostsGrp], data.Hosts...)
 	}
-	sort.Slice(data.Groups["all"], func(i, j int) bool {
-		return data.Groups["all"][i].Host < data.Groups["all"][j].Host
+	// sort hosts in group "all" by host name, for predictable order in the test and in the processing
+	sort.Slice(data.Groups[allHostsGrp], func(i, j int) bool {
+		return data.Groups[allHostsGrp][i].Host < data.Groups[allHostsGrp][j].Host
 	})
 
 	// set default port and user if not set for inventory groups
-	// note: we don't care about hosts anymore, they are used only for parsing and are not used in the playbook directly
 	for _, gr := range data.Groups {
 		for i := range gr {
 			if gr[i].Port == 0 {
 				gr[i].Port = 22 // default port is 22 if not set
 			}
 			if gr[i].User == "" {
-				gr[i].User = p.User // default user is playbook's user or override, if not set
+				gr[i].User = p.User // default user is playbook's user or override, if not set by inventory
 			}
 		}
 	}
