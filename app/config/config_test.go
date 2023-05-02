@@ -321,7 +321,6 @@ func TestCmd_getScriptFile(t *testing.T) {
 }
 
 func TestTargetHosts(t *testing.T) {
-
 	p := &PlayBook{
 		User: "defaultuser",
 		Targets: map[string]Target{
@@ -330,6 +329,7 @@ func TestTargetHosts(t *testing.T) {
 			"target3": {Name: "target3", Groups: []string{"group1"},
 				Hosts: []Destination{{Host: "host4.example.com", Port: 22, Name: "host4", Tags: []string{"tag4"}, User: "user4"}},
 			},
+			"target4": {Name: "target4", Groups: []string{"group1"}, Names: []string{"host3"}},
 		},
 		inventory: &InventoryData{
 			Groups: map[string][]Destination{
@@ -371,6 +371,13 @@ func TestTargetHosts(t *testing.T) {
 			[]Destination{
 				{Name: "host4", Host: "host4.example.com", Port: 22, User: "user4", Tags: []string{"tag4"}},
 				{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
+			false,
+		},
+		{
+			"target with both group and name", "target4", nil,
+			[]Destination{
+				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}},
+				{Name: "host2", Host: "host2.example.com", Port: 2222, User: "defaultuser", Tags: []string{"tag1"}}},
 			false,
 		},
 		{
