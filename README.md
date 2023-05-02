@@ -20,6 +20,8 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 - Skip or execute only specific commands.
 - Catch errors and execute a command hook on the local host.
 - Debug mode to print out the commands to be executed, output of the commands, and all the other details.
+- Dry-run mode to print out the commands to be executed without actually executing them.
+- Ad-hoc mode to execute a single command on a list of hosts.
 - A single binary with no dependencies.
 ----
 
