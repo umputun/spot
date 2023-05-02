@@ -35,7 +35,7 @@ type options struct {
 	SSHTimeout   time.Duration `long:"timeout" description:"ssh timeout" default:"30s"`
 
 	// overrides
-	Inventory string            `short:"i" long:"inventory" description:"inventory file or url"`
+	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
 	SSHUser   string            `short:"u" long:"user" description:"ssh user"`
 	SSHKey    string            `short:"k" long:"key" description:"ssh key"`
 	Env       map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
