@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -60,9 +61,11 @@ func (cmd *Cmd) GetScript() (string, io.Reader) {
 
 	elems := strings.Split(cmd.Script, "\n")
 	if len(elems) > 1 {
+		log.Printf("[DEBUG] command %q is multiline, using script file", cmd.Name)
 		return "", cmd.getScriptFile()
 	}
 
+	log.Printf("[DEBUG] command %q is single line, using script string", cmd.Name)
 	return cmd.getScriptCommand(), nil
 }
 

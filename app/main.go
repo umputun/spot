@@ -127,6 +127,7 @@ func run(opts options) error {
 	if err != nil {
 		return fmt.Errorf("can't get ssh key: %w", err)
 	}
+	log.Printf("[INFO] ssh key: %s", sshKey)
 
 	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout)
 	if err != nil {

@@ -81,10 +81,14 @@ type InventoryData struct {
 	Hosts  []Destination            `yaml:"hosts" toml:"hosts"`
 }
 
-const allHostsGrp = "all"
+const (
+	allHostsGrp  = "all"
+	inventoryEnv = "SPOT_INVENTORY"
+)
 
 // New makes new config from yml
 func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
+	log.Printf("[DEBUG] request to load playbook %q", fname)
 	res = &PlayBook{
 		overrides: overrides,
 		inventory: &InventoryData{Groups: make(map[string][]Destination)},
@@ -93,9 +97,10 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	// load playbook
 	data, err := os.ReadFile(fname) // nolint
 	if err != nil {
+		log.Printf("[DEBUG] no playbook file %s found", fname)
 		if overrides != nil && overrides.AdHocCommand != "" {
 			// no config file but adhoc set, just return empty config with overrides
-			inventoryLoc := os.Getenv("SPOT_INVENTORY") // default inventory location from env
+			inventoryLoc := os.Getenv(inventoryEnv) // default inventory location from env
 			if overrides.Inventory != "" {
 				inventoryLoc = overrides.Inventory // inventory set in cli overrides
 			}
@@ -104,6 +109,9 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 				if err != nil {
 					return nil, fmt.Errorf("can't load inventory %s: %w", overrides.Inventory, err)
 				}
+				log.Printf("[INFO] inventory loaded from %s with %d hosts", inventoryLoc, len(res.inventory.Groups[allHostsGrp]))
+			} else {
+				log.Printf("[INFO] no inventory loaded")
 			}
 			return res, nil
 		}
@@ -127,7 +135,7 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	}
 
 	// load inventory if set
-	inventoryLoc := os.Getenv("SPOT_INVENTORY") // default inventory location from env
+	inventoryLoc := os.Getenv(inventoryEnv) // default inventory location from env
 	if res.Inventory != "" {
 		inventoryLoc = res.Inventory // inventory set in playbook
 	}
@@ -142,6 +150,8 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	}
 	if len(res.inventory.Groups) > 0 { // even with hosts only it will make a group "all"
 		log.Printf("[INFO] inventory loaded with %d hosts", len(res.inventory.Groups[allHostsGrp]))
+	} else {
+		log.Printf("[INFO] no inventory loaded")
 	}
 
 	return res, nil
@@ -319,12 +329,14 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		if len(t.Hosts) == 0 && len(t.Names) == 0 && len(t.Groups) == 0 && len(t.Tags) == 0 {
 			return nil, fmt.Errorf("target %q has no hosts, names, tags or groups", name)
 		}
+		log.Printf("[DEBUG] target %q found in playbook", name)
 		// we have found target in playbook, process hosts, names and group
 		res := []Destination{}
 
 		if len(t.Hosts) > 0 {
 			// target has "hosts", use all of them as is
 			res = append(res, t.Hosts...)
+			log.Printf("[DEBUG] target %q has %d hosts: %+v", name, len(t.Hosts), t.Hosts)
 		}
 
 		if len(t.Names) > 0 && p.inventory != nil {
@@ -333,6 +345,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 				for _, h := range p.inventory.Groups[allHostsGrp] {
 					if strings.EqualFold(h.Name, n) {
 						res = append(res, h)
+						log.Printf("[DEBUG] target %q found name match %+v", name, h)
 						break
 					}
 				}
@@ -344,6 +357,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 			for _, g := range t.Groups {
 				// we don't set default port and user here, as they are set in inventory already
 				res = append(res, p.inventory.Groups[g]...)
+				log.Printf("[DEBUG] target %q found group match %+v", name, p.inventory.Groups[g])
 			}
 		}
 
@@ -357,6 +371,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 					for _, t := range h.Tags {
 						if strings.EqualFold(t, tag) {
 							res = append(res, h)
+							log.Printf("[DEBUG] target %q found tag match %+v", name, h)
 						}
 					}
 				}
@@ -366,17 +381,19 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		if len(res) == 0 {
 			return nil, fmt.Errorf("hosts for target %q not found", name)
 		}
-
+		log.Printf("[DEBUG] target %q has %d total hosts: %+v", name, len(res), res)
 		return res, nil
 	}
 
 	// target not defined in playbook
+	log.Printf("[DEBUG] target %q not found in playbook", name)
 
 	// try first as group in inventory
 	hosts, ok := p.inventory.Groups[name]
 	if ok {
 		res := make([]Destination, len(hosts))
 		copy(res, hosts)
+		log.Printf("[DEBUG] target %q found as group in inventory: %+v", name, res)
 		return res, nil
 	}
 
@@ -393,12 +410,14 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		}
 	}
 	if len(res) > 0 {
+		log.Printf("[DEBUG] target %q found as tag in inventory: %+v", name, res)
 		return res, nil
 	}
 
 	// try as single host name in inventory
 	for _, h := range p.inventory.Groups[allHostsGrp] {
 		if strings.EqualFold(h.Name, name) {
+			log.Printf("[DEBUG] target %q found as name in inventory: %+v", name, h)
 			return []Destination{h}, nil
 		}
 	}
@@ -406,6 +425,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 	// try as a single host address in inventory
 	for _, h := range p.inventory.Groups[allHostsGrp] {
 		if strings.EqualFold(h.Host, name) {
+			log.Printf("[DEBUG] target %q found as host in inventory: %+v", name, h)
 			return []Destination{h}, nil
 		}
 	}
@@ -417,10 +437,12 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
+		log.Printf("[DEBUG] target %q found as host:port %s:%d", name, elems[0], port)
 		return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil
 	}
 
 	// finally we assume it is a host name, with default port 22
+	log.Printf("[DEBUG] target %q found as host:22 %s", name, name)
 	return []Destination{{Host: name, Port: 22, User: p.User}}, nil
 }
 
