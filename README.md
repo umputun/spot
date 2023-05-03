@@ -189,7 +189,6 @@ Each task consists of a list of commands that will be executed on the remote hos
 
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
-- `ssh_key`: specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the top section of playbook file for the specified task.
 
 **Note: these fields supported in the full playbook type only**
 
