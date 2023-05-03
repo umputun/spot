@@ -37,7 +37,7 @@ func TestProcess_Run(t *testing.T) {
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
-	assert.Equal(t, 6, res.Commands)
+	assert.Equal(t, 7, res.Commands)
 	assert.Equal(t, 1, res.Hosts)
 }
 
@@ -82,7 +82,7 @@ func TestProcess_RunDry(t *testing.T) {
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
-	assert.Equal(t, 6, res.Commands)
+	assert.Equal(t, 7, res.Commands)
 	assert.Equal(t, 1, res.Hosts)
 }
 
@@ -151,7 +151,7 @@ func TestProcess_RunSkip(t *testing.T) {
 	}
 	res, err := p.Run(ctx, "task1", hostAndPort)
 	require.NoError(t, err)
-	assert.Equal(t, 4, res.Commands)
+	assert.Equal(t, 5, res.Commands)
 	assert.Equal(t, 1, res.Hosts)
 }
 

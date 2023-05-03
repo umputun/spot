@@ -14,6 +14,7 @@ import (
 type Cmd struct {
 	Name        string            `yaml:"name" toml:"name"`
 	Copy        CopyInternal      `yaml:"copy" toml:"copy"`
+	MCopy       []CopyInternal    `yaml:"mcopy" toml:"mcopy"`
 	Sync        SyncInternal      `yaml:"sync" toml:"sync"`
 	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
