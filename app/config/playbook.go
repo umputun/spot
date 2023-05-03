@@ -111,14 +111,15 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
 	}
 
-	if e := unmarshalConfig(fname, data, res); e != nil {
-		return nil, e
+	if err = unmarshalPlaybookFile(fname, data, res); err != nil {
+		return nil, fmt.Errorf("can't unmarshal config: %w", err)
 	}
 
 	if err = res.checkConfig(); err != nil {
 		return nil, fmt.Errorf("config %s is invalid: %w", fname, err)
 	}
 
+	// log loaded config info
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
 	for _, tsk := range res.Tasks {
 		for _, c := range tsk.Commands {
@@ -147,13 +148,14 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	return res, nil
 }
 
-// unmarshalConfig is trying to parse config from data.
+// unmarshalPlaybookFile is trying to parse playbook from the data bytes.
 // It will try to guess format by file extension or use yaml as toml.
 // First it will try to unmarshal to a complete PlayBook struct, if it fails,
 // it will try to unmarshal to a SimplePlayBook struct and convert it to a complete PlayBook struct.
-func unmarshalConfig(fname string, data []byte, res *PlayBook) (err error) {
+func unmarshalPlaybookFile(fname string, data []byte, res *PlayBook) (err error) {
 
 	unmarshal := func(data []byte, v interface{}) error {
+		// try to unmarshal yml first and then toml
 		switch {
 		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
 			if err = yaml.Unmarshal(data, v); err != nil {
@@ -192,8 +194,8 @@ func unmarshalConfig(fname string, data []byte, res *PlayBook) (err error) {
 		// success, this is SimplePlayBook config, convert it to full PlayBook config
 		res.Inventory = simple.Inventory
 		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
-		res.Tasks[0].Name = "default"
-		target := Target{Names: simple.Targets} // set as names to match inventory
+		res.Tasks[0].Name = "default"               // we have only one task, set it as default
+		target := Target{Names: simple.Targets}     // set as names to match inventory
 		for _, t := range simple.Targets {
 			ip, port := splitIPAddress(t)
 			target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // also set as hosts
@@ -364,7 +366,7 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		return res, nil
 	}
 
-	// target not found in playbook
+	// target not defined in playbook
 
 	// try first as group in inventory
 	hosts, ok := p.inventory.Groups[name]
@@ -414,11 +416,11 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil
 	}
 
-	// we assume it is a host name, with default port 22
+	// finally we assume it is a host name, with default port 22
 	return []Destination{{Host: name, Port: 22, User: p.User}}, nil
 }
 
-// loadInventoryFile loads inventory from file and returns a struct with groups.
+// loadInventoryFile loads inventory from file or url and returns a struct with groups.
 // Hosts, if presented, are loaded to the group "all". All the other groups are loaded to "all"
 // as well and also to their own group.
 func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
@@ -445,7 +447,7 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 		}
 	}
 
-	rdr, err := reader(loc) // inventory reader, has to be closed
+	rdr, err := reader(loc) // inventory ReadCloser, has to be closed
 	if err != nil {
 		return nil, err
 	}
@@ -453,7 +455,7 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 
 	var data InventoryData
 	if !strings.HasSuffix(loc, ".toml") {
-		// we assume it is yaml. Can't do strict check, as we can have urls unrelated to file extension
+		// we assume it is yaml. Can't do strict check, as we can have urls without any extension
 		if err = yaml.NewDecoder(rdr).Decode(&data); err != nil {
 			return nil, fmt.Errorf("can't parse inventory %s: %w", loc, err)
 		}
@@ -487,12 +489,12 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 		}
 		data.Groups[allHostsGrp] = append(data.Groups[allHostsGrp], data.Hosts...)
 	}
-	// sort hosts in group "all" by host name, for predictable order in the test and in the processing
+	// sort hosts in group "all" by host name, for predictable order in tests and in the processing
 	sort.Slice(data.Groups[allHostsGrp], func(i, j int) bool {
 		return data.Groups[allHostsGrp][i].Host < data.Groups[allHostsGrp][j].Host
 	})
 
-	// set default port and user if not set for inventory groups
+	// set default port and user if not set for all inventory groups
 	for _, gr := range data.Groups {
 		for i := range gr {
 			if gr[i].Port == 0 {
@@ -511,11 +513,11 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 func (p *PlayBook) checkConfig() error {
 	names := make(map[string]bool)
 	for i, t := range p.Tasks {
-		if t.Name == "" {
+		if t.Name == "" { // task name is required
 			log.Printf("[WARN] missing name for task #%d", i)
 			return fmt.Errorf("task name is required")
 		}
-		if names[t.Name] {
+		if names[t.Name] { // task name must be unique
 			log.Printf("[WARN] duplicate task name %q", t.Name)
 			return fmt.Errorf("duplicate task name %q", t.Name)
 		}
