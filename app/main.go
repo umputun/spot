@@ -68,7 +68,7 @@ func main() {
 
 	setupLog(opts.Dbg)
 
-	if opts.Dry {
+	if opts.Dry && !opts.Dbg {
 		msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
 		fmt.Print(msg)
 	}
@@ -113,13 +113,22 @@ func run(opts options) error {
 		return fmt.Errorf("can't read config %s: %w", exPlaybookFile, err)
 	}
 
+	if conf.User, err = sshUser(opts, conf, &defaultUserInfoProvider{}); err != nil {
+		return fmt.Errorf("can't get ssh user: %w", err)
+	}
+
 	if opts.PositionalArgs.AdHocCmd != "" {
 		if err = adHocConf(opts, conf, &defaultUserInfoProvider{}); err != nil {
 			return fmt.Errorf("can't setup ad-hoc config: %w", err)
 		}
 	}
 
-	connector, err := executor.NewConnector(sshKey(opts, conf), opts.SSHTimeout)
+	sshKey, err := sshKey(opts, conf, &defaultUserInfoProvider{})
+	if err != nil {
+		return fmt.Errorf("can't get ssh key: %w", err)
+	}
+
+	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout)
 	if err != nil {
 		return fmt.Errorf("can't create connector: %w", err)
 	}
@@ -177,15 +186,40 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 	return nil
 }
 
-func sshKey(opts options, conf *config.PlayBook) (key string) {
+// get ssh key from cli or playbook. if no key provided, use default ~/.ssh/id_rsa
+func sshKey(opts options, conf *config.PlayBook, provider userInfoProvider) (key string, err error) {
 	sshKey := opts.SSHKey
-	if sshKey == "" && (conf == nil || conf.SSHKey != "") {
-		sshKey = conf.SSHKey // default to config key
+	if sshKey == "" && (conf == nil || conf.SSHKey != "") { // no key provided in cli
+		sshKey = conf.SSHKey // use playbook's ssh_key
 	}
 	if p, err := expandPath(sshKey); err == nil {
 		sshKey = p
 	}
-	return sshKey
+
+	if sshKey == "" { // no key provided in cli or playbook
+		u, err := provider.Current()
+		if err != nil {
+			return "", fmt.Errorf("can't get current user: %w", err)
+		}
+		sshKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
+	}
+	return sshKey, nil
+}
+
+// get ssh user from cli or playbook. if no user provided, use current user from os
+func sshUser(opts options, conf *config.PlayBook, provider userInfoProvider) (user string, err error) {
+	sshUser := opts.SSHUser
+	if sshUser == "" && (conf == nil || conf.User != "") { // no user provided in cli
+		sshUser = conf.User // use playbook's user
+	}
+	if sshUser == "" { // no user provided in cli or playbook
+		u, err := provider.Current()
+		if err != nil {
+			return "", fmt.Errorf("can't get current user: %w", err)
+		}
+		sshUser = u.Username
+	}
+	return sshUser, nil
 }
 
 func expandPath(path string) (string, error) {
