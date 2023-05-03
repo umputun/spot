@@ -38,7 +38,7 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 - To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
 - To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
 
-<details>
+<details markdown>
   <summary>Screenshots</summary>
 
 - `spot` with playbook `spot.yml`: `spot -p spot.yml -d prod`
