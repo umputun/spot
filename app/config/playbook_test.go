@@ -113,9 +113,8 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, 5, len(c.Tasks[0].Commands), "5 commands")
 
 		assert.Equal(t, 1, len(c.Targets))
-		assert.Equal(t, []string{"name1", "name2", "127.0.0.1:2222"}, c.Targets["default"].Names)
-		assert.Equal(t, []Destination{{Host: "name1", Port: 22}, {Host: "name2", Port: 22}, {Host: "127.0.0.1", Port: 2222}},
-			c.Targets["default"].Hosts)
+		assert.Equal(t, []string{"name1", "name2"}, c.Targets["default"].Names)
+		assert.Equal(t, []Destination{{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
 }
 

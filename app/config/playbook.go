@@ -194,10 +194,15 @@ func unmarshalPlaybookFile(fname string, data []byte, res *PlayBook) (err error)
 		res.Inventory = simple.Inventory
 		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
 		res.Tasks[0].Name = "default"               // we have only one task, set it as default
-		target := Target{Names: simple.Targets}     // set as names to match inventory
+
+		target := Target{}
 		for _, t := range simple.Targets {
-			ip, port := splitIPAddress(t)
-			target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // also set as hosts
+			if strings.Contains(t, ":") {
+				ip, port := splitIPAddress(t)
+				target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // set as hosts in case of ip:port
+			} else {
+				target.Names = append(target.Names, t) // set as names in case of just name
+			}
 		}
 		res.Targets = map[string]Target{"default": target}
 		return nil
