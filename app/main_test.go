@@ -184,7 +184,7 @@ func Test_connectFailed(t *testing.T) {
 
 func Test_sshUserAndKey(t *testing.T) {
 
-	user, err := user.Current()
+	osUser, err := user.Current()
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -232,8 +232,8 @@ func Test_sshUserAndKey(t *testing.T) {
 					{Name: "test_task"},
 				},
 			},
-			expectedUser: user.Username,
-			expectedKey:  filepath.Join(user.HomeDir, ".ssh", "id_rsa"),
+			expectedUser: osUser.Username,
+			expectedKey:  filepath.Join(osUser.HomeDir, ".ssh", "id_rsa"),
 		},
 		{
 			name: "tilde expansion in key path",
@@ -259,9 +259,9 @@ func Test_sshUserAndKey(t *testing.T) {
 			key, err := sshKey(tc.opts, &tc.conf, &defaultUserInfoProvider{})
 			require.NoError(t, err, "sshKey should not return an error")
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
-			user, err := sshUser(tc.opts, &tc.conf, &defaultUserInfoProvider{})
+			sshUser, err := sshUser(tc.opts, &tc.conf, &defaultUserInfoProvider{})
 			require.NoError(t, err, "sshUser should not return an error")
-			assert.Equal(t, tc.expectedUser, user, "user should match expected user")
+			assert.Equal(t, tc.expectedUser, sshUser, "sshUser should match expected user")
 		})
 	}
 }

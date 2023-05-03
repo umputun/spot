@@ -207,7 +207,7 @@ func sshKey(opts options, conf *config.PlayBook, provider userInfoProvider) (key
 }
 
 // get ssh user from cli or playbook. if no user provided, use current user from os
-func sshUser(opts options, conf *config.PlayBook, provider userInfoProvider) (user string, err error) {
+func sshUser(opts options, conf *config.PlayBook, provider userInfoProvider) (res string, err error) {
 	sshUser := opts.SSHUser
 	if sshUser == "" && (conf == nil || conf.User != "") { // no user provided in cli
 		sshUser = conf.User // use playbook's user
