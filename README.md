@@ -328,7 +328,7 @@ in this example, the playbook will be executed on hosts named `host1` and `host2
 There are several ways to override or alter the target defined in the playbook file via command-line arguments:
 
 - `--inventory` set hosts from the provided inventory file or url. Example: `--inventory=inventory.yml` or `--inventory=http://localhost:8080/inventory`.
-- `--target` set groups from inventory or directly hosts to run playbook on. Example: `--target=prod` (will run on all hosts in group `prod`) or `--target=example.com:2222` (will run on host `example.com` with port `2222`).
+- `--target` set groups, names, tags from inventory or directly hosts to run playbook on. Example: `--target=prod` (will run on all hosts in group `prod`) or `--target=example.com:2222` (will run on host `example.com` with port `2222`).
 - `--user` set the ssh user to run the playbook on remote hosts. Example: `--user=test`.
 - `--key` set the ssh key to run the playbook on remote hosts. Example: `--key=/path/to/key`.
 
@@ -342,12 +342,12 @@ The target selection is done in the following order:
   - if no match found, Spot will try to match on tags in the inventory file.
   - if no match found, Spot will try to match on host name in the inventory file.
   - if no match found, Spot will try to match on host address in the playbook file.
-  - if no match found, Spot will use it as a host name.
-- if `--target` is not set, Spot will assume the `default` target.
+  - if no match found, Spot will use it as a host address.
+- if `--target` is not discovered, Spot will assume the `default` target.
 
 ### Inventory 
 
-The inventory file is a simple yml what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
+The inventory file is a simple yml (ot toml) what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
 
 By default, inventory loaded from the file/url set in `SPOT_INVENTORY` environment variable. This is the lowest priority and can be overridden by `inventory` from the playbook (next priority) and `--inventory` flag (highest priority)
 . 
