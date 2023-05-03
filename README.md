@@ -38,6 +38,22 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 - To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
 - To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
 
+<details>
+  <summary>Screenshots</summary>
+
+- `spot` with playbook `spot.yml`: `spot -p spot.yml -d prod`
+
+![spot-playbook](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook.jpg)
+
+- `spot` with the same playbook in dry mode: `spot -p spot.yml -d prod -v`
+
+![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook-dry.jpg)
+
+- `spot` ad-hoc command on given hosts: `spot "ls -la /tmp -d dev1.umputun.com -d dev2.umputun.com`
+
+![spot-adhoc](https://github.com/umputun/spot/raw/master/site/docs/screen-adhoc.jpg)
+</details>
+
 ## Options
 
 Spot supports the following command-line options:
