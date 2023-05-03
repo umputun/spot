@@ -210,8 +210,10 @@ func unmarshalPlaybookFile(fname string, data []byte, res *PlayBook) (err error)
 			if strings.Contains(t, ":") {
 				ip, port := splitIPAddress(t)
 				target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // set as hosts in case of ip:port
+				log.Printf("[DEBUG] set target host %s:%d", ip, port)
 			} else {
 				target.Names = append(target.Names, t) // set as names in case of just name
+				log.Printf("[DEBUG] set target name %s", t)
 			}
 		}
 		res.Targets = map[string]Target{"default": target}
