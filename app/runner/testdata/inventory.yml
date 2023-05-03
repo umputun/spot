@@ -1,0 +1,4 @@
+hosts:
+    - {host: host1.example.com}
+    - {host: host2.example.com, port: 2222}
+    - {host: host3.example.com, user: user2}

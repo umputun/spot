@@ -61,7 +61,7 @@ Spot supports the following command-line options:
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
 - `-h` `--help`: Displays the help message, listing all available command-line options.
 
-## Example playbook
+## Full playbook example
 
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
@@ -122,6 +122,66 @@ tasks:
 
 *Alternatively, the playbook can be represented using the TOML format.*
 
+## Simplified playbook example
+
+In some cases the rich syntax of the full playbook is not needed and can felt over-engineered and even overwhelming. For those situations, Spot supports a simplified playbook format, which is easier to read and write, but also more limited in its capabilities.
+
+
+```yaml
+user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
+ssh_key: keys/id_rsa                # ssh key
+inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
+
+target: ["devbox1", "devbox2", "h1.example.com:2222", "h2.example.com"] # list of host names from inventory and direct host ips
+
+# the actual list of commands to execute
+task:
+  - name: wait
+    script: sleep 5s
+  
+  - name: copy configuration
+    copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
+  
+  - name: sync things
+    sync: {"src": "testdata", "dst": "/tmp/things"}
+  
+  - name: some command
+    script: |
+      ls -laR /tmp
+      du -hcs /srv
+      cat /tmp/conf.yml
+      echo all good, 123
+  
+  - name: delete things
+    delete: {"path": "/tmp/things", "recur": true}
+  
+  - name: show content
+    script: ls -laR /tmp
+
+  - name: docker pull and start
+    script: |
+      docker pull umputun/remark42:latest
+      docker stop remark42 || true
+      docker rm remark42 || true
+      docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
+    env: {FOO: bar, BAR: qux} # set environment variables for the command
+    
+  - wait: {cmd: "curl -s localhost:8080/health", timeout: "10s", interval: "1s"} # wait for health check to pass
+
+```
+
+## Playbook Types
+
+Spot supports two types of playbooks: full and simplified. Both can be represented in either YAML or TOML format. The full playbook is more powerful and flexible but also more verbose and complex. The simplified playbook, on the other hand, is easier to read and write but has more limited capabilities.
+
+Here are the main differences between the two types of playbooks:
+
+- The full playbook supports multiple target sets, while the simplified playbook only supports a single target set. In other words, the full playbook can execute the same set of commands on multiple environments, with each environment defined as a separate target set. The simplified playbook can execute the same set of commands on just one environment.
+- The full playbook supports multiple tasks, while the simplified playbook only supports a single task. This means that the full playbook can execute multiple sets of commands, whereas the simplified playbook can only execute one set of commands.
+- The full playbook supports various target types, such as `hosts`, `groups`, and `names`, while the simplified playbook only supports a single type, which is a list of names or host addresses. See the [Targets](#targets) section for more details.
+- The simplified playbook does not support task-level `on_error`, `user`, and `ssh_key` fields, while the full playbook does. See the [Task details](#task-details) section for more information.
+
+Both types of playbooks support the remaining fields and options.
 
 ## Task details
 
@@ -129,7 +189,8 @@ Each task consists of a list of commands that will be executed on the remote hos
 
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
-- `ssh_key`: specifies the SSH key to use when connecting to remote hosts. Overrides the key defined in the top section of playbook file for the specified task.
+
+**Note: these fields supported in the full playbook type only**
 
 All tasks are executed sequentially one a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with missing `name` field will fail to execute immediately. Duplicate task names are not allowed either.
 
@@ -217,10 +278,11 @@ By using this approach, Spot enables users to write and execute more complex scr
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
 
 - `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: "test", name: "h1}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override) will be used. If no port is specified, port 22 will be used.
-- `groups`: a list of groups from inventory to use. Example: `groups: ["dev", "staging"}`. Special group `all` combines all the groups. The [inventory file](#inventory-file-format) contains a list of hosts and groups with hosts.
-- `names`: a list of names of hosts from inventory to use. Example: `names: ["h1", "h2"]`.
+- `groups`: a list of groups from inventory to use. Example: `groups: ["dev", "staging"}`. Special group `all` combines all the groups.
+- `tags`: a list of tags from inventory to use. Example: `tags: ["tag1", "tag2"}`.
+- `names`: a list of host names from inventory to use. Example: `names: ["host1", "host2"}`.
 
-All the target types can be combined, i.e. `hosts` and `groups` and `hosts` and `names` all can be used together in the same target. To avoid possible duplicates of the hosts, the final list of hosts is deduplicated by the host+ip+user. 
+All the target types can be combined, i.e. `hosts`, `groups`, `tags`, `hosts` and `names` all can be used together in the same target. To avoid possible duplicates, the final list of hosts is deduplicated by the host+ip+user. 
 
 example of targets in the playbook file:
 
@@ -237,9 +299,17 @@ targets:
     groups: ["all"]
 ```
 
+** Note: ** All the target types available in the full playbook file only. The simplified playbook file only supports a single, anonymous target type combining `hosts` and `names` together.
+
+```yaml
+targets: ["host1", "host2", "host3.example.com", "host4.example.com:2222"]
+```
+
+in this example, the playbook will be executed on hosts named `host1` and `host2` from the inventory and on hosts `host3.example.com` with port `22` and `host4.example.com` with port `2222`.
+
 ### Target overrides
 
-There are several ways to override or alter the target defined in the playbook file:
+There are several ways to override or alter the target defined in the playbook file via command-line arguments:
 
 - `--inventory` set hosts from the provided inventory file or url. Example: `--inventory=inventory.yml` or `--inventory=http://localhost:8080/inventory`.
 - `--target` set groups from inventory or directly hosts to run playbook on. Example: `--target=prod` (will run on all hosts in group `prod`) or `--target=example.com:2222` (will run on host `example.com` with port `2222`).
@@ -384,7 +454,18 @@ The project is currently in active development, and breaking changes may occur u
 
 ## Contributing
 
-Please feel free to submit issues, fork the repository, and send pull requests.
+Please feel free to open a discussion, submit issues, fork the repository, and send pull requests. We appreciate your contribution to the project and want to ensure a welcoming and productive environment for all contributors. To maintain a high-quality codebase, we ask that you follow these guidelines:
+
+- **Use GitHub Discussions**: If you have a question or want to discuss a topic that is not a bug report or feature request, please use the [GitHub Discussions](https://github.com/umputun/spot/discussions) feature for the project. This helps to keep the issue tracker focused on actionable items and provides a dedicated space for community discussions.
+- **Create an issue**: Before starting any work, please create an issue to discuss your proposal. This allows the community and maintainers to provide guidance and avoid duplication of efforts. When creating an issue, please provide a clear and concise description of the problem or feature you are proposing, along with any relevant details.
+- **Fork the repository**: Once you have discussed your proposal and received approval, fork the repository and create a branch with a descriptive name related to the issue you are addressing.
+- **Follow coding standards**: Write clean, maintainable code that adheres to the project's coding standards and style guidelines. Make sure to run `go fmt` on your code before committing to ensure consistent formatting.
+- **Write tests**: Ensure that your changes are well-tested. Add new tests for any new features or bug fixes, and ensure that all tests pass using go test before submitting a pull request.
+- **Update documentation**: If your changes involve modifications to the API or the addition of new features, make sure to update the relevant documentation accordingly. This includes comments in the code, user guides, and API documentation.
+- **Submit a pull request**: After you have committed and pushed your changes to your fork, submit a pull request to the main repository. Make sure to reference the related issue in the pull request description. A maintainer will review your changes and provide feedback. If necessary, make any requested changes and resubmit the pull request.
+- **Be patient**: Maintainers are volunteers and may not be able to review your pull request immediately. Please be patient and respectful while waiting for feedback.
+
+By following these guidelines, you help to ensure a smooth and efficient contribution process that benefits the entire community. Thank you for your interest in contributing to the project!
 
 ## License
 

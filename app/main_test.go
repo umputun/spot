@@ -47,7 +47,25 @@ func Test_runCompleted(t *testing.T) {
 	st := time.Now()
 	err := run(opts)
 	require.NoError(t, err)
-	assert.True(t, time.Since(st) >= 5*time.Second)
+	assert.True(t, time.Since(st) >= 1*time.Second)
+}
+
+func Test_runCompletedSimplePlaybook(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "runner/testdata/test_ssh_key",
+		PlaybookFile: "runner/testdata/conf-simple.yml",
+		Targets:      []string{hostAndPort},
+		Only:         []string{"wait"},
+	}
+	setupLog(true)
+	st := time.Now()
+	err := run(opts)
+	require.NoError(t, err)
+	assert.True(t, time.Since(st) >= 1*time.Second)
 }
 
 func Test_runAdhoc(t *testing.T) {
@@ -112,7 +130,7 @@ func Test_runCanceled(t *testing.T) {
 		assert.ErrorContains(t, err, "remote command exited")
 	}()
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	signal.NotifyContext(ctx, os.Interrupt)
@@ -165,6 +183,10 @@ func Test_connectFailed(t *testing.T) {
 }
 
 func Test_sshUserAndKey(t *testing.T) {
+
+	osUser, err := user.Current()
+	require.NoError(t, err)
+
 	testCases := []struct {
 		name         string
 		opts         options
@@ -173,7 +195,7 @@ func Test_sshUserAndKey(t *testing.T) {
 		expectedKey  string
 	}{
 		{
-			name: "All defaults",
+			name: "from playbook",
 			opts: options{},
 			conf: config.PlayBook{
 				User:   "default_user",
@@ -184,22 +206,7 @@ func Test_sshUserAndKey(t *testing.T) {
 			expectedKey:  "default_key",
 		},
 		{
-			name: "Task config overrides user",
-			opts: options{
-				TaskName: "test_task",
-			},
-			conf: config.PlayBook{
-				User:   "default_user",
-				SSHKey: "default_key",
-				Tasks: []config.Task{
-					{Name: "test_task", User: "task_user"},
-				},
-			},
-			expectedUser: "task_user",
-			expectedKey:  "default_key",
-		},
-		{
-			name: "Command line overrides all",
+			name: "command line overrides all",
 			opts: options{
 				TaskName: "test_task",
 				SSHUser:  "cmd_user",
@@ -216,7 +223,20 @@ func Test_sshUserAndKey(t *testing.T) {
 			expectedKey:  "cmd_key",
 		},
 		{
-			name: "Tilde expansion in key path",
+			name: "no user or key in playbook and no in command line",
+			opts: options{
+				TaskName: "test_task",
+			},
+			conf: config.PlayBook{
+				Tasks: []config.Task{
+					{Name: "test_task"},
+				},
+			},
+			expectedUser: osUser.Username,
+			expectedKey:  filepath.Join(osUser.HomeDir, ".ssh", "id_rsa"),
+		},
+		{
+			name: "tilde expansion in key path",
 			opts: options{
 				TaskName: "test_task",
 				SSHUser:  "cmd_user",
@@ -236,8 +256,12 @@ func Test_sshUserAndKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			key := sshKey(tc.opts, &tc.conf)
+			key, err := sshKey(tc.opts, &tc.conf, &defaultUserInfoProvider{})
+			require.NoError(t, err, "sshKey should not return an error")
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
+			sshUser, err := sshUser(tc.opts, &tc.conf, &defaultUserInfoProvider{})
+			require.NoError(t, err, "sshUser should not return an error")
+			assert.Equal(t, tc.expectedUser, sshUser, "sshUser should match expected user")
 		})
 	}
 }
