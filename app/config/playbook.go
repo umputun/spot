@@ -54,7 +54,6 @@ type Target struct {
 type Task struct {
 	Name     string `yaml:"name" toml:"name"` // name of target, set by config caller
 	User     string `yaml:"user" toml:"user"`
-	SSHKey   string `yaml:"ssh_key" toml:"ssh_key"`
 	Commands []Cmd  `yaml:"commands" toml:"commands"`
 	OnError  string `yaml:"on_error" toml:"on_error"`
 }
