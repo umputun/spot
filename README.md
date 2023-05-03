@@ -35,8 +35,9 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 - Install Spot by download the latest release from the [Releases](https://github.com/umputun/spot/releases) page.
 - Create a configuration file, as shown in the [example below](#example-playbook), and save it as `spot.yml`.
 - Run Spot using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
-- To execute a specific task, use the `-t` flag: `spot -t deploy-things`. This will execute only the `deploy-things` task.
-- To execute a specific task for a specific target, use the `-t` and `-d` flags: `spot -t deploy-things -d prod`. This will execute only the `deploy-things` task for the `prod` target.
+- To execute a specific task, use the `--task` flag: `spot --task=deploy-things`. This will execute only the `deploy-things` task.
+- To execute a specific task for a specific target, use the `--task` and `-t` flags: `spot --task=deploy-things -t prod`. This will execute only the `deploy-things` task for the `prod` target.
+
 
 <details markdown>
   <summary>Screenshots</summary>
