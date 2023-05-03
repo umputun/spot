@@ -16,7 +16,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
-	"github.com/umputun/simplotask/app/config/deepcopy"
+	"github.com/umputun/spot/app/config/deepcopy"
 )
 
 // PlayBook defines top-level config object

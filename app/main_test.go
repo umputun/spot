@@ -19,7 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/umputun/simplotask/app/config"
+	"github.com/umputun/spot/app/config"
 )
 
 func Test_main(t *testing.T) {

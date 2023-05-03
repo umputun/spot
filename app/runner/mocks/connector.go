@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/umputun/simplotask/app/executor"
+	"github.com/umputun/spot/app/executor"
 )
 
 // ConnectorMock is a mock implementation of runner.Connector.

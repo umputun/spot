@@ -15,8 +15,8 @@ import (
 
 	"github.com/go-pkgz/syncs"
 
-	"github.com/umputun/simplotask/app/config"
-	"github.com/umputun/simplotask/app/executor"
+	"github.com/umputun/spot/app/config"
+	"github.com/umputun/spot/app/executor"
 )
 
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector

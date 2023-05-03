@@ -1,4 +1,4 @@
-module github.com/umputun/simplotask
+module github.com/umputun/spot
 
 go 1.20
 

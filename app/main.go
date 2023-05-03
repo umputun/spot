@@ -18,9 +18,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jessevdk/go-flags"
 
-	"github.com/umputun/simplotask/app/config"
-	"github.com/umputun/simplotask/app/executor"
-	"github.com/umputun/simplotask/app/runner"
+	"github.com/umputun/spot/app/config"
+	"github.com/umputun/spot/app/executor"
+	"github.com/umputun/spot/app/runner"
 )
 
 type options struct {
