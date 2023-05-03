@@ -154,8 +154,8 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
 	}
 
-	if err := unmarshalConfig(fname, data, res); err != nil {
-		return nil, err
+	if e := unmarshalConfig(fname, data, res); e != nil {
+		return nil, e
 	}
 
 	if err = res.checkConfig(); err != nil {
@@ -213,12 +213,12 @@ func unmarshalConfig(fname string, data []byte, res *PlayBook) (err error) {
 	}
 
 	splitIPAddress := func(inp string) (string, int) {
-		host, portStr, err := net.SplitHostPort(inp)
-		if err != nil {
+		host, portStr, e := net.SplitHostPort(inp)
+		if e != nil {
 			return inp, 22
 		}
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
+		port, e := strconv.Atoi(portStr)
+		if e != nil {
 			return host, 22
 		}
 		return host, port
