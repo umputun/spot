@@ -279,9 +279,11 @@ By using this approach, Spot enables users to write and execute more complex scr
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
 
 - `hosts`: a list of destination host names or IP addresses, with optional port and username, to execute the tasks on. Example: `hosts: [{host: "h1.example.com", user: "test", name: "h1}, {host: "h2.example.com", "port": 2222}]`. If no user is specified, the user defined in the top section of the playbook file (or override) will be used. If no port is specified, port 22 will be used.
-- `groups`: a list of groups from inventory to use. Example: `groups: ["dev", "staging"}`. Special group `all` combines all the groups. 
+- `groups`: a list of groups from inventory to use. Example: `groups: ["dev", "staging"}`. Special group `all` combines all the groups.
+- `tags`: a list of tags from inventory to use. Example: `tags: ["tag1", "tag2"}`.
+- `names`: a list of host names from inventory to use. Example: `names: ["host1", "host2"}`.
 
-All the target types can be combined, i.e. `hosts` and `groups` and `hosts` and `names` all can be used together in the same target. To avoid possible duplicates of the hosts, the final list of hosts is deduplicated by the host+ip+user. 
+All the target types can be combined, i.e. `hosts`, `groups`, `tags`, `hosts` and `names` all can be used together in the same target. To avoid possible duplicates, the final list of hosts is deduplicated by the host+ip+user. 
 
 example of targets in the playbook file:
 
