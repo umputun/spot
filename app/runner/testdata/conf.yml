@@ -12,7 +12,7 @@ tasks:
   - name: task1
     commands:
       - name: wait
-        script: sleep 5s
+        script: sleep 1s
 
       - name: copy configuration
         copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}

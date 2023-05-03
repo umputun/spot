@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sort"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
@@ -28,6 +30,16 @@ type PlayBook struct {
 
 	inventory *InventoryData // loaded inventory
 	overrides *Overrides     // overrides passed from cli
+}
+
+// SimplePlayBook defines simplified top-level config
+// It is used for unmarshalling only, and result used to make the usual PlayBook
+type SimplePlayBook struct {
+	User      string   `yaml:"user" toml:"user"`           // ssh user
+	SSHKey    string   `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
+	Inventory string   `yaml:"inventory" toml:"inventory"` // inventory file or url
+	Targets   []string `yaml:"targets" toml:"targets"`     // list of names
+	Task      []Cmd    `yaml:"task" toml:"task"`           // single task is a list of commands
 }
 
 // Target defines hosts to run commands on
@@ -142,17 +154,8 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
 	}
 
-	switch {
-	case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
-		if err = yaml.Unmarshal(data, res); err != nil {
-			return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
-		}
-	case strings.HasSuffix(fname, ".toml"):
-		if err = toml.Unmarshal(data, res); err != nil {
-			return nil, fmt.Errorf("can't unmarshal config %s: %w", fname, err)
-		}
-	default:
-		return nil, fmt.Errorf("unknown config format %s", fname)
+	if err := unmarshalConfig(fname, data, res); err != nil {
+		return nil, err
 	}
 
 	if err = res.checkConfig(); err != nil {
@@ -185,6 +188,64 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	}
 
 	return res, nil
+}
+
+// unmarshalConfig is trying to parse config from data.
+// It will try to guess format by file extension or use yaml as toml.
+// First it will try to unmarshal to a complete PlayBook struct, if it fails,
+// it will try to unmarshal to a SimplePlayBook struct and convert it to a complete PlayBook struct.
+func unmarshalConfig(fname string, data []byte, res *PlayBook) (err error) {
+
+	unmarshal := func(data []byte, v interface{}) error {
+		switch {
+		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
+			if err = yaml.Unmarshal(data, v); err != nil {
+				return fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+			}
+		case strings.HasSuffix(fname, ".toml"):
+			if err = toml.Unmarshal(data, v); err != nil {
+				return fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+			}
+		default:
+			return fmt.Errorf("unknown config format %s", fname)
+		}
+		return nil
+	}
+
+	splitIPAddress := func(inp string) (string, int) {
+		host, portStr, err := net.SplitHostPort(inp)
+		if err != nil {
+			return inp, 22
+		}
+		port, err := strconv.Atoi(portStr)
+		if err != nil {
+			return host, 22
+		}
+		return host, port
+	}
+
+	errors := new(multierror.Error)
+	if err = unmarshal(data, res); err == nil {
+		return nil // success, this is full PlayBook config
+	}
+	errors = multierror.Append(errors, err)
+
+	simple := &SimplePlayBook{}
+	if err = unmarshal(data, simple); err == nil && len(simple.Task) > 0 {
+		// success, this is SimplePlayBook config, convert it to full PlayBook config
+		res.Inventory = simple.Inventory
+		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
+		res.Tasks[0].Name = "default"
+		target := Target{Names: simple.Targets} // set as names to match inventory
+		for _, t := range simple.Targets {
+			ip, port := splitIPAddress(t)
+			target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // also set as hosts
+		}
+		res.Targets = map[string]Target{"default": target}
+		return nil
+	}
+
+	return multierror.Append(errors, err).Unwrap()
 }
 
 // Task returns task by name

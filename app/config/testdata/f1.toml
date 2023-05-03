@@ -8,7 +8,7 @@ host = "h1.example.com"
 host = "h2.example.com"
 
 [targets.staging]
-inventory = "file://inventory/staging.txt"
+inventory = "inventory/staging.toml"
 
 [[tasks]]
 name = "deploy-remark42"

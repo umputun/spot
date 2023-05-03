@@ -4,7 +4,7 @@ targets:
   - remark42:
       hosts: ["h1.example.com", "h2.example.com"]
   - staging:
-      inventory: "file://inventory/staging.yml"
+      inventory: "inventory/staging.yml"
 
 
 tasks:

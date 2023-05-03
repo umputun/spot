@@ -106,6 +106,19 @@ func TestNew(t *testing.T) {
 		_, err := New("testdata/dup-task-name.yml", nil)
 		require.ErrorContains(t, err, `duplicate task name "deploy"`)
 	})
+
+	t.Run("simple playbook", func(t *testing.T) {
+		c, err := New("testdata/simple-playbook.yml", nil)
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(c.Tasks), "1 task")
+		assert.Equal(t, "default", c.Tasks[0].Name, "task name")
+		assert.Equal(t, 5, len(c.Tasks[0].Commands), "5 commands")
+
+		assert.Equal(t, 1, len(c.Targets))
+		assert.Equal(t, []string{"name1", "name2", "127.0.0.1:2222"}, c.Targets["default"].Names)
+		assert.Equal(t, []Destination{{Host: "name1", Port: 22}, {Host: "name2", Port: 22}, {Host: "127.0.0.1", Port: 2222}},
+			c.Targets["default"].Hosts)
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
