@@ -217,6 +217,7 @@ Spot supports the following command types:
 
 - `script`: can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
 - `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash.
+- `mcopy`: copies multiple files from the local machine to the remote host(s). Example: `mcopy: [{"src": "testdata/1.yml", "dst": "/tmp/1.yml", "mkdir": true}, {"src": "testdata/1.txt", "dst": "/tmp/1.txt"}]`. This is just a shortcut for multiple `copy` commands.
 - `sync`: syncs directory from the local machine to the remote host(s). Optionally supports deleting files on the remote host(s) that don't exist locally. Example: `sync: {"src": "testdata", "dst": "/tmp/things", "delete": true}`
 - `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"path": "/tmp/things", "recur": true}`
 - `wait`: waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when you need to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval. Example: `wait: {"cmd": "curl -s --fail localhost:8080", "timeout": "30s", "interval": "1s"}`

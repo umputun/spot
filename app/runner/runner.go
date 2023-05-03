@@ -197,7 +197,7 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 			return details, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
 		}
 	case ep.cmd.Copy.Source != "" && ep.cmd.Copy.Dest != "":
-		log.Printf("[DEBUG] copy file on %s", ep.hostAddr)
+		log.Printf("[DEBUG] copy file to %s", ep.hostAddr)
 		src := p.applyTemplates(ep.cmd.Copy.Source,
 			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 		dst := p.applyTemplates(ep.cmd.Copy.Dest,
@@ -206,6 +206,20 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 		if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
 			return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
 		}
+	case len(ep.cmd.MCopy) > 0:
+		log.Printf("[DEBUG] copy multiple files to %s", ep.hostAddr)
+		msgs := []string{}
+		for _, c := range ep.cmd.MCopy {
+			src := p.applyTemplates(c.Source,
+				templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+			dst := p.applyTemplates(c.Dest,
+				templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+			msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
+			if err := ep.exec.Upload(ctx, src, dst, c.Mkdir); err != nil {
+				return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
+			}
+		}
+		details = fmt.Sprintf(" {copy: %s}", strings.Join(msgs, ", "))
 	case ep.cmd.Sync.Source != "" && ep.cmd.Sync.Dest != "":
 		log.Printf("[DEBUG] sync files on %s", ep.hostAddr)
 		src := p.applyTemplates(ep.cmd.Sync.Source,
