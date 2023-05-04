@@ -226,32 +226,32 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 func (cmd *Cmd) validate() error {
-	flds := []string{}
-	if cmd.Script != "" {
-		flds = append(flds, "script")
-	}
-	if cmd.Copy.Source != "" && cmd.Copy.Dest != "" {
-		flds = append(flds, "copy")
-	}
-	if len(cmd.MCopy) > 0 {
-		flds = append(flds, "mcopy")
-	}
-	if cmd.Delete.Location != "" {
-		flds = append(flds, "delete")
-	}
-	if cmd.Sync.Source != "" && cmd.Sync.Dest != "" {
-		flds = append(flds, "sync")
-	}
-	if cmd.Wait.Command != "" {
-		flds = append(flds, "wait")
-	}
-	if len(flds) > 1 {
-		return fmt.Errorf("only one of [%s] is allowed", strings.Join(flds, ", "))
+	cmdTypes := []struct {
+		name  string
+		check func() bool
+	}{
+		{"script", func() bool { return cmd.Script != "" }},
+		{"copy", func() bool { return cmd.Copy.Source != "" && cmd.Copy.Dest != "" }},
+		{"mcopy", func() bool { return len(cmd.MCopy) > 0 }},
+		{"delete", func() bool { return cmd.Delete.Location != "" }},
+		{"sync", func() bool { return cmd.Sync.Source != "" && cmd.Sync.Dest != "" }},
+		{"wait", func() bool { return cmd.Wait.Command != "" }},
 	}
 
-	if len(flds) == 0 {
-		return fmt.Errorf("one of [%s] must be set",
-			strings.Join([]string{"script", "copy", "mcopy", "delete", "sync", "wait"}, ", "))
+	setCmds, names := []string{}, []string{}
+	for _, cmdType := range cmdTypes {
+		names = append(names, cmdType.name)
+		if cmdType.check() {
+			setCmds = append(setCmds, cmdType.name)
+		}
+	}
+
+	if len(setCmds) > 1 {
+		return fmt.Errorf("only one of [%s] is allowed", strings.Join(setCmds, ", "))
+	}
+
+	if len(setCmds) == 0 {
+		return fmt.Errorf("one of [%s] must be set", strings.Join(names, ", "))
 	}
 	return nil
 }
