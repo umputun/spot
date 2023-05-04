@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
-// Cmd defines a single command
+// Cmd defines a single command. Yaml parsing is custom, because we want to allow "copy" to accept both single and multiple values
 type Cmd struct {
 	Name        string            `yaml:"name" toml:"name"`
 	Copy        CopyInternal      `yaml:"copy" toml:"copy"`
@@ -141,4 +144,83 @@ func (cmd *Cmd) genEnv() []string {
 	}
 	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 	return envs
+}
+
+// UnmarshalYAML implements yaml.Unmarshaler interface
+// It allows to unmarshal a "copy" from a single field or a slice
+// All other fields are unmarshalled as usual. Limited to string, in, struct, slice or map
+func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var asMap map[string]interface{}
+	if err := unmarshal(&asMap); err != nil {
+		return err
+	}
+
+	// helper function to unmarshal a field into a given target
+	unmarshalField := func(fieldName string, target interface{}) error {
+		fieldValue, exists := asMap[fieldName]
+		if !exists {
+			return nil
+		}
+
+		switch typedValue := fieldValue.(type) {
+		case string:
+			strTarget, ok := target.(*string)
+			if !ok {
+				return fmt.Errorf("expected string target for field '%s'", fieldName)
+			}
+			*strTarget = typedValue
+		case int:
+			intTarget, ok := target.(*int)
+			if !ok {
+				return fmt.Errorf("expected int target for field '%s'", fieldName)
+			}
+			*intTarget = typedValue
+		case map[string]interface{}:
+			fieldBytes, err := yaml.Marshal(typedValue)
+			if err != nil {
+				return err
+			}
+			if err := yaml.Unmarshal(fieldBytes, target); err != nil {
+				return err
+			}
+		case []interface{}:
+			fieldBytes, err := yaml.Marshal(typedValue)
+			if err != nil {
+				return err
+			}
+			if err := yaml.Unmarshal(fieldBytes, target); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unsupported field type for '%s'", fieldName)
+		}
+
+		return nil
+	}
+
+	// iterate over all fields in the struct and unmarshal them
+	structType := reflect.TypeOf(*cmd)
+	structValue := reflect.ValueOf(cmd).Elem()
+	for i := 0; i < structType.NumField(); i++ {
+		field := structType.Field(i)
+		fieldName := field.Tag.Get("yaml")
+
+		// skip copy, processed separately
+		if fieldName == "copy" {
+			continue
+		}
+
+		fieldPtr := structValue.Field(i).Addr().Interface()
+		if err := unmarshalField(fieldName, fieldPtr); err != nil {
+			return err
+		}
+	}
+
+	// copy is a special case, as it can be either a struct or a list of structs
+	if err := unmarshalField("copy", &cmd.Copy); err != nil {
+		if err := unmarshalField("copy", &cmd.MCopy); err != nil {
+			return err
+		}
+	}
+	return nil
 }

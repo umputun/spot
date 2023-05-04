@@ -53,13 +53,13 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	if err != nil {
 		return ProcStats{}, fmt.Errorf("can't get task %s: %w", task, err)
 	}
-	log.Printf("[DEBUG] task %s has %d commands", task, len(tsk.Commands))
+	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
 
 	targetHosts, err := p.Config.TargetHosts(target)
 	if err != nil {
 		return ProcStats{}, fmt.Errorf("can't get target %s: %w", target, err)
 	}
-	log.Printf("[DEBUG] target hosts %v", targetHosts)
+	log.Printf("[DEBUG] target hosts %+v", targetHosts)
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
 	var commands int32

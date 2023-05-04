@@ -130,7 +130,7 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
 	for _, tsk := range res.Tasks {
 		for _, c := range tsk.Commands {
-			log.Printf("[DEBUG] load task %s command %s", tsk.Name, c.Name)
+			log.Printf("[DEBUG] load task %q, command %q", tsk.Name, c.Name)
 		}
 	}
 
@@ -439,12 +439,12 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		if err != nil {
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
-		log.Printf("[DEBUG] target %q found as host:port %s:%d", name, elems[0], port)
+		log.Printf("[DEBUG] target %q used as host:port %s:%d", name, elems[0], port)
 		return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil
 	}
 
 	// finally we assume it is a host name, with default port 22
-	log.Printf("[DEBUG] target %q found as host:22 %s", name, name)
+	log.Printf("[DEBUG] target %q used as host:22 %s", name, name)
 	return []Destination{{Host: name, Port: 22, User: p.User}}, nil
 }
 
