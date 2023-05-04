@@ -43,6 +43,65 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	assert.Equal(t, string(exp), string(act))
 }
 
+func TestExecuter_UploadGlobAndDownload(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	err = sess.Upload(ctx, "testdata/data*.txt", "/tmp/blah", true)
+	require.NoError(t, err)
+
+	{
+		tmpFile, err := fileutils.TempFileName("", "data.txt")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpFile)
+		err = sess.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
+		require.NoError(t, err)
+		assert.FileExists(t, tmpFile)
+		exp, err := os.ReadFile("testdata/data.txt")
+		require.NoError(t, err)
+		act, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Equal(t, string(exp), string(act))
+	}
+	{
+		tmpFile, err := fileutils.TempFileName("", "data2.txt")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpFile)
+		err = sess.Download(ctx, "/tmp/blah/data2.txt", tmpFile, true)
+		require.NoError(t, err)
+		assert.FileExists(t, tmpFile)
+		exp, err := os.ReadFile("testdata/data2.txt")
+		require.NoError(t, err)
+		act, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Equal(t, string(exp), string(act))
+	}
+}
+
+func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	err = sess.Upload(ctx, "testdata/data-not-found.txt", "/tmp/blah/data.txt", true)
+	require.EqualError(t, err, "source file \"testdata/data-not-found.txt\" not found")
+}
+
 func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

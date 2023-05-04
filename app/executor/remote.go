@@ -54,15 +54,35 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) 
 		return fmt.Errorf("failed to split hostAddr and port: %w", err)
 	}
 
-	req := sftpReq{
-		client:     ex.client,
-		localFile:  local,
-		remoteFile: remote,
-		mkdir:      mkdir,
-		remoteHost: host,
-		remotePort: port,
+	// check if the local parameter contains a glob pattern
+	matches, err := filepath.Glob(local)
+	if err != nil {
+		return fmt.Errorf("failed to expand glob pattern %s: %w", local, err)
 	}
-	return ex.sftpUpload(ctx, req)
+
+	if len(matches) == 0 { // no match
+		return fmt.Errorf("source file %q not found", local)
+	}
+
+	// upload each file matching the glob pattern. If no glob pattern is found the file is matched as is
+	for _, match := range matches {
+		remoteFile := remote
+		if len(matches) > 1 { // if there are multiple files, treat remote as a directory
+			remoteFile = filepath.Join(remote, filepath.Base(match))
+		}
+		req := sftpReq{
+			client:     ex.client,
+			localFile:  match,
+			remoteFile: remoteFile,
+			mkdir:      mkdir,
+			remoteHost: host,
+			remotePort: port,
+		}
+		if err := ex.sftpUpload(ctx, req); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Download file from remote server with scp
@@ -301,6 +321,7 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	return nil
 }
+
 func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
