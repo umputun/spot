@@ -112,7 +112,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	stTask := time.Now()
 	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, user)
 	if err != nil {
-		return 0, fmt.Errorf("can't connect to %s: %w", hostAddr, err)
+		if hostName != "" {
+			return 0, fmt.Errorf("can't connect to %s: %w", hostName, err)
+		}
+		return 0, err
 	}
 	defer remote.Close()
 

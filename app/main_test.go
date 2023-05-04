@@ -382,6 +382,47 @@ func TestExpandPath(t *testing.T) {
 	}
 }
 
+func Test_formatErrorString(t *testing.T) {
+	tbl := []struct {
+		name   string
+		input  string
+		output string
+	}{
+		{
+			name:  "Two errors",
+			input: `* can't run task "ad-hoc" for target "dev": 2 error(s) occurred: [0] {error 1}, [1] {error 2}`,
+			output: `* can't run task "ad-hoc" for target "dev": 2 error(s) occurred:
+   [0] error 1
+   [1] error 2
+`,
+		},
+		{
+			name:   "Different string without errors",
+			input:  `Different string without errors`,
+			output: `Different string without errors`,
+		},
+		{
+			name:  "No errors",
+			input: `* can't run task "ad-hoc" for target "dev": 0 error(s) occurred:`,
+			output: `* can't run task "ad-hoc" for target "dev": 0 error(s) occurred:
+`,
+		},
+		{
+			name:  "One error",
+			input: `* can't run task "ad-hoc" for target "dev": 1 error(s) occurred: [0] {error 1}`,
+			output: `* can't run task "ad-hoc" for target "dev": 1 error(s) occurred:
+   [0] error 1
+`,
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.output, formatErrorString(tt.input))
+		})
+	}
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	t.Helper()
 	ctx := context.Background()

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -77,7 +78,7 @@ func main() {
 		if opts.Dbg {
 			log.Panicf("[ERROR] %v", err)
 		}
-		fmt.Printf("failed, %v", err)
+		fmt.Printf("failed, %v\n", formatErrorString(err.Error()))
 		os.Exit(1)
 	}
 }
@@ -262,6 +263,30 @@ func adHocConf(opts options, conf *config.PlayBook, provider userInfoProvider) e
 		conf.SSHKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
 	}
 	return nil
+}
+
+func formatErrorString(input string) string {
+	headerRe := regexp.MustCompile(`(.*: \d+ error\(s\) occurred:)`)
+	headerMatch := headerRe.FindStringSubmatch(input)
+
+	if len(headerMatch) == 0 {
+		return input
+	}
+
+	errorsRe := regexp.MustCompile(`\[\d+\] {([^}]+)}`)
+	errorsMatches := errorsRe.FindAllStringSubmatch(input, -1)
+
+	var formattedErrors []string
+	for _, match := range errorsMatches {
+		formattedErrors = append(formattedErrors, strings.TrimSpace(match[1]))
+	}
+
+	formattedString := fmt.Sprintf("%s\n", headerMatch[1])
+	for i, err := range formattedErrors {
+		formattedString += fmt.Sprintf("   [%d] %s\n", i, err)
+	}
+
+	return formattedString
 }
 
 func setupLog(dbg bool) {

@@ -32,7 +32,7 @@ func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string
 	log.Printf("[DEBUG] connect to %q (%s), user %q", hostAddr, hostName, user)
 	client, err := c.sshClient(ctx, hostAddr, user)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create client connection to %s: %v", hostAddr, err)
+		return nil, err
 	}
 	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName}, nil
 }
