@@ -4,9 +4,11 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 )
 
 func TestCmd_GetScript(t *testing.T) {
@@ -183,6 +185,133 @@ func TestCmd_getScriptFile(t *testing.T) {
 			assert.NoError(t, err)
 			scriptContent := string(scriptContentBytes)
 			assert.Equal(t, tt.expected, scriptContent)
+		})
+	}
+}
+
+func TestCmd_UnmarshalYAML(t *testing.T) {
+	type testCase struct {
+		name        string
+		yamlInput   string
+		expectedCmd Cmd
+		expectedErr bool
+	}
+
+	testCases := []testCase{
+		{
+			name: "Simple case",
+			yamlInput: `
+name: test
+script: echo "Hello, World!"
+`,
+			expectedCmd: Cmd{
+				Name:   "test",
+				Script: `echo "Hello, World!"`,
+			},
+		},
+
+		{
+			name: "Copy and Mcopy",
+			yamlInput: `
+name: test
+copy:
+  src: source
+  dst: destination
+`,
+			expectedCmd: Cmd{
+				Name: "test",
+				Copy: CopyInternal{
+					Source: "source",
+					Dest:   "destination",
+				},
+			},
+		},
+
+		{
+			name: "All fields",
+			yamlInput: `
+name: test
+copy:
+  src: source
+  dst: destination
+mcopy:
+  - src: source1
+    dst: destination1
+  - src: source2
+    dst: destination2
+sync:
+  src: sync-source
+  dst: sync-destination
+delete:
+  path: path-to-delete
+wait:
+  interval: 5s
+  timeout: 1m
+  cmd: echo "waiting"
+script: echo "Hello, World!"
+env:
+  KEY: VALUE
+options:
+  ignore_errors: true
+  no_auto: true
+  local: true
+`,
+			expectedCmd: Cmd{
+				Name:   "test",
+				Script: `echo "Hello, World!"`,
+				Copy: CopyInternal{
+					Source: "source",
+					Dest:   "destination",
+				},
+				MCopy: []CopyInternal{
+					{
+						Source: "source1",
+						Dest:   "destination1",
+					},
+					{
+						Source: "source2",
+						Dest:   "destination2",
+					},
+				},
+				Sync: SyncInternal{
+					Source: "sync-source",
+					Dest:   "sync-destination",
+				},
+				Delete: DeleteInternal{
+					Location: "path-to-delete",
+				},
+				Wait: WaitInternal{
+					CheckDuration: time.Second * 5,
+					Timeout:       time.Minute,
+					Command:       `echo "waiting"`,
+				},
+				Environment: map[string]string{
+					"KEY": "VALUE",
+				},
+				Options: struct {
+					IgnoreErrors bool `yaml:"ignore_errors" toml:"ignore_errors"`
+					NoAuto       bool `yaml:"no_auto" toml:"no_auto"`
+					Local        bool `yaml:"local" toml:"local"`
+				}{
+					IgnoreErrors: true,
+					NoAuto:       true,
+					Local:        true,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var c Cmd
+			err := yaml.Unmarshal([]byte(tc.yamlInput), &c)
+
+			if tc.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedCmd, c)
+			}
 		})
 	}
 }

@@ -9,6 +9,11 @@ task:
   - name: copy configuration
     copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
 
+  - name: copy with multiple files
+    copy:
+      - {"src": "testdata/conf2.yml", "dst": "/tmp/conf2.yml", "mkdir": true}
+      - {"src": "testdata/conf-local.yml", "dst": "/tmp/conf-local.yml", "mkdir": true}
+
   - name: sync things
     sync: {"src": "testdata", "dst": "/tmp/things"}
 

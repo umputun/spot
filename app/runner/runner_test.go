@@ -59,7 +59,7 @@ func TestProcess_RunSimplePlaybook(t *testing.T) {
 	}
 	res, err := p.Run(ctx, "default", hostAndPort)
 	require.NoError(t, err)
-	assert.Equal(t, 6, res.Commands)
+	assert.Equal(t, 7, res.Commands)
 	assert.Equal(t, 1, res.Hosts)
 }
 
