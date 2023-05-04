@@ -108,7 +108,12 @@ tasks:
       
       - name: copy configuration
         copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
-      
+
+      - name: copy other files
+        copy:
+          - {"src": "testdata/f1.csv", "dst": "/tmp/things/f1.csv", "recur": true}
+          - {"src": "testdata/f2.csv", "dst": "/tmp/things/f2.csv", "recur": true}
+
       - name: sync things
         sync: {"src": "testdata", "dst": "/tmp/things"}
       
@@ -158,6 +163,11 @@ task:
   
   - name: copy configuration
     copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
+  
+  - name: copy other files
+    copy: 
+      - {"src": "testdata/f1.csv", "dst": "/tmp/things/f1.csv", "recur": true}
+      - {"src": "testdata/f2.csv", "dst": "/tmp/things/f2.csv", "recur": true}
   
   - name: sync things
     sync: {"src": "testdata", "dst": "/tmp/things"}
@@ -216,7 +226,7 @@ All tasks are executed sequentially one a given host, one after another. If a ta
 Spot supports the following command types:
 
 - `script`: can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
-- `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash.
+- `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash. Note: `copy` command type supports multiple commands too, the same way as `mcopy` below.
 - `mcopy`: copies multiple files from the local machine to the remote host(s). Example: `mcopy: [{"src": "testdata/1.yml", "dst": "/tmp/1.yml", "mkdir": true}, {"src": "testdata/1.txt", "dst": "/tmp/1.txt"}]`. This is just a shortcut for multiple `copy` commands.
 - `sync`: syncs directory from the local machine to the remote host(s). Optionally supports deleting files on the remote host(s) that don't exist locally. Example: `sync: {"src": "testdata", "dst": "/tmp/things", "delete": true}`
 - `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"path": "/tmp/things", "recur": true}`
