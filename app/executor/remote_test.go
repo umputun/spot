@@ -27,16 +27,16 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", true)
 	require.NoError(t, err)
 
-	tmpFile, err := fileutils.TempFileName("", "data.txt")
+	tmpFile, err := fileutils.TempFileName("", "data1.txt")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpFile)
-	err = sess.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
+	err = sess.Download(ctx, "/tmp/blah/data1.txt", tmpFile, true)
 	require.NoError(t, err)
 	assert.FileExists(t, tmpFile)
-	exp, err := os.ReadFile("testdata/data.txt")
+	exp, err := os.ReadFile("testdata/data1.txt")
 	require.NoError(t, err)
 	act, err := os.ReadFile(tmpFile)
 	require.NoError(t, err)
@@ -59,13 +59,13 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	require.NoError(t, err)
 
 	{
-		tmpFile, err := fileutils.TempFileName("", "data.txt")
+		tmpFile, err := fileutils.TempFileName("", "data1.txt")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpFile)
-		err = sess.Download(ctx, "/tmp/blah/data.txt", tmpFile, true)
+		err = sess.Download(ctx, "/tmp/blah/data1.txt", tmpFile, true)
 		require.NoError(t, err)
 		assert.FileExists(t, tmpFile)
-		exp, err := os.ReadFile("testdata/data.txt")
+		exp, err := os.ReadFile("testdata/data1.txt")
 		require.NoError(t, err)
 		act, err := os.ReadFile(tmpFile)
 		require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", false)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", false)
 	require.EqualError(t, err, "failed to create remote file: file does not exist")
 }
 
@@ -130,7 +130,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data.txt", "/dev/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/dev/blah/data1.txt", true)
 	require.EqualError(t, err, "failed to create remote directory: permission denied")
 }
 
@@ -147,7 +147,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 	defer sess.Close()
 
 	cancel()
-	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", true)
 	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
@@ -165,7 +165,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	cancel()
 
-	err = sess.Upload(ctx, "testdata/data.txt", "/tmp/data.txt", false)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/data1.txt", false)
 	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
@@ -200,9 +200,9 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("multi line out", func(t *testing.T) {
-		err = sess.Upload(ctx, "testdata/data.txt", "/tmp/st/data1.txt", true)
+		err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/st/data1.txt", true)
 		assert.NoError(t, err)
-		err = sess.Upload(ctx, "testdata/data.txt", "/tmp/st/data2.txt", true)
+		err = sess.Upload(ctx, "testdata/data2.txt", "/tmp/st/data2.txt", true)
 		assert.NoError(t, err)
 
 		out, err := sess.Run(ctx, "ls -1 /tmp/st", false)
@@ -218,7 +218,7 @@ func TestExecuter_Run(t *testing.T) {
 		out, e := sess.Run(ctx, cmd, true)
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-		assert.Equal(t, []string{"/tmp/st/data1.txt:68", "/tmp/st/data2.txt:68"}, out)
+		assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
 	})
 
 }

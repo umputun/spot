@@ -139,11 +139,11 @@ func TestUploadDownloadWithGlob(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	data1File := filepath.Join(tmpDir, "data1.txt")
-	err = os.WriteFile(data1File, []byte("data1 content"), 0644)
+	err = os.WriteFile(data1File, []byte("data1 content"), 0o644)
 	require.NoError(t, err)
 
 	data2File := filepath.Join(tmpDir, "data2.txt")
-	err = os.WriteFile(data2File, []byte("data2 content"), 0644)
+	err = os.WriteFile(data2File, []byte("data2 content"), 0o644)
 	require.NoError(t, err)
 
 	// create a temporary destination directory
