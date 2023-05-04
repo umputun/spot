@@ -281,7 +281,7 @@ func formatErrorString(input string) string {
 		formattedErrors = append(formattedErrors, strings.TrimSpace(match[1]))
 	}
 
-	formattedString := fmt.Sprintf("%s\n", headerMatch[1])
+	formattedString := fmt.Sprintf("%s\n", strings.TrimSpace(headerMatch[1]))
 	for i, err := range formattedErrors {
 		formattedString += fmt.Sprintf("   [%d] %s\n", i, err)
 	}

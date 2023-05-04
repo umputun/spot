@@ -403,7 +403,7 @@ func Test_formatErrorString(t *testing.T) {
 		},
 		{
 			name:  "No errors",
-			input: `* can't run task "ad-hoc" for target "dev": 0 error(s) occurred:`,
+			input: `  * can't run task "ad-hoc" for target "dev": 0 error(s) occurred:`,
 			output: `* can't run task "ad-hoc" for target "dev": 0 error(s) occurred:
 `,
 		},
