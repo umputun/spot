@@ -42,15 +42,15 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 <details markdown>
   <summary>Screenshots</summary>
 
-- `spot` with playbook `spot.yml`: `spot -p spot.yml -d prod`
+- `spot` with playbook `spot.yml`: `spot -p spot.yml -t prod`
 
 ![spot-playbook](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook.jpg)
 
-- `spot` with the same playbook in dry mode: `spot -p spot.yml -d prod -v`
+- `spot` with the same playbook in dry mode: `spot -p spot.yml -t prod -v`
 
 ![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook-dry.jpg)
 
-- `spot` ad-hoc command on given hosts: `spot "ls -la /tmp -d dev1.umputun.com -d dev2.umputun.com`
+- `spot` ad-hoc command on given hosts: `spot "ls -la /tmp -t dev1.umputun.com -t dev2.umputun.com`
 
 ![spot-adhoc](https://github.com/umputun/spot/raw/master/site/docs/screen-adhoc.jpg)
 </details>
@@ -63,7 +63,7 @@ Spot supports the following command-line options:
   variable `$SPOT_PLAYBOOK` to define the playbook file path.
 - `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
   If not specified all the tasks will be executed.
-- `-t`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name, group name, tag or IP instead of the target name for a quick override. Providing the `-d`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-d prod -d dev` or `-d example1.com -d example2.com`.
+- `-t`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name, group name, tag or IP instead of the target name for a quick override. Providing the `-t`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-t prod -t dev` or `-t example1.com -t example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
 - `--timeout`: Sets the SSH timeout. Defaults to `30s`.
 - `-i`, `--inventory=`: Specifies the inventory file or url to use for the task execution. Overrides the inventory file defined in the
@@ -217,7 +217,7 @@ Each task consists of a list of commands that will be executed on the remote hos
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
 
-**Note: these fields supported in the full playbook type only**
+*Note: these fields supported in the full playbook type only*
 
 All tasks are executed sequentially one a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with missing `name` field will fail to execute immediately. Duplicate task names are not allowed either.
 
@@ -327,7 +327,7 @@ targets:
     groups: ["all"]
 ```
 
-** Note: ** All the target types available in the full playbook file only. The simplified playbook file only supports a single, anonymous target type combining `hosts` and `names` together.
+*Note: All the target types available in the full playbook file only. The simplified playbook file only supports a single, anonymous target type combining `hosts` and `names` together.*
 
 ```yaml
 targets: ["host1", "host2", "host3.example.com", "host4.example.com:2222"]
@@ -433,7 +433,7 @@ tasks:
 
 ## Ad-hoc commands
 
-Spot supports ad-hoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp`  and should always be accompanied by the `--target=<host>` (`-d <host>`) flags. Example: `spot "ls -la" -d h1.example.com -d h2.example.com`. 
+Spot supports ad-hoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp"` and usually accompanied by the `--target=<host>` (`-t <host>`) flags. Example: `spot "ls -la" -t h1.example.com -t h2.example.com`. 
 
 All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, Spot will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory=inventory.yml`.
 
