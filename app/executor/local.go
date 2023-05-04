@@ -41,13 +41,31 @@ func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string
 
 // Upload just copy file from one place to another
 func (l *Local) Upload(_ context.Context, src, dst string, mkdir bool) (err error) {
+
+	// check if the local parameter contains a glob pattern
+	matches, err := filepath.Glob(src)
+	if err != nil {
+		return fmt.Errorf("failed to expand glob pattern %s: %w", src, err)
+	}
+
+	if len(matches) == 0 { // no match
+		return fmt.Errorf("source file %q not found", src)
+	}
+
 	if mkdir {
 		if err = os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return fmt.Errorf("can't create local dir %s: %w", filepath.Dir(dst), err)
 		}
 	}
-	if err = l.copyFile(src, dst); err != nil {
-		return fmt.Errorf("can't copy local file from %s to %s: %w", src, dst, err)
+
+	for _, match := range matches {
+		destination := dst
+		if len(matches) > 1 {
+			destination = filepath.Join(dst, filepath.Base(match))
+		}
+		if err = l.copyFile(match, destination); err != nil {
+			return fmt.Errorf("can't copy local file from %s to %s: %w", match, dst, err)
+		}
 	}
 	return nil
 }

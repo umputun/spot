@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -126,6 +127,101 @@ func TestUploadAndDownload(t *testing.T) {
 				dstContent, err := os.ReadFile(dstFile)
 				require.NoError(t, err)
 				assert.Equal(t, tc.srcContent, string(dstContent), "uploaded content should match source content")
+			})
+		}
+	}
+}
+
+func TestUploadDownloadWithGlob(t *testing.T) {
+	// create some temporary test files with content
+	tmpDir, err := os.MkdirTemp("", "test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpDir)
+
+	data1File := filepath.Join(tmpDir, "data1.txt")
+	err = os.WriteFile(data1File, []byte("data1 content"), 0644)
+	require.NoError(t, err)
+
+	data2File := filepath.Join(tmpDir, "data2.txt")
+	err = os.WriteFile(data2File, []byte("data2 content"), 0644)
+	require.NoError(t, err)
+
+	// create a temporary destination directory
+	dstDir, err := os.MkdirTemp("", "dst")
+	require.NoError(t, err)
+	defer os.RemoveAll(dstDir)
+
+	type fn func(ctx context.Context, src, dst string, mkdir bool) (err error)
+
+	l := &Local{}
+	fns := []struct {
+		name string
+		fn   fn
+	}{{"upload", l.Upload}}
+
+	for _, tc := range []struct {
+		name        string
+		src         string
+		dst         string
+		mkdir       bool
+		expectError bool
+	}{
+		{
+			name:  "successful upload with mkdir=true",
+			src:   filepath.Join(tmpDir, "*.txt"),
+			dst:   dstDir,
+			mkdir: true,
+		},
+		{
+			name: "successful upload with mkdir=false",
+			src:  filepath.Join(tmpDir, "*.txt"),
+			dst:  dstDir,
+		},
+		{
+			name:        "failed upload with non-existent source file",
+			src:         filepath.Join(tmpDir, "nonexistent.txt"),
+			dst:         dstDir,
+			mkdir:       false,
+			expectError: true,
+		},
+		{
+			name:        "failed upload with non-existent directory and mkdir=false",
+			src:         filepath.Join(tmpDir, "*.txt"),
+			dst:         filepath.Join(tmpDir, "nonexistent", "dst"),
+			mkdir:       false,
+			expectError: true,
+		},
+		{
+			name:        "failed upload with invalid glob pattern",
+			src:         filepath.Join(tmpDir, "*.txt["),
+			dst:         dstDir,
+			mkdir:       false,
+			expectError: true,
+		},
+	} {
+		for _, fn := range fns {
+			t.Run(fmt.Sprintf("%s#%s", tc.name, fn.name), func(t *testing.T) {
+				err := fn.fn(context.Background(), tc.src, tc.dst, tc.mkdir)
+
+				if tc.expectError {
+					assert.Error(t, err, "expected an error")
+					return
+				}
+
+				assert.NoError(t, err, "unexpected error")
+
+				// assert that all files were uploaded
+				files, err := os.ReadDir(dstDir)
+				require.NoError(t, err)
+				assert.Len(t, files, 2, "unexpected number of uploaded files")
+
+				// assert that the contents of the uploaded files match the contents of the source files
+				for _, f := range files {
+					dstContent, err := os.ReadFile(filepath.Join(dstDir, f.Name()))
+					require.NoError(t, err)
+					assert.Equal(t, fmt.Sprintf("data%d content", f.Name()[4]-'0'), string(dstContent),
+						"uploaded content should match source content")
+				}
 			})
 		}
 	}
