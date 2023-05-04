@@ -276,7 +276,7 @@ func formatErrorString(input string) string {
 	errorsRe := regexp.MustCompile(`\[\d+\] {([^}]+)}`)
 	errorsMatches := errorsRe.FindAllStringSubmatch(input, -1)
 
-	var formattedErrors []string
+	formattedErrors := make([]string, 0, len(errorsMatches))
 	for _, match := range errorsMatches {
 		formattedErrors = append(formattedErrors, strings.TrimSpace(match[1]))
 	}
