@@ -554,9 +554,12 @@ func (p *PlayBook) checkConfig() error {
 
 	// check what all commands have a single type set
 	for _, t := range p.Tasks {
+		if len(t.Commands) == 0 {
+			return fmt.Errorf("task %q has no commands", t.Name)
+		}
 		for _, c := range t.Commands {
 			if err := c.validate(); err != nil {
-				return fmt.Errorf("task %s rejected, invalid command %q: %w", t.Name, c.Name, err)
+				return fmt.Errorf("task %q rejected, invalid command %q: %w", t.Name, c.Name, err)
 			}
 		}
 	}

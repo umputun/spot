@@ -471,12 +471,24 @@ func TestPlayBook_checkConfig(t *testing.T) {
 					{
 						Name: "task1",
 						Commands: []Cmd{
-							{Script: "example_script", Delete: DeleteInternal{Location: "location"}},
+							{Name: "c1", Script: "example_script", Delete: DeleteInternal{Location: "location"}},
 						},
 					},
 				},
 			},
-			expectedErr: `task task1 rejected, invalid command "": only one of [script, delete] is allowed`,
+			expectedErr: `task "task1" rejected, invalid command "c1": only one of [script, delete] is allowed`,
+		},
+		{
+			name: "no commands",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{
+						Name:     "task1",
+						Commands: []Cmd{},
+					},
+				},
+			},
+			expectedErr: `task "task1" has no commands`,
 		},
 	}
 
