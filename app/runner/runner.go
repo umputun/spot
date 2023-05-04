@@ -59,7 +59,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	if err != nil {
 		return ProcStats{}, fmt.Errorf("can't get target %s: %w", target, err)
 	}
-	log.Printf("[DEBUG] target hosts %+v", targetHosts)
+	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
 	var commands int32

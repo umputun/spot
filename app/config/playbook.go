@@ -130,7 +130,7 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
 	for _, tsk := range res.Tasks {
 		for _, c := range tsk.Commands {
-			log.Printf("[DEBUG] load task %q, command %q", tsk.Name, c.Name)
+			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
 		}
 	}
 
