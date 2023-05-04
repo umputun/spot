@@ -224,3 +224,34 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 	return nil
 }
+
+func (cmd *Cmd) validate() error {
+	flds := []string{}
+	if cmd.Script != "" {
+		flds = append(flds, "script")
+	}
+	if cmd.Copy.Source != "" && cmd.Copy.Dest != "" {
+		flds = append(flds, "copy")
+	}
+	if len(cmd.MCopy) > 0 {
+		flds = append(flds, "mcopy")
+	}
+	if cmd.Delete.Location != "" {
+		flds = append(flds, "delete")
+	}
+	if cmd.Sync.Source != "" && cmd.Sync.Dest != "" {
+		flds = append(flds, "sync")
+	}
+	if cmd.Wait.Command != "" {
+		flds = append(flds, "wait")
+	}
+	if len(flds) > 1 {
+		return fmt.Errorf("only one of [%s] is allowed", strings.Join(flds, ", "))
+	}
+
+	if len(flds) == 0 {
+		return fmt.Errorf("one of [%s] must be set",
+			strings.Join([]string{"script", "copy", "mcopy", "delete", "sync", "wait"}, ", "))
+	}
+	return nil
+}

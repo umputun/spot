@@ -418,3 +418,76 @@ hosts:
 	_, err := p.loadInventory(yamlFile.Name())
 	require.EqualError(t, err, `group "all" is reserved for all hosts`)
 }
+
+func TestPlayBook_checkConfig(t *testing.T) {
+	tbl := []struct {
+		name        string
+		playbook    PlayBook
+		expectedErr string
+	}{
+		{
+			name: "valid playbook",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{
+						Name: "task1",
+						Commands: []Cmd{
+							{Script: "example_script"},
+						},
+					},
+					{
+						Name: "task2",
+						Commands: []Cmd{
+							{Delete: DeleteInternal{Location: "location"}},
+						},
+					},
+				},
+			},
+			expectedErr: "",
+		},
+		{
+			name: "empty task name",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{Name: ""},
+				},
+			},
+			expectedErr: "task name is required",
+		},
+		{
+			name: "duplicate task name",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{Name: "task1"},
+					{Name: "task1"},
+				},
+			},
+			expectedErr: `duplicate task name "task1"`,
+		},
+		{
+			name: "invalid command",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{
+						Name: "task1",
+						Commands: []Cmd{
+							{Script: "example_script", Delete: DeleteInternal{Location: "location"}},
+						},
+					},
+				},
+			},
+			expectedErr: `task task1 rejected, invalid command "": only one of [script, delete] is allowed`,
+		},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.playbook.checkConfig()
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

@@ -315,3 +315,32 @@ options:
 		})
 	}
 }
+
+func TestCmd_validate(t *testing.T) {
+	tbl := []struct {
+		name        string
+		cmd         Cmd
+		expectedErr string
+	}{
+		{"only script", Cmd{Script: "example_script"}, ""},
+		{"only copy", Cmd{Copy: CopyInternal{Source: "source", Dest: "dest"}}, ""},
+		{"only mcopy", Cmd{MCopy: []CopyInternal{{Source: "source1", Dest: "dest1"}, {Source: "source2", Dest: "dest2"}}}, ""},
+		{"only delete", Cmd{Delete: DeleteInternal{Location: "location"}}, ""},
+		{"only sync", Cmd{Sync: SyncInternal{Source: "source", Dest: "dest"}}, ""},
+		{"only wait", Cmd{Wait: WaitInternal{Command: "command"}}, ""},
+		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
+			"only one of [script, copy] is allowed"},
+		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, sync, wait] must be set"},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.validate()
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}

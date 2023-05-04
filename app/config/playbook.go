@@ -539,17 +539,27 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 
 // checkConfig checks validity of config
 func (p *PlayBook) checkConfig() error {
+
+	// check that all tasks have unique names in the playbook and no empty names
 	names := make(map[string]bool)
-	for i, t := range p.Tasks {
+	for _, t := range p.Tasks {
 		if t.Name == "" { // task name is required
-			log.Printf("[WARN] missing name for task #%d", i)
 			return fmt.Errorf("task name is required")
 		}
 		if names[t.Name] { // task name must be unique
-			log.Printf("[WARN] duplicate task name %q", t.Name)
 			return fmt.Errorf("duplicate task name %q", t.Name)
 		}
 		names[t.Name] = true
 	}
+
+	// check what all commands have a single type set
+	for _, t := range p.Tasks {
+		for _, c := range t.Commands {
+			if err := c.validate(); err != nil {
+				return fmt.Errorf("task %s rejected, invalid command %q: %w", t.Name, c.Name, err)
+			}
+		}
+	}
+
 	return nil
 }
