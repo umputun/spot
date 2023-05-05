@@ -19,14 +19,14 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/umputun/spot/app/config"
+	"github.com/umputun/spot/pkg/config"
 )
 
 func Test_main(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	args := []string{"simplotask", "--dbg", "--playbook=runner/testdata/conf-local.yml", "--user=test", "--key=runner/testdata/test_ssh_key", "--target=" + hostAndPort}
+	args := []string{"simplotask", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test", "--key=testdata/test_ssh_key", "--target=" + hostAndPort}
 	os.Args = args
 	main()
 }
@@ -37,8 +37,8 @@ func Test_runCompleted(t *testing.T) {
 
 	opts := options{
 		SSHUser:      "test",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf.yml",
 		TaskName:     "task1",
 		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
@@ -56,8 +56,8 @@ func Test_runCompletedSimplePlaybook(t *testing.T) {
 
 	opts := options{
 		SSHUser:      "test",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf-simple.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf-simple.yml",
 		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
 	}
@@ -74,7 +74,7 @@ func Test_runAdhoc(t *testing.T) {
 
 	opts := options{
 		SSHUser: "test",
-		SSHKey:  "runner/testdata/test_ssh_key",
+		SSHKey:  "testdata/test_ssh_key",
 		Targets: []string{hostAndPort},
 	}
 	opts.PositionalArgs.AdHocCmd = "echo hello"
@@ -89,8 +89,8 @@ func Test_runCompletedAllTasks(t *testing.T) {
 
 	opts := options{
 		SSHUser:      "test",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf2.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf2.yml",
 		Targets:      []string{hostAndPort},
 		Dbg:          true,
 	}
@@ -118,8 +118,8 @@ func Test_runCanceled(t *testing.T) {
 
 	opts := options{
 		SSHUser:      "test",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf.yml",
 		TaskName:     "task1",
 		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
@@ -142,8 +142,8 @@ func Test_runFailed(t *testing.T) {
 
 	opts := options{
 		SSHUser:      "test",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf-local-failed.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf-local-failed.yml",
 		TaskName:     "default",
 		Targets:      []string{hostAndPort},
 	}
@@ -155,15 +155,15 @@ func Test_runFailed(t *testing.T) {
 func Test_runNoConfig(t *testing.T) {
 	opts := options{
 		SSHUser:      "test",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf-not-found.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf-not-found.yml",
 		TaskName:     "task1",
 		Targets:      []string{"localhost"},
 		Only:         []string{"wait"},
 	}
 	setupLog(true)
 	err := run(opts)
-	require.ErrorContains(t, err, " can't read config runner/testdata/conf-not-found.yml")
+	require.ErrorContains(t, err, " can't read config testdata/conf-not-found.yml")
 }
 
 func Test_connectFailed(t *testing.T) {
@@ -172,8 +172,8 @@ func Test_connectFailed(t *testing.T) {
 
 	opts := options{
 		SSHUser:      "bad_user",
-		SSHKey:       "runner/testdata/test_ssh_key",
-		PlaybookFile: "runner/testdata/conf.yml",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf.yml",
 		TaskName:     "task1",
 		Targets:      []string{hostAndPort},
 	}
@@ -426,7 +426,7 @@ func Test_formatErrorString(t *testing.T) {
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	t.Helper()
 	ctx := context.Background()
-	pubKey, err := os.ReadFile("runner/testdata/test_ssh_key.pub")
+	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
 	require.NoError(t, err)
 
 	req := testcontainers.ContainerRequest{
@@ -434,7 +434,7 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 		ExposedPorts: []string{"2222/tcp"},
 		WaitingFor:   wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 60),
 		Files: []testcontainers.ContainerFile{
-			{HostFilePath: "runner/testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
+			{HostFilePath: "testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
 		},
 		Env: map[string]string{
 			"PUBLIC_KEY": string(pubKey),

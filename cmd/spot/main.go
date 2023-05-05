@@ -19,10 +19,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jessevdk/go-flags"
 
-	"github.com/umputun/spot/app/config"
-	"github.com/umputun/spot/app/executor"
-	"github.com/umputun/spot/app/runner"
-	"github.com/umputun/spot/app/secrets"
+	"github.com/umputun/spot/pkg/config"
+	"github.com/umputun/spot/pkg/executor"
+	"github.com/umputun/spot/pkg/runner"
+	"github.com/umputun/spot/pkg/secrets"
 )
 
 type options struct {

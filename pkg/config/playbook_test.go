@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/umputun/spot/app/config/mocks"
+	"github.com/umputun/spot/pkg/config/mocks"
 )
 
 func TestPlaybook_New(t *testing.T) {

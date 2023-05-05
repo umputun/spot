@@ -23,10 +23,9 @@ jobs:
 
       - name: build and test
         run: |
-          chmod 0600 ./executor/testdata/test_ssh_key
+          chmod 0600 ./pkg/executor/testdata/test_ssh_key
           go test -v -timeout=100s -covermode=count -coverprofile=$GITHUB_WORKSPACE/profile.cov_tmp ./...
           cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mocks" | grep -v "_mock" > $GITHUB_WORKSPACE/profile.cov
-        working-directory: app
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3

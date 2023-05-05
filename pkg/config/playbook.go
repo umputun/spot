@@ -16,7 +16,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"gopkg.in/yaml.v3"
 
-	"github.com/umputun/spot/app/config/deepcopy"
+	"github.com/umputun/spot/pkg/config/deepcopy"
 )
 
 //go:generate moq -out mocks/secrets.go -pkg mocks -skip-ensure -fmt goimports . secretsProvider:SecretProvider

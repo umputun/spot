@@ -1,0 +1,13 @@
+tasks:
+  - name: default
+    commands:
+      - name: some command
+        script: |
+          echo "something"  > /tmp/something
+          cat /tmp/something
+          echo all good, 123
+        options: {local: true}
+
+      - name: show content
+        script: ls /tmp/not-found
+        options: {local: true}
