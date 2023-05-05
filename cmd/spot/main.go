@@ -47,7 +47,7 @@ type options struct {
 	Only []string `long:"only" description:"run only commands"`
 
 	// secrets
-	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SECRETS"`
+	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SPOT_SECRETS"`
 
 	Dry     bool `long:"dry" description:"dry run"`
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
@@ -62,18 +62,18 @@ type SecretsProvider struct {
 	Internal struct {
 		Key  string `long:"key" env:"KEY" description:"secure key for spot secrets provider"`
 		Conn string `long:"conn" env:"CONN" description:"connection string for spot secrets provider" default:"file://spot.db"`
-	} `group:"spot" namespace:"spot" env-namespace:"SPOT"`
+	} `group:"internal" namespace:"internal" env-namespace:"INTERNAL"`
 
 	Vault struct {
-		Token string `long:"token" description:"vault token"`
-		Path  string `long:"path" description:"vault path"`
-		URL   string `long:"url" description:"vault url"`
+		Token string `long:"token" env:"TOKEN" description:"vault token"`
+		Path  string `long:"path"  env:"PATH" description:"vault path"`
+		URL   string `long:"url" env:"URL" description:"vault url"`
 	} `group:"vault" namespace:"vault" env-namespace:"VAULT"`
 
 	Aws struct {
-		Region    string `long:"region" description:"aws region"`
-		AccessKey string `long:"access-key" description:"aws access key"`
-		SecretKey string `long:"secret-key" description:"aws secret key"`
+		Region    string `long:"region" env:"REGION" description:"aws region"`
+		AccessKey string `long:"access-key" env:"ACCESS_KEY" description:"aws access key"`
+		SecretKey string `long:"secret-key" env:"SECRET_KEY" description:"aws secret key"`
 	} `group:"aws" namespace:"aws" env-namespace:"AWS"`
 }
 
