@@ -126,3 +126,9 @@ func setupTestContainers(t *testing.T) (pc testcontainers.Container, ps string, 
 
 	return pgContainer, pgConnString, mysqlContainer, mysqlConnString
 }
+
+func TestNoOp_Get(t *testing.T) {
+	p := &NoOpProvider{}
+	_, err := p.Get("test_key")
+	require.Error(t, err)
+}

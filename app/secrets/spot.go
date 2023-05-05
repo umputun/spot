@@ -182,3 +182,11 @@ func (p *InternalProvider) decrypt(encodedData string) (string, error) {
 func deriveKey(key, salt []byte) []byte {
 	return argon2.IDKey(key, salt, 1, 64*1024, 4, 32)
 }
+
+// NoOpProvider is a provider that does nothing.
+type NoOpProvider struct{}
+
+// Get returns an error on every key.
+func (p *NoOpProvider) Get(_ string) (string, error) {
+	return "", errors.New("not implemented")
+}
