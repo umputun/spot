@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -92,7 +93,7 @@ func setupTestContainers(t *testing.T) (pc testcontainers.Container, ps string, 
 		Image:        "postgres:15",
 		ExposedPorts: []string{"5432/tcp"},
 		Env:          map[string]string{"POSTGRES_PASSWORD": "password"},
-		WaitingFor:   wait.ForLog("database system is ready to accept connections"),
+		WaitingFor:   wait.ForLog("database system is ready to accept connections").WithStartupTimeout(time.Minute),
 	}
 	pgContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: pgReq,
@@ -111,7 +112,7 @@ func setupTestContainers(t *testing.T) (pc testcontainers.Container, ps string, 
 		Image:        "mysql:8",
 		ExposedPorts: []string{"3306/tcp"},
 		Env:          map[string]string{"MYSQL_ROOT_PASSWORD": "password"},
-		WaitingFor:   wait.ForLog("port: 3306  MySQL Community Server - GPL"),
+		WaitingFor:   wait.ForLog("port: 3306  MySQL Community Server - GPL").WithStartupTimeout(time.Minute),
 	}
 	mysqlContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: mysqlReq,

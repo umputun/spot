@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver loaded here
@@ -53,6 +54,7 @@ func NewInternalProvider(connString string, key []byte) (*InternalProvider, erro
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("[INFO] secrets provider: using %s database, type: %s", connString, dbt)
 	return &InternalProvider{db: db, dbType: dbt, key: key}, nil
 }
 
@@ -129,9 +131,20 @@ func (p *InternalProvider) Delete(key string) error {
 	}
 	defer stmt.Close()
 
-	if _, err := stmt.Exec(key); err != nil {
+	res, err := stmt.Exec(key)
+	if err != nil {
 		return fmt.Errorf("error deleting secret for %s: %w", key, err)
 	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error checking affected rows: %w", err)
+	}
+
+	if affected == 0 {
+		return fmt.Errorf("key not found in the database: %s", key)
+	}
+
 	return nil
 }
 
