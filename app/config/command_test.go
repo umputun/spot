@@ -115,7 +115,7 @@ echo 'Goodbye, World!'`,
 }
 
 func TestCmd_getScriptCommand(t *testing.T) {
-	c, err := New("testdata/f1.yml", nil)
+	c, err := New("testdata/f1.yml", nil, nil)
 	require.NoError(t, err)
 	t.Logf("%+v", c)
 	assert.Equal(t, 1, len(c.Tasks), "single task")
@@ -175,6 +175,38 @@ func TestCmd_getScriptFile(t *testing.T) {
 				},
 			},
 			expected: "#!/bin/sh\nset -e\nexport VAR1='value1'\nexport VAR2='value2'\necho 'Hello, World!'\n",
+		},
+		{
+			name: "with multiple environment variables and secrets",
+			cmd: &Cmd{
+				Script: "echo 'Hello, World!'",
+				Environment: map[string]string{
+					"VAR1": "value1",
+					"VAR2": "value2",
+				},
+				Secrets: map[string]string{
+					"SEC1": "secret1",
+				},
+				Options: CmdOptions{
+					Secrets: []string{"SEC1"},
+				},
+			},
+			expected: "#!/bin/sh\nset -e\nexport VAR1='value1'\nexport VAR2='value2'\nexport SEC1='secret1'\necho 'Hello, World!'\n",
+		},
+		{
+			name: "with multiple secrets",
+			cmd: &Cmd{
+				Script: "echo 'Hello, World!'",
+				Secrets: map[string]string{
+					"SEC1": "secret1",
+					"SEC2": "secret2",
+					"SEC3": "secret3",
+				},
+				Options: CmdOptions{
+					Secrets: []string{"SEC1", "SEC2"},
+				},
+			},
+			expected: "#!/bin/sh\nset -e\nexport SEC1='secret1'\nexport SEC2='secret2'\necho 'Hello, World!'\n",
 		},
 	}
 
@@ -255,6 +287,7 @@ options:
   ignore_errors: true
   no_auto: true
   local: true
+  secrets: [s1, s2]
 `,
 			expectedCmd: Cmd{
 				Name:   "test",
@@ -288,14 +321,11 @@ options:
 				Environment: map[string]string{
 					"KEY": "VALUE",
 				},
-				Options: struct {
-					IgnoreErrors bool `yaml:"ignore_errors" toml:"ignore_errors"`
-					NoAuto       bool `yaml:"no_auto" toml:"no_auto"`
-					Local        bool `yaml:"local" toml:"local"`
-				}{
+				Options: CmdOptions{
 					IgnoreErrors: true,
 					NoAuto:       true,
 					Local:        true,
+					Secrets:      []string{"s1", "s2"},
 				},
 			},
 		},

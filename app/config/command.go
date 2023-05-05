@@ -23,11 +23,17 @@ type Cmd struct {
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
 	Script      string            `yaml:"script" toml:"script,multiline"`
 	Environment map[string]string `yaml:"env" toml:"env"`
-	Options     struct {
-		IgnoreErrors bool `yaml:"ignore_errors" toml:"ignore_errors"`
-		NoAuto       bool `yaml:"no_auto" toml:"no_auto"`
-		Local        bool `yaml:"local" toml:"local"`
-	} `yaml:"options" toml:"options,omitempty"`
+	Options     CmdOptions        `yaml:"options" toml:"options,omitempty"`
+
+	Secrets map[string]string `yaml:"-" toml:"-"` // loaded Secrets, filled by playbook
+}
+
+// CmdOptions defines options for a command
+type CmdOptions struct {
+	IgnoreErrors bool     `yaml:"ignore_errors" toml:"ignore_errors"`
+	NoAuto       bool     `yaml:"no_auto" toml:"no_auto"`
+	Local        bool     `yaml:"local" toml:"local"`
+	Secrets      []string `yaml:"secrets" toml:"secrets"`
 }
 
 // CopyInternal defines copy command, implemented internally
@@ -80,10 +86,17 @@ func (cmd *Cmd) getScriptCommand() string {
 		return ""
 	}
 
+	// add environment variables
 	envs := cmd.genEnv()
 	res := "sh -c \""
 	if len(envs) > 0 {
 		res += strings.Join(envs, " ") + " "
+	}
+
+	// add secrets as environment variables
+	secrets := cmd.genSecrets()
+	if len(secrets) > 0 {
+		res += strings.Join(secrets, " ") + " "
 	}
 
 	elems := strings.Split(cmd.Script, "\n")
@@ -111,6 +124,7 @@ func (cmd *Cmd) getScriptFile() io.Reader {
 	buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
 
 	envs := cmd.genEnv()
+	envs = append(envs, cmd.genSecrets()...)
 	// set environment variables for the script
 	if len(envs) > 0 {
 		for _, env := range envs {
@@ -144,6 +158,17 @@ func (cmd *Cmd) genEnv() []string {
 	}
 	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 	return envs
+}
+
+func (cmd *Cmd) genSecrets() []string {
+	secrets := []string{}
+	for _, k := range cmd.Options.Secrets {
+		if v := cmd.Secrets[k]; v != "" {
+			secrets = append(secrets, fmt.Sprintf("%s='%s'", k, v))
+		}
+	}
+	sort.Slice(secrets, func(i, j int) bool { return secrets[i] < secrets[j] })
+	return secrets
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler interface
@@ -205,8 +230,8 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		field := structType.Field(i)
 		fieldName := field.Tag.Get("yaml")
 
-		// skip copy, processed separately
-		if fieldName == "copy" {
+		// skip copy, processed separately. fields without yaml tag or with "-" are skipped too
+		if fieldName == "copy" || fieldName == "" || fieldName == "-" {
 			continue
 		}
 

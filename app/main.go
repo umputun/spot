@@ -22,6 +22,7 @@ import (
 	"github.com/umputun/spot/app/config"
 	"github.com/umputun/spot/app/executor"
 	"github.com/umputun/spot/app/runner"
+	"github.com/umputun/spot/app/secrets"
 )
 
 type options struct {
@@ -45,10 +46,35 @@ type options struct {
 	Skip []string `long:"skip" description:"skip commands"`
 	Only []string `long:"only" description:"run only commands"`
 
+	// secrets
+	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SECRETS"`
+
 	Dry     bool `long:"dry" description:"dry run"`
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
 	Help    bool `short:"h" long:"help" description:"show help"`
+}
+
+// SecretsProvider defines secrets provider options, for all supported providers
+type SecretsProvider struct {
+	Type string `long:"type" env:"TYPE" description:"secret provider type" choice:"none" choice:"spot" choice:"vault" choice:"aws" default:"none"`
+
+	Internal struct {
+		Key  string `long:"key" env:"KEY" description:"secure key for spot secrets provider"`
+		Conn string `long:"conn" env:"CONN" description:"connection string for spot secrets provider" default:"file://spot.db"`
+	} `group:"spot" namespace:"spot" env-namespace:"SPOT"`
+
+	Vault struct {
+		Token string `long:"token" description:"vault token"`
+		Path  string `long:"path" description:"vault path"`
+		URL   string `long:"url" description:"vault url"`
+	} `group:"vault" namespace:"vault" env-namespace:"VAULT"`
+
+	Aws struct {
+		Region    string `long:"region" description:"aws region"`
+		AccessKey string `long:"access-key" description:"aws access key"`
+		SecretKey string `long:"secret-key" description:"aws secret key"`
+	} `group:"aws" namespace:"aws" env-namespace:"AWS"`
 }
 
 var revision = "latest"
@@ -109,7 +135,12 @@ func run(opts options) error {
 		return fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
 	}
 
-	conf, err := config.New(exPlaybookFile, &overrides)
+	secretsProvider, err := makeSecretsProvider(opts.SecretsProvider)
+	if err != nil {
+		return fmt.Errorf("can't make secrets provider: %w", err)
+	}
+
+	conf, err := config.New(exPlaybookFile, &overrides, secretsProvider)
 	if err != nil {
 		return fmt.Errorf("can't read config %s: %w", exPlaybookFile, err)
 	}
@@ -186,6 +217,22 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
 		stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
 	return nil
+}
+
+// makeSecretsProvider creates secrets provider based on options
+func makeSecretsProvider(sopts SecretsProvider) (config.SecretsProvider, error) {
+	switch sopts.Type {
+	case "none":
+		return &secrets.NoOpProvider{}, nil
+	case "spot":
+		return secrets.NewInternalProvider(sopts.Internal.Conn, []byte(sopts.Internal.Key))
+	case "vault":
+		return secrets.NewHashiVaultProvider(sopts.Vault.URL, sopts.Vault.Path, sopts.Vault.Token)
+	case "aws":
+		return secrets.NewAWSSecretsProvider(sopts.Aws.AccessKey, sopts.Aws.SecretKey, sopts.Aws.Region)
+	}
+	log.Printf("[WARN] unknown secrets provider type %q, using none", sopts.Type)
+	return &secrets.NoOpProvider{}, nil
 }
 
 // get ssh key from cli or playbook. if no key provided, use default ~/.ssh/id_rsa

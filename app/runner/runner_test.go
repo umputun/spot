@@ -26,7 +26,7 @@ func TestProcess_Run(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -48,7 +48,7 @@ func TestProcess_RunSimplePlaybook(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf-simple.yml", nil)
+	conf, err := config.New("testdata/conf-simple.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -70,7 +70,7 @@ func TestProcess_RunDry(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -93,7 +93,7 @@ func TestProcess_RunOnly(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -116,7 +116,7 @@ func TestProcess_RunOnlyNoAuto(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -139,7 +139,7 @@ func TestProcess_RunSkip(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -163,7 +163,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 	log.SetOutput(io.Discard)
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 	p := Process{
 		Concurrency: 1,
@@ -186,7 +186,7 @@ func TestProcess_RunLocal(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf-local.yml", nil)
+	conf, err := config.New("testdata/conf-local.yml", nil, nil)
 	require.NoError(t, err)
 	p := Process{
 		Concurrency: 1,
@@ -209,7 +209,7 @@ func TestProcess_RunFailed(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -229,7 +229,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{
@@ -273,7 +273,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 	require.Equal(t, "failed_task", conf.Tasks[1].Name)
 	conf.Tasks[1].Commands[1].Options.IgnoreErrors = true
@@ -294,7 +294,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
 	p := Process{

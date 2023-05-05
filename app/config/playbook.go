@@ -19,6 +19,8 @@ import (
 	"github.com/umputun/spot/app/config/deepcopy"
 )
 
+//go:generate moq -out mocks/secrets.go -pkg mocks -skip-ensure -fmt goimports . secretsProvider:SecretProvider
+
 // PlayBook defines top-level config object
 type PlayBook struct {
 	User      string            `yaml:"user" toml:"user"`           // ssh user
@@ -27,8 +29,15 @@ type PlayBook struct {
 	Targets   map[string]Target `yaml:"targets" toml:"targets"`     // list of targets/environments
 	Tasks     []Task            `yaml:"tasks" toml:"tasks"`         // list of tasks
 
-	inventory *InventoryData // loaded inventory
-	overrides *Overrides     // overrides passed from cli
+	inventory       *InventoryData    // loaded inventory
+	overrides       *Overrides        // overrides passed from cli
+	secrets         map[string]string // list of all discovered secrets
+	secretsProvider SecretsProvider   // secrets provider to use
+}
+
+// SecretsProvider defines interface for secrets providers
+type SecretsProvider interface {
+	Get(key string) (string, error)
 }
 
 // SimplePlayBook defines simplified top-level config
@@ -87,11 +96,12 @@ const (
 )
 
 // New makes new config from yml
-func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
+func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *PlayBook, err error) {
 	log.Printf("[DEBUG] request to load playbook %q", fname)
 	res = &PlayBook{
-		overrides: overrides,
-		inventory: &InventoryData{Groups: make(map[string][]Destination)},
+		overrides:       overrides,
+		secretsProvider: secProvider,
+		inventory:       &InventoryData{Groups: make(map[string][]Destination)},
 	}
 
 	// load playbook
@@ -125,6 +135,8 @@ func New(fname string, overrides *Overrides) (res *PlayBook, err error) {
 	if err = res.checkConfig(); err != nil {
 		return nil, fmt.Errorf("config %s is invalid: %w", fname, err)
 	}
+
+	res.loadSecrets() // load Secrets from Secrets provider
 
 	// log loaded config info
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
@@ -248,6 +260,7 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	if !ok {
 		return nil, fmt.Errorf("can't copy task %s", name)
 	}
+
 	res.Name = name
 	if res.User == "" {
 		res.User = p.User // if user not set in task, use default from playbook
@@ -274,6 +287,17 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	}
 
 	return res, nil
+}
+
+// AllSecretValues returns all secret values from all tasks and all commands.
+// It is used to mask Secrets in logs.
+func (p *PlayBook) AllSecretValues() []string {
+	res := make([]string, 0, len(p.secrets))
+	for _, v := range p.secrets {
+		res = append(res, v)
+	}
+	sort.Strings(res)
+	return res
 }
 
 // TargetHosts returns target hosts for given target name.
@@ -565,4 +589,34 @@ func (p *PlayBook) checkConfig() error {
 	}
 
 	return nil
+}
+
+// loadSecrets loads secrets from secrets provider and stores them in secrets map
+func (p *PlayBook) loadSecrets() {
+	if p.secretsProvider == nil {
+		return
+	}
+
+	if p.secrets == nil {
+		p.secrets = make(map[string]string)
+	}
+
+	// collect Secrets from all command's, retrieve them from provider and store in Secrets map
+	for _, t := range p.Tasks {
+		for i, c := range t.Commands {
+			for _, key := range c.Options.Secrets {
+				val, err := p.secretsProvider.Get(key)
+				if err != nil {
+					log.Printf("[WARN] can't get secret %q defined in task %q, command %q: %s", key, t.Name, c.Name, err)
+					continue
+				}
+				p.secrets[key] = val // store secret in Secrets map of playbook
+				if c.Secrets == nil {
+					c.Secrets = make(map[string]string)
+				}
+				c.Secrets[key] = val // store secret in Secrets map of command
+			}
+			t.Commands[i] = c
+		}
+	}
 }

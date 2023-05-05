@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,12 +10,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/spot/app/config/mocks"
 )
 
 func TestPlaybook_New(t *testing.T) {
 
 	t.Run("good file", func(t *testing.T) {
-		c, err := New("testdata/f1.yml", nil)
+		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
 		assert.Equal(t, 1, len(c.Tasks), "single task")
@@ -26,7 +29,7 @@ func TestPlaybook_New(t *testing.T) {
 	})
 
 	t.Run("good toml file", func(t *testing.T) {
-		c, err := New("testdata/f1.toml", nil)
+		c, err := New("testdata/f1.toml", nil, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
 		assert.Equal(t, 1, len(c.Tasks), "single task")
@@ -42,7 +45,7 @@ func TestPlaybook_New(t *testing.T) {
 		require.NoError(t, err)
 		defer os.Unsetenv("SPOT_INVENTORY")
 
-		c, err := New("testdata/f1.yml", nil)
+		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, c.inventory)
 		assert.Len(t, c.inventory.Groups["all"], 7, "7 hosts in inventory")
@@ -51,7 +54,7 @@ func TestPlaybook_New(t *testing.T) {
 	})
 
 	t.Run("inventory from playbook", func(t *testing.T) {
-		c, err := New("testdata/playbook-with-inventory.yml", nil)
+		c, err := New("testdata/playbook-with-inventory.yml", nil, nil)
 		require.NoError(t, err)
 		require.NotNil(t, c.inventory)
 		assert.Len(t, c.inventory.Groups["all"], 5, "5 hosts in inventory")
@@ -60,7 +63,7 @@ func TestPlaybook_New(t *testing.T) {
 	})
 
 	t.Run("inventory from overrides", func(t *testing.T) {
-		c, err := New("testdata/f1.yml", &Overrides{Inventory: "testdata/hosts-with-groups.yml"})
+		c, err := New("testdata/f1.yml", &Overrides{Inventory: "testdata/hosts-with-groups.yml"}, nil)
 		require.NoError(t, err)
 		require.NotNil(t, c.inventory)
 		assert.Len(t, c.inventory.Groups["all"], 7, "7 hosts in inventory")
@@ -73,40 +76,40 @@ func TestPlaybook_New(t *testing.T) {
 		require.NoError(t, err)
 		defer os.Unsetenv("SPOT_INVENTORY")
 
-		c, err := New("testdata/playbook-with-inventory.yml", &Overrides{Inventory: "testdata/hosts-without-groups.yml"})
+		c, err := New("testdata/playbook-with-inventory.yml", &Overrides{Inventory: "testdata/hosts-without-groups.yml"}, nil)
 		require.NoError(t, err)
 		require.NotNil(t, c.inventory)
 		assert.Len(t, c.inventory.Groups["all"], 5, "5 hosts in inventory")
 	})
 
 	t.Run("adhoc mode", func(t *testing.T) {
-		c, err := New("no-such-thing", &Overrides{AdHocCommand: "echo 123", User: "umputun"})
+		c, err := New("no-such-thing", &Overrides{AdHocCommand: "echo 123", User: "umputun"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 0, len(c.Tasks), "empty config, no task just overrides")
 	})
 
 	t.Run("incorrectly formatted file", func(t *testing.T) {
-		_, err := New("testdata/bad-format.yml", nil)
+		_, err := New("testdata/bad-format.yml", nil, nil)
 		assert.ErrorContains(t, err, "can't unmarshal config testdata/bad-format.yml")
 	})
 
 	t.Run("missing file", func(t *testing.T) {
-		_, err := New("testdata/bad.yml", nil)
+		_, err := New("testdata/bad.yml", nil, nil)
 		assert.EqualError(t, err, "can't read config testdata/bad.yml: open testdata/bad.yml: no such file or directory")
 	})
 
 	t.Run("missing task name", func(t *testing.T) {
-		_, err := New("testdata/no-task-name.yml", nil)
+		_, err := New("testdata/no-task-name.yml", nil, nil)
 		require.ErrorContains(t, err, "task name is required")
 	})
 
 	t.Run("duplicate task name", func(t *testing.T) {
-		_, err := New("testdata/dup-task-name.yml", nil)
+		_, err := New("testdata/dup-task-name.yml", nil, nil)
 		require.ErrorContains(t, err, `duplicate task name "deploy"`)
 	})
 
 	t.Run("simple playbook", func(t *testing.T) {
-		c, err := New("testdata/simple-playbook.yml", nil)
+		c, err := New("testdata/simple-playbook.yml", nil, nil)
 		require.NoError(t, err)
 		assert.Equal(t, 1, len(c.Tasks), "1 task")
 		assert.Equal(t, "default", c.Tasks[0].Name, "task name")
@@ -116,19 +119,48 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, []string{"name1", "name2"}, c.Targets["default"].Names)
 		assert.Equal(t, []Destination{{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
+
+	t.Run("playbook with secrets", func(t *testing.T) {
+		secProvider := &mocks.SecretProvider{
+			GetFunc: func(key string) (string, error) {
+				switch key {
+				case "SEC1":
+					return "VAL1", nil
+				case "SEC2":
+					return "VAL2", nil
+				default:
+					return "", fmt.Errorf("unknown secret key %q", key)
+				}
+			},
+		}
+
+		p, err := New("testdata/playbook-with-secrets.yml", nil, secProvider)
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(p.Tasks), "1 task")
+		assert.Equal(t, "deploy-remark42", p.Tasks[0].Name, "task name")
+		assert.Equal(t, 5, len(p.Tasks[0].Commands), "5 commands")
+
+		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC2": "VAL2"}, p.secrets, "Secrets map for all Secrets")
+
+		tsk, err := p.Task("deploy-remark42")
+		require.NoError(t, err)
+		assert.Equal(t, 5, len(tsk.Commands))
+		assert.Equal(t, "docker", tsk.Commands[4].Name)
+		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
 
 	t.Run("not-found", func(t *testing.T) {
-		c, err := New("testdata/f1.yml", nil)
+		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
 		_, err = c.Task("no-such-task")
 		assert.EqualError(t, err, `task "no-such-task" not found`)
 	})
 
 	t.Run("found", func(t *testing.T) {
-		c, err := New("testdata/f1.yml", nil)
+		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
 		tsk, err := c.Task("deploy-remark42")
 		require.NoError(t, err)
@@ -137,7 +169,7 @@ func TestPlayBook_Task(t *testing.T) {
 	})
 
 	t.Run("adhoc", func(t *testing.T) {
-		c, err := New("", &Overrides{AdHocCommand: "echo 123", User: "umputun"})
+		c, err := New("", &Overrides{AdHocCommand: "echo 123", User: "umputun"}, nil)
 		require.NoError(t, err)
 		tsk, err := c.Task("ad-hoc")
 		require.NoError(t, err)
@@ -148,7 +180,7 @@ func TestPlayBook_Task(t *testing.T) {
 }
 
 func TestPlayBook_TaskOverrideEnv(t *testing.T) {
-	c, err := New("testdata/f1.yml", nil)
+	c, err := New("testdata/f1.yml", nil, nil)
 	require.NoError(t, err)
 
 	c.overrides = &Overrides{
@@ -502,4 +534,51 @@ func TestPlayBook_checkConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPlayBook_loadSecrets(t *testing.T) {
+	secProvider := mocks.SecretProvider{
+		GetFunc: func(key string) (string, error) {
+			switch key {
+			case "secret1":
+				return "value1", nil
+			case "secret2":
+				return "value2", nil
+			default:
+				return "", fmt.Errorf("unknown secret key %q", key)
+			}
+		},
+	}
+
+	p := PlayBook{
+		secretsProvider: &secProvider,
+		Tasks: []Task{
+			{
+				Name: "task1",
+				Commands: []Cmd{
+					{
+						Name: "cmd1",
+						Options: CmdOptions{
+							Secrets: []string{"secret1"},
+						},
+					},
+					{
+						Name: "cmd2",
+						Options: CmdOptions{
+							Secrets: []string{"secret2"},
+						},
+					},
+					{
+						Name: "cmd3",
+						Options: CmdOptions{
+							Secrets: []string{"secret2, secret3"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	p.loadSecrets()
+	assert.Equal(t, map[string]string{"secret1": "value1", "secret2": "value2"}, p.secrets)
 }
