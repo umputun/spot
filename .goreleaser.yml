@@ -4,7 +4,9 @@ signs:
 project_name: spot
 
 builds:
-  - env:
+  - id: spot
+    binary: "spot"
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
@@ -19,7 +21,35 @@ builds:
         goarch: arm
       - goos: freebsd
         goarch: arm64
-    dir: app
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    dir: cmd/spot
+    ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
+
+  - id: secrets
+    binary: "spot-secrets"
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    ignore:
+      - goos: freebsd
+        goarch: arm
+      - goos: freebsd
+        goarch: arm64
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    dir: cmd/secrets
     ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
 
 archives:
@@ -34,16 +64,17 @@ archives:
     files:
       - LICENSE
       - README.md
+      - "dist/{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}/spot*"
+      - "dist/{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}/spot-secrets*"
 
 nfpms:
-  -
-    id: spot
+  - id: spot
     package_name: spot
     file_name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
     vendor: Umputun
     homepage: https://simpliotask.com
     maintainer: Umputun <umputun@gmail.com>
-    description: A tool for the effortless deployment and configuration
+    description: A collection of tools for the effortless deployment, configuration, and management of secrets
     license: MIT
     formats:
       - deb
@@ -51,3 +82,5 @@ nfpms:
     bindir: /usr/bin
     epoch: 1
     release: 1
+
+

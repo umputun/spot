@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/umputun/spot/app/secrets/mocks"
+	"github.com/umputun/spot/pkg/secrets/mocks"
 )
 
 func TestAWSSecretsProvider_Get(t *testing.T) {

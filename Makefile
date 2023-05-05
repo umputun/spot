@@ -1,13 +1,14 @@
-B=$(shell git rev-parse --abbrev-ref HEAD)
-BRANCH=$(subst /,-,$(B))
-GITREV=$(shell git describe --abbrev=7 --always --tags)
-REV=$(GITREV)-$(BRANCH)-$(shell date +%Y%m%d-%H:%M:%S)
-
+# get the latest commit branch, hash and date
+BRANCH=$(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+HASH=$(shell git rev-parse --short=7 HEAD 2>/dev/null)
+TIMESTAMP=$(shell git log -1 --format=%ct HEAD 2>/dev/null | xargs -I{} date -u -r {} +%Y%m%dT%H%M%S)
+GIT_REV=$(shell printf "%s-%s-%s" "$(BRANCH)" "$(HASH)" "$(TIMESTAMP)")
+REV=$(if $(filter --,$(GIT_REV)),latest,$(GIT_REV)) # fallback to latest if not in git repo
 
 all: test build
 
 build:
-	cd app && go build -ldflags "-X main.revision=$(REV) -s -w" -o ../.bin/spot.$(BRANCH)
+	cd cmd/spot && go build -ldflags "-X main.revision=$(REV) -s -w" -o ../../.bin/spot.$(BRANCH)
 
 release:
 	- @mkdir -p bin
@@ -18,11 +19,15 @@ release:
 	docker rm -f spot.bin
 
 test:
-	cd app && go clean -testcache
-	cd app && go test -race -coverprofile=../coverage.out ./...
+	go clean -testcache
+	go test -race -coverprofile=coverage.out ./...
 	grep -v "_mock.go" coverage.out | grep -v mocks > coverage_no_mocks.out
 	go tool cover -func=coverage_no_mocks.out
 	rm coverage.out coverage_no_mocks.out
+
+version:
+	@echo "branch: $(BRANCH), hash: $(HASH), timestamp: $(TIMESTAMP)"
+	@echo "revision: $(REV)"
 
 site:
 	@rm -f  site/public/*

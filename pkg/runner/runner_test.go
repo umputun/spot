@@ -15,8 +15,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/umputun/spot/app/config"
-	"github.com/umputun/spot/app/executor"
+	"github.com/umputun/spot/pkg/config"
+	"github.com/umputun/spot/pkg/executor"
 )
 
 func TestProcess_Run(t *testing.T) {

@@ -1,0 +1,32 @@
+targets:
+  remark42:
+    hosts: [{host: "h1.example.com"}, {host: "h2.example.com"}]
+  staging:
+    inventory_file: {location: "testdata/inventory"}
+
+
+tasks:
+
+  - name: task1
+    commands:
+      - name: wait
+        script: sleep 1s
+      - name: some command
+        script: |
+          ls -laR /tmp
+          du -hcs /srv
+          echo "blah" > /tmp/conf.yml
+          cat /tmp/conf.yml
+          echo "all good, 123 - $FOO $BAR"
+        env:
+          FOO: foo-val
+          BAR: bar-val
+      - name: show content
+        script: ls -laR /tmp
+
+  - name: task2
+    commands:
+      - name: good command
+        script: echo good command 1
+      - name: good command
+        script: echo good command 2
