@@ -18,6 +18,7 @@ func TestStdOutLogWriter(t *testing.T) {
 		prefix        string
 		level         string
 		input         string
+		secrets       []string
 		expectedLines []string
 	}{
 		{
@@ -28,6 +29,17 @@ func TestStdOutLogWriter(t *testing.T) {
 			expectedLines: []string{
 				"[INFO] PREFIX Hello",
 				"[INFO] PREFIX World",
+			},
+		},
+		{
+			name:    "with secrets",
+			prefix:  "PREFIX",
+			level:   "INFO",
+			input:   "Hello secret1\nWorld secret1 secret2 secret2 secret3 blah\n",
+			secrets: []string{"secret1", "secret2"},
+			expectedLines: []string{
+				"[INFO] PREFIX Hello ****",
+				"[INFO] PREFIX World **** **** **** secret3 blah",
 			},
 		},
 		{
@@ -76,8 +88,9 @@ func TestStdOutLogWriter(t *testing.T) {
 			log.SetFlags(0)
 
 			writer := &StdOutLogWriter{
-				prefix: tc.prefix,
-				level:  tc.level,
+				prefix:  tc.prefix,
+				level:   tc.level,
+				secrets: tc.secrets,
 			}
 
 			n, err := writer.Write([]byte(tc.input))
@@ -108,6 +121,7 @@ func TestColorizedWriter(t *testing.T) {
 		hostAddr      string
 		hostName      string
 		input         string
+		secrets       []string
 		expectedLines []string
 	}{
 		{
@@ -129,6 +143,18 @@ func TestColorizedWriter(t *testing.T) {
 			expectedLines: []string{
 				"[my-host localhost] INFO This is a test message",
 				"[my-host localhost] INFO This is another test message",
+			},
+		},
+		{
+			name:     "WithPrefix with host name and secrets",
+			prefix:   "INFO",
+			hostAddr: "localhost",
+			hostName: "my-host",
+			input:    "This is a test message\nThis is another test message",
+			secrets:  []string{"another", "message", "secret"},
+			expectedLines: []string{
+				"[my-host localhost] INFO This is a test ****",
+				"[my-host localhost] INFO This is **** test ****",
 			},
 		},
 		{
@@ -157,7 +183,7 @@ func TestColorizedWriter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buffer := bytes.NewBuffer([]byte{})
-			writer := NewColorizedWriter(buffer, tc.prefix, tc.hostAddr, tc.hostName)
+			writer := NewColorizedWriter(buffer, tc.prefix, tc.hostAddr, tc.hostName, tc.secrets...)
 
 			_, err := writer.Write([]byte(tc.input))
 			assert.NoError(t, err)

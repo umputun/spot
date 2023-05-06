@@ -15,6 +15,7 @@ import (
 type Dry struct {
 	hostAddr string
 	hostName string
+	secrets  []string
 }
 
 // NewDry creates new executor for dry run
@@ -22,10 +23,15 @@ func NewDry(hostAddr, hostName string) *Dry {
 	return &Dry{hostAddr: hostAddr, hostName: hostName}
 }
 
+// SetSecrets sets secrets for the executor
+func (ex *Dry) SetSecrets(secrets []string) {
+	ex.secrets = secrets
+}
+
 // Run shows the command content, doesn't execute it
 func (ex *Dry) Run(_ context.Context, cmd string, verbose bool) (out []string, err error) {
 	log.Printf("[DEBUG] run %s", cmd)
-	outLog, _ := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose)
+	outLog, _ := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets...)
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(outLog, &stdoutBuf)
 	mwr.Write([]byte(cmd)) //nolint
@@ -41,7 +47,7 @@ func (ex *Dry) Run(_ context.Context, cmd string, verbose bool) (out []string, e
 func (ex *Dry) Upload(_ context.Context, local, remote string, mkdir bool) (err error) {
 	log.Printf("[DEBUG] upload %s to %s, mkdir: %v", local, remote, mkdir)
 	if strings.Contains(remote, "spot-script") {
-		outLog, outErr := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, true)
+		outLog, outErr := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, true, ex.secrets...)
 		outErr.Write([]byte("command script " + remote)) //nolint
 		// read local file and write it to outLog
 		f, err := os.Open(local) //nolint

@@ -22,6 +22,7 @@ type Remote struct {
 	client   *ssh.Client
 	hostAddr string
 	hostName string
+	secrets  []string // secrets to be masked in logs
 }
 
 // Close connection to remote server.
@@ -30,6 +31,11 @@ func (ex *Remote) Close() error {
 		return ex.client.Close()
 	}
 	return nil
+}
+
+// SetSecrets sets the secrets for the remote executor.
+func (ex *Remote) SetSecrets(secrets []string) {
+	ex.secrets = secrets
 }
 
 // Run command on remote server.
@@ -219,7 +225,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 	defer session.Close()
 
-	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose)
+	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets...)
 	outLog.Write([]byte(command)) //nolint
 
 	var stdoutBuf bytes.Buffer

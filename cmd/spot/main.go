@@ -61,7 +61,7 @@ type SecretsProvider struct {
 
 	Internal struct {
 		Key  string `long:"key" env:"KEY" description:"secure key for spot secrets provider"`
-		Conn string `long:"conn" env:"CONN" description:"connection string for spot secrets provider" default:"file://spot.db"`
+		Conn string `long:"conn" env:"CONN" description:"connection string for spot secrets provider" default:"spot.sqlite"`
 	} `group:"internal" namespace:"internal" env-namespace:"INTERNAL"`
 
 	Vault struct {
@@ -144,6 +144,8 @@ func run(opts options) error {
 	if err != nil {
 		return fmt.Errorf("can't read config %s: %w", exPlaybookFile, err)
 	}
+
+	lgr.Setup(lgr.Secret(conf.AllSecretValues()...)) // mask secrets in logs
 
 	if conf.User, err = sshUser(opts, conf, &defaultUserInfoProvider{}); err != nil {
 		return fmt.Errorf("can't get ssh user: %w", err)

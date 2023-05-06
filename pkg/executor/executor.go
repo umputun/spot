@@ -19,6 +19,7 @@ import (
 // Interface is an interface for the executor.
 // Implemented by Remote and Local structs.
 type Interface interface {
+	SetSecrets(secrets []string)
 	Run(ctx context.Context, c string, verbose bool) (out []string, err error)
 	Upload(ctx context.Context, local, remote string, mkdir bool) (err error)
 	Download(ctx context.Context, remote, local string, mkdir bool) (err error)
@@ -29,13 +30,14 @@ type Interface interface {
 
 // StdOutLogWriter is a writer that writes log with a prefix and a log level.
 type StdOutLogWriter struct {
-	prefix string
-	level  string
+	prefix  string
+	level   string
+	secrets []string
 }
 
 // NewStdoutLogWriter creates a new StdOutLogWriter.
-func NewStdoutLogWriter(prefix, level string) *StdOutLogWriter {
-	return &StdOutLogWriter{prefix: prefix, level: level}
+func NewStdoutLogWriter(prefix, level string, secrets ...string) *StdOutLogWriter {
+	return &StdOutLogWriter{prefix: prefix, level: level, secrets: secrets}
 }
 
 func (w *StdOutLogWriter) Write(p []byte) (n int, err error) {
@@ -44,6 +46,7 @@ func (w *StdOutLogWriter) Write(p []byte) (n int, err error) {
 		if line == "" {
 			continue
 		}
+		line = maskSecrets(line, w.secrets)
 		log.Printf("[%s] %s %s", w.level, w.prefix, line)
 	}
 	return len(p), nil
@@ -55,11 +58,12 @@ type ColorizedWriter struct {
 	prefix   string
 	hostAddr string
 	hostName string
+	secrets  []string
 }
 
 // NewColorizedWriter creates a new ColorizedWriter with the given hostAddr name.
-func NewColorizedWriter(wr io.Writer, prefix, hostAddr, hostName string) *ColorizedWriter {
-	return &ColorizedWriter{wr: wr, hostAddr: hostAddr, hostName: hostName, prefix: prefix}
+func NewColorizedWriter(wr io.Writer, prefix, hostAddr, hostName string, secrets ...string) *ColorizedWriter {
+	return &ColorizedWriter{wr: wr, hostAddr: hostAddr, hostName: hostName, prefix: prefix, secrets: secrets}
 }
 
 // WithHost creates a new StdoutColorWriter with the given hostAddr name.
@@ -78,6 +82,8 @@ func (s *ColorizedWriter) Write(p []byte) (n int, err error) {
 			hostID = s.hostName + " " + s.hostAddr
 		}
 		formattedOutput := fmt.Sprintf("[%s] %s %s", hostID, s.prefix, line)
+		formattedOutput = maskSecrets(formattedOutput, s.secrets)
+
 		if s.prefix == "" {
 			formattedOutput = fmt.Sprintf("[%s] %s", hostID, line)
 		}
@@ -108,14 +114,24 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 }
 
 // MakeOutAndErrWriters creates a new StdoutLogWriter and StdoutLogWriter for the given hostAddr.
-func MakeOutAndErrWriters(hostAddr, hostName string, verbose bool) (outWr, errWr io.Writer) {
+func MakeOutAndErrWriters(hostAddr, hostName string, verbose bool, secrets ...string) (outWr, errWr io.Writer) {
 	var outLog, errLog io.Writer
 	if verbose {
-		outLog = NewColorizedWriter(os.Stdout, " >", hostAddr, hostName)
-		errLog = NewColorizedWriter(os.Stdout, " !", hostAddr, hostName)
+		outLog = NewColorizedWriter(os.Stdout, " >", hostAddr, hostName, secrets...)
+		errLog = NewColorizedWriter(os.Stdout, " !", hostAddr, hostName, secrets...)
 	} else {
-		outLog = NewStdoutLogWriter(" >", "DEBUG")
-		errLog = NewStdoutLogWriter(" !", "WARN")
+		outLog = NewStdoutLogWriter(" >", "DEBUG", secrets...)
+		errLog = NewStdoutLogWriter(" !", "WARN", secrets...)
 	}
 	return outLog, errLog
+}
+
+func maskSecrets(s string, secrets []string) string {
+	for _, secret := range secrets {
+		if secret == " " || secret == "" {
+			continue
+		}
+		s = strings.ReplaceAll(s, secret, "****")
+	}
+	return s
 }
