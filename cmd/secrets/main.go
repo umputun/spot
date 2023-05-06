@@ -14,7 +14,7 @@ import (
 
 type options struct {
 	Key  string `short:"k" long:"key" env:"SPOT_SECRETS_KEY" required:"true" description:"key to use for encryption/decryption"`
-	Conn string `short:"c" long:"conn" env:"SPOT_SECRETS_CONN" default:"spot.sqlite" description:"connection string to use for the secrets database"`
+	Conn string `short:"c" long:"conn" env:"SPOT_SECRETS_CONN" default:"spot.db" description:"connection string to use for the secrets database"`
 	Dbg  bool   `long:"dbg" description:"debug mode"`
 
 	SetCmd struct {
