@@ -3,6 +3,7 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"testing"
@@ -221,6 +222,28 @@ func TestExecuter_Run(t *testing.T) {
 		assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
 	})
 
+	t.Run("with secrets", func(t *testing.T) {
+		originalStdout := os.Stdout
+		reader, writer, _ := os.Pipe()
+		os.Stdout = writer
+
+		sess.SetSecrets([]string{"data2"})
+		defer sess.SetSecrets(nil)
+		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
+		out, e := sess.Run(ctx, cmd, true)
+		writer.Close()
+		os.Stdout = originalStdout
+
+		capturedStdout, err := io.ReadAll(reader)
+		require.NoError(t, err)
+
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
+		t.Logf("capturedStdout: %s", capturedStdout)
+		assert.NotContains(t, string(capturedStdout), "data2", "captured stdout should not contain secrets")
+		assert.Contains(t, string(capturedStdout), "****", "captured stdout should contain masked secrets")
+	})
 }
 
 func TestExecuter_Sync(t *testing.T) {

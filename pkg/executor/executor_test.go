@@ -43,6 +43,17 @@ func TestStdOutLogWriter(t *testing.T) {
 			},
 		},
 		{
+			name:    "with empty secrets",
+			prefix:  "PREFIX",
+			level:   "INFO",
+			input:   "Hello secret1\nWorld secret1 secret2 secret2 secret3 blah\n",
+			secrets: []string{" ", ""},
+			expectedLines: []string{
+				"[INFO] PREFIX Hello secret1",
+				"[INFO] PREFIX World secret1 secret2 secret2 secret3 blah",
+			},
+		},
+		{
 			name:          "empty input",
 			prefix:        "PREFIX",
 			level:         "INFO",
@@ -121,6 +132,8 @@ func TestColorizedWriter(t *testing.T) {
 		hostAddr      string
 		hostName      string
 		input         string
+		withHostAddr  string
+		withHostName  string
 		secrets       []string
 		expectedLines []string
 	}{
@@ -168,6 +181,18 @@ func TestColorizedWriter(t *testing.T) {
 			},
 		},
 		{
+			name:         "WithoutPrefix, set host name",
+			prefix:       "",
+			hostAddr:     "localhost",
+			input:        "This is a test message\nThis is another test message",
+			withHostName: "my-host",
+			withHostAddr: "127.0.0.1",
+			expectedLines: []string{
+				"[my-host 127.0.0.1] This is a test message",
+				"[my-host 127.0.0.1] This is another test message",
+			},
+		},
+		{
 			name:     "WithoutPrefix with host name",
 			prefix:   "",
 			hostAddr: "localhost",
@@ -184,7 +209,9 @@ func TestColorizedWriter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			buffer := bytes.NewBuffer([]byte{})
 			writer := NewColorizedWriter(buffer, tc.prefix, tc.hostAddr, tc.hostName, tc.secrets...)
-
+			if tc.withHostName != "" && tc.withHostAddr != "" {
+				writer = writer.WithHost(tc.withHostAddr, tc.withHostName)
+			}
 			_, err := writer.Write([]byte(tc.input))
 			assert.NoError(t, err)
 
