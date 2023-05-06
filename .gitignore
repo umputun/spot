@@ -23,3 +23,4 @@ spot-inventory-private2.yml
 site/public/
 identifier.sqlite
 test_secrets.db
+spot.sqlite

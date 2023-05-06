@@ -15,13 +15,20 @@ import (
 )
 
 // Local is a runner for local execution. Similar to remote, but without ssh, just exec on localhost and local copy/delete/sync
-type Local struct{}
+type Local struct {
+	secrets []string
+}
+
+// SetSecrets sets the secrets for the remote executor.
+func (l *Local) SetSecrets(secrets []string) {
+	l.secrets = secrets
+}
 
 // Run executes command on local hostAddr, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 
-	outLog, errLog := MakeOutAndErrWriters("localhost", "", verbose)
+	outLog, errLog := MakeOutAndErrWriters("localhost", "", verbose, l.secrets...)
 	outLog.Write([]byte(cmd)) //nolint
 
 	var stdoutBuf bytes.Buffer

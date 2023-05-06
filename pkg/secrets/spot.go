@@ -35,7 +35,7 @@ func NewInternalProvider(connString string, key []byte) (*InternalProvider, erro
 		if strings.Contains(connString, "@tcp(") {
 			return "mysql", nil
 		}
-		if strings.HasPrefix(connString, "file:/") {
+		if strings.HasPrefix(connString, "file:/") || strings.HasSuffix(connString, ".sqlite") {
 			return "sqlite", nil
 		}
 		return "", fmt.Errorf("unsupported database type in connection string")

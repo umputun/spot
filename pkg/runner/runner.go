@@ -33,6 +33,8 @@ type Process struct {
 
 	Skip []string
 	Only []string
+
+	secrets []string
 }
 
 // Connector is an interface for connecting to a host, and returning remote executer.
@@ -61,6 +63,8 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
+	p.secrets = p.Config.AllSecretValues()
+
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
 	var commands int32
 	for i, host := range targetHosts {
@@ -71,7 +75,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 				atomic.AddInt32(&commands, int32(count))
 			}
 			if e != nil {
-				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose)
+				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose, p.secrets...)
 				errLog.Write([]byte(e.Error())) //nolint
 			}
 			return e
@@ -84,7 +88,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
 
-		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose)
+		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets...)
 		outLog.Write([]byte(tsk.OnError)) //nolint
 
 		var stdoutBuf bytes.Buffer
@@ -118,6 +122,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		return 0, err
 	}
 	defer remote.Close()
+	remote.SetSecrets(p.secrets)
 
 	fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
@@ -138,11 +143,13 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		params := execCmdParams{cmd: cmd, hostAddr: hostAddr, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
 			params.exec = &executor.Local{}
+			params.exec.SetSecrets(p.secrets)
 			params.hostAddr = "localhost"
 		}
 
 		if p.Dry {
 			params.exec = executor.NewDry(hostAddr, hostName)
+			params.exec.SetSecrets(p.secrets)
 			if cmd.Options.Local {
 				params.hostAddr = "localhost"
 			}
