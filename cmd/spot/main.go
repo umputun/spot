@@ -57,12 +57,10 @@ type options struct {
 
 // SecretsProvider defines secrets provider options, for all supported providers
 type SecretsProvider struct {
-	Type string `long:"type" env:"TYPE" description:"secret provider type" choice:"none" choice:"spot" choice:"vault" choice:"aws" default:"none"`
+	Provider string `long:"provider" env:"PROVIDER" description:"secret provider type" choice:"none" choice:"spot" choice:"vault" choice:"aws" default:"none"`
 
-	Internal struct {
-		Key  string `long:"key" env:"KEY" description:"secure key for spot secrets provider"`
-		Conn string `long:"conn" env:"CONN" description:"connection string for spot secrets provider" default:"spot.sqlite"`
-	} `group:"internal" namespace:"internal" env-namespace:"INTERNAL"`
+	Key  string `long:"key" env:"KEY" description:"secure key for spot secrets provider"`
+	Conn string `long:"conn" env:"CONN" description:"connection string for spot secrets provider" default:"spot.db"`
 
 	Vault struct {
 		Token string `long:"token" env:"TOKEN" description:"vault token"`
@@ -223,17 +221,17 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 
 // makeSecretsProvider creates secrets provider based on options
 func makeSecretsProvider(sopts SecretsProvider) (config.SecretsProvider, error) {
-	switch sopts.Type {
+	switch sopts.Provider {
 	case "none":
 		return &secrets.NoOpProvider{}, nil
 	case "spot":
-		return secrets.NewInternalProvider(sopts.Internal.Conn, []byte(sopts.Internal.Key))
+		return secrets.NewInternalProvider(sopts.Conn, []byte(sopts.Key))
 	case "vault":
 		return secrets.NewHashiVaultProvider(sopts.Vault.URL, sopts.Vault.Path, sopts.Vault.Token)
 	case "aws":
 		return secrets.NewAWSSecretsProvider(sopts.Aws.AccessKey, sopts.Aws.SecretKey, sopts.Aws.Region)
 	}
-	log.Printf("[WARN] unknown secrets provider type %q, using none", sopts.Type)
+	log.Printf("[WARN] unknown secrets provider %q", sopts.Provider)
 	return &secrets.NoOpProvider{}, nil
 }
 
