@@ -14,16 +14,26 @@ import (
 )
 
 func TestInternalProvider_EncryptionDecryption(t *testing.T) {
-	p := &InternalProvider{
-		key: []byte("test_key"),
-	}
 
-	er, err := p.encrypt("test_value")
-	require.NoError(t, err)
-	t.Logf("encrypted value: %s", er)
-	dr, err := p.decrypt(er)
-	require.NoError(t, err)
-	assert.Equal(t, "test_value", dr)
+	t.Run("good key", func(t *testing.T) {
+		p := &InternalProvider{key: []byte("test_key")}
+		er, err := p.encrypt("test_value")
+		require.NoError(t, err)
+		t.Logf("encrypted value: %s", er)
+		dr, err := p.decrypt(er)
+		require.NoError(t, err)
+		assert.Equal(t, "test_value", dr)
+	})
+
+	t.Run("bad key", func(t *testing.T) {
+		p := &InternalProvider{key: []byte("test_key")}
+		er, err := p.encrypt("test_value")
+		require.NoError(t, err)
+		t.Logf("encrypted value: %s", er)
+		p.key = []byte("bad_key")
+		_, err = p.decrypt(er)
+		require.Error(t, err)
+	})
 }
 
 func TestInternalProvider(t *testing.T) {
@@ -42,6 +52,7 @@ func TestInternalProvider(t *testing.T) {
 		dbType     string
 		connString string
 		secretKey  string
+		wantError  bool
 	}{
 		{
 			name:       "SQLite",
@@ -61,14 +72,28 @@ func TestInternalProvider(t *testing.T) {
 			connString: mysqlConnString,
 			secretKey:  "test_key",
 		},
+		{
+			name:       "bad connection string",
+			dbType:     "",
+			connString: "bad_connection_string",
+			wantError:  true,
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			provider, err := NewInternalProvider(tc.connString, []byte(tc.secretKey))
+			if tc.wantError {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
 
 			err = provider.Set("test_key", "test_value")
+			require.NoError(t, err)
+
+			err = provider.Set("test_key2", "test_value2")
 			require.NoError(t, err)
 
 			secret, err := provider.Get("test_key")
@@ -80,6 +105,23 @@ func TestInternalProvider(t *testing.T) {
 
 			_, err = provider.Get("test_key")
 			require.Error(t, err)
+
+			// Test List function
+			keys, err := provider.List("")
+			require.NoError(t, err)
+			assert.Contains(t, keys, "test_key2")
+
+			keys, err = provider.List("test_key")
+			require.NoError(t, err)
+			assert.Contains(t, keys, "test_key2")
+
+			keys, err = provider.List("*")
+			require.NoError(t, err)
+			assert.Contains(t, keys, "test_key2")
+
+			keys, err = provider.List("non_existent_prefix")
+			require.NoError(t, err)
+			assert.Empty(t, keys)
 		})
 	}
 }

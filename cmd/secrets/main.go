@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/fatih/color"
 	"github.com/go-pkgz/lgr"
@@ -14,13 +13,14 @@ import (
 )
 
 type options struct {
-	Key  string `short:"k" long:"key" env:"SPOT_SECRETS_INTERNAL_KEY" description:"key to use for encryption/decryption"`
-	Conn string `short:"c" long:"conn" env:"SPOT_SECRETS_INTERNAL_CONN" description:"connection string to use for the secrets database"`
+	Key  string `short:"k" long:"key" env:"SPOT_SECRETS_KEY" required:"true" description:"key to use for encryption/decryption"`
+	Conn string `short:"c" long:"conn" env:"SPOT_SECRETS_CONN" default:"spot.sqlite" description:"connection string to use for the secrets database"`
 	Dbg  bool   `long:"dbg" description:"debug mode"`
 
 	SetCmd struct {
 		PositionalArgs struct {
-			KV string `positional-arg-name:"key-val" description:"key=value pair to add"`
+			Key   string `positional-arg-name:"key" description:"key to add"`
+			Value string `positional-arg-name:"value" description:"value to add"`
 		} `positional-args:"yes" positional-optional:"no"`
 	} `command:"set" description:"add a new secret"`
 
@@ -35,9 +35,17 @@ type options struct {
 			Key string `positional-arg-name:"key" description:"key to delete"`
 		} `positional-args:"yes" positional-optional:"no"`
 	} `command:"del" description:"delete a secret"`
+
+	ListCmd struct {
+		PositionalArgs struct {
+			KeyPrefix string `positional-arg-name:"key-prefix" default:"*" description:"key prefix to list"`
+		} `positional-args:"yes" positional-optional:"no"`
+	} `command:"list" description:"list secrets keys"`
 }
 
 var revision = "latest"
+
+var exitFunc = os.Exit
 
 func main() {
 	fmt.Printf("spot secrets %s\n", revision)
@@ -45,7 +53,7 @@ func main() {
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
-		os.Exit(1)
+		exitFunc(1) // can be redefined in tests
 	}
 	setupLog(opts.Dbg)
 
@@ -62,13 +70,12 @@ func run(p *flags.Parser, opts options) error {
 
 	// set secret
 	if p.Active != nil && p.Command.Find("set") == p.Active {
-		elems := strings.SplitN(opts.SetCmd.PositionalArgs.KV, "=", 2)
-		if len(elems) != 2 {
-			return fmt.Errorf("key=val pair is required")
+		log.Printf("[INFO] set command, key=%s", opts.SetCmd.PositionalArgs.Key)
+		if opts.SetCmd.PositionalArgs.Value == "" {
+			return fmt.Errorf("can't set empty secret for key %q", opts.SetCmd.PositionalArgs.Key)
 		}
-		log.Printf("[INFO] set command, key=%s", elems[0])
-		if setErr := sp.Set(elems[0], elems[1]); setErr != nil {
-			return fmt.Errorf("can't set secret for key %q: %w", elems[0], setErr)
+		if setErr := sp.Set(opts.SetCmd.PositionalArgs.Key, opts.SetCmd.PositionalArgs.Value); setErr != nil {
+			return fmt.Errorf("can't set secret for key %q: %w", opts.SetCmd.PositionalArgs.Key, setErr)
 		}
 	}
 
@@ -89,6 +96,22 @@ func run(p *flags.Parser, opts options) error {
 			return fmt.Errorf("can't delete secret: %w", delErr)
 		}
 		log.Printf("[INFO] key=%s deleted", opts.DeleteCmd.PositionalArgs.Key)
+	}
+
+	// list secrets
+	if p.Active != nil && p.Command.Find("list") == p.Active {
+		log.Printf("[INFO] list command, key-prefix=%q", opts.ListCmd.PositionalArgs.KeyPrefix)
+		keys, listErr := sp.List(opts.ListCmd.PositionalArgs.KeyPrefix)
+		if listErr != nil {
+			return fmt.Errorf("can't list secrets: %w", listErr)
+		}
+		for i, k := range keys {
+			if i%4 == 0 && i != 0 {
+				fmt.Println()
+			}
+			fmt.Printf("%s\t", k)
+		}
+		fmt.Println()
 	}
 
 	return nil

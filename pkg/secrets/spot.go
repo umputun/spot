@@ -27,26 +27,26 @@ type InternalProvider struct {
 }
 
 // NewInternalProvider creates a new InternalProvider.
-func NewInternalProvider(connString string, key []byte) (*InternalProvider, error) {
-	dbType := func(connString string) (string, error) {
-		if strings.HasPrefix(connString, "postgres://") {
+func NewInternalProvider(conn string, key []byte) (*InternalProvider, error) {
+	dbType := func(c string) (string, error) {
+		if strings.HasPrefix(c, "postgres://") {
 			return "postgres", nil
 		}
-		if strings.Contains(connString, "@tcp(") {
+		if strings.Contains(c, "@tcp(") {
 			return "mysql", nil
 		}
-		if strings.HasPrefix(connString, "file:/") || strings.HasSuffix(connString, ".sqlite") {
+		if strings.HasPrefix(c, "file:/") || strings.HasSuffix(c, ".sqlite") || strings.HasSuffix(c, ".db") {
 			return "sqlite", nil
 		}
 		return "", fmt.Errorf("unsupported database type in connection string")
 	}
 
-	dbt, err := dbType(connString)
+	dbt, err := dbType(conn)
 	if err != nil {
 		return nil, fmt.Errorf("can't determine database type: %w", err)
 	}
 
-	db, err := sql.Open(dbt, connString)
+	db, err := sql.Open(dbt, conn)
 	if err != nil {
 		return nil, fmt.Errorf("error opening secrets database: %w", err)
 	}
@@ -54,7 +54,7 @@ func NewInternalProvider(connString string, key []byte) (*InternalProvider, erro
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("[INFO] secrets provider: using %s database, type: %s", connString, dbt)
+	log.Printf("[INFO] secrets provider: using %s database, type: %s", conn, dbt)
 	return &InternalProvider{db: db, dbType: dbt, key: key}, nil
 }
 
@@ -146,6 +146,43 @@ func (p *InternalProvider) Delete(key string) error {
 	}
 
 	return nil
+}
+
+// List retrieves a list of secret keys from the database with an optional prefix filter.
+func (p *InternalProvider) List(prefix string) ([]string, error) {
+	var keys []string
+	var rows *sql.Rows
+	var err error
+
+	listStmt := "SELECT skey FROM spot_secrets"
+	if prefix != "*" && prefix != "" {
+		if p.dbType == "postgres" {
+			listStmt = "SELECT skey FROM spot_secrets WHERE skey LIKE $1"
+		} else {
+			listStmt = "SELECT skey FROM spot_secrets WHERE skey LIKE ?"
+		}
+		rows, err = p.db.Query(listStmt, prefix+"%")
+	} else {
+		rows, err = p.db.Query(listStmt)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error listing secrets: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var key string
+		if err := rows.Scan(&key); err != nil {
+			return nil, fmt.Errorf("error scanning secret keys: %w", err)
+		}
+		keys = append(keys, key)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error retrieving secret keys: %w", err)
+	}
+
+	return keys, nil
 }
 
 func (p *InternalProvider) encrypt(data string) (string, error) {
