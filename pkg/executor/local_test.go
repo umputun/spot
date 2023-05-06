@@ -3,8 +3,10 @@ package executor
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"testing"
 	"time"
 
@@ -13,48 +15,71 @@ import (
 )
 
 func TestRun(t *testing.T) {
-	testCases := []struct {
-		name        string
-		cmd         string
-		expectError bool
-	}{
-		{
-			name: "successful command execution",
-			cmd:  "echo 'Hello, World!'",
-		},
-		{
-			name:        "failed command execution",
-			cmd:         "nonexistent-command",
-			expectError: true,
-		},
-	}
+	ctx := context.Background()
+	l := &Local{}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			l := &Local{}
-			{
-				out, err := l.Run(context.Background(), tc.cmd, false)
-				if tc.expectError {
-					assert.Error(t, err, "expected an error")
-					return
-				}
-				assert.NoError(t, err, "unexpected error")
-				require.Equal(t, 1, len(out), "output should have exactly one line")
-				assert.Equal(t, "Hello, World!", out[0], "output line should match expected value")
-			}
-			{
-				out, err := l.Run(context.Background(), tc.cmd, true)
-				if tc.expectError {
-					assert.Error(t, err, "expected an error")
-					return
-				}
-				assert.NoError(t, err, "unexpected error")
-				require.Equal(t, 1, len(out), "output should have exactly one line")
-				assert.Equal(t, "Hello, World!", out[0], "output line should match expected value")
-			}
+	t.Run("single line out success", func(t *testing.T) {
+		out, e := l.Run(ctx, "echo 'hello world'", false)
+		require.NoError(t, e)
+		assert.Equal(t, []string{"hello world"}, out)
+	})
 
-		})
-	}
+	t.Run("single line out fail", func(t *testing.T) {
+		_, e := l.Run(ctx, "nonexistent-command", false)
+		require.Error(t, e)
+	})
+
+	t.Run("multi line out success", func(t *testing.T) {
+		// Prepare the test environment
+		_, err := l.Run(ctx, "mkdir -p /tmp/st", true)
+		require.NoError(t, err)
+		_, err = l.Run(ctx, "cp testdata/data1.txt /tmp/st/data1.txt", true)
+		require.NoError(t, err)
+		_, err = l.Run(ctx, "cp testdata/data2.txt /tmp/st/data2.txt", true)
+		require.NoError(t, err)
+
+		out, err := l.Run(ctx, "ls -1 /tmp/st", false)
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(out))
+		assert.Equal(t, "data1.txt", out[0])
+		assert.Equal(t, "data2.txt", out[1])
+	})
+
+	t.Run("multi line out fail", func(t *testing.T) {
+		_, err := l.Run(ctx, "nonexistent-command", false)
+		require.Error(t, err)
+	})
+
+	t.Run("find out", func(t *testing.T) {
+		out, e := l.Run(ctx, "find /tmp/st -type f", true)
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Contains(t, out, "/tmp/st/data1.txt")
+		assert.Contains(t, out, "/tmp/st/data2.txt")
+	})
+
+	t.Run("with secrets", func(t *testing.T) {
+		originalStdout := os.Stdout
+		reader, writer, _ := os.Pipe()
+		os.Stdout = writer
+
+		// Set up the test environment
+		l.SetSecrets([]string{"data2"})
+		defer l.SetSecrets(nil)
+		out, e := l.Run(ctx, "find /tmp/st -type f", true)
+		writer.Close()
+		os.Stdout = originalStdout
+
+		capturedStdout, err := io.ReadAll(reader)
+		require.NoError(t, err)
+
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"/tmp/st/data1.txt", "/tmp/st/data2.txt"}, out)
+		t.Logf("capturedStdout: %s", capturedStdout)
+		assert.NotContains(t, string(capturedStdout), "data2", "captured stdout should not contain secrets")
+		assert.Contains(t, string(capturedStdout), "****", "captured stdout should contain masked secrets")
+	})
 }
 
 func TestUploadAndDownload(t *testing.T) {
