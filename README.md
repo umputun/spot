@@ -8,21 +8,22 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 
 ## Features
 
-- Define tasks with a list of commands and the list of target hosts.
-- Support for remote hosts specified directly or through inventory files/URLs.
-- Everything can be defined in a simple YAML or TOML file.
-- Run scripts on remote hosts as well as on the localhost.
-- Built-in commands: copy, sync, delete and wait.
-- Concurrent execution of task on multiple hosts.
+- Define [tasks](#task-details) with a list of [commands](#command-types) and the list of [target hosts](#targets).
+- Support for remote hosts specified directly or through [inventory](#inventory-) files/URLs.
+- Everything can be defined in a [simple YAML](#full-playbook-example) or TOML file.
+- Run [scripts](#script-execution) on remote hosts as well as on the localhost.
+- Built-in [commands](#command-types) : copy, sync, delete and wait.
+- [Concurrent](#rolling-updates) execution of task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
-- Ability to override list of destination hosts, ssh username and ssh key file.
+- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider)secrets storage, [Vault](#hashicorp-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider-).
+- Ability to [override](#command-options) list of destination hosts, ssh username and ssh key file.
 - Skip or execute only specific commands.
 - Catch errors and execute a command hook on the local host.
 - Debug mode to print out the commands to be executed, output of the commands, and all the other details.
 - Dry-run mode to print out the commands to be executed without actually executing them.
-- Ad-hoc mode to execute a single command on a list of hosts.
-- A single binary with no dependencies.
+- [Ad-hoc mode](#ad-hoc-commands) to execute a single command on a list of hosts.
+- A [single binary](https://github.com/umputun/spot/releases) with no dependencies.
 ----
 
 <div align="center">
@@ -450,6 +451,76 @@ Adhoc commands always sets `verbose` to `true` automatically, so the user can se
 
 Spot supports rolling updates, which means that the tasks will be executed on the hosts one by one, waiting for the previous host to finish before starting the next one. This is useful when you need to update a service running on multiple hosts, but want to avoid downtime. To enable rolling updates, use the `--concurrent=N` flag when running the `spot` command. `N` is the number of hosts to execute the tasks on concurrently. Example: `spot --concurrent=2`. In addition, user can use a builtin `wait` command to wait for a service to start before executing the next command. See the [Command Types](#command-types) section for more details. Practically, user will have a task with a series of commands, where the last command will wait for the service to start by running a command like `curl -s --fail localhost:8080` and then the task will be executed on the next host.
 
+## Secrets
+
+Spot supports secrets, which are encrypted string values that can be used in the playbook file. This feature is useful for storing sensitive information, such as passwords or API keys. Secrets are encrypted, and their values are decrypted at runtime. Spot supports three types of secret providers: built-in, Hashicorp Vault, and AWS Secrets Manager. Other providers can be added by implementing the `SecretsProvider` interface with a single `GetSecrets` method.
+
+Using secrets is simple. First, users need to define a secret provider in the command line options or environment variables. Then, users can add secrets to any command in the playbook file by setting `options.secrets`, as shown in the following example:
+
+```yaml
+tasks:
+  - name: access sensitive data
+    commands:
+      - name: read api response
+        script: |
+          curl -s -u ${user}:${password} https://api.example.com  
+          curl https://api.example.com -H "Authorization: Bearer ${token}"
+        options:
+          secrets: [user, password, token]
+```
+
+In this case secrets for keys `user`, `password` and `token` will be read from the secrets provider, decrypted at runtime and passed to the command in environment. Please note: if a user runs `spot` with the `--verbose` or `--dbg` flag, the secrets will be replaced with `****` in the output. This is done to prevent secrets from being displayed or logged.
+
+### Built-in Secrets Provider
+
+Spot includes a built-in secrets provider that can be used to store secrets in sqlite, mysql or postgresql database. The provider can be configured using the following command line options or environment variables:
+
+- `--secrets.provider=spot`: selects the built-in secret`s provider.
+- `--secrets.conn` or `$SPOT_SECRETS_CONN`: the connection string to the database
+  - sqlite: `file:///path/to/database.db` or `/path/to/database.sqlite` or `/path/to/database.db`, default: `spot.db`
+  - mysql: `user:password@tcp(host:port)/dbname`
+  - postgresql: `postgres://user:password@host:port/database?option1=value1&option2=value2`
+- `--secrets.key` or `$SPOT_SECRETS_KEY`: the encryption key to use for decrypting secrets.
+
+If `spot` provider is selected, the table `spot_secrets` will be created in the database. The table has the following columns: `skey` and `sval`. The `skey` column is the secret key, and the `sval` column is the encrypted secret value. The `skey` column is indexed for faster lookups. It is recommended to use application-specific prefixes for the secret keys, for example `system-name/service-name/secret-key`. This will allow to use the same database for multiple applications without conflicts.
+
+The built-in secrets provider uses strong cryptography techniques to ensure the safety of your secrets. Below is a summary of the security methods employed:
+
+- **Argon2 key derivation**: The Argon2 key derivation function (argon2.IDKey) is used to derive a 32-byte key from the provided user key and a randomly generated salt. This function is memory-hard and designed to be resistant to GPU-based attacks, providing increased security for your secrets.
+- **NaCl SecretBox encryption**: Secrets are encrypted and decrypted using the [NaCl SecretBox](golang.org/x/crypto/nacl/secretbox) package, which provides authenticated encryption with additional data. It uses XSalsa20 for encryption and Poly1305 for authentication, ensuring the integrity and confidentiality of the stored secrets.
+- **Random nonces and salts**: Spot generates random nonces for each encryption operation and random salts for each key derivation operation. These values are produced using the crypto/rand package, which generates cryptographically secure random numbers.
+- **Base64 encoding**: Encrypted secret values are stored in the database as Base64 encoded strings, which provides a safe and compact way to represent binary data in text form.
+
+These methods work together to provide a robust and secure way to manage secrets in Spot. By using the built-in secrets provider, user can be confident that your sensitive data is securely stored and protected from unauthorized access.
+
+### Hashicorp Vault Secrets Provider
+
+Spot supports Hashicorp Vault as a secrets provider. To use it, user needs to set the following command line options or environment variables:
+
+- `--secrets.provider=vault`: selects the Hashicorp Vault secrets provider.
+- `--secrets.vault.token` or `$SPOT_SECRETS_VAULT_TOKEN`: the Vault token to use for authentication.
+- `--secrets.vault.url` or `$SPOT_SECRETS_VAULT_URL`: the Vault server url.
+- `--secrets.vault.path` or `$SPOT_SECRETS_VAULT_PATH`: the path to the secrets in Vault.
+
+### AWS Secrets Manager Secrets Provider  
+
+Spot supports AWS Secrets Manager as a secrets provider. To use it, user needs to set the following command line options or environment variables:
+
+- `--secrets.provider=aws`: selects the AWS Secrets Manager secrets provider.
+- `--secrets.aws.region` or `$SPOT_SECRETS_AWS_REGION`: the AWS region to use for authentication.
+- `--secrets.aws.access-key` or `$SPOT_SECRETS_AWS_ACCESS_KEY`: the AWS access key to use for authentication.
+- `--secrets.aws.secret-key` or `$SPOT_SECRETS_AWS_SECRET_KEY`: the AWS secret key to use for authentication.
+
+note: by default, the AWS Secrets Manager secrets provider will use the default AWS credential. This means that the provider will use the credentials from the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. 
+
+### Managing Secrets with `spot-secrets`
+
+Spot provides a simple way to manage secrets for builtin provider using the `spot-secrets` utility. This command can be used to set, delete, get and list secrets in the database. 
+
+- `spot-secrets set <key> <value>`: sets the secret value for the specified key.
+- `spot-secrets get <key>`: gets the secret value for the specified key.
+- `spot-secrets delete <key>`: deletes the secret value for the specified key.
+- `spot-secrets list`: lists all the secret keys in the database.
 
 ## Why Spot?
 
