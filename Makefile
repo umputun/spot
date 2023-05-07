@@ -11,7 +11,7 @@ build:
 	cd cmd/spot && go build -ldflags "-X main.revision=$(REV) -s -w" -o ../../.bin/spot.$(BRANCH)
 
 release:
-	- @mkdir -p bin
+	- @mkdir -p .bin
 	docker build -f Dockerfile.release --progress=plain -t spot.bin --no-cache .
 	- @docker rm -f spot.bin 2>/dev/null || exit 0
 	docker run -d --name=spot.bin spot.bin

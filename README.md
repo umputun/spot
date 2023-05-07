@@ -526,6 +526,26 @@ Spot provides a simple way to manage secrets for builtin provider using the `spo
 - `spot-secrets delete <key>`: deletes the secret value for the specified key.
 - `spot-secrets list`: lists all the secret keys in the database.
 
+```
+Usage:
+  spot-secrets [OPTIONS] <command>
+
+Application Options:
+  -k, --key=  key to use for encryption/decryption [$SPOT_SECRETS_KEY]
+  -c, --conn= connection string to use for the secrets database (default: spot.db) [$SPOT_SECRETS_CONN]
+      --dbg   debug mode
+
+Help Options:
+  -h, --help  Show this help message
+
+Available commands:
+  del   delete a secret
+  get   retrieve a secret
+  list  list secrets keys
+  set   add a new secret
+
+```
+
 ## Why Spot?
 
 Spot is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
