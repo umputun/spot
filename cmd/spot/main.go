@@ -81,22 +81,11 @@ func main() {
 	fmt.Printf("spot %s\n", revision)
 
 	var opts options
-	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash)
+	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
 		os.Exit(1)
 	}
-
-	if opts.Help {
-		p.WriteHelp(os.Stdout)
-		os.Exit(2)
-	}
-
 	setupLog(opts.Dbg)
-
-	if opts.Dry && !opts.Dbg {
-		msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
-		fmt.Print(msg)
-	}
 
 	if err := run(opts); err != nil {
 		if opts.Dbg {
@@ -109,7 +98,12 @@ func main() {
 
 func run(opts options) error {
 	if opts.Dry {
-		log.Printf("[WARN] dry run, no changes will be made and no commands will be executed")
+		if opts.Dbg {
+			log.Printf("[WARN] dry run, no changes will be made and no commands will be executed")
+		} else {
+			msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
+			fmt.Print(msg)
+		}
 	}
 
 	st := time.Now()
