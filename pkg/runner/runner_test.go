@@ -19,112 +19,98 @@ import (
 	"github.com/umputun/spot/pkg/executor"
 )
 
-var (
-	testingHostAndPort string
-	testTeardown       func()
-)
-
-func TestMain(m *testing.M) {
-	var err error
-	if testingHostAndPort, testTeardown, err = startTestContainer(); err != nil {
-		log.Fatal(err)
-	}
-
-	code := m.Run()
-	if testTeardown != nil {
-		testTeardown()
-	}
-	os.Exit(code)
-}
-
-func TestProcess_RunWithSudoSingleLine(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil, nil)
-	require.NoError(t, err)
-
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-		Only:        []string{"root only single line"},
-	}
-
-	outWriter := &bytes.Buffer{}
-	log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
-	res, err := p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 1, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
-	assert.Contains(t, outWriter.String(), "passwd")
-}
-
-func TestProcess_RunWithSudoMultiline(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil, nil)
-	require.NoError(t, err)
-
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-		Only:        []string{"root only multiline"},
-	}
-
-	outWriter := &bytes.Buffer{}
-	log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
-	res, err := p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 1, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
-	assert.Contains(t, outWriter.String(), "passwd")
-}
-
 func TestProcess_Run(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+
+	t.Run("full playbook", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		}
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 7, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+	})
+
+	t.Run("simple playbook", func(t *testing.T) {
+		conf, err := config.New("testdata/conf-simple.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		}
+		res, err := p.Run(ctx, "default", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 7, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+	})
+}
+
+func TestProcess_RunWithSudo(t *testing.T) {
+	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-	}
-	res, err := p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 7, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
-}
+	t.Run("single line", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"root only single line"},
+		}
 
-func TestProcess_RunSimplePlaybook(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	conf, err := config.New("testdata/conf-simple.yml", nil, nil)
-	require.NoError(t, err)
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), "passwd")
+	})
 
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-	}
-	res, err := p.Run(ctx, "default", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 7, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
+	t.Run("multi line", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"root only multiline"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), "passwd")
+	})
 }
 
 func TestProcess_RunDry(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -143,68 +129,64 @@ func TestProcess_RunDry(t *testing.T) {
 	assert.Equal(t, 1, res.Hosts)
 }
 
-func TestProcess_RunOnly(t *testing.T) {
+func TestProcess_RunOnlyAndSkip(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-		Only:        []string{"show content"},
-	}
-	res, err := p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 1, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
-}
+	t.Run("only, with auto", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"show content"},
+		}
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+	})
 
-func TestProcess_RunOnlyNoAuto(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil, nil)
-	require.NoError(t, err)
+	t.Run("only, no auto", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"show content", "no auto cmd"},
+		}
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 2, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+	})
 
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-		Only:        []string{"show content", "no auto cmd"},
-	}
-	res, err := p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 2, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
-}
-
-func TestProcess_RunSkip(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil, nil)
-	require.NoError(t, err)
-
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
-		Skip:        []string{"wait", "show content"},
-	}
-	res, err := p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
-	assert.Equal(t, 5, res.Commands)
-	assert.Equal(t, 1, res.Hosts)
+	t.Run("skip", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Skip:        []string{"wait", "show content"},
+		}
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 5, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+	})
 }
 
 func TestProcess_RunVerbose(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	log.SetOutput(io.Discard)
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
@@ -224,6 +206,9 @@ func TestProcess_RunVerbose(t *testing.T) {
 
 func TestProcess_RunLocal(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	var buf bytes.Buffer
 	log.SetOutput(&buf)
 
@@ -247,6 +232,9 @@ func TestProcess_RunLocal(t *testing.T) {
 
 func TestProcess_RunFailed(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -264,6 +252,9 @@ func TestProcess_RunFailed(t *testing.T) {
 
 func TestProcess_RunFailed_WithOnError(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -305,6 +296,9 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 
 func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -323,6 +317,9 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 
 func TestProcess_RunTaskWithWait(t *testing.T) {
 	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -341,6 +338,34 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	_, err = p.Run(ctx, "with_wait", testingHostAndPort)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "wait done")
+}
+
+func TestProcess_wait(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	ctx := context.Background()
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+	sess, err := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, err)
+
+	t.Run("wait done", func(t *testing.T) {
+		p := Process{Connector: connector}
+		time.AfterFunc(time.Second, func() {
+			_, _ = sess.Run(ctx, "touch /tmp/wait.done", false)
+		})
+		err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+			Command: "cat /tmp/wait.done"})
+		require.NoError(t, err)
+	})
+
+	t.Run("wait failed", func(t *testing.T) {
+		p := Process{Connector: connector}
+		err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+			Command: "cat /tmp/wait.never-done"})
+		require.EqualError(t, err, "timeout exceeded")
+	})
 }
 
 func TestProcess_applyTemplates(t *testing.T) {
@@ -446,41 +471,10 @@ func TestProcess_applyTemplates(t *testing.T) {
 	}
 }
 
-func TestProcess_waitPassed(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
-	require.NoError(t, err)
-
-	p := Process{Connector: connector}
-	time.AfterFunc(time.Second, func() {
-		_, _ = sess.Run(ctx, "touch /tmp/wait.done", false)
-	})
-	err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
-		Command: "cat /tmp/wait.done"})
-	require.NoError(t, err)
-}
-
-func TestProcess_waitFailed(t *testing.T) {
-	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
-	require.NoError(t, err)
-
-	p := Process{Connector: connector}
-	err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
-		Command: "cat /tmp/wait.never-done"})
-	require.EqualError(t, err, "timeout exceeded")
-}
-
-func startTestContainer() (hostAndPort string, teardown func(), err error) {
+func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	ctx := context.Background()
 	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
-	if err != nil {
-		return "", nil, err
-	}
+	require.NoError(t, err)
 
 	req := testcontainers.ContainerRequest{
 		Image:        "lscr.io/linuxserver/openssh-server:latest",
@@ -500,19 +494,13 @@ func startTestContainer() (hostAndPort string, teardown func(), err error) {
 		ContainerRequest: req,
 		Started:          true,
 	})
-	if err != nil {
-		return "", nil, err
-	}
+	require.NoError(t, err)
 
 	host, err := container.Host(ctx)
-	if err != nil {
-		return "", nil, err
-	}
+	require.NoError(t, err)
 
 	port, err := container.MappedPort(ctx, "2222")
-	if err != nil {
-		return "", nil, err
-	}
+	require.NoError(t, err)
 
-	return fmt.Sprintf("%s:%s", host, port.Port()), func() { container.Terminate(ctx) }, nil
+	return fmt.Sprintf("%s:%s", host, port.Port()), func() { container.Terminate(ctx) }
 }
