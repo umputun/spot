@@ -245,17 +245,18 @@ func TestExecuter_Run(t *testing.T) {
 		assert.Contains(t, string(capturedStdout), "****", "captured stdout should contain masked secrets")
 	})
 
-	t.Run("ctx canceled", func(t *testing.T) {
-		ctx, cancel := context.WithCancel(ctx)
-		cancel()
-		_, err := sess.Run(ctx, "sh -c 'echo hello world'", false)
-		assert.ErrorContains(t, err, "context canceled")
-	})
-
 	t.Run("command failed", func(t *testing.T) {
 		_, err := sess.Run(ctx, "sh -c 'exit 1'", false)
 		assert.ErrorContains(t, err, "failed to run command on remote server")
 	})
+
+	t.Run("ctx canceled", func(t *testing.T) {
+		ctxc, cancel := context.WithCancel(ctx)
+		cancel()
+		_, err := sess.Run(ctxc, "sh -c 'echo hello world'", false)
+		assert.ErrorContains(t, err, "context canceled")
+	})
+
 }
 
 func TestExecuter_Sync(t *testing.T) {
