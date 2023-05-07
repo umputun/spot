@@ -203,6 +203,10 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 			}
 		}()
 		details = fmt.Sprintf(" {script: %s}", c)
+		if ep.cmd.Options.Sudo {
+			details = fmt.Sprintf(" {script: %s, sudo: true}", c)
+			c = fmt.Sprintf("sudo bash -c %q", c)
+		}
 		if _, err := ep.exec.Run(ctx, c, p.Verbose); err != nil {
 			return details, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
 		}
