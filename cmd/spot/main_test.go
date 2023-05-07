@@ -35,19 +35,38 @@ func Test_runCompleted(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	opts := options{
-		SSHUser:      "test",
-		SSHKey:       "testdata/test_ssh_key",
-		PlaybookFile: "testdata/conf.yml",
-		TaskName:     "task1",
-		Targets:      []string{hostAndPort},
-		Only:         []string{"wait"},
-	}
-	setupLog(true)
-	st := time.Now()
-	err := run(opts)
-	require.NoError(t, err)
-	assert.True(t, time.Since(st) >= 1*time.Second)
+	t.Run("normal run", func(t *testing.T) {
+		opts := options{
+			SSHUser:      "test",
+			SSHKey:       "testdata/test_ssh_key",
+			PlaybookFile: "testdata/conf.yml",
+			TaskName:     "task1",
+			Targets:      []string{hostAndPort},
+			Only:         []string{"wait"},
+		}
+		setupLog(true)
+		st := time.Now()
+		err := run(opts)
+		require.NoError(t, err)
+		assert.True(t, time.Since(st) >= 1*time.Second)
+	})
+
+	t.Run("dry run", func(t *testing.T) {
+		opts := options{
+			SSHUser:      "test",
+			SSHKey:       "testdata/test_ssh_key",
+			PlaybookFile: "testdata/conf.yml",
+			TaskName:     "task1",
+			Targets:      []string{hostAndPort},
+			Only:         []string{"wait"},
+			Dry:          true,
+		}
+		setupLog(true)
+		st := time.Now()
+		err := run(opts)
+		require.NoError(t, err)
+		assert.True(t, time.Since(st) < 1*time.Second)
+	})
 }
 
 func Test_runCompletedSimplePlaybook(t *testing.T) {
