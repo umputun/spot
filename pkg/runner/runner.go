@@ -76,7 +76,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 			}
 			if e != nil {
 				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose, p.secrets...)
-				errLog.Write([]byte(e.Error())) //nolint
+				errLog.Write([]byte(e.Error())) // nolint
 			}
 			return e
 		})
@@ -85,11 +85,11 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 
 	// execute on-error command if any error occurred during task execution and on-error command is defined
 	if err != nil && tsk.OnError != "" {
-		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) //nolint we want to run shell here
+		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) // nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
 
 		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets...)
-		outLog.Write([]byte(tsk.OnError)) //nolint
+		outLog.Write([]byte(tsk.OnError)) // nolint
 
 		var stdoutBuf bytes.Buffer
 		mwr := io.MultiWriter(outLog, &stdoutBuf)
@@ -145,7 +145,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			params.exec = &executor.Local{}
 			params.exec.SetSecrets(p.secrets)
 			params.hostAddr = "localhost"
-			params.hostName, _ = os.Hostname() //nolint we don't care about error here
+			params.hostName, _ = os.Hostname() // nolint we don't care about error here
 		}
 
 		if p.Dry {
@@ -153,7 +153,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			params.exec.SetSecrets(p.secrets)
 			if cmd.Options.Local {
 				params.hostAddr = "localhost"
-				params.hostName, _ = os.Hostname() //nolint we don't care about error here
+				params.hostName, _ = os.Hostname() // nolint we don't care about error here
 			}
 		}
 
@@ -187,87 +187,177 @@ type execCmdParams struct {
 	exec     executor.Interface
 }
 
+// execCommand executes a single command on a target host. It detects command type based on the fields what are set.
+// Even if multiple fields for multiple commands are set, only one will be executed.
 func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
 	switch {
 	case ep.cmd.Script != "":
 		log.Printf("[DEBUG] execute script %q on %s", ep.cmd.Name, ep.hostAddr)
-		single, multiRdr := ep.cmd.GetScript()
-		c, teardown, err := p.prepScript(ctx, single, multiRdr, ep)
-		if err != nil {
-			return details, fmt.Errorf("can't prepare script on %s: %w", ep.hostAddr, err)
-		}
-		defer func() {
-			if teardown == nil {
-				return
-			}
-			if err := teardown(); err != nil {
-				log.Printf("[WARN] can't teardown script on %s: %v", ep.hostAddr, err)
-			}
-		}()
-		details = fmt.Sprintf(" {script: %s}", c)
-		if ep.cmd.Options.Sudo {
-			details = fmt.Sprintf(" {script: %s, sudo: true}", c)
-			c = fmt.Sprintf("sudo bash -c %q", c)
-		}
-		if _, err := ep.exec.Run(ctx, c, p.Verbose); err != nil {
-			return details, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
-		}
+		return p.execScriptCommand(ctx, ep)
 	case ep.cmd.Copy.Source != "" && ep.cmd.Copy.Dest != "":
 		log.Printf("[DEBUG] copy file to %s", ep.hostAddr)
-		src := p.applyTemplates(ep.cmd.Copy.Source,
-			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		dst := p.applyTemplates(ep.cmd.Copy.Dest,
-			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-		if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
-			return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
-		}
+		return p.execCopyCommand(ctx, ep)
 	case len(ep.cmd.MCopy) > 0:
 		log.Printf("[DEBUG] copy multiple files to %s", ep.hostAddr)
-		msgs := []string{}
-		for _, c := range ep.cmd.MCopy {
-			src := p.applyTemplates(c.Source,
-				templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-			dst := p.applyTemplates(c.Dest,
-				templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-			msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
-			if err := ep.exec.Upload(ctx, src, dst, c.Mkdir); err != nil {
-				return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
-			}
-		}
-		details = fmt.Sprintf(" {copy: %s}", strings.Join(msgs, ", "))
+		return p.execMCopyCommand(ctx, ep)
 	case ep.cmd.Sync.Source != "" && ep.cmd.Sync.Dest != "":
 		log.Printf("[DEBUG] sync files on %s", ep.hostAddr)
-		src := p.applyTemplates(ep.cmd.Sync.Source,
-			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		dst := p.applyTemplates(ep.cmd.Sync.Dest,
-			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-		if _, err := ep.exec.Sync(ctx, src, dst, ep.cmd.Sync.Delete); err != nil {
-			return details, fmt.Errorf("can't sync files on %s: %w", ep.hostAddr, err)
-		}
+		return p.execSyncCommand(ctx, ep)
 	case ep.cmd.Delete.Location != "":
 		log.Printf("[DEBUG] delete files on %s", ep.hostAddr)
-		loc := p.applyTemplates(ep.cmd.Delete.Location,
-			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ep.cmd.Delete.Recursive)
-		if err := ep.exec.Delete(ctx, loc, ep.cmd.Delete.Recursive); err != nil {
-			return details, fmt.Errorf("can't delete files on %s: %w", ep.hostAddr, err)
-		}
+		return p.execDeleteCommand(ctx, ep)
 	case ep.cmd.Wait.Command != "":
 		log.Printf("[DEBUG] wait for command on %s", ep.hostAddr)
-		c := p.applyTemplates(ep.cmd.Wait.Command,
-			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		params := config.WaitInternal{Command: c, Timeout: ep.cmd.Wait.Timeout, CheckDuration: ep.cmd.Wait.CheckDuration}
-		details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
-			c, ep.cmd.Wait.Timeout.Truncate(100*time.Millisecond), ep.cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
-		if err := p.wait(ctx, ep.exec, params); err != nil {
-			return details, fmt.Errorf("wait failed on %s: %w", ep.hostAddr, err)
-		}
+		return p.execWaitCommand(ctx, ep)
 	default:
 		return "", fmt.Errorf("unknown command %q", ep.cmd.Name)
 	}
+}
+
+func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	single, multiRdr := ep.cmd.GetScript()
+	c, teardown, err := p.prepScript(ctx, single, multiRdr, ep)
+	if err != nil {
+		return details, fmt.Errorf("can't prepare script on %s: %w", ep.hostAddr, err)
+	}
+	defer func() {
+		if teardown == nil {
+			return
+		}
+		if err := teardown(); err != nil {
+			log.Printf("[WARN] can't teardown script on %s: %v", ep.hostAddr, err)
+		}
+	}()
+	details = fmt.Sprintf(" {script: %s}", c)
+	if ep.cmd.Options.Sudo {
+		details = fmt.Sprintf(" {script: %s, sudo: true}", c)
+		c = fmt.Sprintf("sudo bash -c %q", c)
+	}
+	if _, err := ep.exec.Run(ctx, c, p.Verbose); err != nil {
+		return details, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
+	}
 	return details, nil
+}
+
+func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	src := p.applyTemplates(ep.cmd.Copy.Source,
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+	dst := p.applyTemplates(ep.cmd.Copy.Dest,
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+	details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
+	if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
+		return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
+	}
+	return details, nil
+}
+
+func (p *Process) execMCopyCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	msgs := []string{}
+	for _, c := range ep.cmd.MCopy {
+		src := p.applyTemplates(c.Source,
+			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+		dst := p.applyTemplates(c.Dest,
+			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
+		if err := ep.exec.Upload(ctx, src, dst, c.Mkdir); err != nil {
+			return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
+		}
+	}
+	details = fmt.Sprintf(" {copy: %s}", strings.Join(msgs, ", "))
+	return details, nil
+}
+
+func (p *Process) execSyncCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	src := p.applyTemplates(ep.cmd.Sync.Source,
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+	dst := p.applyTemplates(ep.cmd.Sync.Dest,
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+	details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
+	if _, err := ep.exec.Sync(ctx, src, dst, ep.cmd.Sync.Delete); err != nil {
+		return details, fmt.Errorf("can't sync files on %s: %w", ep.hostAddr, err)
+	}
+	return details, nil
+}
+
+func (p *Process) execDeleteCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	loc := p.applyTemplates(ep.cmd.Delete.Location,
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+	details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ep.cmd.Delete.Recursive)
+	if err := ep.exec.Delete(ctx, loc, ep.cmd.Delete.Recursive); err != nil {
+		return details, fmt.Errorf("can't delete files on %s: %w", ep.hostAddr, err)
+	}
+	return details, nil
+}
+
+func (p *Process) execWaitCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+	c := p.applyTemplates(ep.cmd.Wait.Command,
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+	params := config.WaitInternal{Command: c, Timeout: ep.cmd.Wait.Timeout, CheckDuration: ep.cmd.Wait.CheckDuration}
+	details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
+		c, ep.cmd.Wait.Timeout.Truncate(100*time.Millisecond), ep.cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
+	if err := p.wait(ctx, ep.exec, params); err != nil {
+		return details, fmt.Errorf("wait failed on %s: %w", ep.hostAddr, err)
+	}
+	return details, nil
+}
+
+type tdFn func() error // tdFn is a type for teardown functions, should be called after the command execution
+
+// prepScript prepares a script for execution. Script can be either a single command or a multiline script.
+// In case of a single command, it just applies templates to it. In case of a multiline script, it creates
+// a temporary file with the script chmod as +x and uploads to remote host to /tmp.
+// it also  returns a teardown function to remove the temporary file after the command execution.
+func (p *Process) prepScript(ctx context.Context, s string, r io.Reader, ep execCmdParams) (cmd string, td tdFn, err error) {
+	if s != "" { // single command, nothing to do just apply templates
+		s = p.applyTemplates(s, templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
+		return s, nil, nil
+	}
+
+	// multiple commands, create a temporary script
+
+	// read the script from the reader and apply templates
+	var buf bytes.Buffer
+	if _, err = io.Copy(&buf, r); err != nil {
+		return "", nil, fmt.Errorf("can't read script: %w", err)
+	}
+	rdr := bytes.NewBuffer([]byte(p.applyTemplates(buf.String(),
+		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})))
+
+	// make a temporary file and copy the script to it
+	tmp, err := os.CreateTemp("", "spot-script")
+	if err != nil {
+		return "", nil, fmt.Errorf("can't create temporary file: %w", err)
+	}
+	if _, err = io.Copy(tmp, rdr); err != nil {
+		return "", nil, fmt.Errorf("can't copy script to temporary file: %w", err)
+	}
+	if err = tmp.Close(); err != nil {
+		return "", nil, fmt.Errorf("can't close temporary file: %w", err)
+	}
+
+	// make the script executable locally, upload preserves the permissions
+	if err = os.Chmod(tmp.Name(), 0o700); err != nil { // nolint
+		return "", nil, fmt.Errorf("can't chmod temporary file: %w", err)
+	}
+
+	// get temp file name for remote hostAddr
+	dst := filepath.Join("/tmp", filepath.Base(tmp.Name())) // nolint
+
+	// upload the script to the remote hostAddr
+	if err = ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
+		return "", nil, fmt.Errorf("can't upload script to %s: %w", ep.hostAddr, err)
+	}
+	remoteCmd := fmt.Sprintf("sh -c %s", dst)
+
+	teardown := func() error {
+		// remove the script from the remote hostAddr, should be invoked by the caller after the command is executed
+		if err := ep.exec.Delete(ctx, dst, false); err != nil {
+			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ep.hostAddr, err)
+		}
+		return nil
+	}
+
+	return remoteCmd, teardown, nil
 }
 
 // wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
@@ -329,59 +419,4 @@ func (p *Process) applyTemplates(inp string, tdata templateData) string {
 	}
 
 	return res
-}
-
-type tdFn func() error // tdFn is a type for teardown functions, should be called after the command execution
-
-func (p *Process) prepScript(ctx context.Context, s string, r io.Reader, ep execCmdParams) (cmd string, td tdFn, err error) {
-	if s != "" { // single command, nothing to do just apply templates
-		s = p.applyTemplates(s, templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-		return s, nil, nil
-	}
-
-	// multiple commands, create a temporary script
-
-	// read the script from the reader and apply templates
-	var buf bytes.Buffer
-	if _, err = io.Copy(&buf, r); err != nil {
-		return "", nil, fmt.Errorf("can't read script: %w", err)
-	}
-	rdr := bytes.NewBuffer([]byte(p.applyTemplates(buf.String(),
-		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})))
-
-	// make a temporary file and copy the script to it
-	tmp, err := os.CreateTemp("", "spot-script")
-	if err != nil {
-		return "", nil, fmt.Errorf("can't create temporary file: %w", err)
-	}
-	if _, err = io.Copy(tmp, rdr); err != nil {
-		return "", nil, fmt.Errorf("can't copy script to temporary file: %w", err)
-	}
-	if err = tmp.Close(); err != nil {
-		return "", nil, fmt.Errorf("can't close temporary file: %w", err)
-	}
-
-	// make the script executable locally, upload preserves the permissions
-	if err = os.Chmod(tmp.Name(), 0o700); err != nil { //nolint
-		return "", nil, fmt.Errorf("can't chmod temporary file: %w", err)
-	}
-
-	// get temp file name for remote hostAddr
-	dst := filepath.Join("/tmp", filepath.Base(tmp.Name())) //nolint
-
-	// upload the script to the remote hostAddr
-	if err = ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
-		return "", nil, fmt.Errorf("can't upload script to %s: %w", ep.hostAddr, err)
-	}
-	remoteCmd := fmt.Sprintf("sh -c %s", dst)
-
-	teardown := func() error {
-		// remove the script from the remote hostAddr, should be invoked by the caller after the command is executed
-		if err := ep.exec.Delete(ctx, dst, false); err != nil {
-			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ep.hostAddr, err)
-		}
-		return nil
-	}
-
-	return remoteCmd, teardown, nil
 }
