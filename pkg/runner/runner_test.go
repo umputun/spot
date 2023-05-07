@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,7 +40,7 @@ func TestProcess_Run(t *testing.T) {
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
-		assert.Equal(t, 7, res.Commands)
+		assert.Equal(t, 8, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
 	})
 
@@ -56,6 +58,36 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 7, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
+	})
+
+	t.Run("with runtime vars", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		// make target with name "the host" and host/poty from testingHostAndPort
+		adr := strings.Split(testingHostAndPort, ":")[0]
+		port, err := strconv.Atoi(strings.Split(testingHostAndPort, ":")[1])
+		require.NoError(t, err)
+		tg := conf.Targets["default"]
+		tg.Hosts = []config.Destination{{Host: adr, Port: port, Name: "the host"}}
+		conf.Targets["default"] = tg
+
+		require.NoError(t, err)
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"runtime variables"},
+		}
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+		res, err := p.Run(ctx, "task1", "default")
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), `name:"the host", cmd:"runtime variables", user:"test", task:"task1"`)
+		assert.Contains(t, outWriter.String(), `host:"localhost:`)
 	})
 }
 
@@ -125,7 +157,7 @@ func TestProcess_RunDry(t *testing.T) {
 	}
 	res, err := p.Run(ctx, "task1", testingHostAndPort)
 	require.NoError(t, err)
-	assert.Equal(t, 7, res.Commands)
+	assert.Equal(t, 8, res.Commands)
 	assert.Equal(t, 1, res.Hosts)
 }
 
@@ -177,7 +209,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
-		assert.Equal(t, 5, res.Commands)
+		assert.Equal(t, 6, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
 	})
 }

@@ -140,11 +140,12 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 
 		log.Printf("[INFO] run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
 		stCmd := time.Now()
-		params := execCmdParams{cmd: cmd, hostAddr: hostAddr, tsk: tsk, exec: remote}
+		params := execCmdParams{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: tsk, exec: remote}
 		if cmd.Options.Local {
 			params.exec = &executor.Local{}
 			params.exec.SetSecrets(p.secrets)
 			params.hostAddr = "localhost"
+			params.hostName, _ = os.Hostname() //nolint we don't care about error here
 		}
 
 		if p.Dry {
@@ -152,6 +153,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			params.exec.SetSecrets(p.secrets)
 			if cmd.Options.Local {
 				params.hostAddr = "localhost"
+				params.hostName, _ = os.Hostname() //nolint we don't care about error here
 			}
 		}
 
