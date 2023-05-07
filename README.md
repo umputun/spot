@@ -16,7 +16,7 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 - [Concurrent](#rolling-updates) execution of task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
-- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider) secrets storage, [Vault](#hashicorp-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider-).
+- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider) secrets storage, [Vault](#hashicorp-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider).
 - Ability to [override](#command-options) list of destination hosts, ssh username and ssh key file.
 - Skip or execute only specific commands.
 - Catch errors and execute a command hook on the local host.
