@@ -40,6 +40,21 @@ func TestHashiVaultProvider_Get(t *testing.T) {
 		_, err := hashiProvider.Get("key2")
 		require.Error(t, err, "Get method should return an error")
 	})
+
+	t.Run("invalid token", func(t *testing.T) {
+		invalidProvider, err := NewHashiVaultProvider(vaultAddr, "secret/data/spot", "invalid-token")
+		require.NoError(t, err, "failed to create HashiVaultProvider")
+
+		_, err = invalidProvider.Get("key1")
+		require.ErrorContains(t, err, "permission denied")
+	})
+
+	t.Run("invalid api address", func(t *testing.T) {
+		invalidProvider, err := NewHashiVaultProvider("http://localhost:1234", "secret/data/spot", "myroot-token")
+		require.NoError(t, err)
+		_, err = invalidProvider.Get("key1")
+		require.ErrorContains(t, err, "connection refused")
+	})
 }
 
 func createVaultTestContainer(t *testing.T) (vaultC testcontainers.Container, vaultAddr string) {
