@@ -42,6 +42,16 @@ tasks:
         script: echo "no auto cmd"
         options: {no_auto: true}
 
+      - name: root only multiline
+        script: |
+          echo "root only"
+          ls -l /etc
+        options: {no_auto: true, sudo: true}
+
+      - name: root only single line
+        script: ls -l /etc
+        options: {no_auto: true, sudo: true}
+
   - name: failed_task
     commands:
       - name: good command

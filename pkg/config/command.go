@@ -33,6 +33,7 @@ type CmdOptions struct {
 	IgnoreErrors bool     `yaml:"ignore_errors" toml:"ignore_errors"`
 	NoAuto       bool     `yaml:"no_auto" toml:"no_auto"`
 	Local        bool     `yaml:"local" toml:"local"`
+	Sudo         bool     `yaml:"sudo" toml:"sudo"`
 	Secrets      []string `yaml:"secrets" toml:"secrets"`
 }
 
