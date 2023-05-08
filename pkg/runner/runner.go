@@ -264,6 +264,8 @@ func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (deta
 	}
 
 	// collect setenv output and set it to the environment. This is needed for the next commands.
+	// setenv output is in the format of "setenv foo=bar" and it is appended to the output by the script itself.
+	// this part done inside cmd.scriptFile function, called by prepScript cmd.GetScript.
 	vars = make(map[string]string)
 	for _, line := range out {
 		if !strings.HasPrefix(line, "setvar ") {
