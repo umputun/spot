@@ -185,6 +185,15 @@ func (p *InternalProvider) List(prefix string) ([]string, error) {
 	return keys, nil
 }
 
+// encrypt is a helper function that takes a plaintext data string as input and
+// returns an encrypted version of the data using the NaCl Secretbox encryption
+// scheme. The encryption process consists of the following steps:
+// 1. Generate a random 16-byte salt.
+// 2. Derive a 32-byte encryption key from the InternalProvider's key and the salt using the deriveKey function.
+// 3. Generate a random 24-byte nonce.
+// 4. Encrypt the plaintext data using the derived key, nonce, and NaCl Secretbox.
+// 5. Prepend the nonce and salt to the encrypted data.
+// 6. Encode the resulting byte slice in base64 format.
 func (p *InternalProvider) encrypt(data string) (string, error) {
 	salt := make([]byte, 16)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
@@ -208,6 +217,14 @@ func (p *InternalProvider) encrypt(data string) (string, error) {
 	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
+// decrypt is a helper function that takes an encrypted data string in base64 format as input
+// and returns the decrypted plaintext version of the data. The decryption process consists of
+// the following steps:
+// 1. Decode the base64-encoded input data.
+// 2. Extract the 24-byte nonce and 16-byte salt from the decoded data.
+// 3. Derive a 32-byte decryption key from the InternalProvider's key and the salt using the deriveKey function.
+// 4. Decrypt the remaining encrypted data using the derived key, nonce, and NaCl Secretbox.
+// 5. Return the decrypted data as a string.
 func (p *InternalProvider) decrypt(encodedData string) (string, error) {
 	sealed, err := base64.StdEncoding.DecodeString(encodedData)
 	if err != nil {
@@ -229,6 +246,16 @@ func (p *InternalProvider) decrypt(encodedData string) (string, error) {
 	return string(decrypted), nil
 }
 
+// deriveKey is a helper function that takes a user-provided key and a salt as input
+// and generates a derived key using the Argon2id key derivation function.
+// Argon2id is recommended for password hashing and provides a good balance between
+// security and performance. The function uses the following parameters:
+// - Time cost: 2 iterations, which increases the time required for key derivation.
+// - Memory cost: 64 MiB, which increases the memory required for key derivation.
+// - Parallelism: 4, which adjusts the number of threads used for key derivation.
+// - Key length: 32 bytes, which is the length of the derived key.
+//
+// The derived key is then used for encryption and decryption of secrets stored in the database.
 func deriveKey(key, salt []byte) []byte {
 	return argon2.IDKey(key, salt, 1, 64*1024, 4, 32)
 }
