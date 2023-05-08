@@ -29,6 +29,7 @@ tasks:
         script: |
           export foo=$((1 + 2 + 3))
           export bar=$((4 + 5))
+          export baz=zzzzz
           ls -laR /tmp
           du -hcs /srv
           cat /tmp/conf.yml
@@ -42,6 +43,8 @@ tasks:
           env
           echo "var foo: ${foo}"
           echo "var bar: ${bar}"
+          echo "var baz: ${baz}"
+        env: {baz: qux}
         options: {no_auto: true, sudo: true}
 
       - name: delete things
