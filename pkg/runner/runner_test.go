@@ -133,6 +133,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 3, res.Commands)
 		assert.Contains(t, outWriter.String(), `> var foo: 6`)
 		assert.Contains(t, outWriter.String(), `> var bar: 9`)
+		assert.Contains(t, outWriter.String(), `> var baz: qux`, "was not overwritten")
 	})
 }
 

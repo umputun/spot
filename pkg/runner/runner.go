@@ -180,6 +180,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 					if env == nil {
 						env = make(map[string]string)
 					}
+					if _, ok := env[k]; ok { // don't allow override variables
+						continue
+					}
 					env[k] = v
 					tsk.Commands[i].Environment = env
 				}
