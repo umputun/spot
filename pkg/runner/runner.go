@@ -159,7 +159,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			}
 		}
 
-		details, err := p.execCommand(ctx, params)
+		details, vars, err := p.execCommand(ctx, params)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
 				return count, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, hostAddr, hostName, err)
@@ -168,6 +168,22 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "failed command %s%s (%v)",
 				cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
 			continue
+		}
+
+		// set variables from command output, if any
+		// this variables will be available for next commands in the same task via environment
+		if len(vars) > 0 {
+			log.Printf("[DEBUG] set %d variables from command %q: %+v", len(vars), cmd.Name, vars)
+			for k, v := range vars {
+				for i, c := range tsk.Commands {
+					env := c.Environment
+					if env == nil {
+						env = make(map[string]string)
+					}
+					env[k] = v
+					tsk.Commands[i].Environment = env
+				}
+			}
 		}
 
 		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
@@ -191,7 +207,7 @@ type execCmdParams struct {
 
 // execCommand executes a single command on a target host. It detects command type based on the fields what are set.
 // Even if multiple fields for multiple commands are set, only one will be executed.
-func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	switch {
 	case ep.cmd.Script != "":
 		log.Printf("[DEBUG] execute script %q on %s", ep.cmd.Name, ep.hostAddr)
@@ -212,24 +228,25 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 		log.Printf("[DEBUG] wait for command on %s", ep.hostAddr)
 		return p.execWaitCommand(ctx, ep)
 	default:
-		return "", fmt.Errorf("unknown command %q", ep.cmd.Name)
+		return "", nil, fmt.Errorf("unknown command %q", ep.cmd.Name)
 	}
 }
 
 // execScriptCommand executes a script command on a target host. It can be a single line or multiline script,
 // this part is translated by the prepScript function.
 // If sudo option is set, it will execute the script with sudo.
-func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+// If output contains variables as "setvar foo=bar", it will return the variables as map.
+func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	single, multiRdr := ep.cmd.GetScript()
 	c, teardown, err := p.prepScript(ctx, single, multiRdr, ep)
 	if err != nil {
-		return details, fmt.Errorf("can't prepare script on %s: %w", ep.hostAddr, err)
+		return details, nil, fmt.Errorf("can't prepare script on %s: %w", ep.hostAddr, err)
 	}
 	defer func() {
 		if teardown == nil {
 			return
 		}
-		if err := teardown(); err != nil {
+		if err = teardown(); err != nil {
 			log.Printf("[WARN] can't teardown script on %s: %v", ep.hostAddr, err)
 		}
 	}()
@@ -238,16 +255,31 @@ func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (deta
 		details = fmt.Sprintf(" {script: %s, sudo: true}", c)
 		c = fmt.Sprintf("sudo sh -c %q", c)
 	}
-	if _, err := ep.exec.Run(ctx, c, p.Verbose); err != nil {
-		return details, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
+	out, err := ep.exec.Run(ctx, c, p.Verbose)
+	if err != nil {
+		return details, nil, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
 	}
-	return details, nil
+
+	// collect setenv output and set it to the environment. This is needed for the next commands.
+	vars = make(map[string]string)
+	for _, line := range out {
+		if !strings.HasPrefix(line, "setvar ") {
+			continue
+		}
+		parts := strings.SplitN(strings.TrimPrefix(line, "setvar"), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		vars[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+	}
+
+	return details, vars, nil
 }
 
 // execCopyCommand upload a single file or multiple files (if wildcard is used) to a target host.
 // if sudo option is set, it will make a temporary directory and upload the files there,
 // then move it to the final destination with sudo script execution.
-func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	src := p.applyTemplates(ep.cmd.Copy.Source,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 	dst := p.applyTemplates(ep.cmd.Copy.Dest,
@@ -257,9 +289,9 @@ func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (detail
 		// if sudo is not set, we can use the original destination and upload the file directly
 		details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
 		if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
-			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
+			return details, nil, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
 		}
-		return details, nil
+		return details, nil, nil
 	}
 
 	if ep.cmd.Options.Sudo {
@@ -267,7 +299,7 @@ func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (detail
 		details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
 		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
 		if err := ep.exec.Upload(ctx, src, tmpDest, true); err != nil { // upload to a temporary directory with mkdir
-			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
+			return details, nil, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
 		}
 
 		mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
@@ -282,19 +314,19 @@ func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (detail
 		}
 		c, _, err := p.prepScript(ctx, mvCmd, nil, ep)
 		if err != nil {
-			return details, fmt.Errorf("can't prepare sudo moving command on %s: %w", ep.hostAddr, err)
+			return details, nil, fmt.Errorf("can't prepare sudo moving command on %s: %w", ep.hostAddr, err)
 		}
 
 		sudoMove := fmt.Sprintf("sudo %s", c)
 		if _, err := ep.exec.Run(ctx, sudoMove, p.Verbose); err != nil {
-			return details, fmt.Errorf("can't move file to %s: %w", ep.hostAddr, err)
+			return details, nil, fmt.Errorf("can't move file to %s: %w", ep.hostAddr, err)
 		}
 	}
 
-	return details, nil
+	return details, nil, nil
 }
 
-func (p *Process) execMCopyCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+func (p *Process) execMCopyCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	msgs := []string{}
 	for _, c := range ep.cmd.MCopy {
 		src := p.applyTemplates(c.Source,
@@ -304,34 +336,34 @@ func (p *Process) execMCopyCommand(ctx context.Context, ep execCmdParams) (detai
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		epSingle := ep
 		epSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir}
-		if _, err := p.execCopyCommand(ctx, epSingle); err != nil {
-			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
+		if _, _, err := p.execCopyCommand(ctx, epSingle); err != nil {
+			return details, nil, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
 		}
 	}
 	details = fmt.Sprintf(" {copy: %s}", strings.Join(msgs, ", "))
-	return details, nil
+	return details, nil, nil
 }
 
-func (p *Process) execSyncCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+func (p *Process) execSyncCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	src := p.applyTemplates(ep.cmd.Sync.Source,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 	dst := p.applyTemplates(ep.cmd.Sync.Dest,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 	details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
 	if _, err := ep.exec.Sync(ctx, src, dst, ep.cmd.Sync.Delete); err != nil {
-		return details, fmt.Errorf("can't sync files on %s: %w", ep.hostAddr, err)
+		return details, nil, fmt.Errorf("can't sync files on %s: %w", ep.hostAddr, err)
 	}
-	return details, nil
+	return details, nil, nil
 }
 
-func (p *Process) execDeleteCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+func (p *Process) execDeleteCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	loc := p.applyTemplates(ep.cmd.Delete.Location,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 
 	if !ep.cmd.Options.Sudo {
 		// if sudo is not set, we can delete the file directly
 		if err := ep.exec.Delete(ctx, loc, ep.cmd.Delete.Recursive); err != nil {
-			return details, fmt.Errorf("can't delete files on %s: %w", ep.hostAddr, err)
+			return details, nil, fmt.Errorf("can't delete files on %s: %w", ep.hostAddr, err)
 		}
 		details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ep.cmd.Delete.Recursive)
 	}
@@ -343,17 +375,17 @@ func (p *Process) execDeleteCommand(ctx context.Context, ep execCmdParams) (deta
 			cmd = fmt.Sprintf("sudo rm -rf %s", loc)
 		}
 		if _, err := ep.exec.Run(ctx, cmd, p.Verbose); err != nil {
-			return details, fmt.Errorf("can't delete file(s) on %s: %w", ep.hostAddr, err)
+			return details, nil, fmt.Errorf("can't delete file(s) on %s: %w", ep.hostAddr, err)
 		}
 		details = fmt.Sprintf(" {delete: %s, recursive: %v, sudo: true}", loc, ep.cmd.Delete.Recursive)
 	}
 
-	return details, nil
+	return details, nil, nil
 }
 
 // execWaitCommand waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
-func (p *Process) execWaitCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
+func (p *Process) execWaitCommand(ctx context.Context, ep execCmdParams) (details string, vars map[string]string, err error) {
 	c := p.applyTemplates(ep.cmd.Wait.Command,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 
@@ -383,12 +415,12 @@ func (p *Process) execWaitCommand(ctx context.Context, ep execCmdParams) (detail
 	for {
 		select {
 		case <-ctx.Done():
-			return details, ctx.Err()
+			return details, nil, ctx.Err()
 		case <-timeoutTk.C:
-			return details, fmt.Errorf("timeout exceeded")
+			return details, nil, fmt.Errorf("timeout exceeded")
 		case <-checkTk.C:
 			if _, err := ep.exec.Run(ctx, waitCmd, false); err == nil {
-				return details, nil // command succeeded
+				return details, nil, nil // command succeeded
 			}
 		}
 	}

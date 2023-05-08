@@ -27,6 +27,8 @@ tasks:
 
       - name: some command
         script: |
+          export foo=$((1 + 2 + 3))
+          export bar=$((4 + 5))
           ls -laR /tmp
           du -hcs /srv
           cat /tmp/conf.yml
@@ -34,6 +36,13 @@ tasks:
 
       - name: runtime variables
         script: echo host:"{SPOT_REMOTE_HOST}", name:"{SPOT_REMOTE_NAME}", cmd:"{SPOT_COMMAND}", user:"{SPOT_REMOTE_USER}", task:"{SPOT_TASK}"
+
+      - name: user variables
+        script: |
+          env
+          echo "var foo: ${foo}"
+          echo "var bar: ${bar}"
+        options: {no_auto: true, sudo: true}
 
       - name: delete things
         delete: {"path": "/tmp/things", "recur": true}

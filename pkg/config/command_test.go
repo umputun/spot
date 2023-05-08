@@ -41,6 +41,27 @@ echo 'Goodbye, World!'`,
 			},
 		},
 		{
+			name: "multiline command with exports",
+			cmd: &Cmd{
+				Script: `echo 'Hello, World!'
+export FOO='bar'
+echo 'Goodbye, World!'
+export BAR='foo'
+`,
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/sh",
+				"set -e",
+				"echo 'Hello, World!'",
+				"export FOO='bar'",
+				"echo 'Goodbye, World!'",
+				"export BAR='foo'",
+				"echo setvar FOO=${FOO}",
+				"echo setvar BAR=${BAR}",
+			},
+		},
+		{
 			name: "single line command with environment variables",
 			cmd: &Cmd{
 				Script: "echo $GREETING",
@@ -101,7 +122,6 @@ echo 'Goodbye, World!'`,
 		t.Run(tc.name, func(t *testing.T) {
 			script, reader := tc.cmd.GetScript()
 			assert.Equal(t, tc.expectedScript, script)
-
 			if reader != nil {
 				contents, err := io.ReadAll(reader)
 				assert.NoError(t, err)

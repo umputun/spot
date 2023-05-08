@@ -65,7 +65,7 @@ type WaitInternal struct {
 }
 
 // GetScript returns a script string and an io.Reader based on the command being single line or multiline.
-func (cmd *Cmd) GetScript() (string, io.Reader) {
+func (cmd *Cmd) GetScript() (command string, rdr io.Reader) {
 	if cmd.Script == "" {
 		return "", nil
 	}
@@ -118,7 +118,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 
 // GetScriptFile returns a reader for script file. All the line in the command used as a script, with hashbang,
 // set -e and environment variables.
-func (cmd *Cmd) scriptFile(inp string) io.Reader {
+func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	var buf bytes.Buffer
 
 	buf.WriteString("#!/bin/sh\n") // add hashbang
@@ -133,6 +133,7 @@ func (cmd *Cmd) scriptFile(inp string) io.Reader {
 		}
 	}
 
+	exports := []string{}
 	elems := strings.Split(inp, "\n")
 	for _, el := range elems {
 		c := strings.TrimSpace(el)
@@ -147,6 +148,22 @@ func (cmd *Cmd) scriptFile(inp string) io.Reader {
 		}
 		buf.WriteString(c)
 		buf.WriteString("\n")
+
+		// if the line in the script is an export, add it to the list of exports
+		// this is done to be able to print the variables set by the script to the console after the script is executed
+		// those variables can be used by the caller to set environment variables for the next commands
+		if strings.HasPrefix(c, "export") {
+			expKey := strings.TrimPrefix(c, "export")
+			expKey = strings.Split(expKey, "=")[0]
+			expKey = strings.TrimSpace(expKey)
+			exports = append(exports, expKey)
+		}
+	}
+
+	if len(exports) > 0 {
+		for i := range exports {
+			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", exports[i], exports[i]))
+		}
 	}
 
 	return &buf
