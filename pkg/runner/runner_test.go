@@ -112,6 +112,28 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `upload testdata/conf2.yml to /tmp/conf2.yml`)
 		assert.Contains(t, outWriter.String(), `upload testdata/conf-local.yml to /tmp/conf3.yml`)
 	})
+
+	t.Run("set variables", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"copy configuration", "some command", "user variables"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 3, res.Commands)
+		assert.Contains(t, outWriter.String(), `> var foo: 6`)
+		assert.Contains(t, outWriter.String(), `> var bar: 9`)
+	})
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {
@@ -465,7 +487,7 @@ func TestProcess_execCommands(t *testing.T) {
 		time.AfterFunc(time.Second, func() {
 			_, _ = sess.Run(ctx, "touch /tmp/wait.done", false)
 		})
-		details, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		details, _, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /tmp/wait.done", Timeout: 2 * time.Second,
 				CheckDuration: time.Millisecond * 100}}})
 		require.NoError(t, err)
@@ -477,7 +499,7 @@ func TestProcess_execCommands(t *testing.T) {
 		time.AfterFunc(time.Second, func() {
 			_, _ = sess.Run(ctx, "sudo touch /srv/wait.done", false)
 		})
-		details, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		details, _, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /srv/wait.done", Timeout: 2 * time.Second,
 				CheckDuration: time.Millisecond * 100}, Options: config.CmdOptions{Sudo: true}}})
 		require.NoError(t, err)
@@ -486,7 +508,7 @@ func TestProcess_execCommands(t *testing.T) {
 
 	t.Run("wait failed", func(t *testing.T) {
 		p := Process{Connector: connector}
-		_, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /tmp/wait.never-done", Timeout: 1 * time.Second,
 				CheckDuration: time.Millisecond * 100}}})
 		require.EqualError(t, err, "timeout exceeded")
@@ -494,7 +516,7 @@ func TestProcess_execCommands(t *testing.T) {
 
 	t.Run("wait failed with sudo", func(t *testing.T) {
 		p := Process{Connector: connector}
-		_, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second,
 				CheckDuration: time.Millisecond * 100}, Options: config.CmdOptions{Sudo: true}}})
 		require.EqualError(t, err, "timeout exceeded")
@@ -505,7 +527,7 @@ func TestProcess_execCommands(t *testing.T) {
 		_, err := sess.Run(ctx, "touch /tmp/delete.me", true)
 		require.NoError(t, err)
 
-		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/tmp/delete.me"}}})
 		require.NoError(t, err)
 	})
@@ -520,7 +542,7 @@ func TestProcess_execCommands(t *testing.T) {
 		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete2.me", true)
 		require.NoError(t, err)
 
-		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/tmp/delete-recursive", Recursive: true}}})
 		require.NoError(t, err)
 
@@ -533,11 +555,11 @@ func TestProcess_execCommands(t *testing.T) {
 		_, err := sess.Run(ctx, "sudo touch /srv/delete.me", true)
 		require.NoError(t, err)
 
-		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/srv/delete.me"}}})
 		require.Error(t, err, "should fail because of missing sudo")
 
-		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: true}}})
 		require.NoError(t, err, "should fail pass with sudo")
 	})
@@ -552,7 +574,7 @@ func TestProcess_execCommands(t *testing.T) {
 		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete2.me", true)
 		require.NoError(t, err)
 
-		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+		_, _, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
 			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/srv/delete-recursive", Recursive: true},
 				Options: config.CmdOptions{Sudo: true}}})
 		require.NoError(t, err)

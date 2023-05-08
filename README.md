@@ -312,6 +312,23 @@ echo "All done! $FOO $BAR"
 
 By using this approach, Spot enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
 
+### Passing variables from one script command to another
+
+Spot allows passing variables from one script command to another. This is useful when you need to pass the output of one command to another command. For example if one command creates a file and you need to pass the file name to another command. To pass such variables, user need to use usual shell's `export` command in the first script command, and then all the variables exported in the first command will be available in the subsequent commands. 
+
+For example:
+
+```yaml
+commands:
+  - name: first command
+    script: |
+      export FILE_NAME=/tmp/file1
+      touch $FILE_NAME
+  - name: second command
+    script: |
+      echo "File name is $FILE_NAME"
+```
+
 ## Targets
 
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
