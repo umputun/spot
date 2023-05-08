@@ -101,7 +101,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
 
-	t.Run("single line", func(t *testing.T) {
+	t.Run("single line script", func(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
@@ -119,7 +119,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		assert.Contains(t, outWriter.String(), "passwd")
 	})
 
-	t.Run("multi line", func(t *testing.T) {
+	t.Run("multi line script", func(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
@@ -135,6 +135,59 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
 		assert.Contains(t, outWriter.String(), "passwd")
+	})
+
+	t.Run("copy single file with sudo", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"root only copy single file"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), "sudo sh -c /tmp/spot-script")
+
+		p.Only = []string{"root only stat /srv/conf.yml"}
+		_, err = p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Contains(t, outWriter.String(), " File: /srv/conf.yml", "file was copied to /srv")
+	})
+
+	t.Run("copy multiple files with sudo", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"root only copy multiple files"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), "sudo sh -c /tmp/spot-script")
+
+		p.Only = []string{"root only ls /srv"}
+		_, err = p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Contains(t, outWriter.String(), "conf-simple.yml", "file was copied to /srv")
+
+		p.Only = []string{"root only stat /srv/conf.yml"}
+		_, err = p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Contains(t, outWriter.String(), " File: /srv/conf.yml", "file was copied to /srv")
 	})
 }
 

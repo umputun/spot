@@ -55,6 +55,23 @@ tasks:
         script: ls -l /etc
         options: {no_auto: true, sudo: true}
 
+      - name: root only copy single file
+        copy: {src: testdata/conf.yml, dst: /srv/conf.yml}
+        options: {no_auto: true, sudo: true}
+
+      - name: root only copy multiple files
+        copy: {src: testdata/*.yml, dst: /srv}
+        options: {no_auto: true, sudo: true}
+
+      - name: root only stat /srv/conf.yml
+        script: stat /srv/conf.yml
+        options: {no_auto: true, sudo: true}
+
+      - name: root only ls /srv
+        script: ls -la /srv
+        options: {no_auto: true, sudo: true}
+
+
   - name: failed_task
     commands:
       - name: good command

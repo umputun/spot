@@ -214,6 +214,9 @@ func (p *Process) execCommand(ctx context.Context, ep execCmdParams) (details st
 	}
 }
 
+// execScriptCommand executes a script command on a target host. It can be a single line or multiline script,
+// this part is translated by the prepScript function.
+// If sudo option is set, it will execute the script with sudo.
 func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
 	single, multiRdr := ep.cmd.GetScript()
 	c, teardown, err := p.prepScript(ctx, single, multiRdr, ep)
@@ -231,7 +234,7 @@ func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (deta
 	details = fmt.Sprintf(" {script: %s}", c)
 	if ep.cmd.Options.Sudo {
 		details = fmt.Sprintf(" {script: %s, sudo: true}", c)
-		c = fmt.Sprintf("sudo bash -c %q", c)
+		c = fmt.Sprintf("sudo sh -c %q", c)
 	}
 	if _, err := ep.exec.Run(ctx, c, p.Verbose); err != nil {
 		return details, fmt.Errorf("can't run script on %s: %w", ep.hostAddr, err)
@@ -239,15 +242,49 @@ func (p *Process) execScriptCommand(ctx context.Context, ep execCmdParams) (deta
 	return details, nil
 }
 
+// execCopyCommand upload a single file or multiple files (if wildcard is used) to a target host.
+// if sudo option is set, it will make a temporary directory and upload the files there,
+// then move it to the final destination with sudo script execution.
 func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
 	src := p.applyTemplates(ep.cmd.Copy.Source,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 	dst := p.applyTemplates(ep.cmd.Copy.Dest,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-	details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-	if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
-		return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
+
+	if !ep.cmd.Options.Sudo {
+		// if sudo is not set, we can use the original destination and upload the file directly
+		details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
+		if err := ep.exec.Upload(ctx, src, dst, ep.cmd.Copy.Mkdir); err != nil {
+			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
+		}
+		return details, nil
 	}
+
+	if ep.cmd.Options.Sudo {
+		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
+		details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
+		tmpDest := filepath.Join("/tmp/.spot", filepath.Base(dst))
+		if err := ep.exec.Upload(ctx, src, tmpDest, true); err != nil { // upload to a temporary directory with mkdir
+			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
+		}
+
+		mvScripts := fmt.Sprintf("mv -f %s %s\n rm -rf %s", tmpDest, dst, tmpDest)
+		if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
+			mvScripts = fmt.Sprintf("mv -f %s/* %s\n rm -rf %s", tmpDest, dst, tmpDest)
+		}
+		rdr := strings.NewReader(mvScripts)
+		c, teardown, err := p.prepScript(ctx, "", rdr, ep)
+		if err != nil {
+			return details, fmt.Errorf("can't prepare script sudo moving on %s: %w", ep.hostAddr, err)
+		}
+		defer func() { _ = teardown() }()
+
+		sudoMove := fmt.Sprintf("sudo %s", c)
+		if _, err := ep.exec.Run(ctx, sudoMove, p.Verbose); err != nil {
+			return details, fmt.Errorf("can't move file to %s: %w", ep.hostAddr, err)
+		}
+	}
+
 	return details, nil
 }
 
