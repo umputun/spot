@@ -1,5 +1,5 @@
 # get the latest commit branch, hash and date
-BRANCH=$(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
+BRANCH=$(shell git describe --tags --abbrev=0 --always 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null)
 HASH=$(shell git rev-parse --short=7 HEAD 2>/dev/null)
 TIMESTAMP=$(shell git log -1 --format=%ct HEAD 2>/dev/null | xargs -I{} date -u -r {} +%Y%m%dT%H%M%S)
 GIT_REV=$(shell printf "%s-%s-%s" "$(BRANCH)" "$(HASH)" "$(TIMESTAMP)")
