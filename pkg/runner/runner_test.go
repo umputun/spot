@@ -64,7 +64,7 @@ func TestProcess_Run(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
 
-		// make target with name "the host" and host/poty from testingHostAndPort
+		// make target with name "the host" and host/port from testingHostAndPort
 		adr := strings.Split(testingHostAndPort, ":")[0]
 		port, err := strconv.Atoi(strings.Split(testingHostAndPort, ":")[1])
 		require.NoError(t, err)
@@ -88,6 +88,29 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 1, res.Hosts)
 		assert.Contains(t, outWriter.String(), `name:"the host", cmd:"runtime variables", user:"test", task:"task1"`)
 		assert.Contains(t, outWriter.String(), `host:"localhost:`)
+	})
+
+	t.Run("copy multiple files", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			Only:        []string{"copy multiple files"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), `upload testdata/conf2.yml to /tmp/conf2.yml`)
+		assert.Contains(t, outWriter.String(), `upload testdata/conf-local.yml to /tmp/conf3.yml`)
 	})
 }
 
@@ -153,7 +176,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
-		assert.Contains(t, outWriter.String(), "sudo sh -c /tmp/spot-script")
+		assert.Contains(t, outWriter.String(), "> sudo mv -f /tmp/.spot/conf.yml /srv/conf.yml")
 
 		p.Only = []string{"root only stat /srv/conf.yml"}
 		_, err = p.Run(ctx, "task1", testingHostAndPort)
@@ -161,7 +184,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		assert.Contains(t, outWriter.String(), " File: /srv/conf.yml", "file was copied to /srv")
 	})
 
-	t.Run("copy multiple files with sudo", func(t *testing.T) {
+	t.Run("copy glob files with sudo", func(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
@@ -177,7 +200,8 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
-		assert.Contains(t, outWriter.String(), "sudo sh -c /tmp/spot-script")
+		assert.Contains(t, outWriter.String(), " > sudo mv -f /tmp/.spot/srv/* /srv", "files were copied to /srv")
+		assert.Contains(t, outWriter.String(), " > rm -rf /tmp/.spot/srv", "tmp dir was removed")
 
 		p.Only = []string{"root only ls /srv"}
 		_, err = p.Run(ctx, "task1", testingHostAndPort)
@@ -189,6 +213,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, outWriter.String(), " File: /srv/conf.yml", "file was copied to /srv")
 	})
+
 }
 
 func TestProcess_RunDry(t *testing.T) {
@@ -425,7 +450,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	assert.Contains(t, buf.String(), "wait done")
 }
 
-func TestProcess_wait(t *testing.T) {
+func TestProcess_execCommands(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
@@ -440,16 +465,100 @@ func TestProcess_wait(t *testing.T) {
 		time.AfterFunc(time.Second, func() {
 			_, _ = sess.Run(ctx, "touch /tmp/wait.done", false)
 		})
-		err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
-			Command: "cat /tmp/wait.done"})
+		details, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /tmp/wait.done", Timeout: 2 * time.Second,
+				CheckDuration: time.Millisecond * 100}}})
 		require.NoError(t, err)
+		t.Log(details)
+	})
+
+	t.Run("wait done with sudo", func(t *testing.T) {
+		p := Process{Connector: connector}
+		time.AfterFunc(time.Second, func() {
+			_, _ = sess.Run(ctx, "sudo touch /srv/wait.done", false)
+		})
+		details, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /srv/wait.done", Timeout: 2 * time.Second,
+				CheckDuration: time.Millisecond * 100}, Options: config.CmdOptions{Sudo: true}}})
+		require.NoError(t, err)
+		t.Log(details)
 	})
 
 	t.Run("wait failed", func(t *testing.T) {
 		p := Process{Connector: connector}
-		err = p.wait(ctx, sess, config.WaitInternal{Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
-			Command: "cat /tmp/wait.never-done"})
+		_, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /tmp/wait.never-done", Timeout: 1 * time.Second,
+				CheckDuration: time.Millisecond * 100}}})
 		require.EqualError(t, err, "timeout exceeded")
+	})
+
+	t.Run("wait failed with sudo", func(t *testing.T) {
+		p := Process{Connector: connector}
+		_, err := p.execWaitCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Wait: config.WaitInternal{Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second,
+				CheckDuration: time.Millisecond * 100}, Options: config.CmdOptions{Sudo: true}}})
+		require.EqualError(t, err, "timeout exceeded")
+	})
+
+	t.Run("delete a single file", func(t *testing.T) {
+		p := Process{Connector: connector}
+		_, err := sess.Run(ctx, "touch /tmp/delete.me", true)
+		require.NoError(t, err)
+
+		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/tmp/delete.me"}}})
+		require.NoError(t, err)
+	})
+
+	t.Run("delete files recursive", func(t *testing.T) {
+		p := Process{Connector: connector}
+		var err error
+		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-recursive", true)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete1.me", true)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete2.me", true)
+		require.NoError(t, err)
+
+		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/tmp/delete-recursive", Recursive: true}}})
+		require.NoError(t, err)
+
+		_, err = sess.Run(ctx, "ls /tmp/delete-recursive", true)
+		require.Error(t, err, "should not exist")
+	})
+
+	t.Run("delete file with sudo", func(t *testing.T) {
+		p := Process{Connector: connector}
+		_, err := sess.Run(ctx, "sudo touch /srv/delete.me", true)
+		require.NoError(t, err)
+
+		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/srv/delete.me"}}})
+		require.Error(t, err, "should fail because of missing sudo")
+
+		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: true}}})
+		require.NoError(t, err, "should fail pass with sudo")
+	})
+
+	t.Run("delete files recursive with sudo", func(t *testing.T) {
+		p := Process{Connector: connector}
+		var err error
+		_, err = sess.Run(ctx, "sudo mkdir -p /srv/delete-recursive", true)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete1.me", true)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete2.me", true)
+		require.NoError(t, err)
+
+		_, err = p.execDeleteCommand(ctx, execCmdParams{exec: sess, tsk: &config.Task{Name: "test"},
+			cmd: config.Cmd{Delete: config.DeleteInternal{Location: "/srv/delete-recursive", Recursive: true},
+				Options: config.CmdOptions{Sudo: true}}})
+		require.NoError(t, err)
+
+		_, err = sess.Run(ctx, "ls /srv/delete-recursive", true)
+		require.Error(t, err, "should not exist")
 	})
 }
 

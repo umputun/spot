@@ -246,7 +246,7 @@ Each command type supports the following options:
 - `ignore_errors`: if set to `true` the command will not fail the task in case of an error.
 - `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
-- `sudo`: if set to `true` the script command will be executed with `sudo` privileges.
+- `sudo`: if set to `true` the command will be executed with `sudo` privileges.
 
 example setting `ignore_errors` and `no_auto` options:
 
@@ -257,7 +257,7 @@ example setting `ignore_errors` and `no_auto` options:
         options: {ignore_errors: true, no_auto: true}
 ```
 
-Please note that the `sudo` option is only supported for the `script` command type. This limitation exists because there is no direct and universal method for uploading files over SFTP with sudo privileges. As a workaround, users can first use the `copy` command to transfer files to a temporary location, and then execute a `script` command with `sudo: true` to move those files to their final destination. Alternatively, using the root user directly in the playbook will allow direct file transfer to any restricted location and enable running privileged commands without the need to use sudo.
+Please note that the `sudo` option is not supported for the `sync` command type, but all other command types support it.
 
 
 ### Script Execution

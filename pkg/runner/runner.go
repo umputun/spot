@@ -37,6 +37,8 @@ type Process struct {
 	secrets []string
 }
 
+const tmpRemoteDir = "/tmp/.spot" // this is a directory on remote host to store temporary files
+
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
@@ -263,21 +265,25 @@ func (p *Process) execCopyCommand(ctx context.Context, ep execCmdParams) (detail
 	if ep.cmd.Options.Sudo {
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
 		details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
-		tmpDest := filepath.Join("/tmp/.spot", filepath.Base(dst))
+		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
 		if err := ep.exec.Upload(ctx, src, tmpDest, true); err != nil { // upload to a temporary directory with mkdir
 			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
 		}
 
-		mvScripts := fmt.Sprintf("mv -f %s %s\n rm -rf %s", tmpDest, dst, tmpDest)
+		mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
 		if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
-			mvScripts = fmt.Sprintf("mv -f %s/* %s\n rm -rf %s", tmpDest, dst, tmpDest)
+			mvCmd = fmt.Sprintf("mv -f %s/* %s", tmpDest, dst) // move multiple files, if wildcard is used
+			defer func() {
+				// remove temporary directory we created under /tmp/.spot for multiple files
+				if _, err := ep.exec.Run(ctx, fmt.Sprintf("rm -rf %s", tmpDest), p.Verbose); err != nil {
+					log.Printf("[WARN] can't remove temporary directory on %s: %v", ep.hostAddr, err)
+				}
+			}()
 		}
-		rdr := strings.NewReader(mvScripts)
-		c, teardown, err := p.prepScript(ctx, "", rdr, ep)
+		c, _, err := p.prepScript(ctx, mvCmd, nil, ep)
 		if err != nil {
-			return details, fmt.Errorf("can't prepare script sudo moving on %s: %w", ep.hostAddr, err)
+			return details, fmt.Errorf("can't prepare sudo moving command on %s: %w", ep.hostAddr, err)
 		}
-		defer func() { _ = teardown() }()
 
 		sudoMove := fmt.Sprintf("sudo %s", c)
 		if _, err := ep.exec.Run(ctx, sudoMove, p.Verbose); err != nil {
@@ -296,8 +302,10 @@ func (p *Process) execMCopyCommand(ctx context.Context, ep execCmdParams) (detai
 		dst := p.applyTemplates(c.Dest,
 			templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
-		if err := ep.exec.Upload(ctx, src, dst, c.Mkdir); err != nil {
-			return details, fmt.Errorf("can't copy file on %s: %w", ep.hostAddr, err)
+		epSingle := ep
+		epSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir}
+		if _, err := p.execCopyCommand(ctx, epSingle); err != nil {
+			return details, fmt.Errorf("can't copy file to %s: %w", ep.hostAddr, err)
 		}
 	}
 	details = fmt.Sprintf(" {copy: %s}", strings.Join(msgs, ", "))
@@ -319,23 +327,71 @@ func (p *Process) execSyncCommand(ctx context.Context, ep execCmdParams) (detail
 func (p *Process) execDeleteCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
 	loc := p.applyTemplates(ep.cmd.Delete.Location,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-	details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ep.cmd.Delete.Recursive)
-	if err := ep.exec.Delete(ctx, loc, ep.cmd.Delete.Recursive); err != nil {
-		return details, fmt.Errorf("can't delete files on %s: %w", ep.hostAddr, err)
+
+	if !ep.cmd.Options.Sudo {
+		// if sudo is not set, we can delete the file directly
+		if err := ep.exec.Delete(ctx, loc, ep.cmd.Delete.Recursive); err != nil {
+			return details, fmt.Errorf("can't delete files on %s: %w", ep.hostAddr, err)
+		}
+		details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ep.cmd.Delete.Recursive)
 	}
+
+	if ep.cmd.Options.Sudo {
+		// if sudo is set, we need to delete the file using sudo by ssh-ing into the host and running the command
+		cmd := fmt.Sprintf("sudo rm -f %s", loc)
+		if ep.cmd.Delete.Recursive {
+			cmd = fmt.Sprintf("sudo rm -rf %s", loc)
+		}
+		if _, err := ep.exec.Run(ctx, cmd, p.Verbose); err != nil {
+			return details, fmt.Errorf("can't delete file(s) on %s: %w", ep.hostAddr, err)
+		}
+		details = fmt.Sprintf(" {delete: %s, recursive: %v, sudo: true}", loc, ep.cmd.Delete.Recursive)
+	}
+
 	return details, nil
 }
 
+// execWaitCommand waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
+// until the command succeeds or the timeout is exceeded.
 func (p *Process) execWaitCommand(ctx context.Context, ep execCmdParams) (details string, err error) {
 	c := p.applyTemplates(ep.cmd.Wait.Command,
 		templateData{hostAddr: ep.hostAddr, hostName: ep.hostName, task: ep.tsk, command: ep.cmd.Name})
-	params := config.WaitInternal{Command: c, Timeout: ep.cmd.Wait.Timeout, CheckDuration: ep.cmd.Wait.CheckDuration}
-	details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
-		c, ep.cmd.Wait.Timeout.Truncate(100*time.Millisecond), ep.cmd.Wait.CheckDuration.Truncate(100*time.Millisecond))
-	if err := p.wait(ctx, ep.exec, params); err != nil {
-		return details, fmt.Errorf("wait failed on %s: %w", ep.hostAddr, err)
+
+	timeout, duration := ep.cmd.Wait.Timeout, ep.cmd.Wait.CheckDuration
+	if duration == 0 {
+		duration = 5 * time.Second // default check duration if not set
 	}
-	return details, nil
+	if timeout == 0 {
+		timeout = time.Hour * 24 // default timeout if not set, wait practically forever
+	}
+
+	details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
+		c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
+
+	waitCmd := fmt.Sprintf("sh -c %q", c) // run wait command in a shell
+	if ep.cmd.Options.Sudo {
+		details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v, sudo: true}",
+			c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
+		waitCmd = fmt.Sprintf("sudo sh -c %q", c) // add sudo if needed
+	}
+
+	checkTk := time.NewTicker(duration)
+	defer checkTk.Stop()
+	timeoutTk := time.NewTicker(timeout)
+	defer timeoutTk.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return details, ctx.Err()
+		case <-timeoutTk.C:
+			return details, fmt.Errorf("timeout exceeded")
+		case <-checkTk.C:
+			if _, err := ep.exec.Run(ctx, waitCmd, false); err == nil {
+				return details, nil // command succeeded
+			}
+		}
+	}
 }
 
 type tdFn func() error // tdFn is a type for teardown functions, should be called after the command execution
@@ -378,10 +434,10 @@ func (p *Process) prepScript(ctx context.Context, s string, r io.Reader, ep exec
 	}
 
 	// get temp file name for remote hostAddr
-	dst := filepath.Join("/tmp", filepath.Base(tmp.Name())) // nolint
+	dst := filepath.Join(tmpRemoteDir, filepath.Base(tmp.Name())) // nolint
 
 	// upload the script to the remote hostAddr
-	if err = ep.exec.Upload(ctx, tmp.Name(), dst, false); err != nil {
+	if err = ep.exec.Upload(ctx, tmp.Name(), dst, true); err != nil {
 		return "", nil, fmt.Errorf("can't upload script to %s: %w", ep.hostAddr, err)
 	}
 	remoteCmd := fmt.Sprintf("sh -c %s", dst)
@@ -395,35 +451,6 @@ func (p *Process) prepScript(ctx context.Context, s string, r io.Reader, ep exec
 	}
 
 	return remoteCmd, teardown, nil
-}
-
-// wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
-// until the command succeeds or the timeout is exceeded.
-func (p *Process) wait(ctx context.Context, sess executor.Interface, params config.WaitInternal) error {
-	if params.Timeout == 0 {
-		return nil
-	}
-	duration := params.CheckDuration
-	if params.CheckDuration == 0 {
-		duration = 5 * time.Second // default check duration if not set
-	}
-	checkTk := time.NewTicker(duration)
-	defer checkTk.Stop()
-	timeoutTk := time.NewTicker(params.Timeout)
-	defer timeoutTk.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timeoutTk.C:
-			return fmt.Errorf("timeout exceeded")
-		case <-checkTk.C:
-			if _, err := sess.Run(ctx, params.Command, false); err == nil {
-				return nil
-			}
-		}
-	}
 }
 
 type templateData struct {

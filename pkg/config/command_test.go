@@ -123,21 +123,21 @@ func TestCmd_getScriptCommand(t *testing.T) {
 	t.Run("script", func(t *testing.T) {
 		cmd := c.Tasks[0].Commands[3]
 		assert.Equal(t, "git", cmd.Name, "name")
-		res := cmd.getScriptCommand()
+		res := cmd.scriptCommand(cmd.Script)
 		assert.Equal(t, `sh -c "git clone https://example.com/remark42.git /srv || true; cd /srv; git pull"`, res)
 	})
 
 	t.Run("no-script", func(t *testing.T) {
 		cmd := c.Tasks[0].Commands[1]
 		assert.Equal(t, "copy configuration", cmd.Name)
-		res := cmd.getScriptCommand()
+		res := cmd.scriptCommand(cmd.Script)
 		assert.Equal(t, "", res)
 	})
 
 	t.Run("script with env", func(t *testing.T) {
 		cmd := c.Tasks[0].Commands[4]
 		assert.Equal(t, "docker", cmd.Name)
-		res := cmd.getScriptCommand()
+		res := cmd.scriptCommand(cmd.Script)
 		assert.Equal(t, `sh -c "BAR='qux' FOO='bar' docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest"`, res)
 	})
 }
@@ -212,7 +212,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := tt.cmd.getScriptFile()
+			reader := tt.cmd.scriptFile(tt.cmd.Script)
 			scriptContentBytes, err := io.ReadAll(reader)
 			assert.NoError(t, err)
 			scriptContent := string(scriptContentBytes)
