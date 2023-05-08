@@ -73,17 +73,17 @@ func (cmd *Cmd) GetScript() (string, io.Reader) {
 	elems := strings.Split(cmd.Script, "\n")
 	if len(elems) > 1 {
 		log.Printf("[DEBUG] command %q is multiline, using script file", cmd.Name)
-		return "", cmd.getScriptFile()
+		return "", cmd.scriptFile(cmd.Script)
 	}
 
 	log.Printf("[DEBUG] command %q is single line, using script string", cmd.Name)
-	return cmd.getScriptCommand(), nil
+	return cmd.scriptCommand(cmd.Script), nil
 }
 
 // GetScriptCommand concatenates all script line in commands into one a string to be executed by shell.
 // Empty string is returned if no script is defined.
-func (cmd *Cmd) getScriptCommand() string {
-	if cmd.Script == "" {
+func (cmd *Cmd) scriptCommand(inp string) string {
+	if inp == "" {
 		return ""
 	}
 
@@ -100,7 +100,7 @@ func (cmd *Cmd) getScriptCommand() string {
 		res += strings.Join(secrets, " ") + " "
 	}
 
-	elems := strings.Split(cmd.Script, "\n")
+	elems := strings.Split(inp, "\n")
 	var parts []string // nolint
 	for _, el := range elems {
 		c := strings.TrimSpace(el)
@@ -118,7 +118,7 @@ func (cmd *Cmd) getScriptCommand() string {
 
 // GetScriptFile returns a reader for script file. All the line in the command used as a script, with hashbang,
 // set -e and environment variables.
-func (cmd *Cmd) getScriptFile() io.Reader {
+func (cmd *Cmd) scriptFile(inp string) io.Reader {
 	var buf bytes.Buffer
 
 	buf.WriteString("#!/bin/sh\n") // add hashbang
@@ -133,7 +133,7 @@ func (cmd *Cmd) getScriptFile() io.Reader {
 		}
 	}
 
-	elems := strings.Split(cmd.Script, "\n")
+	elems := strings.Split(inp, "\n")
 	for _, el := range elems {
 		c := strings.TrimSpace(el)
 		if len(c) < 2 {
