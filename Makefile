@@ -10,6 +10,8 @@ all: test build
 build:
 	cd cmd/spot && go build -ldflags "-X main.revision=$(REV) -s -w" -o ../../.bin/spot.$(BRANCH)
 	cd cmd/secrets && go build -ldflags "-X main.revision=$(REV) -s -w" -o ../../.bin/spot-secrets.$(BRANCH)
+	cp .bin/spot.$(BRANCH) .bin/spot
+	cp .bin/spot-secrets.$(BRANCH) .bin/spot-secrets
 
 release:
 	- @mkdir -p .bin
