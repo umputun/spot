@@ -368,7 +368,7 @@ in this example, the playbook will be executed on hosts named `host1` and `host2
 There are several ways to override or alter the target defined in the playbook file via command-line arguments:
 
 - `--inventory` set hosts from the provided inventory file or url. Example: `--inventory=inventory.yml` or `--inventory=http://localhost:8080/inventory`.
-- `--target` set groups, names, tags from inventory or directly hosts to run playbook on. Example: `--target=prod` (will run on all hosts in group `prod`) or `--target=example.com:2222` (will run on host `example.com` with port `2222`).
+- `--target` set groups, names, tags from inventory or directly hosts to run playbook on. Example: `--target=prod` (will run on all hosts in group `prod`) or `--target=example.com:2222` (will run on host `example.com` with port `2222`). User name can be provided as a part of the direct target address as well, i.e. `--target=user2@example.com:2222`
 - `--user` set the ssh user to run the playbook on remote hosts. Example: `--user=test`.
 - `--key` set the ssh key to run the playbook on remote hosts. Example: `--key=/path/to/key`.
 
