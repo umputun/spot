@@ -320,6 +320,22 @@ func TestExecuter_Sync(t *testing.T) {
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest3/d1/file11.txt", "185 /tmp/sync.dest3/file1.txt", "61 /tmp/sync.dest3/file2.txt"}, out)
 	})
+
+	t.Run("sync  with non-empty dir on remote to keep", func(t *testing.T) {
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest4/empty", true)
+		require.NoError(t, e)
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", true)
+		require.NoError(t, e)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", false)
+		require.NoError(t, e)
+		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", true)
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
+			"185 /tmp/sync.dest4/file1.txt", "61 /tmp/sync.dest4/file2.txt"}, out)
+	})
 }
 
 func TestExecuter_Delete(t *testing.T) {
