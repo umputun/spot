@@ -180,7 +180,7 @@ func (ec *execCmd) delete(ctx context.Context) (details string, vars map[string]
 	return details, nil, nil
 }
 
-// execWaitCommand waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
+// wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
 func (ec *execCmd) wait(ctx context.Context) (details string, vars map[string]string, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
@@ -222,14 +222,11 @@ func (ec *execCmd) wait(ctx context.Context) (details string, vars map[string]st
 	}
 }
 
-// tdFn is a type for teardown functions, should be called after the command execution
-type tdFn func() error
-
 // prepScript prepares a script for execution. Script can be either a single command or a multiline script.
 // In case of a single command, it just applies templates to it. In case of a multiline script, it creates
 // a temporary file with the script chmod as +x and uploads to remote host to /tmp.
 // it also  returns a teardown function to remove the temporary file after the command execution.
-func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd string, td tdFn, err error) {
+func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd string, teardown func() error, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
 
 	if s != "" { // single command, nothing to do just apply templates
@@ -268,9 +265,9 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd s
 	if err = ec.exec.Upload(ctx, tmp.Name(), dst, true); err != nil {
 		return "", nil, fmt.Errorf("can't upload script to %s: %w", ec.hostAddr, err)
 	}
-	remoteCmd := fmt.Sprintf("sh -c %s", dst)
+	cmd = fmt.Sprintf("sh -c %s", dst)
 
-	teardown := func() error {
+	teardown = func() error {
 		// remove the script from the remote hostAddr, should be invoked by the caller after the command is executed
 		if err := ec.exec.Delete(ctx, dst, false); err != nil {
 			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ec.hostAddr, err)
@@ -278,7 +275,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd s
 		return nil
 	}
 
-	return remoteCmd, teardown, nil
+	return cmd, teardown, nil
 }
 
 // templater is a helper struct to apply templates to a command
