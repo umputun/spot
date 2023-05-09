@@ -128,7 +128,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
 	}
 
-	if err = unmarshalPlaybookFile(fname, data, res); err != nil {
+	if err = unmarshalPlaybookFile(fname, data, overrides, res); err != nil {
 		return nil, fmt.Errorf("can't unmarshal config: %w", err)
 	}
 
@@ -173,7 +173,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 // It will try to guess format by file extension or use yaml as toml.
 // First it will try to unmarshal to a complete PlayBook struct, if it fails,
 // it will try to unmarshal to a SimplePlayBook struct and convert it to a complete PlayBook struct.
-func unmarshalPlaybookFile(fname string, data []byte, res *PlayBook) (err error) {
+func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res *PlayBook) (err error) {
 
 	unmarshal := func(data []byte, v interface{}) error {
 		// try to unmarshal yml first and then toml
@@ -217,15 +217,23 @@ func unmarshalPlaybookFile(fname string, data []byte, res *PlayBook) (err error)
 		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
 		res.Tasks[0].Name = "default"               // we have only one task, set it as default
 
+		hasInventory := simple.Inventory != "" || (overrides != nil && overrides.Inventory != "")
 		target := Target{}
 		for _, t := range simple.Targets {
 			if strings.Contains(t, ":") {
 				ip, port := splitIPAddress(t)
 				target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // set as hosts in case of ip:port
 				log.Printf("[DEBUG] set target host %s:%d", ip, port)
-			} else {
-				target.Names = append(target.Names, t) // set as names in case of just name
+			}
+
+			if hasInventory && !strings.Contains(t, ":") {
+				target.Names = append(target.Names, t) // set as names in case of just name and inventory is set
 				log.Printf("[DEBUG] set target name %s", t)
+			}
+
+			if !hasInventory && !strings.Contains(t, ":") { // set as host with :22 in case of just name and no inventory
+				target.Hosts = append(target.Hosts, Destination{Host: t, Port: 22}) // set as hosts in case of ip:port
+				log.Printf("[DEBUG] set target host %s:22", t)
 			}
 		}
 		res.Targets = map[string]Target{"default": target}
