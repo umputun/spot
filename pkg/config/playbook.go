@@ -456,7 +456,16 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 		}
 	}
 
-	// try as single host or host:port
+	// try as single host or host:port or user@host:port
+	user := p.User
+	if strings.Contains(name, "@") { // extract user from name
+		elems := strings.Split(name, "@")
+		user = elems[0]
+		if len(elems) > 1 {
+			name = elems[1] // skip user part
+		}
+	}
+
 	if strings.Contains(name, ":") {
 		elems := strings.Split(name, ":")
 		port, err := strconv.Atoi(elems[1])
@@ -464,12 +473,12 @@ func (p *PlayBook) targetHosts(name string) ([]Destination, error) {
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
 		log.Printf("[DEBUG] target %q used as host:port %s:%d", name, elems[0], port)
-		return []Destination{{Host: elems[0], Port: port, User: p.User}}, nil
+		return []Destination{{Host: elems[0], Port: port, User: user}}, nil
 	}
 
 	// finally we assume it is a host name, with default port 22
 	log.Printf("[DEBUG] target %q used as host:22 %s", name, name)
-	return []Destination{{Host: name, Port: 22, User: p.User}}, nil
+	return []Destination{{Host: name, Port: 22, User: user}}, nil
 }
 
 // loadInventoryFile loads inventory from file or url and returns a struct with groups.
