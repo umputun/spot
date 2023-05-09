@@ -137,8 +137,12 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool
 	}
 
 	if del {
+		// delete remote files which are not in local.
+		// if the missing file is a directory, delete it recursively.
+		// note: this may cause attempts to remove files from already deleted directories, but it's ok, Delete is idempotent.
 		for _, file := range deletedFiles {
-			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), false); err != nil {
+			recur := remoteFiles[file].IsDir
+			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), recur); err != nil {
 				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
 			}
 		}
@@ -386,6 +390,7 @@ type fileProperties struct {
 	Size     int64
 	Time     time.Time
 	FileName string
+	IsDir    bool
 }
 
 // getLocalFilesProperties returns map of file properties for all files in the local directory.
@@ -397,14 +402,14 @@ func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
+		if info.IsDir() && info.Name() == "." {
 			return nil
 		}
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return fmt.Errorf("failed to get relative path: %w", err)
 		}
-		fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime(), FileName: info.Name()}
+		fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime(), FileName: info.Name(), IsDir: info.IsDir()}
 		return nil
 	})
 
@@ -441,7 +446,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map
 		}
 
 		fileInfo, fullPath := walker.Stat(), walker.Path()
-		if fileInfo.IsDir() {
+		if fileInfo.IsDir() && fileInfo.Name() == "." {
 			continue
 		}
 
@@ -450,7 +455,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map
 			return nil, fmt.Errorf("failed to get relative path for %s: %w", fullPath, err)
 		}
 
-		fileProps[relPath] = fileProperties{Size: fileInfo.Size(), Time: fileInfo.ModTime(), FileName: fullPath}
+		fileProps[relPath] = fileProperties{Size: fileInfo.Size(), Time: fileInfo.ModTime(), FileName: fullPath, IsDir: fileInfo.IsDir()}
 	}
 
 	return fileProps, nil
@@ -469,6 +474,9 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties) (u
 	deletedFiles = []string{}
 
 	for localPath, localProps := range local {
+		if localProps.IsDir {
+			continue // don't put directories to unmatched files, no need to upload them
+		}
 		remoteProps, exists := remote[localPath]
 		if !exists || localProps.Size != remoteProps.Size || !isWithinOneSecond(localProps.Time, remoteProps.Time) {
 			updatedFiles = append(updatedFiles, localPath)
