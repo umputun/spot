@@ -34,7 +34,7 @@ type options struct {
 	TaskName     string        `long:"task" description:"task name"`
 	Targets      []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
-	SSHTimeout   time.Duration `long:"timeout" description:"ssh timeout" default:"30s"`
+	SSHTimeout   time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
