@@ -154,7 +154,9 @@ func (l *Local) syncSrcToDst(ctx context.Context, src, dst string) ([]string, er
 }
 
 func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error {
-	return filepath.Walk(dst, func(dstPath string, info os.FileInfo, err error) error {
+	var pathsToDelete []string
+
+	err := filepath.Walk(dst, func(dstPath string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -170,12 +172,25 @@ func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error 
 
 		srcPath := filepath.Join(src, relPath)
 		if _, err := os.Stat(srcPath); errors.Is(err, os.ErrNotExist) {
-			if e := os.RemoveAll(dstPath); e != nil {
-				return e
-			}
+			pathsToDelete = append(pathsToDelete, dstPath)
 		}
+
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	// Remove files and directories in reverse order
+	for i := len(pathsToDelete) - 1; i >= 0; i-- {
+		dstPath := pathsToDelete[i]
+		if e := os.RemoveAll(dstPath); e != nil {
+			return e
+		}
+	}
+
+	return nil
 }
 
 // nolint
