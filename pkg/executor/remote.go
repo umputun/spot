@@ -192,12 +192,12 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool)
 			}
 
 			path := pathsToDelete[i]
-			fileInfo, stErr := sftpClient.Stat(path)
+			fi, stErr := sftpClient.Stat(path)
 			if stErr != nil {
 				return fmt.Errorf("failed to stat %s: %w", path, stErr)
 			}
 
-			if fileInfo.IsDir() {
+			if fi.IsDir() {
 				err = sftpClient.RemoveDirectory(path)
 			} else {
 				err = sftpClient.Remove(path)
