@@ -605,6 +605,13 @@ func (p *PlayBook) checkConfig() error {
 		}
 	}
 
+	// check what target set is not called "all"
+	for k := range p.Targets {
+		if strings.EqualFold(k, allHostsGrp) {
+			return fmt.Errorf("target %q is reserved for all hosts", allHostsGrp)
+		}
+	}
+
 	return nil
 }
 

@@ -5,7 +5,9 @@ targets:
     remark42:
       hosts: [{name: "h1", host: "h1.example.com"}, {host: "h2.example.com"}]
     staging:
-      groups: ["gr1", "gr2", "all"]
+      groups: ["gr1"]
+    all:
+      groups: ["gr1", "gr2"]
 
 tasks:
   - name: deploy-remark42

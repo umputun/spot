@@ -161,6 +161,11 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, "docker", tsk.Commands[4].Name)
 		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
 	})
+
+	t.Run("playbook prohibited all target", func(t *testing.T) {
+		_, err := New("testdata/playbook-with-all-group.yml", nil, nil)
+		require.ErrorContains(t, err, "config testdata/playbook-with-all-group.yml is invalid: target \"all\" is reserved for all hosts")
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
