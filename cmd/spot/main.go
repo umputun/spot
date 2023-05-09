@@ -52,7 +52,6 @@ type options struct {
 	Dry     bool `long:"dry" description:"dry run"`
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
-	Help    bool `short:"h" long:"help" description:"show help"`
 }
 
 // SecretsProvider defines secrets provider options, for all supported providers
