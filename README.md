@@ -155,7 +155,7 @@ user: umputun                       # default ssh user. Can be overridden by -u 
 ssh_key: keys/id_rsa                # ssh key
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
-target: ["devbox1", "devbox2", "h1.example.com:2222", "h2.example.com"] # list of host names from inventory and direct host ips
+targets: ["devbox1", "devbox2", "h1.example.com:2222", "h2.example.com"] # list of host names from inventory and direct host ips
 
 # the actual list of commands to execute
 task:
