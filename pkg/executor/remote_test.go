@@ -292,6 +292,50 @@ func TestExecuter_Sync(t *testing.T) {
 		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
 			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})
+
+	t.Run("sync with empty dir on remote to delete", func(t *testing.T) {
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest2/empty", true)
+		require.NoError(t, e)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", true)
+		require.NoError(t, e)
+		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest2 -type f -exec stat -c '%s %n' {} \\;", true)
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"17 /tmp/sync.dest2/d1/file11.txt", "185 /tmp/sync.dest2/file1.txt", "61 /tmp/sync.dest2/file2.txt"}, out)
+	})
+
+	t.Run("sync with non-empty dir on remote to delete", func(t *testing.T) {
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest3/empty", true)
+		require.NoError(t, e)
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest3/empty/afile1.txt", true)
+		require.NoError(t, e)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", true)
+		require.NoError(t, e)
+		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest3 -type f -exec stat -c '%s %n' {} \\;", true)
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"17 /tmp/sync.dest3/d1/file11.txt", "185 /tmp/sync.dest3/file1.txt", "61 /tmp/sync.dest3/file2.txt"}, out)
+	})
+
+	t.Run("sync  with non-empty dir on remote to keep", func(t *testing.T) {
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest4/empty", true)
+		require.NoError(t, e)
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", true)
+		require.NoError(t, e)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", false)
+		require.NoError(t, e)
+		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", true)
+		require.NoError(t, e)
+		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		assert.Equal(t, []string{"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
+			"185 /tmp/sync.dest4/file1.txt", "61 /tmp/sync.dest4/file2.txt"}, out)
+	})
 }
 
 func TestExecuter_Delete(t *testing.T) {
@@ -318,12 +362,30 @@ func TestExecuter_Delete(t *testing.T) {
 		assert.Equal(t, []string{"d1", "file2.txt"}, out)
 	})
 
+	t.Run("delete dir non-recursive", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/sync.dest", false)
+		require.Error(t, err)
+	})
+
 	t.Run("delete dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest", true)
 		assert.NoError(t, err)
 		out, e := sess.Run(ctx, "ls -1 /tmp/", true)
 		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
+	})
+
+	t.Run("delete empty dir", func(t *testing.T) {
+		_, err = sess.Run(ctx, "mkdir -p /tmp/sync.dest/empty", true)
+		require.NoError(t, err)
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", true)
+		require.NoError(t, e)
+		assert.Contains(t, out, "empty", out)
+		err = sess.Delete(ctx, "/tmp/sync.dest/empty", false)
+		assert.NoError(t, err)
+		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", true)
+		require.NoError(t, e)
+		assert.NotContains(t, out, "empty", out)
 	})
 
 	t.Run("delete no-such-file", func(t *testing.T) {

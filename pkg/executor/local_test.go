@@ -318,6 +318,74 @@ func TestLocal_Sync(t *testing.T) {
 				"file1.txt",
 			},
 		},
+		{
+			name: "sync non-empty src to non-empty dst with extra files, empty dirs and del=true",
+			srcStructure: map[string]string{
+				"file1.txt": "content1",
+			},
+			dstStructure: map[string]string{
+				"file1.txt":      "old content",
+				"file2.txt":      "old content",
+				"dir1/file3.txt": "content3",
+			},
+			del: true,
+			expected: []string{
+				"file1.txt",
+			},
+		},
+		{
+			name: "sync non-empty src to non-empty dst with extra nested files and del=true",
+			srcStructure: map[string]string{
+				"file1.txt":      "content1",
+				"dir1/file2.txt": "content2",
+			},
+			dstStructure: map[string]string{
+				"file1.txt":      "old content",
+				"dir1/file2.txt": "old content",
+				"dir1/file3.txt": "content3",
+			},
+			del: true,
+			expected: []string{
+				"file1.txt",
+				"dir1/file2.txt",
+			},
+		},
+		{
+			name: "sync non-empty src to non-empty dst with extra nested files and empty dirs and del=true",
+			srcStructure: map[string]string{
+				"file1.txt":      "content1",
+				"dir1/file2.txt": "content2",
+			},
+			dstStructure: map[string]string{
+				"file1.txt":      "old content",
+				"dir1/file2.txt": "old content",
+				"dir1/file3.txt": "content3",
+				"dir2/dir3/":     "",
+			},
+			del: true,
+			expected: []string{
+				"file1.txt",
+				"dir1/file2.txt",
+			},
+		},
+		{
+			name: "sync non-empty src to non-empty dst with extra nested files, empty dirs, and del=false",
+			srcStructure: map[string]string{
+				"file1.txt":      "content1",
+				"dir1/file2.txt": "content2",
+			},
+			dstStructure: map[string]string{
+				"file1.txt":      "old content",
+				"dir1/file2.txt": "old content",
+				"dir1/file3.txt": "content3",
+				"dir2/dir3/":     "",
+			},
+			del: false,
+			expected: []string{
+				"file1.txt",
+				"dir1/file2.txt",
+			},
+		},
 	}
 
 	svc := Local{}
@@ -332,13 +400,22 @@ func TestLocal_Sync(t *testing.T) {
 			defer os.RemoveAll(dstDir)
 
 			for name, content := range tc.srcStructure {
+				os.MkdirAll(filepath.Join(srcDir, filepath.Dir(name)), 0o700)
 				err = os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0o644)
 				require.NoError(t, err)
 			}
 
 			for name, content := range tc.dstStructure {
-				err = os.WriteFile(filepath.Join(dstDir, name), []byte(content), 0o644)
-				require.NoError(t, err)
+				if content == "" {
+					// Create a directory if the content is an empty string
+					err = os.MkdirAll(filepath.Join(dstDir, name), 0o700)
+					require.NoError(t, err)
+				} else {
+					// Create a file with the specified content
+					os.MkdirAll(filepath.Join(dstDir, filepath.Dir(name)), 0o700)
+					err = os.WriteFile(filepath.Join(dstDir, name), []byte(content), 0o644)
+					require.NoError(t, err)
+				}
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -349,13 +426,26 @@ func TestLocal_Sync(t *testing.T) {
 			assert.ElementsMatch(t, tc.expected, copiedFiles)
 
 			for _, name := range tc.expected {
-				srcData, err := os.ReadFile(filepath.Join(srcDir, name))
+				srcPath := filepath.Join(srcDir, name)
+				dstPath := filepath.Join(dstDir, name)
+
+				srcInfo, err := os.Stat(srcPath)
 				require.NoError(t, err)
 
-				dstData, err := os.ReadFile(filepath.Join(dstDir, name))
+				dstInfo, err := os.Stat(dstPath)
 				require.NoError(t, err)
 
-				assert.Equal(t, srcData, dstData, "content should match for file: %s", name)
+				assert.Equal(t, srcInfo.IsDir(), dstInfo.IsDir(), "directory status should match for path: %s", name)
+
+				if !srcInfo.IsDir() {
+					srcData, err := os.ReadFile(srcPath)
+					require.NoError(t, err)
+
+					dstData, err := os.ReadFile(dstPath)
+					require.NoError(t, err)
+
+					assert.Equal(t, srcData, dstData, "content should match for file: %s", name)
+				}
 			}
 
 			// if del is true, verify that extra files in the dst directory have been deleted
