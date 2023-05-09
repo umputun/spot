@@ -318,12 +318,30 @@ func TestExecuter_Delete(t *testing.T) {
 		assert.Equal(t, []string{"d1", "file2.txt"}, out)
 	})
 
+	t.Run("delete dir non-recursive", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/sync.dest", false)
+		require.Error(t, err)
+	})
+
 	t.Run("delete dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest", true)
 		assert.NoError(t, err)
 		out, e := sess.Run(ctx, "ls -1 /tmp/", true)
 		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
+	})
+
+	t.Run("delete empty dir", func(t *testing.T) {
+		_, err = sess.Run(ctx, "mkdir -p /tmp/sync.dest/empty", true)
+		require.NoError(t, err)
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", true)
+		require.NoError(t, e)
+		assert.Contains(t, out, "empty", out)
+		err = sess.Delete(ctx, "/tmp/sync.dest/empty", false)
+		assert.NoError(t, err)
+		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", true)
+		require.NoError(t, e)
+		assert.NotContains(t, out, "empty", out)
 	})
 
 	t.Run("delete no-such-file", func(t *testing.T) {

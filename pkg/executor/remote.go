@@ -205,9 +205,17 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool)
 		}
 
 		log.Printf("[INFO] deleted recursevly %s", remoteFile)
-	} else {
-		err = sftpClient.Remove(remoteFile)
-		if err != nil {
+	}
+
+	if fileInfo.IsDir() && !recursive {
+		if err = sftpClient.RemoveDirectory(remoteFile); err != nil {
+			return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
+		}
+		log.Printf("[INFO] deleted directory %s", remoteFile)
+	}
+
+	if !fileInfo.IsDir() {
+		if err = sftpClient.Remove(remoteFile); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
 		}
 		log.Printf("[INFO] deleted %s", remoteFile)
