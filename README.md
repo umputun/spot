@@ -96,7 +96,7 @@ targets:
     groups: ["dev", "staging"] # list of groups from inventory file
   dev:
     names: ["devbox1", "devbox2"] # list of server names from inventory file
-  all:
+  all-boxes:
     groups: ["all"] # all hosts from all groups from inventory file
 
 # list of tasks, i.e. commands to execute
