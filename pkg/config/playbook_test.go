@@ -302,6 +302,16 @@ func TestTargetHosts(t *testing.T) {
 			[]Destination{{Host: "host2.example.com", Port: 22, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
 			false,
 		},
+		{
+			"target as single host address with user", "user2@host5.example.com", nil,
+			[]Destination{{Host: "host5.example.com", Port: 22, User: "user2"}},
+			false,
+		},
+		{
+			"target as single host address, port and user", "user2@host5.example.com:2345", nil,
+			[]Destination{{Host: "host5.example.com", Port: 2345, User: "user2"}},
+			false,
+		},
 		{"invalid host:port format", "host5.example.com:invalid", nil, nil, true},
 		{"random host without a port", "host5.example.com", nil,
 			[]Destination{{Host: "host5.example.com", Port: 22, User: "defaultuser"}},
