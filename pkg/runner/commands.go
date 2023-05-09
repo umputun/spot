@@ -26,10 +26,12 @@ type execCmd struct {
 	verbose  bool
 }
 
+const tmpRemoteDir = "/tmp/.spot" // this is a directory on remote host to store temporary files
+
 // script executes a script command on a target host. It can be a single line or multiline script,
 // this part is translated by the prepScript function.
-// If sudo option is set, it will execute the script with sudo.
-// If output contains variables as "setvar foo=bar", it will return the variables as map.
+// If sudo option is set, it will execute the script with sudo. If output contains variables as "setvar foo=bar",
+// it will return the variables as map.
 func (ec *execCmd) script(ctx context.Context) (details string, vars map[string]string, err error) {
 	single, multiRdr := ec.cmd.GetScript()
 	c, teardown, err := ec.prepScript(ctx, single, multiRdr)

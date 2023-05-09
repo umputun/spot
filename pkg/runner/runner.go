@@ -36,8 +36,6 @@ type Process struct {
 	secrets []string
 }
 
-const tmpRemoteDir = "/tmp/.spot" // this is a directory on remote host to store temporary files
-
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
