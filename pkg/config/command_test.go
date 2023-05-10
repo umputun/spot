@@ -394,3 +394,57 @@ func TestCmd_validate(t *testing.T) {
 		})
 	}
 }
+
+func TestCmd_GetWait(t *testing.T) {
+	testCases := []struct {
+		name           string
+		cmd            *Cmd
+		expectedCmd    string
+		expectedReader io.Reader
+	}{
+		{
+			name: "single-line wait command",
+			cmd: &Cmd{
+				Wait: WaitInternal{
+					Timeout: time.Second * 10,
+					Command: "echo Hello, World!",
+				},
+			},
+			expectedCmd: `sh -c "echo Hello, World!"`,
+		},
+		{
+			name: "multi-line wait command",
+			cmd: &Cmd{
+				Wait: WaitInternal{
+					Timeout: time.Second * 20,
+					Command: `echo 'Hello, World!'
+echo 'Goodbye, World!'`,
+				},
+			},
+			expectedReader: strings.NewReader(`#!/bin/sh
+set -e
+echo 'Hello, World!'
+echo 'Goodbye, World!'
+`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, reader := tc.cmd.GetWait()
+			assert.Equal(t, tc.expectedCmd, cmd)
+
+			if tc.expectedReader != nil {
+				expectedBytes, err := io.ReadAll(tc.expectedReader)
+				assert.NoError(t, err)
+
+				actualBytes, err := io.ReadAll(reader)
+				assert.NoError(t, err)
+
+				assert.Equal(t, string(expectedBytes), string(actualBytes))
+			} else {
+				assert.Nil(t, reader)
+			}
+		})
+	}
+}

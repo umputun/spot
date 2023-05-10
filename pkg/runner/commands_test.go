@@ -136,6 +136,17 @@ func Test_execCmd(t *testing.T) {
 		t.Log(details)
 	})
 
+	t.Run("wait multiline done", func(t *testing.T) {
+		time.AfterFunc(time.Second, func() {
+			_, _ = sess.Run(ctx, "touch /tmp/wait.done", false)
+		})
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
+			Command: "echo this is wait\ncat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
+		details, _, err := ec.wait(ctx)
+		require.NoError(t, err)
+		t.Log(details)
+	})
+
 	t.Run("wait done with sudo", func(t *testing.T) {
 		time.AfterFunc(time.Second, func() {
 			_, _ = sess.Run(ctx, "sudo touch /srv/wait.done", false)

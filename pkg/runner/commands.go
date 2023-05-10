@@ -185,8 +185,20 @@ func (ec *execCmd) delete(ctx context.Context) (details string, vars map[string]
 // wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
 func (ec *execCmd) wait(ctx context.Context) (details string, vars map[string]string, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
-	c := tmpl.apply(ec.cmd.Wait.Command)
+	single, multiRdr := ec.cmd.GetWait()
+	c, teardown, err := ec.prepScript(ctx, single, multiRdr)
+	if err != nil {
+		return details, nil, fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err)
+	}
+	defer func() {
+		if teardown == nil {
+			return
+		}
+		if err = teardown(); err != nil {
+			log.Printf("[WARN] can't teardown script on %s: %v", ec.hostAddr, err)
+		}
+	}()
+
 	timeout, duration := ec.cmd.Wait.Timeout, ec.cmd.Wait.CheckDuration
 	if duration == 0 {
 		duration = 5 * time.Second // default check duration if not set

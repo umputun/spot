@@ -80,6 +80,22 @@ func (cmd *Cmd) GetScript() (command string, rdr io.Reader) {
 	return cmd.scriptCommand(cmd.Script), nil
 }
 
+// GetWait returns a wait command as a string and an io.Reader based on whether the command is a single line or multiline
+func (cmd *Cmd) GetWait() (command string, rdr io.Reader) {
+	if cmd.Wait.Command == "" {
+		return "", nil
+	}
+
+	elems := strings.Split(cmd.Wait.Command, "\n")
+	if len(elems) > 1 {
+		log.Printf("[DEBUG] wait command %q is multiline, using script file", cmd.Name)
+		return "", cmd.scriptFile(cmd.Wait.Command)
+	}
+
+	log.Printf("[DEBUG] wait command %q is single line, using command string", cmd.Name)
+	return cmd.scriptCommand(cmd.Wait.Command), nil
+}
+
 // GetScriptCommand concatenates all script line in commands into one a string to be executed by shell.
 // Empty string is returned if no script is defined.
 func (cmd *Cmd) scriptCommand(inp string) string {
