@@ -191,7 +191,7 @@ func (cmd *Cmd) genSecrets() []string {
 
 // UnmarshalYAML implements yaml.Unmarshaler interface
 // It allows to unmarshal a "copy" from a single field or a slice
-// All other fields are unmarshalled as usual. Limited to string, in, struct, slice or map
+// All other fields are unmarshalled as usual. Limited to string, int, struct, slice or map
 func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var asMap map[string]interface{}
 	if err := unmarshal(&asMap); err != nil {
@@ -268,6 +268,8 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
+// validate checks if a Cmd has exactly one command type set (script, copy, mcopy, delete, sync, or wait)
+// and returns an error if there are either multiple command types set or none set.
 func (cmd *Cmd) validate() error {
 	cmdTypes := []struct {
 		name  string

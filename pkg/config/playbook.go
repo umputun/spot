@@ -58,6 +58,24 @@ type Task struct {
 	OnError  string `yaml:"on_error" toml:"on_error"`
 }
 
+// Target defines hosts to run commands on
+type Target struct {
+	Name   string        `yaml:"name" toml:"name"`     // name of target
+	Hosts  []Destination `yaml:"hosts" toml:"hosts"`   // direct list of hosts to run commands on, no need to use inventory
+	Groups []string      `yaml:"groups" toml:"groups"` // list of groups to run commands on, matches to inventory
+	Names  []string      `yaml:"names" toml:"names"`   // list of host names to run commands on, matches to inventory
+	Tags   []string      `yaml:"tags" toml:"tags"`     // list of tags to run commands on, matches to inventory
+}
+
+// Destination defines destination info
+type Destination struct {
+	Name string   `yaml:"name" toml:"name"`
+	Host string   `yaml:"host" toml:"host"`
+	Port int      `yaml:"port" toml:"port"`
+	User string   `yaml:"user" toml:"user"`
+	Tags []string `yaml:"tags" toml:"tags"`
+}
+
 // Overrides defines override for task passed from cli
 type Overrides struct {
 	User         string
@@ -77,7 +95,11 @@ const (
 	inventoryEnv = "SPOT_INVENTORY"
 )
 
-// New makes new config from yml
+// New creates a new PlayBook instance by loading the playbook configuration from the specified file. If the file cannot be
+// found, and an ad-hoc command is specified in the overrides, a fake playbook with the ad-hoc command is created.
+// The method also loads any secrets from the specified secrets provider and the inventory data from the specified
+// location (if set). Returns an error if the playbook configuration cannot be loaded or parsed,
+// or if the inventory data cannot be loaded.
 func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *PlayBook, err error) {
 	log.Printf("[DEBUG] request to load playbook %q", fname)
 	res = &PlayBook{
@@ -225,7 +247,11 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	return multierror.Append(errors, err).Unwrap()
 }
 
-// Task returns task by name
+// Task returns the task with the specified name from the playbook's list of tasks. If the name is "ad-hoc" and an ad-hoc
+// command is specified in the playbook's overrides, a fake task with a single command is created.
+// The method performs a deep copy of the task to avoid side effects of overrides on the original config and also applies
+// any overrides for the user and environment variables to the task and its commands.
+// Returns an error if the task cannot be found or copied.
 func (p *PlayBook) Task(name string) (*Task, error) {
 	searchTask := func(tsk []Task, name string) (*Task, error) {
 		if name == "ad-hoc" && p.overrides.AdHocCommand != "" {
@@ -297,8 +323,8 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		return p.User
 	}
 
-	tgSvc := newTargetService(p.Targets, p.User, p.inventory)
-	res, err := tgSvc.destinations(name)
+	tgExtractor := newTargetExtractor(p.Targets, p.User, p.inventory)
+	res, err := tgExtractor.Destinations(name)
 	if err != nil {
 		return nil, err
 	}
@@ -325,9 +351,13 @@ func (p *PlayBook) AllSecretValues() []string {
 	return res
 }
 
-// loadInventoryFile loads inventory from file or url and returns a struct with groups.
-// Hosts, if presented, are loaded to the group "all". All the other groups are loaded to "all"
-// as well and also to their own group.
+// loadInventory loads the inventory data from the specified location (file or URL) and returns it as an InventoryData struct.
+// The inventory data is parsed as either YAML or TOML, depending on the file extension.
+// The method also performs some additional processing on the inventory data:
+// - It creates a group "all" that contains all hosts from all groups.
+// - It sorts the hosts in the "all" group by host name for predictable order in tests and processing.
+// - It sets default port and user values for all inventory groups if not already set.
+// Returns an error if the inventory data cannot be loaded or parsed, or if the "all" group is reserved for all hosts.
 func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 
 	reader := func(loc string) (r io.ReadCloser, err error) {
@@ -414,7 +444,11 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 	return &data, nil
 }
 
-// checkConfig checks validity of config
+// checkConfig validates the PlayBook configuration by ensuring that:
+// - all tasks have unique names and no empty names
+// - all commands have a single type set
+// - the target set is not called "all"
+// Returns an error if any of these conditions are not met.
 func (p *PlayBook) checkConfig() error {
 
 	// check that all tasks have unique names in the playbook and no empty names

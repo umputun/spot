@@ -7,35 +7,23 @@ import (
 	"strings"
 )
 
-// Target defines hosts to run commands on
-type Target struct {
-	Name   string        `yaml:"name" toml:"name"`     // name of target
-	Hosts  []Destination `yaml:"hosts" toml:"hosts"`   // direct list of hosts to run commands on, no need to use inventory
-	Groups []string      `yaml:"groups" toml:"groups"` // list of groups to run commands on, matches to inventory
-	Names  []string      `yaml:"names" toml:"names"`   // list of host names to run commands on, matches to inventory
-	Tags   []string      `yaml:"tags" toml:"tags"`     // list of tags to run commands on, matches to inventory
-}
-
-// Destination defines destination info
-type Destination struct {
-	Name string   `yaml:"name" toml:"name"`
-	Host string   `yaml:"host" toml:"host"`
-	Port int      `yaml:"port" toml:"port"`
-	User string   `yaml:"user" toml:"user"`
-	Tags []string `yaml:"tags" toml:"tags"`
-}
-
-type targetService struct {
+// targetExtractor is a helper struct used to extract destinations from a given target.
+// It utilizes the inventory data to match names, groups, and tags if the target is not found in the playbook.
+// Additionally, it is responsible for deduplicating the resulting destinations.
+type targetExtractor struct {
 	data      map[string]Target
 	user      string
 	inventory *InventoryData
 }
 
-func newTargetService(targets map[string]Target, user string, inventory *InventoryData) *targetService {
-	return &targetService{data: targets, user: user, inventory: inventory}
+func newTargetExtractor(targets map[string]Target, user string, inventory *InventoryData) *targetExtractor {
+	return &targetExtractor{data: targets, user: user, inventory: inventory}
 }
 
-func (tg *targetService) destinations(name string) (res []Destination, err error) {
+// Destinations returns list of destinations for target name
+// It first checks if the target exists in the playbook; if not, it looks into the inventory.
+// After collecting the destinations, it deduplicates them before returning.
+func (tg *targetExtractor) Destinations(name string) (res []Destination, err error) {
 	dedup := func(in []Destination) (res []Destination) {
 		seen := make(map[string]struct{})
 		for _, d := range in {
@@ -60,7 +48,12 @@ func (tg *targetService) destinations(name string) (res []Destination, err error
 	return dedup(res), nil
 }
 
-func (tg *targetService) destinationsFromPlaybook(name string, t Target) ([]Destination, error) {
+// destinationsFromPlaybook finds the destinations for the given target name using the playbook data.
+// It first checks if the target has any valid Hosts, Names, Groups, or Tags, returning an error if none are found.
+// The method then appends the hosts directly specified in the target (if any) to the result.
+// Next, it tries to match the target's Names, Groups, and Tags with the inventory data, appending the matches to the result.
+// If no matching hosts are found, it returns an error.
+func (tg *targetExtractor) destinationsFromPlaybook(name string, t Target) ([]Destination, error) {
 	if len(t.Hosts) == 0 && len(t.Names) == 0 && len(t.Groups) == 0 && len(t.Tags) == 0 {
 		return nil, fmt.Errorf("target %q has no hosts, names, tags or groups", t.Name)
 	}
@@ -87,7 +80,8 @@ func appendHostsFromTarget(t Target) []Destination {
 	return res
 }
 
-func (tg *targetService) matchNamesInventory(name string, names []string) []Destination {
+// matchNamesInventory matches names in the target with names in the inventory and returns the matching destinations.
+func (tg *targetExtractor) matchNamesInventory(name string, names []string) []Destination {
 	res := []Destination{}
 	if len(names) == 0 || tg.inventory == nil {
 		return res
@@ -104,7 +98,8 @@ func (tg *targetService) matchNamesInventory(name string, names []string) []Dest
 	return res
 }
 
-func (tg *targetService) matchGroupsInventory(name string, groups []string) []Destination {
+// matchGroupsInventory matches groups in the target with groups in the inventory and returns the matching destinations.
+func (tg *targetExtractor) matchGroupsInventory(name string, groups []string) []Destination {
 	res := []Destination{}
 	if len(groups) == 0 || tg.inventory == nil {
 		return res
@@ -116,7 +111,8 @@ func (tg *targetService) matchGroupsInventory(name string, groups []string) []De
 	return res
 }
 
-func (tg *targetService) matchTagsInventory(name string, tags []string) []Destination {
+// matchTagsInventory matches tags in the target with tags in the inventory and returns the matching destinations.
+func (tg *targetExtractor) matchTagsInventory(name string, tags []string) []Destination {
 	res := []Destination{}
 	if len(tags) == 0 || tg.inventory == nil {
 		return res
@@ -137,7 +133,15 @@ func (tg *targetService) matchTagsInventory(name string, tags []string) []Destin
 	return res
 }
 
-func (tg *targetService) destinationsFromInventory(name string) ([]Destination, error) {
+// destinationsFromInventory finds the destinations for the given target name using the inventory data.
+// It first checks if the target name matches a group in the inventory and returns all hosts in that group.
+// If no group is found, it tries to match the target name to tags in the inventory.
+// Then, it attempts to find the target name among host names in the inventory.
+// If still not found, it checks if the target name matches a host in the inventory.
+// If the target name contains an '@', it splits the user from the host and uses it for the destination.
+// If the target name contains a ':', it splits the host from the port and uses them for the destination.
+// If none of the above conditions match, it defaults to using the target name as the host and assumes port 22.
+func (tg *targetExtractor) destinationsFromInventory(name string) ([]Destination, error) {
 	hosts, ok := tg.inventory.Groups[name]
 	if ok {
 		// the name is a group in inventory, return all hosts in the group
