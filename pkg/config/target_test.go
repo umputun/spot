@@ -53,13 +53,13 @@ func TestDestinations(t *testing.T) {
 			inventory: &InventoryData{
 				Groups: map[string][]Destination{
 					allHostsGrp: {
-						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
-						{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
+						{Name: "server1", Host: "192.168.1.1", Port: 22, Tags: []string{"web"}},
+						{Name: "server2", Host: "192.168.1.2", Port: 2222, Tags: []string{"db"}},
 					},
 				},
 			},
 			expected: []Destination{
-				{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+				{Name: "server1", Host: "192.168.1.1", Port: 22, Tags: []string{"web"}},
 			},
 			err: false,
 		},
@@ -97,11 +97,11 @@ func TestDestinations(t *testing.T) {
 			inventory: &InventoryData{
 				Groups: map[string][]Destination{
 					allHostsGrp: {
-						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+						{Name: "server1", Host: "192.168.1.1", Port: 2222, Tags: []string{"web"}},
 						{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
 					},
 					"web": {
-						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+						{Name: "server1", Host: "192.168.1.1", Port: 2222, Tags: []string{"web"}},
 					},
 					"db": {
 						{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
@@ -109,7 +109,7 @@ func TestDestinations(t *testing.T) {
 				},
 			},
 			expected: []Destination{
-				{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+				{Name: "server1", Host: "192.168.1.1", Port: 2222, Tags: []string{"web"}},
 			},
 			err: false,
 		},
@@ -147,11 +147,11 @@ func TestDestinations(t *testing.T) {
 			inventory: &InventoryData{
 				Groups: map[string][]Destination{
 					allHostsGrp: {
-						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}, Port: 2222, User: "user2"},
 						{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
 					},
 					"web": {
-						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+						{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}, Port: 2222, User: "user2"},
 					},
 					"db": {
 						{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
@@ -160,7 +160,7 @@ func TestDestinations(t *testing.T) {
 			},
 			expected: []Destination{
 				{Name: "host1", Host: "192.168.1.3"},
-				{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}},
+				{Name: "server1", Host: "192.168.1.1", Tags: []string{"web"}, Port: 2222, User: "user2"},
 				{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
 			},
 			err: false,
