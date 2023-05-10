@@ -34,6 +34,7 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 ## Getting Started
 
 - Install Spot by download the latest release from the [Releases](https://github.com/umputun/spot/releases) page.
+- MacOS users can install Spot using [Homebrew](https://brew.sh/): `brew tap umputun/spot https://github.com/umputun/spot.git && brew install umputun/spot/spot`.
 - Create a configuration file, as shown in the [example below](#full-playbook-example), and save it as `spot.yml`.
 - Run Spot using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
 - To execute a specific task, use the `--task` flag: `spot --task=deploy-things`. This will execute only the `deploy-things` task.
