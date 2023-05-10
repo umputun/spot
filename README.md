@@ -595,6 +595,17 @@ Spot is not designed as a direct replacement for Ansible; however, in certain us
 
 Spot is an appealing choice for those seeking a lightweight, simple, and easy-to-use tool for deployment and configuration management, especially for smaller projects or when extensive features aren't necessary. Its single binary distribution, easy-to-comprehend structure, and minimal dependencies offer a low-maintenance solution. However, if a more comprehensive tool with a wide range of built-in modules, plugins, and integrations is needed, Ansible may be a better fit. While Ansible has advanced features and a robust ecosystem, its reliance on Python and additional libraries can sometimes be less convenient in certain environments or situations with specific constraints.
 
+
+## Getting latest development version
+
+If you want to try the latest development version, you can install it directly from the master branch. There are two ways to do this:
+
+- **Using go get**: `go install github.com/umputun/spot/cmd/spot@master` and `go install github.com/umputun/spot/cmd/secrets@master`. Note that this will install the latest development version of spot and secrets, which may not be stable or fully tested.
+- **Using git**: `git clone github.com/umputun/spot` then `cd spot` and `make build`. This will install the latest development version of spot and secrets to `spot/.bin/spot` and `spot/.bin/sport-secrets`, respectively.
+
+**pls note that you need to have go 1.16+ installed on your machine.**     
+
+
 ## Status
 
 The project is currently in active development, and breaking changes may occur until the release of version 1.0. However, we strive to minimize disruptions and will only introduce breaking changes when there is a compelling reason to do so.
