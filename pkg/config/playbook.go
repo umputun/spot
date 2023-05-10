@@ -284,19 +284,6 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 // and deduplicate results.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
-	dedup := func(in []Destination) []Destination {
-		var res []Destination
-		seen := make(map[string]struct{})
-		for _, d := range in {
-			key := d.Host + ":" + strconv.Itoa(d.Port) + ":" + d.User
-			if _, ok := seen[key]; !ok {
-				seen[key] = struct{}{}
-				res = append(res, d)
-			}
-		}
-		return res
-	}
-
 	userOverride := func(u string) string {
 		// apply overrides of user
 		if p.overrides != nil && p.overrides.User != "" {
@@ -324,7 +311,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 		res[i] = h
 	}
 
-	return dedup(res), nil
+	return res, nil
 }
 
 // AllSecretValues returns all secret values from all tasks and all commands.
