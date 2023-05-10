@@ -49,6 +49,8 @@ type options struct {
 	// secrets
 	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SPOT_SECRETS"`
 
+	Version bool `long:"version" description:"show version"`
+
 	Dry     bool `long:"dry" description:"dry run"`
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
@@ -83,6 +85,9 @@ func main() {
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
 		os.Exit(1)
+	}
+	if opts.Version {
+		os.Exit(0) // already printed
 	}
 	setupLog(opts.Dbg)
 
