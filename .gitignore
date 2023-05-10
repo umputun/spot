@@ -17,6 +17,7 @@
 bin/
 .bin/
 *.gpg
+private-key.asc
 spot-private.yml
 spot-inventory-private.yml
 spot-inventory-private2.yml
