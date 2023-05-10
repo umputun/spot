@@ -21,6 +21,7 @@ RUN \
     cp /dist/*.sig /artifacts/ && \
     cp /dist/*.rpm /artifacts/ && \
     cp /dist/*.deb /artifacts/ && \
+    cp /dist/*.rb /artifacts/ && \
     ls -la /artifacts/*
 
 CMD ["sleep", "100"]
