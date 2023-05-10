@@ -36,8 +36,7 @@ func newTargetService(targets map[string]Target, user string, inventory *Invento
 }
 
 func (tg *targetService) destinations(name string) (res []Destination, err error) {
-	dedup := func(in []Destination) []Destination {
-		var res []Destination
+	dedup := func(in []Destination) (res []Destination) {
 		seen := make(map[string]struct{})
 		for _, d := range in {
 			key := d.Host + ":" + strconv.Itoa(d.Port) + ":" + d.User
