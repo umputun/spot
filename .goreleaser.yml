@@ -52,6 +52,7 @@ builds:
     dir: cmd/secrets
     ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
 
+
 archives:
   - name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
     replacements:
@@ -94,8 +95,8 @@ nfpms:
     formats:
       - deb
       - rpm
+      - apk
     bindir: /usr/bin
     epoch: 1
     release: 1
-
 
