@@ -306,8 +306,7 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 }
 
 // TargetHosts returns target hosts for given target name.
-// After it gets destinations from targetHosts(name) it applies overrides of user, set default port 22 if needed
-// and deduplicate results.
+// After it gets destinations from targetHosts(name) it applies overrides of user, set default port 22 if needed.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	userOverride := func(u string) string {
