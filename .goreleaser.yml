@@ -52,13 +52,16 @@ builds:
     dir: cmd/secrets
     ldflags: "-s -w -X main.revision={{.Tag}}-{{.ShortCommit}}-{{.CommitDate}}"
 
-
 archives:
-  - name_template: "{{.ProjectName}}_{{.Tag}}_{{.Os}}_{{.Arch}}"
-    replacements:
-      386: i386
-      amd64: x86_64
-      darwin: macos
+  - id: spot
+    name_template: >-
+     {{.ProjectName}}_
+     {{- .Tag}}_
+     {{- .Os}}_
+     {{- if eq .Arch "amd64"}}x86_64
+     {{- else if eq .Arch "386"}}i386
+     {{- else if eq .Os "darwin"}}macos
+     {{- else}}{{.Arch}}{{end}}
     format_overrides:
       - goos: windows
         format: zip
@@ -67,6 +70,8 @@ archives:
       - README.md
       - "dist/{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}/spot*"
       - "dist/{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}/spot-secrets*"
+    rlcp: true
+
 
 brews:
   -
