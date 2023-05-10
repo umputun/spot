@@ -25,3 +25,4 @@ identifier.sqlite
 test_secrets.db
 spot.sqlite
 spot.db
+dist/
