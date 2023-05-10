@@ -78,7 +78,7 @@ brews:
     name: spot
     tap:
       owner: umputun
-      name: homebrew-apps
+      name: spot
       branch: main
     commit_author:
       name: umputun
