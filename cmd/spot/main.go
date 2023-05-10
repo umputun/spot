@@ -164,7 +164,7 @@ func run(opts options) error {
 		Config:      conf,
 		Only:        opts.Only,
 		Skip:        opts.Skip,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Verbose:     opts.Verbose,
 		Dry:         opts.Dry,
 	}

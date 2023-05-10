@@ -36,7 +36,7 @@ type StdOutLogWriter struct {
 }
 
 // NewStdoutLogWriter creates a new StdOutLogWriter.
-func NewStdoutLogWriter(prefix, level string, secrets ...string) *StdOutLogWriter {
+func NewStdoutLogWriter(prefix, level string, secrets []string) *StdOutLogWriter {
 	return &StdOutLogWriter{prefix: prefix, level: level, secrets: secrets}
 }
 
@@ -62,13 +62,13 @@ type ColorizedWriter struct {
 }
 
 // NewColorizedWriter creates a new ColorizedWriter with the given hostAddr name.
-func NewColorizedWriter(wr io.Writer, prefix, hostAddr, hostName string, secrets ...string) *ColorizedWriter {
+func NewColorizedWriter(wr io.Writer, prefix, hostAddr, hostName string, secrets []string) *ColorizedWriter {
 	return &ColorizedWriter{wr: wr, hostAddr: hostAddr, hostName: hostName, prefix: prefix, secrets: secrets}
 }
 
 // WithHost creates a new StdoutColorWriter with the given hostAddr name.
 func (s *ColorizedWriter) WithHost(hostAddr, hostName string) *ColorizedWriter {
-	return &ColorizedWriter{wr: s.wr, hostAddr: hostAddr, hostName: hostName, prefix: s.prefix}
+	return &ColorizedWriter{wr: s.wr, hostAddr: hostAddr, hostName: hostName, prefix: s.prefix, secrets: s.secrets}
 }
 
 // Write writes the given byte slice to stdout with the colorized hostAddr prefix for each line.
@@ -114,14 +114,14 @@ func hostColorizer(host string) func(format string, a ...interface{}) string {
 }
 
 // MakeOutAndErrWriters creates a new StdoutLogWriter and StdoutLogWriter for the given hostAddr.
-func MakeOutAndErrWriters(hostAddr, hostName string, verbose bool, secrets ...string) (outWr, errWr io.Writer) {
+func MakeOutAndErrWriters(hostAddr, hostName string, verbose bool, secrets []string) (outWr, errWr io.Writer) {
 	var outLog, errLog io.Writer
 	if verbose {
-		outLog = NewColorizedWriter(os.Stdout, " >", hostAddr, hostName, secrets...)
-		errLog = NewColorizedWriter(os.Stdout, " !", hostAddr, hostName, secrets...)
+		outLog = NewColorizedWriter(os.Stdout, " >", hostAddr, hostName, secrets)
+		errLog = NewColorizedWriter(os.Stdout, " !", hostAddr, hostName, secrets)
 	} else {
-		outLog = NewStdoutLogWriter(" >", "DEBUG", secrets...)
-		errLog = NewStdoutLogWriter(" !", "WARN", secrets...)
+		outLog = NewStdoutLogWriter(" >", "DEBUG", secrets)
+		errLog = NewStdoutLogWriter(" !", "WARN", secrets)
 	}
 	return outLog, errLog
 }

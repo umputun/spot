@@ -28,7 +28,7 @@ func (l *Local) SetSecrets(secrets []string) {
 func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 
-	outLog, errLog := MakeOutAndErrWriters("localhost", "", verbose, l.secrets...)
+	outLog, errLog := MakeOutAndErrWriters("localhost", "", verbose, l.secrets)
 	outLog.Write([]byte(cmd)) //nolint
 
 	var stdoutBuf bytes.Buffer

@@ -19,6 +19,7 @@ import (
 
 	"github.com/umputun/spot/pkg/config"
 	"github.com/umputun/spot/pkg/executor"
+	"github.com/umputun/spot/pkg/secrets"
 )
 
 func TestProcess_Run(t *testing.T) {
@@ -36,7 +37,7 @@ func TestProcess_Run(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
@@ -52,7 +53,7 @@ func TestProcess_Run(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		}
 		res, err := p.Run(ctx, "default", testingHostAndPort)
 		require.NoError(t, err)
@@ -77,7 +78,7 @@ func TestProcess_Run(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"runtime variables"},
 		}
 		outWriter := &bytes.Buffer{}
@@ -98,7 +99,7 @@ func TestProcess_Run(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"copy multiple files"},
 		}
 
@@ -121,7 +122,7 @@ func TestProcess_Run(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"copy configuration", "some command", "user variables"},
 		}
 
@@ -134,6 +135,30 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `> var foo: 6`)
 		assert.Contains(t, outWriter.String(), `> var bar: 9`)
 		assert.Contains(t, outWriter.String(), `> var baz: qux`, "was not overwritten")
+	})
+
+	t.Run("with secrets", func(t *testing.T) {
+		sp := secrets.NewMemoryProvider(map[string]string{"FOO": "FOO_SECRET", "BAR": "BAR_SECRET"})
+		conf, err := config.New("testdata/conf.yml", nil, sp)
+		require.NoError(t, err)
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", conf.AllSecretValues()),
+			Only:        []string{"secrets"},
+		}
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Contains(t, outWriter.String(), `FOO=****`)
+		assert.Contains(t, outWriter.String(), `BAR=****`)
+		assert.Contains(t, outWriter.String(), `secrets: ********`)
+		assert.NotContains(t, outWriter.String(), "FOO_SECRET")
+		assert.NotContains(t, outWriter.String(), "BAR_SECRET")
 	})
 }
 
@@ -152,7 +177,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only single line"},
 		}
 
@@ -170,7 +195,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only multiline"},
 		}
 
@@ -188,7 +213,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only copy single file"},
 		}
 
@@ -212,7 +237,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only copy multiple files"},
 		}
 
@@ -236,7 +261,6 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, outWriter.String(), " File: /srv/conf.yml", "file was copied to /srv")
 	})
-
 }
 
 func TestProcess_RunDry(t *testing.T) {
@@ -253,7 +277,7 @@ func TestProcess_RunDry(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Dry:         true,
 	}
 	res, err := p.Run(ctx, "task1", testingHostAndPort)
@@ -277,7 +301,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"show content"},
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
@@ -291,7 +315,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"show content", "no auto cmd"},
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
@@ -305,7 +329,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 			Concurrency: 1,
 			Connector:   connector,
 			Config:      conf,
-			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Skip:        []string{"wait", "show content"},
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
@@ -329,7 +353,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Verbose:     true,
 		Skip:        []string{"wait"},
 	}
@@ -353,7 +377,7 @@ func TestProcess_RunLocal(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Verbose:     true,
 	}
 	res, err := p.Run(ctx, "default", testingHostAndPort)
@@ -377,7 +401,7 @@ func TestProcess_RunFailed(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 	_, err = p.Run(ctx, "failed_task", testingHostAndPort)
 	require.ErrorContains(t, err, `failed command "bad command" on host`)
@@ -397,7 +421,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 
 	t.Run("onerror called", func(t *testing.T) {
@@ -442,7 +466,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 	_, err = p.Run(ctx, "failed_task", testingHostAndPort)
 	require.NoError(t, err, "error ignored")
@@ -462,7 +486,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 		Concurrency: 1,
 		Connector:   connector,
 		Config:      conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", ""),
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 
 	var buf bytes.Buffer

@@ -208,7 +208,7 @@ func TestColorizedWriter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			buffer := bytes.NewBuffer([]byte{})
-			writer := NewColorizedWriter(buffer, tc.prefix, tc.hostAddr, tc.hostName, tc.secrets...)
+			writer := NewColorizedWriter(buffer, tc.prefix, tc.hostAddr, tc.hostName, tc.secrets)
 			if tc.withHostName != "" && tc.withHostAddr != "" {
 				writer = writer.WithHost(tc.withHostAddr, tc.withHostName)
 			}
@@ -240,7 +240,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		rOut, wOut, _ := os.Pipe()
 		os.Stdout = wOut
 
-		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", true)
+		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", true, nil)
 		io.WriteString(outWriter, outMsg)
 		io.WriteString(errWriter, errMsg)
 
@@ -256,7 +256,7 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 	})
 
 	t.Run("non-verbose", func(t *testing.T) {
-		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", false)
+		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", false, nil)
 		bufOut := bytes.Buffer{}
 		log.SetOutput(&bufOut)
 		io.WriteString(outWriter, outMsg)
@@ -265,5 +265,17 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		t.Logf("bufOut:\n%s", bufOut.String())
 		assert.Contains(t, bufOut.String(), "[DEBUG]  > Hello, out!", "captured stdout should contain the out message")
 		assert.Contains(t, bufOut.String(), "[WARN]  ! Hello, err!", "captured stderr should contain the err message")
+	})
+
+	t.Run("with secrets", func(t *testing.T) {
+		outWriter, errWriter := MakeOutAndErrWriters(hostAddr, "", false, []string{"Hello"})
+		bufOut := bytes.Buffer{}
+		log.SetOutput(&bufOut)
+		io.WriteString(outWriter, outMsg)
+		io.WriteString(errWriter, errMsg)
+
+		t.Logf("bufOut:\n%s", bufOut.String())
+		assert.Contains(t, bufOut.String(), "[DEBUG]  > ****, out!", "captured stdout should contain the out message")
+		assert.Contains(t, bufOut.String(), "[WARN]  ! ****, err!", "captured stderr should contain the err message")
 	})
 }

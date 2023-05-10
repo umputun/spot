@@ -47,6 +47,13 @@ tasks:
         env: {baz: qux}
         options: {no_auto: true, sudo: true}
 
+      - name: secrets
+        script: |
+          env
+          echo "secrets: ${FOO}${BAR}"
+        env: {baz: qux}
+        options: {no_auto: true, secrets: ["FOO", "BAR"]}
+
       - name: delete things
         delete: {"path": "/tmp/things", "recur": true}
 

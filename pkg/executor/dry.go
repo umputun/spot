@@ -31,7 +31,7 @@ func (ex *Dry) SetSecrets(secrets []string) {
 // Run shows the command content, doesn't execute it
 func (ex *Dry) Run(_ context.Context, cmd string, verbose bool) (out []string, err error) {
 	log.Printf("[DEBUG] run %s", cmd)
-	outLog, _ := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets...)
+	outLog, _ := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets)
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(outLog, &stdoutBuf)
 	mwr.Write([]byte(cmd)) //nolint
@@ -47,7 +47,8 @@ func (ex *Dry) Run(_ context.Context, cmd string, verbose bool) (out []string, e
 func (ex *Dry) Upload(_ context.Context, local, remote string, mkdir bool) (err error) {
 	log.Printf("[DEBUG] upload %s to %s, mkdir: %v", local, remote, mkdir)
 	if strings.Contains(remote, "spot-script") {
-		outLog, outErr := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, true, ex.secrets...)
+		// this is a temp script created by spot to perform script execution on remote host
+		outLog, outErr := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, true, ex.secrets)
 		outErr.Write([]byte("command script " + remote)) //nolint
 		// read local file and write it to outLog
 		f, err := os.Open(local) //nolint

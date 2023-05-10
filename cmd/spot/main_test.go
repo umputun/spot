@@ -51,6 +51,31 @@ func Test_runCompleted(t *testing.T) {
 		assert.True(t, time.Since(st) >= 1*time.Second)
 	})
 
+	t.Run("normal run with secrets", func(t *testing.T) {
+		opts := options{
+			SSHUser:      "test",
+			SSHKey:       "testdata/test_ssh_key",
+			PlaybookFile: "testdata/conf.yml",
+			TaskName:     "task1",
+			Targets:      []string{hostAndPort},
+			Only:         []string{"copy configuration", "some command"},
+			SecretsProvider: SecretsProvider{
+				Provider: "spot",
+				Conn:     "testdata/test-secrets.db",
+				Key:      "1234567890",
+			},
+		}
+		setupLog(true)
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(outWriter)
+		err := run(opts)
+		require.NoError(t, err)
+		t.Log("out\n", outWriter.String())
+		assert.Contains(t, outWriter.String(), "> secrets: **** ****")
+		assert.Contains(t, outWriter.String(), "> secrets md5: a7ae287dce96d9dad168f42fb87518b2")
+		assert.NotContains(t, outWriter.String(), "secval")
+	})
+
 	t.Run("dry run", func(t *testing.T) {
 		opts := options{
 			SSHUser:      "test",

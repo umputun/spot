@@ -237,7 +237,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 	defer session.Close()
 
-	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets...)
+	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets)
 	outLog.Write([]byte(command)) //nolint
 
 	var stdoutBuf bytes.Buffer

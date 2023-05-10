@@ -74,7 +74,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 				atomic.AddInt32(&commands, int32(count))
 			}
 			if e != nil {
-				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose, p.secrets...)
+				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose, p.secrets)
 				errLog.Write([]byte(e.Error())) // nolint
 			}
 			return e
@@ -87,13 +87,13 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) // nolint we want to run shell here
 		onErrCmd.Env = os.Environ()
 
-		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets...)
+		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets)
 		outLog.Write([]byte(tsk.OnError)) // nolint
 
 		var stdoutBuf bytes.Buffer
 		mwr := io.MultiWriter(outLog, &stdoutBuf)
 		onErrCmd.Stdout, onErrCmd.Stderr = mwr, errLog
-		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN")
+		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN", p.secrets)
 		if exErr := onErrCmd.Run(); exErr != nil {
 			log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
 		}
