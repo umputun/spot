@@ -55,6 +55,10 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 - To execute a specific task, use the `--task` flag: `spot --task=deploy-things`. This will execute only the `deploy-things` task.
 - To execute a specific task for a specific target, use the `--task` and `-t` flags: `spot --task=deploy-things -t prod`. This will execute only the `deploy-things` task for the `prod` target.
 
+<details markdown>
+  <summary>Other install methods</summary>
+
+
 **Install from homebrew (macOS)**
 
 ```bash
@@ -63,6 +67,50 @@ brew install umputun/apps/spot
 ```
 
 _This will install both `spot` and `spot-secrets` binaries._
+
+**Install from deb package (Ubuntu/Debian)**
+
+1. Download the latest version of the package by running: `wget https://github.com/umputun/spot/releases/download/<versiom>/spot_<version>_linux_<arch>.deb` (replace `<version>` and `<arch>` with the actual values).
+2. Install the package by running: `sudo dpkg -i spot_<version>_linux_<arch>.deb`
+
+Example for the version 0.14.6 and amd64 architecture:
+
+```bash
+wget https://github.com/umputun/spot/releases/download/v0.14.6/spot_v0.14.6_linux_<arch>.deb
+sudo dpkg -i spot_v0.14.6_linux_<arch>.deb
+```
+
+**Install from rpm package (CentOS/RHEL/Fedora/AWS Linux)**
+
+```bash
+wget https://github.com/umputun/spot/releases/download/v<version>/spot_v<version>_linux_<arch>.rpm
+sudo rpm -i spot_v<version>_linux_<arch>.rpm
+```
+
+**Install from apk package (Alpine)**
+
+```bash
+wget https://github.com/umputun/spot/releases/download/<versiom>/spot_<version>_linux_<arch>.apk
+sudo apk add spot_<version>_linux_<arch>.apk
+````
+
+**Universal installation for Linux and macOS**
+
+Spot provides a universal installation script that can be used to install the latest version of the tool on Linux and macOS.
+
+1. Download the installation script: `wget https://raw.githubusercontent.com/umputun/spot/master/install.sh`
+2. Carefully review the script to make sure it is safe.
+3. Run the script: `sh install.sh`
+
+The script will detect the OS and architecture and download the correct binary for the latest version of Spot.
+
+If you brave enough, you can run the script directly from the web, but I'd recommend downloading it first and reviewing it:
+
+```bash
+curl -sSfL https://raw.githubusercontent.com/umputun/spot/master/install.sh | sh
+```
+
+</details>
 
 ## Options
 
