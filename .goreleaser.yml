@@ -78,6 +78,7 @@ brews:
     tap:
       owner: umputun
       name: homebrew-apps
+      branch: master
     commit_author:
       name: umputun
       email: umputun@gmail.com
