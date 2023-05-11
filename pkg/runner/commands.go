@@ -56,9 +56,9 @@ func (ec *execCmd) script(ctx context.Context) (details string, vars map[string]
 		return details, nil, fmt.Errorf("can't run script on %s: %w", ec.hostAddr, err)
 	}
 
-	// collect setenv output and set it to the environment. This is needed for the next commands.
+	// collect setvar output to vars and latter it will be set to the environment. This is needed for the next commands.
 	// setenv output is in the format of "setenv foo=bar" and it is appended to the output by the script itself.
-	// this part done inside cmd.scriptFile function, called by prepScript cmd.GetScript.
+	// this part done inside cmd.scriptFile function.
 	vars = make(map[string]string)
 	for _, line := range out {
 		if !strings.HasPrefix(line, "setvar ") {

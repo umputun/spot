@@ -96,7 +96,7 @@ func (cmd *Cmd) GetWait() (command string, rdr io.Reader) {
 	return cmd.scriptCommand(cmd.Wait.Command), nil
 }
 
-// GetScriptCommand concatenates all script line in commands into one a string to be executed by shell.
+// scriptCommand concatenates all script line in commands into one a string to be executed by shell.
 // Empty string is returned if no script is defined.
 func (cmd *Cmd) scriptCommand(inp string) string {
 	if inp == "" {
@@ -111,7 +111,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	}
 
 	// add secrets as environment variables
-	secrets := cmd.genSecrets()
+	secrets := cmd.getSecrets()
 	if len(secrets) > 0 {
 		res += strings.Join(secrets, " ") + " "
 	}
@@ -132,7 +132,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	return res
 }
 
-// GetScriptFile returns a reader for script file. All the line in the command used as a script, with hashbang,
+// scriptFile returns a reader for script file. All the line in the command used as a script, with hashbang,
 // set -e and environment variables.
 func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	var buf bytes.Buffer
@@ -141,7 +141,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
 
 	envs := cmd.genEnv()
-	envs = append(envs, cmd.genSecrets()...)
+	envs = append(envs, cmd.getSecrets()...)
 	// set environment variables for the script
 	if len(envs) > 0 {
 		for _, env := range envs {
@@ -149,7 +149,8 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 		}
 	}
 
-	exports := []string{}
+	// process all the exported variables in the script
+	exports := []string{} // we collect them all here to pass as setenv to the next command
 	elems := strings.Split(inp, "\n")
 	for _, el := range elems {
 		c := strings.TrimSpace(el)
@@ -176,6 +177,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 		}
 	}
 
+	// each exported variable is printed as a setvar command to be captured by the caller
 	if len(exports) > 0 {
 		for i := range exports {
 			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", exports[i], exports[i]))
@@ -185,6 +187,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	return &buf
 }
 
+// genEnv returns a sorted list of environment variables from the Environment map (part of the command)
 func (cmd *Cmd) genEnv() []string {
 	envs := make([]string, 0, len(cmd.Environment))
 	for k, v := range cmd.Environment {
@@ -194,7 +197,8 @@ func (cmd *Cmd) genEnv() []string {
 	return envs
 }
 
-func (cmd *Cmd) genSecrets() []string {
+// getSecrets returns a sorted list of secrets key from the Secrets slice (part of the command)
+func (cmd *Cmd) getSecrets() []string {
 	secrets := []string{}
 	for _, k := range cmd.Options.Secrets {
 		if v := cmd.Secrets[k]; v != "" {

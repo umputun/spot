@@ -167,8 +167,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			continue
 		}
 
-		// set variables from command output, if any
-		// this variables will be available for next commands in the same task via environment
+		// set variables from command output, if any found. Variables set to all commands in the same task
+		// and will be available for the next commands in the same task via regular environment variables.
 		if len(vars) > 0 {
 			log.Printf("[DEBUG] set %d variables from command %q: %+v", len(vars), cmd.Name, vars)
 			for k, v := range vars {
