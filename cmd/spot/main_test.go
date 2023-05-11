@@ -207,7 +207,7 @@ func Test_runNoConfig(t *testing.T) {
 	}
 	setupLog(true)
 	err := run(opts)
-	require.ErrorContains(t, err, "can't load config \"testdata/conf-not-found.yml\"")
+	require.ErrorContains(t, err, "can't load playbook \"testdata/conf-not-found.yml\"")
 }
 
 func Test_connectFailed(t *testing.T) {
