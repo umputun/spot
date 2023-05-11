@@ -33,7 +33,7 @@ esac
 # Detect distribution and set package type
 if grep -iq 'debian' /etc/os-release; then
     pkg_type="deb"
-elif grep -iq 'rhel' /etc/os-release; then
+elif grep -iq 'rhel' /etc/os-release || grep -iq 'amzn' /etc/os-release; then
     pkg_type="rpm"
 elif grep -iq 'alpine' /etc/os-release; then
     pkg_type="apk"
