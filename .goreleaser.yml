@@ -57,10 +57,11 @@ archives:
     name_template: >-
      {{.ProjectName}}_
      {{- .Tag}}_
-     {{- .Os}}_
+     {{- if eq .Os "darwin"}}macos_
+     {{- else if eq .Os "windows"}}win_
+     {{- else}}{{.Os}}_{{end}}
      {{- if eq .Arch "amd64"}}x86_64
      {{- else if eq .Arch "386"}}i386
-     {{- else if eq .Os "darwin"}}macos
      {{- else}}{{.Arch}}{{end}}
     format_overrides:
       - goos: windows
