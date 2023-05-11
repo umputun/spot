@@ -395,7 +395,7 @@ The target selection is done in the following order:
 
 ### Inventory 
 
-The inventory file is a simple yml (ot toml) what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
+The inventory file is a simple yml (or toml) what can represent a list of hosts or a list of groups with hosts. In case if both groups and hosts defined, the hosts will be merged with groups and will add a new group named `hosts`.
 
 By default, inventory loaded from the file/url set in `SPOT_INVENTORY` environment variable. This is the lowest priority and can be overridden by `inventory` from the playbook (next priority) and `--inventory` flag (highest priority)
 . 
