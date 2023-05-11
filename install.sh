@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Fetch the latest release tag from the GitHub API
 latest_release_url="https://api.github.com/repos/umputun/spot/releases/latest"
@@ -8,14 +8,14 @@ tag_name=$(curl -s "$latest_release_url" | grep '"tag_name":' | sed -E 's/.*"([^
 arch=$(uname -m)
 case $arch in
     x86_64)
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [ "$(uname)" = "Darwin" ]; then
             arch="macos_x86_64"
         else
             arch="linux_amd64"
         fi
         ;;
     aarch64)
-        if [[ "$(uname)" == "Darwin" ]]; then
+        if [ "$(uname)" = "Darwin" ]; then
             arch="macos_arm64"
         else
             arch="linux_arm64"
@@ -37,7 +37,7 @@ elif grep -iq 'rhel' /etc/os-release || grep -iq 'amzn' /etc/os-release; then
     pkg_type="rpm"
 elif grep -iq 'alpine' /etc/os-release; then
     pkg_type="apk"
-elif [[ "$(uname)" == "Darwin" ]]; then
+elif [ "$(uname)" = "Darwin" ]; then
     pkg_type="tar.gz"
 else
     echo "Unsupported distribution"
@@ -53,18 +53,18 @@ pkg_file="spot_${tag_name}_${arch}.${pkg_type}"
 wget -qO "$pkg_file" "$pkg_url"
 
 echo "installing package file: $pkg_file"
-if [[ $pkg_type == "deb" ]]; then
+if [ "$pkg_type" = "deb" ]; then
     sudo dpkg -i "$pkg_file"
     sudo apt-get -f install
-elif [[ $pkg_type == "rpm" ]]; then
+elif [ "$pkg_type" = "rpm" ]; then
     if command -v dnf > /dev/null; then
         sudo dnf install "$pkg_file"
     else
         sudo yum install "$pkg_file"
     fi
-elif [[ $pkg_type == "apk" ]]; then
+elif [ "$pkg_type" = "apk" ]; then
     apk add --allow-untrusted "$pkg_file"
-elif [[ $pkg_type == "tar.gz" ]]; then
+elif [ "$pkg_type" = "tar.gz" ]; then
     tar xzf "$pkg_file"
     mv spot spot-secrets /usr/local/bin/
 fi
