@@ -107,7 +107,7 @@ The script will detect the OS and architecture and download the correct binary f
 If you brave enough, you can run the script directly from the web, but I'd recommend downloading it first and reviewing it:
 
 ```bash
-curl -sSfL https://raw.githubusercontent.com/umputun/spot/master/install.sh | sh
+curl -sSfL https://raw.githubusercontent.com/umputun/spot/master/install.sh | sudo sh
 ```
 
 </details>
