@@ -92,7 +92,7 @@ sudo rpm -i spot_v<version>_linux_<arch>.rpm
 ```bash
 wget https://github.com/umputun/spot/releases/download/<versiom>/spot_<version>_linux_<arch>.apk
 sudo apk add spot_<version>_linux_<arch>.apk
-````
+```
 
 **Universal installation for Linux and macOS**
 
