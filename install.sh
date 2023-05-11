@@ -11,18 +11,18 @@ case $arch in
         if [[ "$(uname)" == "Darwin" ]]; then
             arch="macos_x86_64"
         else
-            arch="amd64"
+            arch="linux_amd64"
         fi
         ;;
     aarch64)
         if [[ "$(uname)" == "Darwin" ]]; then
             arch="macos_arm64"
         else
-            arch="arm64"
+            arch="linux_arm64"
         fi
         ;;
     armv*)
-        arch="arm"
+        arch="linux_arm"
         ;;
     *)
         echo "Unsupported architecture: $arch"
@@ -46,11 +46,13 @@ fi
 
 # Construct the download URL for the appropriate package
 pkg_url="https://github.com/umputun/spot/releases/download/${tag_name}/spot_${tag_name}_${arch}.${pkg_type}"
+echo "downloading from package url: $pkg_url"
 
 # Download and install the package
 pkg_file="spot_${tag_name}_${arch}.${pkg_type}"
 wget -qO "$pkg_file" "$pkg_url"
 
+echo "installing package file: $pkg_file"
 if [[ $pkg_type == "deb" ]]; then
     sudo dpkg -i "$pkg_file"
     sudo apt-get -f install
