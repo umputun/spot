@@ -58,7 +58,7 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 <details markdown>
   <summary>Other install methods</summary>
 
-
+  
 **Install from homebrew (macOS)**
 
 ```bash
@@ -108,6 +108,16 @@ If you brave enough, you can run the script directly from the web, but I'd recom
 
 ```bash
 curl -sSfL https://raw.githubusercontent.com/umputun/spot/master/install.sh | sudo sh
+```
+
+**Install with go install**
+
+This method requires [Go](https://golang.org/) to be installed on your system.
+
+```bash
+go install github.com/umputun/spot/cmd/spot@latest
+go install github.com/umputun/spot/cmd/spot-secrets@latest
+
 ```
 
 </details>
