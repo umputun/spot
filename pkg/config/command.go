@@ -71,7 +71,8 @@ func (cmd *Cmd) GetScript() (command string, rdr io.Reader) {
 	}
 
 	elems := strings.Split(cmd.Script, "\n")
-	if len(elems) > 1 {
+	// export should be treated as multiline for env vars to be set
+	if len(elems) > 1 || strings.Contains(cmd.Script, "export") {
 		log.Printf("[DEBUG] command %q is multiline, using script file", cmd.Name)
 		return "", cmd.scriptFile(cmd.Script)
 	}

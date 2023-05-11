@@ -116,6 +116,19 @@ echo 'Goodbye, World!'`,
 			expectedScript:   "",
 			expectedContents: nil,
 		},
+		{
+			name: "single line command with export",
+			cmd: &Cmd{
+				Script: "export GREETING='Hello, World!'",
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/sh",
+				"set -e",
+				"export GREETING='Hello, World!'",
+				"echo setvar GREETING=${GREETING}",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

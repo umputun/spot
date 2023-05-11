@@ -83,6 +83,17 @@ func Test_templaterApply(t *testing.T) {
 			expected: "example.com blah task1 user2:ls",
 		},
 		{
+			name: "env variables",
+			inp:  "${FOO} blah $BAR ${SPOT_REMOTE_USER}:${SPOT_COMMAND}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user2"},
+				env:      map[string]string{"FOO": "foo_val", "BAR": "bar_val"},
+			},
+			expected: "foo_val blah bar_val user2:ls",
+		},
+		{
 			name: "with error msg",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
 			tmpl: templater{

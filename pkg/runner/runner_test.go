@@ -160,6 +160,28 @@ func TestProcess_Run(t *testing.T) {
 		assert.NotContains(t, outWriter.String(), "FOO_SECRET")
 		assert.NotContains(t, outWriter.String(), "BAR_SECRET")
 	})
+
+	t.Run("set variables for copy command", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+			Only:        []string{"set filename for copy to env", "copy filename from env"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 2, res.Commands)
+		assert.Contains(t, outWriter.String(), ` > setvar filename=testdata/conf.yml`)
+	})
+
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {
