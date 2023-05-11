@@ -100,7 +100,7 @@ Spot provides a universal installation script that can be used to install the la
 
 1. Download the installation script: `wget https://raw.githubusercontent.com/umputun/spot/master/install.sh`
 2. Carefully review the script to make sure it is safe.
-3. Run the script: `sh install.sh`
+3. Run the script: `sudo sh install.sh`
 
 The script will detect the OS and architecture and download the correct binary for the latest version of Spot.
 
