@@ -31,15 +31,6 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 [![build](https://github.com/umputun/spot/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/spot/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/spot/badge.svg?branch=master)](https://coveralls.io/github/umputun/spot?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/spot)](https://goreportcard.com/report/github.com/umputun/spot)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/spot.svg)](https://pkg.go.dev/github.com/umputun/spot)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/spot.svg)](https://github.com/umputun/spot/releases)
 </div>
 
-## Getting Started
-
-- Install Spot by download the latest release from the [Releases](https://github.com/umputun/spot/releases) page.
-- Create a configuration file, as shown in the [example below](#full-playbook-example), and save it as `spot.yml`.
-- Run Spot using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
-- To execute a specific task, use the `--task` flag: `spot --task=deploy-things`. This will execute only the `deploy-things` task.
-- To execute a specific task for a specific target, use the `--task` and `-t` flags: `spot --task=deploy-things -t prod`. This will execute only the `deploy-things` task for the `prod` target.
-
-
 <details markdown>
   <summary>Screenshots</summary>
 
@@ -55,6 +46,23 @@ Spot (aka `simplotask`) is a powerful and easy-to-use tool for effortless deploy
 
 ![spot-adhoc](https://github.com/umputun/spot/raw/master/site/docs/screen-adhoc.jpg)
 </details>
+
+## Getting Started
+
+- Install Spot by download the latest release from the [Releases](https://github.com/umputun/spot/releases) page.
+- Create a configuration file, as shown in the [example below](#full-playbook-example), and save it as `spot.yml`.
+- Run Spot using the following command: `spot`. This will execute all the tasks defined in the default `spot.yml` file for the `default` target with a concurrency of 1.
+- To execute a specific task, use the `--task` flag: `spot --task=deploy-things`. This will execute only the `deploy-things` task.
+- To execute a specific task for a specific target, use the `--task` and `-t` flags: `spot --task=deploy-things -t prod`. This will execute only the `deploy-things` task for the `prod` target.
+
+**Install from homebrew (macOS)**
+
+```bash
+brew tap umputun/apps
+brew install umputun/apps/spot
+```
+
+_This will install both `spot` and `spot-secrets` binaries._
 
 ## Options
 
