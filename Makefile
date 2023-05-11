@@ -16,12 +16,9 @@ build:
 	cp .bin/spot-secrets.$(BRANCH) .bin/spot-secrets
 
 release:
-	- @mkdir -p .bin
-	docker build -f Dockerfile.release --progress=plain -t spot.bin --no-cache .
-	- @docker rm -f spot.bin 2>/dev/null || exit 0
-	docker run -d --name=spot.bin spot.bin
-	docker cp spot.bin:/artifacts .bin/
-	docker rm -f spot.bin
+	@echo release to .bin
+	goreleaser --snapshot --skip-publish --clean
+	ls -l .bin
 
 test:
 	go clean -testcache
@@ -42,6 +39,5 @@ site:
 	sleep 3
 	docker cp "spot-site":/srv/site/ site/public
 	docker rm -f spot-site
-#	rsync -avz -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" --progress ./site/public/ simplotask.com:/srv/www/simplotask.com
 
 .PHONY: build release test site

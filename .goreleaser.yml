@@ -2,7 +2,7 @@ signs:
   - artifacts: checksum
 
 project_name: spot
-
+dist: .bin
 builds:
   - id: spot
     binary: "spot"
@@ -68,8 +68,6 @@ archives:
     files:
       - LICENSE
       - README.md
-      - "dist/{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}/spot*"
-      - "dist/{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}/spot-secrets*"
     rlcp: true
 
 
