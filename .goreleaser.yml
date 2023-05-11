@@ -77,8 +77,7 @@ brews:
     name: spot
     tap:
       owner: umputun
-      name: spot
-      branch: main
+      name: homebrew-apps
     commit_author:
       name: umputun
       email: umputun@gmail.com
