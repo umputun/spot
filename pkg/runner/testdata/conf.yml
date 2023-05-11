@@ -90,6 +90,14 @@ tasks:
         script: ls -la /srv
         options: {no_auto: true, sudo: true}
 
+      - name: set filename for copy to env
+        script: |
+          export filename="testdata/conf.yml"
+        options: {no_auto: true, sudo: true}
+
+      - name: copy filename from env
+        copy: {src: "${filename}", dst: "/srv/conf.yml"}
+        options: {no_auto: true, sudo: true}
 
   - name: failed_task
     commands:

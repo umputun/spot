@@ -78,7 +78,7 @@ func (ec *execCmd) script(ctx context.Context) (details string, vars map[string]
 // if sudo option is set, it will make a temporary directory and upload the files there,
 // then move it to the final destination with sudo script execution.
 func (ec *execCmd) copy(ctx context.Context) (details string, vars map[string]string, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 
 	src := tmpl.apply(ec.cmd.Copy.Source)
 	dst := tmpl.apply(ec.cmd.Copy.Dest)
@@ -127,7 +127,7 @@ func (ec *execCmd) copy(ctx context.Context) (details string, vars map[string]st
 // mcopy uploads multiple files to a target host. It calls copy function for each file.
 func (ec *execCmd) mcopy(ctx context.Context) (details string, vars map[string]string, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	for _, c := range ec.cmd.MCopy {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
@@ -144,7 +144,7 @@ func (ec *execCmd) mcopy(ctx context.Context) (details string, vars map[string]s
 
 // sync synchronizes files from a source to a destination on a target host.
 func (ec *execCmd) sync(ctx context.Context) (details string, vars map[string]string, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
@@ -156,7 +156,7 @@ func (ec *execCmd) sync(ctx context.Context) (details string, vars map[string]st
 
 // delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
 func (ec *execCmd) delete(ctx context.Context) (details string, vars map[string]string, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	loc := tmpl.apply(ec.cmd.Delete.Location)
 
 	if !ec.cmd.Options.Sudo {
@@ -297,11 +297,13 @@ type templater struct {
 	hostAddr string
 	hostName string
 	command  string
+	env      map[string]string
 	task     *config.Task
 	err      error
 }
 
 // apply applies templates to a string to replace predefined vars placeholders with actual values
+// it also applies the task environment variables to the string
 func (tm *templater) apply(inp string) string {
 	apply := func(inp, from, to string) string {
 		// replace either {SPOT_REMOTE_HOST} ${SPOT_REMOTE_HOST} or $SPOT_REMOTE_HOST format
@@ -321,6 +323,10 @@ func (tm *templater) apply(inp string) string {
 		res = apply(res, "SPOT_ERROR", tm.err.Error())
 	} else {
 		res = apply(res, "SPOT_ERROR", "")
+	}
+
+	for k, v := range tm.env {
+		res = apply(res, k, v)
 	}
 
 	return res
