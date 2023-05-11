@@ -129,7 +129,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 			}
 			return res, nil
 		}
-		return nil, fmt.Errorf("can't read config %s: %w", fname, err)
+		return nil, err
 	}
 
 	if err = unmarshalPlaybookFile(fname, data, overrides, res); err != nil {

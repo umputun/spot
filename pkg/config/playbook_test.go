@@ -95,7 +95,7 @@ func TestPlaybook_New(t *testing.T) {
 
 	t.Run("missing file", func(t *testing.T) {
 		_, err := New("testdata/bad.yml", nil, nil)
-		assert.EqualError(t, err, "can't read config testdata/bad.yml: open testdata/bad.yml: no such file or directory")
+		assert.EqualError(t, err, "open testdata/bad.yml: no such file or directory")
 	})
 
 	t.Run("missing task name", func(t *testing.T) {

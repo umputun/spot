@@ -138,7 +138,7 @@ func run(opts options) error {
 
 	conf, err := config.New(exPlaybookFile, &overrides, secretsProvider)
 	if err != nil {
-		return fmt.Errorf("can't read config %s: %w", exPlaybookFile, err)
+		return fmt.Errorf("can't load config %q: %w", exPlaybookFile, err)
 	}
 
 	lgr.Setup(lgr.Secret(conf.AllSecretValues()...)) // mask secrets in logs
