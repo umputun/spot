@@ -297,13 +297,10 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 		res.User = p.overrides.User
 	}
 
-	// apply overrides of environment variables, to each script command
+	// apply overrides of environment variables, to each command
 	if p.overrides != nil && p.overrides.Environment != nil {
 		for envKey, envVal := range p.overrides.Environment {
 			for cmdIdx := range res.Commands {
-				if res.Commands[cmdIdx].Script == "" {
-					continue
-				}
 				if res.Commands[cmdIdx].Environment == nil {
 					res.Commands[cmdIdx].Environment = make(map[string]string)
 				}
