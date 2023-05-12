@@ -137,7 +137,15 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			continue
 		}
 
-		log.Printf("[INFO] run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
+		infoMsg := fmt.Sprintf("run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
+		if hostName == "" {
+			infoMsg = fmt.Sprintf("run command %q on host %q", cmd.Name, hostAddr)
+		}
+		if cmd.Options.Local {
+			infoMsg = fmt.Sprintf("run command %q on local host", cmd.Name)
+		}
+		log.Printf("[INFO] %s", infoMsg)
+
 		stCmd := time.Now()
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: tsk, exec: remote, verbose: p.Verbose}
 		if cmd.Options.Local {
@@ -186,8 +194,13 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			}
 		}
 
-		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
-			"completed command %q%s (%v)", cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
+		if cmd.Options.Local {
+			fmt.Fprintf(p.ColorWriter.WithHost("localhost", ""),
+				"completed command %q%s (%v)", cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
+		} else {
+			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
+				"completed command %q%s (%v)", cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
+		}
 		count++
 	}
 
