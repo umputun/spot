@@ -47,6 +47,7 @@ type SimplePlayBook struct {
 	SSHKey    string   `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
 	Inventory string   `yaml:"inventory" toml:"inventory"` // inventory file or url
 	Targets   []string `yaml:"targets" toml:"targets"`     // list of names
+	Target    string   `yaml:"target" toml:"target"`       // a single target to run task on
 	Task      []Cmd    `yaml:"task" toml:"task"`           // single task is a list of commands
 }
 
@@ -219,7 +220,7 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	}
 
 	errors := new(multierror.Error)
-	if err = unmarshal(data, res); err == nil {
+	if err = unmarshal(data, res); err == nil && len(res.Tasks) > 0 {
 		return nil // success, this is full PlayBook config
 	}
 	errors = multierror.Append(errors, err)
@@ -232,8 +233,14 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		res.Tasks[0].Name = "default"               // we have only one task, set it as default
 
 		hasInventory := simple.Inventory != "" || (overrides != nil && overrides.Inventory != "")
+
 		target := Target{}
-		for _, t := range simple.Targets {
+		targets := append([]string{}, simple.Targets...)
+		if simple.Target != "" {
+			targets = append(targets, simple.Target) // append target from simple playbook
+		}
+
+		for _, t := range targets {
 			if strings.Contains(t, ":") {
 				ip, port := splitIPAddress(t)
 				target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // set as hosts in case of ip:port
