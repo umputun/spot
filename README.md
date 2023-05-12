@@ -283,6 +283,7 @@ Each task consists of a list of commands that will be executed on the remote hos
 
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
+- `targets` - list of target names, group, tags or host addresses to execute the task on. Command line `-t` flag can be used to override this field. 
 
 *Note: these fields supported in the full playbook type only*
 
@@ -406,7 +407,7 @@ Targets are used to define the remote hosts to execute the tasks on. Targets can
 
 All the target types can be combined, i.e. `hosts`, `groups`, `tags`, `hosts` and `names` all can be used together in the same target. To avoid possible duplicates, the final list of hosts is deduplicated by the host+ip+user. 
 
-example of targets in the playbook file:
+example of targets set in the playbook file:
 
 ```yaml
 targets:
@@ -419,6 +420,13 @@ targets:
     names: ["host1", "host2"]
   all-servers:
     groups: ["all"]
+
+tasks:
+  - name: task1
+    targets: ["dev", "host3.example.com:2222"]
+    commands:
+      - name: command1
+        script: echo "Hello World"
 ```
 
 *Note: All the target types available in the full playbook file only. The simplified playbook file only supports a single, anonymous target type combining `hosts` and `names` together.*
@@ -449,7 +457,9 @@ The target selection is done in the following order:
   - if no match found, Spot will try to match on host name in the inventory file.
   - if no match found, Spot will try to match on host address in the playbook file.
   - if no match found, Spot will use it as a host address.
-- if `--target` is not discovered, Spot will assume the `default` target.
+- if `--target` is not set, Spot will try check it `targets` list for the task. If set, it will use it following the same logic as above.
+- and finally, Spot will assume the `default` target.
+
 
 ### Inventory 
 

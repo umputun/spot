@@ -186,7 +186,7 @@ func run(opts options) error {
 	}
 
 	if opts.TaskName != "" { // run single task
-		for _, targetName := range opts.Targets {
+		for _, targetName := range targetsForTask(opts, opts.TaskName, conf) {
 			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName); err != nil {
 				return err
 			}
@@ -196,7 +196,7 @@ func run(opts options) error {
 
 	// run all tasks
 	for _, taskName := range conf.Tasks {
-		for _, targetName := range opts.Targets {
+		for _, targetName := range targetsForTask(opts, opts.TaskName, conf) {
 			if err := runTaskForTarget(ctx, r, taskName.Name, targetName); err != nil {
 				return err
 			}
@@ -215,6 +215,40 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
 		stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
 	return nil
+}
+
+// get list of targets for task. Usually ths is just list of all targets from command line,
+// however if task has targets defined AND cli has default target, then only those targets will be used.
+func targetsForTask(opts options, taskName string, conf *config.PlayBook) []string {
+	if len(opts.Targets) > 1 || (len(opts.Targets) == 1 && opts.Targets[0] != "default") {
+		// non-default target specified on command line
+		return opts.Targets
+	}
+
+	lookupTask := func(name string) (tsk config.Task) {
+		// get task by name
+		for _, t := range conf.Tasks {
+			if t.Name == taskName {
+				tsk = t
+				return tsk
+			}
+		}
+		return tsk
+	}
+
+	tsk := lookupTask(taskName)
+	if tsk.Name == "" {
+		// this should never happen, task name is validated on playbook level
+		return opts.Targets
+	}
+
+	if len(tsk.Targets) == 0 {
+		// no targets defined for task
+		return opts.Targets
+	}
+
+	log.Printf("[INFO] task %q has %d targets [%s] pre-defined", taskName, len(tsk.Targets), strings.Join(tsk.Targets, ", "))
+	return tsk.Targets
 }
 
 // makeSecretsProvider creates secrets provider based on options

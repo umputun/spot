@@ -467,6 +467,93 @@ func Test_formatErrorString(t *testing.T) {
 	}
 }
 
+func Test_targetsForTask(t *testing.T) {
+	tests := []struct {
+		name           string
+		opts           options
+		taskName       string
+		conf           *config.PlayBook
+		expectedResult []string
+	}{
+		{
+			name: "non-default targets specified on command line",
+			opts: options{
+				Targets: []string{"target1", "target2"},
+			},
+			taskName:       "task1",
+			conf:           &config.PlayBook{},
+			expectedResult: []string{"target1", "target2"},
+		},
+		{
+			name: "task with targets defined and default in command line",
+			opts: options{
+				Targets: []string{"default"},
+			},
+			taskName: "task1",
+			conf: &config.PlayBook{
+				Tasks: []config.Task{
+					{
+						Name:    "task1",
+						Targets: []string{"target3", "target4"},
+					},
+				},
+			},
+			expectedResult: []string{"target3", "target4"},
+		},
+		{
+			name: "task without targets defined",
+			opts: options{
+				Targets: []string{"default"},
+			},
+			taskName: "task2",
+			conf: &config.PlayBook{
+				Tasks: []config.Task{
+					{
+						Name:    "task1",
+						Targets: []string{"target3", "target4"},
+					},
+					{
+						Name: "task2",
+					},
+				},
+			},
+			expectedResult: []string{"default"},
+		},
+		{
+			name: "default target with no task targets",
+			opts: options{
+				Targets: []string{"default"},
+			},
+			taskName:       "task3",
+			conf:           &config.PlayBook{},
+			expectedResult: []string{"default"},
+		},
+		{
+			name: "non-existing task",
+			opts: options{
+				Targets: []string{"default"},
+			},
+			taskName: "task3",
+			conf: &config.PlayBook{
+				Tasks: []config.Task{
+					{
+						Name:    "task1",
+						Targets: []string{"target3", "target4"},
+					},
+				},
+			},
+			expectedResult: []string{"default"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := targetsForTask(tc.opts, tc.taskName, tc.conf)
+			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	t.Helper()
 	ctx := context.Background()
