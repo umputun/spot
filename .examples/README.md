@@ -2,7 +2,7 @@
 
 This directory contains examples of how to use `spot` in different scenarios.
 
-- [minimal.yml](https://github.com/umputun/spot/blob/master/.examples/minimal.yml) - minimal playbook with one a couple of command
+- [minimal.yml](https://github.com/umputun/spot/blob/master/.examples/minimal.yml) - minimal playbook with a couple of commands
 - [podcast.yml](https://github.com/umputun/spot/blob/master/.examples/podcast.yml) - playbook for deploying new episodes of radio-t podcast
 
 
