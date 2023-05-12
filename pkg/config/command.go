@@ -106,15 +106,15 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 
 	// add environment variables
 	envs := cmd.genEnv()
-	res := "sh -c \""
+	res := "sh -c '"
 	if len(envs) > 0 {
-		res += strings.Join(envs, " ") + " "
+		res += strings.Join(envs, "; ") + "; "
 	}
 
 	// add secrets as environment variables
 	secrets := cmd.getSecrets()
 	if len(secrets) > 0 {
-		res += strings.Join(secrets, " ") + " "
+		res += strings.Join(secrets, "; ") + "; "
 	}
 
 	elems := strings.Split(inp, "\n")
@@ -129,7 +129,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 		}
 		parts = append(parts, c)
 	}
-	res += strings.Join(parts, "; ") + "\""
+	res += strings.Join(parts, "; ") + "'"
 	return res
 }
 
@@ -198,18 +198,18 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 func (cmd *Cmd) genEnv() []string {
 	envs := make([]string, 0, len(cmd.Environment))
 	for k, v := range cmd.Environment {
-		envs = append(envs, fmt.Sprintf("%s='%s'", k, v))
+		envs = append(envs, fmt.Sprintf("%s=\"%s\"", k, v))
 	}
 	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 	return envs
 }
 
-// getSecrets returns a sorted list of secrets key from the Secrets slice (part of the command)
+// getSecrets returns a sorted list of secrets key from the secrets slice (part of the command)
 func (cmd *Cmd) getSecrets() []string {
 	secrets := []string{}
 	for _, k := range cmd.Options.Secrets {
 		if v := cmd.Secrets[k]; v != "" {
-			secrets = append(secrets, fmt.Sprintf("%s='%s'", k, v))
+			secrets = append(secrets, fmt.Sprintf("%s=\"%s\"", k, v))
 		}
 	}
 	sort.Slice(secrets, func(i, j int) bool { return secrets[i] < secrets[j] })

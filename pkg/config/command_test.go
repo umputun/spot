@@ -21,9 +21,9 @@ func TestCmd_GetScript(t *testing.T) {
 		{
 			name: "single line command without environment variables",
 			cmd: &Cmd{
-				Script: "echo 'Hello, World!'",
+				Script: "echo Hello, World!",
 			},
-			expectedScript:   `sh -c "echo 'Hello, World!'"`,
+			expectedScript:   `sh -c 'echo Hello, World!'`,
 			expectedContents: nil,
 		},
 		{
@@ -91,7 +91,7 @@ export FOO='bar'
 					"GREETING": "Hello, World!",
 				},
 			},
-			expectedScript:   `sh -c "GREETING='Hello, World!' echo $GREETING"`,
+			expectedScript:   `sh -c 'GREETING="Hello, World!"; echo $GREETING'`,
 			expectedContents: nil,
 		},
 		{
@@ -108,8 +108,8 @@ echo $FAREWELL`,
 			expectedContents: []string{
 				"#!/bin/sh",
 				"set -e",
-				"export FAREWELL='Goodbye, World!'",
-				"export GREETING='Hello, World!'",
+				`export FAREWELL="Goodbye, World!"`,
+				`export GREETING="Hello, World!"`,
 				"echo $GREETING",
 				"echo $FAREWELL",
 			},
@@ -179,7 +179,7 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		cmd := c.Tasks[0].Commands[3]
 		assert.Equal(t, "git", cmd.Name, "name")
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, `sh -c "git clone https://example.com/remark42.git /srv || true; cd /srv; git pull"`, res)
+		assert.Equal(t, `sh -c 'git clone https://example.com/remark42.git /srv || true; cd /srv; git pull'`, res)
 	})
 
 	t.Run("no-script", func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		cmd := c.Tasks[0].Commands[4]
 		assert.Equal(t, "docker", cmd.Name)
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, `sh -c "BAR='qux' FOO='bar' docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest"`, res)
+		assert.Equal(t, `sh -c 'BAR="qux"; FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
 	})
 }
 
@@ -218,7 +218,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 					"VAR1": "value1",
 				},
 			},
-			expected: "#!/bin/sh\nset -e\nexport VAR1='value1'\necho 'Hello, World!'\n",
+			expected: "#!/bin/sh\nset -e\nexport VAR1=\"value1\"\necho 'Hello, World!'\n",
 		},
 		{
 			name: "with multiple environment variables",
@@ -229,7 +229,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 					"VAR2": "value2",
 				},
 			},
-			expected: "#!/bin/sh\nset -e\nexport VAR1='value1'\nexport VAR2='value2'\necho 'Hello, World!'\n",
+			expected: "#!/bin/sh\nset -e\nexport VAR1=\"value1\"\nexport VAR2=\"value2\"\necho 'Hello, World!'\n",
 		},
 		{
 			name: "with multiple environment variables and secrets",
@@ -246,7 +246,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 					Secrets: []string{"SEC1"},
 				},
 			},
-			expected: "#!/bin/sh\nset -e\nexport VAR1='value1'\nexport VAR2='value2'\nexport SEC1='secret1'\necho 'Hello, World!'\n",
+			expected: "#!/bin/sh\nset -e\nexport VAR1=\"value1\"\nexport VAR2=\"value2\"\nexport SEC1=\"secret1\"\necho 'Hello, World!'\n",
 		},
 		{
 			name: "with multiple secrets",
@@ -261,7 +261,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 					Secrets: []string{"SEC1", "SEC2"},
 				},
 			},
-			expected: "#!/bin/sh\nset -e\nexport SEC1='secret1'\nexport SEC2='secret2'\necho 'Hello, World!'\n",
+			expected: "#!/bin/sh\nset -e\nexport SEC1=\"secret1\"\nexport SEC2=\"secret2\"\necho 'Hello, World!'\n",
 		},
 	}
 
@@ -445,7 +445,7 @@ func TestCmd_GetWait(t *testing.T) {
 					Command: "echo Hello, World!",
 				},
 			},
-			expectedCmd: `sh -c "echo Hello, World!"`,
+			expectedCmd: `sh -c 'echo Hello, World!'`,
 		},
 		{
 			name: "multi-line wait command",
