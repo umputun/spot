@@ -1,0 +1,13 @@
+# This is a minimal example of a simplified playbook.
+# Contains only two scripts commands and a single target with two hosts.
+targets: ["dev1.umputun.dev:22", "dev2.umputun.dev:22"]
+task:
+  - name: do something
+    script: |
+      echo "doing something"
+      echo "done"
+
+  - name: listing something
+    script: |
+      ls -la /tmp
+      echo "done"
