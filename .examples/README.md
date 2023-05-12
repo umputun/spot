@@ -2,7 +2,7 @@
 
 This directory contains examples of how to use `spot` in different scenarios.
 
-- [podcast.yml](https://github.com/umputun/spot/blob/master/examples/podacst.yml) - playbook for deploying new episodes of radio-t podcast
+- [podcast.yml](https://github.com/umputun/spot/blob/master/.examples/podcast.yml) - playbook for deploying new episodes of radio-t podcast
 
 
 ## Contributing
