@@ -52,7 +52,7 @@ type SimplePlayBook struct {
 
 // Task defines multiple commands runs together
 type Task struct {
-	Name     string   `yaml:"name" toml:"name"` // name of target, set by config caller
+	Name     string   `yaml:"name" toml:"name"` // name of task, mandatory
 	User     string   `yaml:"user" toml:"user"`
 	Commands []Cmd    `yaml:"commands" toml:"commands"`
 	OnError  string   `yaml:"on_error" toml:"on_error"`
@@ -61,7 +61,7 @@ type Task struct {
 
 // Target defines hosts to run commands on
 type Target struct {
-	Name   string        `yaml:"name" toml:"name"`     // name of target
+	Name   string        `yaml:"-" toml:"-"`           // name of target, set from the map key
 	Hosts  []Destination `yaml:"hosts" toml:"hosts"`   // direct list of hosts to run commands on, no need to use inventory
 	Groups []string      `yaml:"groups" toml:"groups"` // list of groups to run commands on, matches to inventory
 	Names  []string      `yaml:"names" toml:"names"`   // list of host names to run commands on, matches to inventory
@@ -169,6 +169,12 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 		log.Printf("[INFO] inventory loaded with %d hosts", len(res.inventory.Groups[allHostsGrp]))
 	} else {
 		log.Printf("[INFO] no inventory loaded")
+	}
+
+	// populate target names from map keys to be able to use them from caller getting back just a target
+	for k, v := range res.Targets {
+		v.Name = k
+		res.Targets[k] = v
 	}
 
 	return res, nil
