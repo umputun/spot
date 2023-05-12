@@ -1,9 +1,9 @@
-# This playbook used to deploy new podcast episode to radio-t.com
-# it uploads mp3 file to the master node, copy to archive and to local NAS and cleans old files
+# This playbook used to deploy a new podcast episode to radio-t.com.
+# It uploads mp3 file to the master node, copy to archive and to local NAS and cleans old files,
 # then it uploads mp3 file to all nodes and cleans old files on each node
 # This example demonstrates how to get input from CLI and use it in the playbook as well as how to set and use local variables
 # Another interesting thing here - this playbook deploying things to two sets of destinations (master and nodes)
-# and this is why it's done in two tasks
+# and this is why it's done in two tasks.
 targets:
   nodes:
     hosts: [{host: "n10.radio-t.com"}, {host: "n11.radio-t.com"}]
@@ -17,7 +17,7 @@ tasks:
   - name: deploy to master
     targets: ["master"]
     commands:
-      - name: set mp3 file name
+      - name: set mp3 file name and episode number
         script: |
           export EPISODE_NUMBER=$(echo $mp3 | sed -n 's/.*rt_podcast\(.*\)\.mp3/\1/p')
           export DST_MP3_FILE_NAME=/srv/master-node/var/media/$(basename $mp3)
