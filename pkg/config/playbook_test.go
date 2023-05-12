@@ -133,6 +133,18 @@ func TestPlaybook_New(t *testing.T) {
 			{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
 
+	t.Run("simple playbook with a single target set", func(t *testing.T) {
+		c, err := New("testdata/simple-playbook-single-target.yml", nil, nil)
+		require.NoError(t, err)
+		require.Equal(t, 1, len(c.Tasks), "1 task")
+		assert.Equal(t, "default", c.Tasks[0].Name, "task name")
+		assert.Equal(t, 5, len(c.Tasks[0].Commands), "5 commands")
+
+		assert.Equal(t, 1, len(c.Targets))
+		assert.Equal(t, 0, len(c.Targets["default"].Names))
+		assert.Equal(t, []Destination{{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
+	})
+
 	t.Run("playbook with secrets", func(t *testing.T) {
 		secProvider := &mocks.SecretProvider{
 			GetFunc: func(key string) (string, error) {
