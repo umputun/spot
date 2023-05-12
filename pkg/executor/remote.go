@@ -284,12 +284,11 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
 	}(time.Now())
 
-	sftpClient, err := sftp.NewClient(req.client)
+	sftpClient, err := sftp.NewClient(req.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
 	defer sftpClient.Close()
-
 	if req.mkdir {
 		if e := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); e != nil {
 			return fmt.Errorf("failed to create remote directory: %v", e)
