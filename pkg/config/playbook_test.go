@@ -565,48 +565,39 @@ func TestPlayBook_checkConfig(t *testing.T) {
 }
 
 func TestPlayBook_loadSecrets(t *testing.T) {
+	// Mock secret provider
 	secProvider := mocks.SecretProvider{
 		GetFunc: func(key string) (string, error) {
-			switch key {
-			case "secret1":
+			if key == "secret1" {
 				return "value1", nil
-			case "secret2":
-				return "value2", nil
-			default:
-				return "", fmt.Errorf("unknown secret key %q", key)
 			}
+			if key == "secret2" {
+				return "value2", nil
+			}
+			return "", fmt.Errorf("unknown secret key %q", key)
 		},
 	}
 
-	p := PlayBook{
-		secretsProvider: &secProvider,
-		Tasks: []Task{
-			{
-				Name: "task1",
-				Commands: []Cmd{
-					{
-						Name: "cmd1",
-						Options: CmdOptions{
-							Secrets: []string{"secret1"},
-						},
-					},
-					{
-						Name: "cmd2",
-						Options: CmdOptions{
-							Secrets: []string{"secret2"},
-						},
-					},
-					{
-						Name: "cmd3",
-						Options: CmdOptions{
-							Secrets: []string{"secret2, secret3"},
-						},
-					},
-				},
-			},
-		},
-	}
+	t.Run("successful secret loading", func(t *testing.T) {
+		p := PlayBook{secretsProvider: &secProvider, Tasks: []Task{
+			{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"secret1", "secret2"}}}}},
+		}}
+		err := p.loadSecrets()
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"secret1": "value1", "secret2": "value2"}, p.secrets)
+	})
 
-	p.loadSecrets()
-	assert.Equal(t, map[string]string{"secret1": "value1", "secret2": "value2"}, p.secrets)
+	t.Run("provider not set", func(t *testing.T) {
+		p := PlayBook{Tasks: []Task{{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"secret1"}}}}}}}
+		err := p.loadSecrets()
+		assert.Error(t, err)
+		assert.Equal(t, "secrets are defined in playbook (1 secrets), but provider is not set", err.Error())
+	})
+
+	t.Run("provider retrieval failure", func(t *testing.T) {
+		p := PlayBook{secretsProvider: &secProvider, Tasks: []Task{{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"unknown"}}}}}}}
+		err := p.loadSecrets()
+		assert.Error(t, err)
+		assert.Equal(t, "can't get secret \"unknown\" defined in task \"\", command \"\": unknown secret key \"unknown\"", err.Error())
+	})
 }

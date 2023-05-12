@@ -141,7 +141,10 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 		return nil, fmt.Errorf("config %s is invalid: %w", fname, err)
 	}
 
-	res.loadSecrets() // load Secrets from Secrets provider
+	// load secrets from secrets provider
+	if err = res.loadSecrets(); err != nil {
+		return nil, err
+	}
 
 	// log loaded config info
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
@@ -492,9 +495,20 @@ func (p *PlayBook) checkConfig() error {
 }
 
 // loadSecrets loads secrets from secrets provider and stores them in secrets map
-func (p *PlayBook) loadSecrets() {
-	if p.secretsProvider == nil {
-		return
+func (p *PlayBook) loadSecrets() error {
+	// check if secrets are defined in playbook
+	secretsCount := 0
+	for _, t := range p.Tasks {
+		for _, c := range t.Commands {
+			secretsCount += len(c.Options.Secrets)
+		}
+	}
+
+	if p.secretsProvider == nil && secretsCount == 0 {
+		return nil
+	}
+	if p.secretsProvider == nil && secretsCount > 0 {
+		return fmt.Errorf("secrets are defined in playbook (%d secrets), but provider is not set", secretsCount)
 	}
 
 	if p.secrets == nil {
@@ -507,8 +521,7 @@ func (p *PlayBook) loadSecrets() {
 			for _, key := range c.Options.Secrets {
 				val, err := p.secretsProvider.Get(key)
 				if err != nil {
-					log.Printf("[WARN] can't get secret %q defined in task %q, command %q: %s", key, t.Name, c.Name, err)
-					continue
+					return fmt.Errorf("can't get secret %q defined in task %q, command %q: %w", key, t.Name, c.Name, err)
 				}
 				p.secrets[key] = val // store secret in Secrets map of playbook
 				if c.Secrets == nil {
@@ -519,4 +532,5 @@ func (p *PlayBook) loadSecrets() {
 			t.Commands[i] = c
 		}
 	}
+	return nil
 }
