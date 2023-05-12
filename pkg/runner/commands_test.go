@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/umputun/spot/pkg/config"
@@ -135,6 +136,14 @@ func Test_execCmd(t *testing.T) {
 	require.NoError(t, err)
 	sess, err := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
 	require.NoError(t, err)
+
+	t.Run("copy a single file", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
+		details, _, err := ec.copy(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+	})
 
 	t.Run("wait done", func(t *testing.T) {
 		time.AfterFunc(time.Second, func() {

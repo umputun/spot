@@ -182,6 +182,32 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), ` > setvar filename=testdata/conf.yml`)
 	})
 
+	t.Run("env variables for copy command", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		cmd := conf.Tasks[0].Commands[18]
+		assert.Equal(t, "copy filename from env", cmd.Name)
+		cmd.Environment = map[string]string{"filename": "testdata/conf.yml"}
+		conf.Tasks[0].Commands[18] = cmd
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+			Only:        []string{"copy filename from env"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Contains(t, outWriter.String(), `uploaded testdata/conf.yml to localhost:/tmp/.spot/conf.yml`)
+	})
+
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {
