@@ -52,10 +52,11 @@ type SimplePlayBook struct {
 
 // Task defines multiple commands runs together
 type Task struct {
-	Name     string `yaml:"name" toml:"name"` // name of target, set by config caller
-	User     string `yaml:"user" toml:"user"`
-	Commands []Cmd  `yaml:"commands" toml:"commands"`
-	OnError  string `yaml:"on_error" toml:"on_error"`
+	Name     string   `yaml:"name" toml:"name"` // name of target, set by config caller
+	User     string   `yaml:"user" toml:"user"`
+	Commands []Cmd    `yaml:"commands" toml:"commands"`
+	OnError  string   `yaml:"on_error" toml:"on_error"`
+	Targets  []string `yaml:"targets" toml:"targets"` // optional list of targets to run task on, names or groups
 }
 
 // Target defines hosts to run commands on
