@@ -198,7 +198,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 func (cmd *Cmd) genEnv() []string {
 	envs := make([]string, 0, len(cmd.Environment))
 	for k, v := range cmd.Environment {
-		envs = append(envs, fmt.Sprintf("%s=\"%s\"", k, v))
+		envs = append(envs, fmt.Sprintf("%s=%q", k, v))
 	}
 	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 	return envs
@@ -209,7 +209,7 @@ func (cmd *Cmd) getSecrets() []string {
 	secrets := []string{}
 	for _, k := range cmd.Options.Secrets {
 		if v := cmd.Secrets[k]; v != "" {
-			secrets = append(secrets, fmt.Sprintf("%s=\"%s\"", k, v))
+			secrets = append(secrets, fmt.Sprintf("%s=%q", k, v))
 		}
 	}
 	sort.Slice(secrets, func(i, j int) bool { return secrets[i] < secrets[j] })
