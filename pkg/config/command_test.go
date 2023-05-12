@@ -62,6 +62,28 @@ export BAR='foo'
 			},
 		},
 		{
+			name: "multiline command with empty exports",
+			cmd: &Cmd{
+				Script: `echo 'Hello, World!'
+export
+echo 'Goodbye, World!'
+export BAR
+export FOO='bar'
+`,
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/sh",
+				"set -e",
+				"echo 'Hello, World!'",
+				"export",
+				"echo 'Goodbye, World!'",
+				"export BAR",
+				"export FOO='bar'",
+				"echo setvar FOO=${FOO}",
+			},
+		},
+		{
 			name: "single line command with environment variables",
 			cmd: &Cmd{
 				Script: "echo $GREETING",

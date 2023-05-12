@@ -142,8 +142,8 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 	}
 
 	// load secrets from secrets provider
-	if err = res.loadSecrets(); err != nil {
-		return nil, err
+	if secErr := res.loadSecrets(); secErr != nil {
+		return nil, secErr
 	}
 
 	// log loaded config info
@@ -500,6 +500,9 @@ func (p *PlayBook) loadSecrets() error {
 	secretsCount := 0
 	for _, t := range p.Tasks {
 		for _, c := range t.Commands {
+			if c.Options.NoAuto {
+				continue // skip commands with noauto flag
+			}
 			secretsCount += len(c.Options.Secrets)
 		}
 	}

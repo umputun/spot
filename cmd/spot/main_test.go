@@ -43,6 +43,11 @@ func Test_runCompleted(t *testing.T) {
 			TaskName:     "task1",
 			Targets:      []string{hostAndPort},
 			Only:         []string{"wait"},
+			SecretsProvider: SecretsProvider{
+				Provider: "spot",
+				Conn:     "testdata/test-secrets.db",
+				Key:      "1234567890",
+			},
 		}
 		setupLog(true)
 		st := time.Now()
@@ -85,6 +90,11 @@ func Test_runCompleted(t *testing.T) {
 			Targets:      []string{hostAndPort},
 			Only:         []string{"wait"},
 			Dry:          true,
+			SecretsProvider: SecretsProvider{
+				Provider: "spot",
+				Conn:     "testdata/test-secrets.db",
+				Key:      "1234567890",
+			},
 		}
 		setupLog(true)
 		st := time.Now()
@@ -167,6 +177,11 @@ func Test_runCanceled(t *testing.T) {
 		TaskName:     "task1",
 		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
+		SecretsProvider: SecretsProvider{
+			Provider: "spot",
+			Conn:     "testdata/test-secrets.db",
+			Key:      "1234567890",
+		},
 	}
 	setupLog(true)
 	go func() {
@@ -220,6 +235,11 @@ func Test_connectFailed(t *testing.T) {
 		PlaybookFile: "testdata/conf.yml",
 		TaskName:     "task1",
 		Targets:      []string{hostAndPort},
+		SecretsProvider: SecretsProvider{
+			Provider: "spot",
+			Conn:     "testdata/test-secrets.db",
+			Key:      "1234567890",
+		},
 	}
 	setupLog(true)
 	err := run(opts)

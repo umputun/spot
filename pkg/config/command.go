@@ -172,8 +172,14 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 		// those variables can be used by the caller to set environment variables for the next commands
 		if strings.HasPrefix(c, "export") {
 			expKey := strings.TrimPrefix(c, "export")
-			expKey = strings.Split(expKey, "=")[0]
-			expKey = strings.TrimSpace(expKey)
+			expElems := strings.Split(expKey, "=")
+			if len(expElems) != 2 {
+				continue
+			}
+			expKey = strings.TrimSpace(expElems[0])
+			if expKey == "" {
+				continue // skip empty exports
+			}
 			exports = append(exports, expKey)
 		}
 	}
