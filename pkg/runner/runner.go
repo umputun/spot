@@ -136,6 +136,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			// skip command if it has NoAuto option and not in Only list
 			continue
 		}
+		if len(cmd.Options.OnlyOn) > 0 && !contains(cmd.Options.OnlyOn, hostName) && !contains(cmd.Options.OnlyOn, hostAddr) {
+			// skip command if it has OnlyOn option and host is not in the list
+			continue
+		}
 
 		infoMsg := fmt.Sprintf("run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
 		if hostName == "" {

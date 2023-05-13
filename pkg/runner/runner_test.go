@@ -61,6 +61,38 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 1, res.Hosts)
 	})
 
+	t.Run("simple playbook with only_on skip", func(t *testing.T) {
+		conf, err := config.New("testdata/conf-simple.yml", nil, nil)
+		require.NoError(t, err)
+		conf.Tasks[0].Commands[0].Options.OnlyOn = []string{"not-existing-host"}
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		}
+		res, err := p.Run(ctx, "default", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 6, res.Commands, "should skip one command")
+		assert.Equal(t, 1, res.Hosts)
+	})
+
+	t.Run("simple playbook with only_on include", func(t *testing.T) {
+		conf, err := config.New("testdata/conf-simple.yml", nil, nil)
+		require.NoError(t, err)
+		conf.Tasks[0].Commands[0].Options.OnlyOn = []string{testingHostAndPort}
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		}
+		res, err := p.Run(ctx, "default", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 7, res.Commands, "should include the only_on command")
+		assert.Equal(t, 1, res.Hosts)
+	})
+
 	t.Run("with runtime vars", func(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
