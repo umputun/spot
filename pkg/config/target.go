@@ -181,7 +181,7 @@ func (tg *targetExtractor) destinationsFromInventory(name string) ([]Destination
 		}
 	}
 
-	// check if name looks like host:port
+	// check if the name looks like host:port
 	if strings.Contains(name, ":") {
 		elems := strings.Split(name, ":")
 		port, err := strconv.Atoi(elems[1])

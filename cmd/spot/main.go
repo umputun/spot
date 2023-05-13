@@ -185,7 +185,7 @@ func run(opts options) error {
 		return errs.ErrorOrNil()
 	}
 
-	if opts.TaskName != "" { // run single task
+	if opts.TaskName != "" { // run a single task
 		for _, targetName := range targetsForTask(opts, opts.TaskName, conf) {
 			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName); err != nil {
 				return err
@@ -217,8 +217,8 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 	return nil
 }
 
-// get list of targets for task. Usually ths is just list of all targets from command line,
-// however if task has targets defined AND cli has default target, then only those targets will be used.
+// get the list of targets for the task. Usually this is just a list of all targets from the command line,
+// however, if the task has targets defined AND cli has the default target, then only those targets will be used.
 func targetsForTask(opts options, taskName string, conf *config.PlayBook) []string {
 	if len(opts.Targets) > 1 || (len(opts.Targets) == 1 && opts.Targets[0] != "default") {
 		// non-default target specified on command line
@@ -267,7 +267,7 @@ func makeSecretsProvider(sopts SecretsProvider) (config.SecretsProvider, error) 
 	return &secrets.NoOpProvider{}, nil
 }
 
-// get ssh key from cli or playbook. if no key provided, use default ~/.ssh/id_rsa
+// get ssh key from cli or playbook. if no key is provided, use default ~/.ssh/id_rsa
 func sshKey(opts options, conf *config.PlayBook, provider userInfoProvider) (key string, err error) {
 	sshKey := opts.SSHKey
 	if sshKey == "" && (conf == nil || conf.SSHKey != "") { // no key provided in cli
@@ -287,7 +287,7 @@ func sshKey(opts options, conf *config.PlayBook, provider userInfoProvider) (key
 	return sshKey, nil
 }
 
-// get ssh user from cli or playbook. if no user provided, use current user from os
+// get ssh user from cli or playbook. if no user is provided, use current user from os
 func sshUser(opts options, conf *config.PlayBook, provider userInfoProvider) (res string, err error) {
 	sshUser := opts.SSHUser
 	if sshUser == "" && (conf == nil || conf.User != "") { // no user provided in cli

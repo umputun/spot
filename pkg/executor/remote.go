@@ -70,7 +70,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) 
 		return fmt.Errorf("source file %q not found", local)
 	}
 
-	// upload each file matching the glob pattern. If no glob pattern is found the file is matched as is
+	// upload each file matching the glob pattern. If no glob pattern is found, the file is matched as is
 	for _, match := range matches {
 		remoteFile := remote
 		if len(matches) > 1 { // if there are multiple files, treat remote as a directory
@@ -152,7 +152,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool
 }
 
 // Delete file on remote server. Recursively if recursive is true.
-// if file or directory does not exist, returns nil, i.e. no error.
+// if a file or directory does not exist, returns nil, i.e. no error.
 func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
@@ -228,7 +228,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool)
 	return nil
 }
 
-// sshRun executes command on remote server. context close sends interrupt signal to remote process.
+// sshRun executes command on remote server. context close sends interrupt signal to the remote process.
 func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string, verbose bool) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
@@ -238,7 +238,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	defer session.Close()
 
 	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets)
-	outLog.Write([]byte(command)) //nolint
+	outLog.Write([]byte(command)) // nolint
 
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(outLog, &stdoutBuf)

@@ -98,7 +98,7 @@ func (cmd *Cmd) GetWait() (command string, rdr io.Reader) {
 	return cmd.scriptCommand(cmd.Wait.Command), nil
 }
 
-// scriptCommand concatenates all script line in commands into one a string to be executed by shell.
+// scriptCommand concatenates all script lines in commands into one a string to be executed by shell.
 // Empty string is returned if no script is defined.
 func (cmd *Cmd) scriptCommand(inp string) string {
 	if inp == "" {
@@ -134,7 +134,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	return res
 }
 
-// scriptFile returns a reader for script file. All the line in the command used as a script, with hashbang,
+// scriptFile returns a reader for script file. All the lines in the command used as a script, with hashbang,
 // set -e and environment variables.
 func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	var buf bytes.Buffer
@@ -170,7 +170,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 
 		// if the line in the script is an export, add it to the list of exports
 		// this is done to be able to print the variables set by the script to the console after the script is executed
-		// those variables can be used by the caller to set environment variables for the next commands
+		// the caller can use those variables to set environment variables for the next commands
 		if strings.HasPrefix(c, "export") {
 			expKey := strings.TrimPrefix(c, "export")
 			expElems := strings.Split(expKey, "=")
@@ -205,7 +205,7 @@ func (cmd *Cmd) genEnv() []string {
 	return envs
 }
 
-// getSecrets returns a sorted list of secrets key from the secrets slice (part of the command)
+// getSecrets returns a sorted list of secrets keys from the secrets slice (part of the command)
 func (cmd *Cmd) getSecrets() []string {
 	secrets := []string{}
 	for _, k := range cmd.Options.Secrets {
@@ -296,7 +296,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// validate checks if a Cmd has exactly one command type set (script, copy, mcopy, delete, sync, or wait)
+// validate checks if a Cmd has the exactly one command type set (script, copy, mcopy, delete, sync, or wait)
 // and returns an error if there are either multiple command types set or none set.
 func (cmd *Cmd) validate() error {
 	cmdTypes := []struct {

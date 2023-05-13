@@ -138,7 +138,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	return count, nil
 }
 
-// execCommand executes a single command on a target host. It detects command type based on the fields what are set.
+// execCommand executes a single command on a target host.
+// It detects the command type based on the fields what are set.
 // Even if multiple fields for multiple commands are set, only one will be executed.
 func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, vars map[string]string, err error) {
 	switch {

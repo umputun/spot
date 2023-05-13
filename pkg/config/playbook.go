@@ -21,7 +21,7 @@ import (
 
 //go:generate moq -out mocks/secrets.go -pkg mocks -skip-ensure -fmt goimports . secretsProvider:SecretProvider
 
-// PlayBook defines top-level config object
+// PlayBook defines the top-level config object
 type PlayBook struct {
 	User      string            `yaml:"user" toml:"user"`           // ssh user
 	SSHKey    string            `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
@@ -320,7 +320,6 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 }
 
 // TargetHosts returns target hosts for given target name.
-// After it gets destinations from targetHosts(name) it applies overrides of user, set default port 22 if needed.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	userOverride := func(u string) string {
@@ -344,7 +343,7 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 
 	for i, h := range res {
 		if h.Port == 0 {
-			h.Port = 22 // default port is 22 if not set
+			h.Port = 22 // the default port is 22 if not set
 		}
 		h.User = userOverride(h.User)
 		res[i] = h
@@ -446,7 +445,7 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 	for _, gr := range data.Groups {
 		for i := range gr {
 			if gr[i].Port == 0 {
-				gr[i].Port = 22 // default port is 22 if not set
+				gr[i].Port = 22 // the default port is 22 if not set
 			}
 			if gr[i].User == "" {
 				gr[i].User = p.User // default user is playbook's user or override, if not set by inventory
@@ -522,7 +521,7 @@ func (p *PlayBook) loadSecrets() error {
 		p.secrets = make(map[string]string)
 	}
 
-	// collect Secrets from all command's, retrieve them from provider and store in Secrets map
+	// collect Secrets from all command's, retrieve them from provider and store in the secrets map
 	for _, t := range p.Tasks {
 		for i, c := range t.Commands {
 			for _, key := range c.Options.Secrets {
@@ -530,11 +529,11 @@ func (p *PlayBook) loadSecrets() error {
 				if err != nil {
 					return fmt.Errorf("can't get secret %q defined in task %q, command %q: %w", key, t.Name, c.Name, err)
 				}
-				p.secrets[key] = val // store secret in Secrets map of playbook
+				p.secrets[key] = val // store secret in the secrets map of playbook
 				if c.Secrets == nil {
 					c.Secrets = make(map[string]string)
 				}
-				c.Secrets[key] = val // store secret in Secrets map of command
+				c.Secrets[key] = val // store secret in the secrets map of command
 			}
 			t.Commands[i] = c
 		}

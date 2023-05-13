@@ -28,7 +28,7 @@ type Interface interface {
 	Close() error
 }
 
-// StdOutLogWriter is a writer that writes log with a prefix and a log level.
+// StdOutLogWriter is a writer that writes to log with a prefix and a log level.
 type StdOutLogWriter struct {
 	prefix  string
 	level   string
