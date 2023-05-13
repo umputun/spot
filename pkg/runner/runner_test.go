@@ -577,6 +577,34 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	assert.Contains(t, buf.String(), "wait done")
 }
 
+func TestProcess_shouldRunCmd(t *testing.T) {
+	p := &Process{}
+	tests := []struct {
+		name, hostName, hostAddr string
+		onlyOn                   []string
+		want                     bool
+	}{
+		{"Empty onlyOn list", "host1", "192.168.0.1", []string{}, true},
+		{"Hostname included", "host1", "192.168.0.1", []string{"host1", "host2"}, true},
+		{"Hostname excluded", "host1", "192.168.0.1", []string{"!host1", "host2"}, false},
+		{"Host address included", "host1", "192.168.0.1", []string{"192.168.0.1", "192.168.0.2"}, true},
+		{"Host address excluded", "host1", "192.168.0.1", []string{"!192.168.0.1", "192.168.0.2"}, false},
+		{"Host not included", "host1", "192.168.0.1", []string{"host2", "host3"}, false},
+		{"All hosts excluded", "host1", "192.168.0.1", []string{"!host1", "!host2"}, false},
+		{"All hosts included but one", "host3", "192.168.0.3", []string{"host1", "host2", "!host3"}, false},
+		{"Empty hostname, host address included", "", "192.168.0.1", []string{"192.168.0.1", "192.168.0.2"}, true},
+		{"Empty hostname, host address excluded", "", "192.168.0.1", []string{"!192.168.0.1", "192.168.0.2"}, false},
+		{"Empty hostname, host not included", "", "192.168.0.1", []string{"192.168.0.2", "192.168.0.3"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.shouldRunCmd(tt.onlyOn, tt.hostName, tt.hostAddr)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	ctx := context.Background()
 	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
