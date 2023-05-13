@@ -257,7 +257,7 @@ func (p *InternalProvider) decrypt(encodedData string) (string, error) {
 //
 // The derived key is then used for encryption and decryption of secrets stored in the database.
 func deriveKey(key, salt []byte) []byte {
-	return argon2.IDKey(key, salt, 2, 64*1024, 4, 32)
+	return argon2.IDKey(key, salt, 1, 64*1024, 4, 32)
 }
 
 // NoOpProvider is a provider that does nothing.
