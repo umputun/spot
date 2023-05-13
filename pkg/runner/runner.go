@@ -84,19 +84,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 
 	// execute on-error command if any error occurred during task execution and on-error command is defined
 	if err != nil && tsk.OnError != "" {
-		onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) // nolint we want to run shell here
-		onErrCmd.Env = os.Environ()
-
-		outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets)
-		outLog.Write([]byte(tsk.OnError)) // nolint
-
-		var stdoutBuf bytes.Buffer
-		mwr := io.MultiWriter(outLog, &stdoutBuf)
-		onErrCmd.Stdout, onErrCmd.Stderr = mwr, errLog
-		onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN", p.secrets)
-		if exErr := onErrCmd.Run(); exErr != nil {
-			log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
-		}
+		p.onError(ctx, tsk)
 	}
 
 	return ProcStats{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands))}, err
@@ -104,14 +92,11 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, error) {
-	contains := func(list []string, s string) bool {
-		for _, v := range list {
-			if strings.EqualFold(v, s) {
-				return true
-			}
-		}
-		return false
+	report := func(hostAddr, hostName, f string, vals ...any) {
+		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), f, vals...)
 	}
+	since := func(st time.Time) time.Duration { return time.Since(st).Truncate(time.Millisecond) }
+
 	stTask := time.Now()
 	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, user)
 	if err != nil {
@@ -123,94 +108,33 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	defer remote.Close()
 	remote.SetSecrets(p.secrets)
 
-	fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
+	report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
 	for _, cmd := range tsk.Commands {
-		if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
-			continue
-		}
-		if len(p.Skip) > 0 && contains(p.Skip, cmd.Name) {
-			continue
-		}
-		if cmd.Options.NoAuto && (len(p.Only) == 0 || !contains(p.Only, cmd.Name)) {
-			// skip command if it has NoAuto option and not in Only list
-			continue
-		}
-		if !p.shouldRunCmd(cmd.Options.OnlyOn, hostName, hostAddr) {
-			log.Printf("[DEBUG] skip command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
+		if !p.shouldRunCmd(cmd, hostName, hostAddr) {
 			continue
 		}
 
-		infoMsg := fmt.Sprintf("run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
-		if hostName == "" {
-			infoMsg = fmt.Sprintf("run command %q on host %q", cmd.Name, hostAddr)
-		}
-		if cmd.Options.Local {
-			infoMsg = fmt.Sprintf("run command %q on local host", cmd.Name)
-		}
-		log.Printf("[INFO] %s", infoMsg)
-
+		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: tsk, exec: remote, verbose: p.Verbose}
-		if cmd.Options.Local {
-			ec.exec = &executor.Local{}
-			ec.exec.SetSecrets(p.secrets)
-			ec.hostAddr = "localhost"
-			ec.hostName, _ = os.Hostname() // nolint we don't care about error here
-		}
-
-		if p.Dry {
-			ec.exec = executor.NewDry(hostAddr, hostName)
-			ec.exec.SetSecrets(p.secrets)
-			if cmd.Options.Local {
-				ec.hostAddr = "localhost"
-				ec.hostName, _ = os.Hostname() // nolint we don't care about error here
-			}
-		}
+		ec = p.pickExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		details, vars, err := p.execCommand(ctx, ec)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
-				return count, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, hostAddr, hostName, err)
+				return count, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
 			}
-
-			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), "failed command %s%s (%v)",
-				cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
+			report(ec.hostAddr, ec.hostName, "failed command %q%s (%v)", cmd.Name, details, since(stCmd))
 			continue
 		}
 
-		// set variables from command output, if any found. Variables set to all commands in the same task
-		// and will be available for the next commands in the same task via regular environment variables.
-		if len(vars) > 0 {
-			log.Printf("[DEBUG] set %d variables from command %q: %+v", len(vars), cmd.Name, vars)
-			for k, v := range vars {
-				for i, c := range tsk.Commands {
-					env := c.Environment
-					if env == nil {
-						env = make(map[string]string)
-					}
-					if _, ok := env[k]; ok { // don't allow override variables
-						continue
-					}
-					env[k] = v
-					tsk.Commands[i].Environment = env
-				}
-			}
-		}
-
-		if cmd.Options.Local {
-			fmt.Fprintf(p.ColorWriter.WithHost("localhost", ""),
-				"completed command %q%s (%v)", cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
-		} else {
-			fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
-				"completed command %q%s (%v)", cmd.Name, details, time.Since(stCmd).Truncate(time.Millisecond))
-		}
+		p.updateVars(vars, cmd, tsk) // set variables from command output to all commands env in task
+		report(ec.hostAddr, ec.hostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
 		count++
 	}
 
-	fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName),
-		"completed task %q, commands: %d (%v)\n", tsk.Name, count, time.Since(stTask).Truncate(time.Millisecond))
-
+	report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
 	return count, nil
 }
 
@@ -241,20 +165,117 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 	}
 }
 
+// pickExecutor returns executor for dry run or local command, otherwise returns the default executor.
+func (p *Process) pickExecutor(cmd config.Cmd, ec execCmd, hostAddr string, hostName string) execCmd {
+	switch {
+	case cmd.Options.Local:
+		log.Printf("[DEBUG] run local command %q", cmd.Name)
+		ec.exec = &executor.Local{}
+		ec.exec.SetSecrets(p.secrets)
+		ec.hostAddr = "localhost"
+		ec.hostName = ""
+		return ec
+	case p.Dry:
+		log.Printf("[DEBUG] run dry command %q", cmd.Name)
+		ec.exec = executor.NewDry(hostAddr, hostName)
+		ec.exec.SetSecrets(p.secrets)
+		if cmd.Options.Local {
+			ec.hostAddr = "localhost"
+			ec.hostName = ""
+		}
+		return ec
+	}
+	return ec
+}
+
+// onError executes on-error command if any error occurred during task execution and on-error command is defined
+func (p *Process) onError(ctx context.Context, tsk *config.Task) {
+	onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) // nolint we want to run shell here
+	onErrCmd.Env = os.Environ()
+
+	outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets)
+	outLog.Write([]byte(tsk.OnError)) // nolint
+
+	var stdoutBuf bytes.Buffer
+	mwr := io.MultiWriter(outLog, &stdoutBuf)
+	onErrCmd.Stdout, onErrCmd.Stderr = mwr, errLog
+	onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN", p.secrets)
+	if exErr := onErrCmd.Run(); exErr != nil {
+		log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
+	}
+}
+
+func (p *Process) infoMessage(cmd config.Cmd, hostAddr, hostName string) string {
+	infoMsg := fmt.Sprintf("run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
+	if hostName == "" {
+		infoMsg = fmt.Sprintf("run command %q on host %q", cmd.Name, hostAddr)
+	}
+	if cmd.Options.Local {
+		infoMsg = fmt.Sprintf("run command %q on local host", cmd.Name)
+	}
+	return infoMsg
+}
+
+// updateVars sets variables from command output to all commands environment in the same task.
+func (p *Process) updateVars(vars map[string]string, cmd config.Cmd, tsk *config.Task) {
+	if len(vars) == 0 {
+		return
+	}
+
+	log.Printf("[DEBUG] set %d variables from command %q: %+v", len(vars), cmd.Name, vars)
+	for k, v := range vars {
+		for i, c := range tsk.Commands {
+			env := c.Environment
+			if env == nil {
+				env = make(map[string]string)
+			}
+			if _, ok := env[k]; ok { // don't allow override variables
+				continue
+			}
+			env[k] = v
+			tsk.Commands[i].Environment = env
+		}
+	}
+}
+
 // shouldRunCmd checks if the command should be executed on the host. If the command has no restrictions
 // (onlyOn field), it will be executed on all hosts. If the command has restrictions, it will be executed
 // only on the hosts that match the restrictions.
 // The onlyOn field can contain hostnames or IP addresses. If the hostname starts with "!", it will be
 // excluded from the list of hosts. If the hostname doesn't start with "!", it will be included in the list
 // of hosts. If the onlyOn field is empty, the command will be executed on all hosts.
-func (p *Process) shouldRunCmd(onlyOn []string, hostName, hostAddr string) bool {
-	if len(onlyOn) == 0 {
+// It also checks if the command is in the 'only' or 'skip' list, and considers the 'NoAuto' option.
+func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
+	contains := func(list []string, s string) bool {
+		for _, v := range list {
+			if strings.EqualFold(v, s) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
+		log.Printf("[DEBUG] skip command %q, not in only list", cmd.Name)
+		return false
+	}
+	if len(p.Skip) > 0 && contains(p.Skip, cmd.Name) {
+		log.Printf("[DEBUG] skip command %q, in skip list", cmd.Name)
+		return false
+	}
+	if cmd.Options.NoAuto && (len(p.Only) == 0 || !contains(p.Only, cmd.Name)) {
+		log.Printf("[DEBUG] skip command %q, has noauto option", cmd.Name)
+		return false
+	}
+
+	if len(cmd.Options.OnlyOn) == 0 {
 		return true
 	}
 
-	for _, host := range onlyOn {
+	for _, host := range cmd.Options.OnlyOn {
 		if strings.HasPrefix(host, "!") { // exclude host
 			if hostName == host[1:] || hostAddr == host[1:] {
+				log.Printf("[DEBUG] skip command %q, excluded host %q", cmd.Name, host[1:])
 				return false
 			}
 			continue
@@ -264,5 +285,6 @@ func (p *Process) shouldRunCmd(onlyOn []string, hostName, hostAddr string) bool 
 		}
 	}
 
+	log.Printf("[DEBUG] skip command %q, not in only_on list", cmd.Name)
 	return false
 }

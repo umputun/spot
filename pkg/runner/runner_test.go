@@ -577,30 +577,148 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	assert.Contains(t, buf.String(), "wait done")
 }
 
-func TestProcess_shouldRunCmd(t *testing.T) {
-	p := &Process{}
-	tests := []struct {
-		name, hostName, hostAddr string
-		onlyOn                   []string
-		want                     bool
+func Test_shouldRunCmd(t *testing.T) {
+	testCases := []struct {
+		name     string
+		cmd      config.Cmd
+		hostName string
+		hostAddr string
+		only     []string
+		skip     []string
+		expected bool
 	}{
-		{"Empty onlyOn list", "host1", "192.168.0.1", []string{}, true},
-		{"Hostname included", "host1", "192.168.0.1", []string{"host1", "host2"}, true},
-		{"Hostname excluded", "host1", "192.168.0.1", []string{"!host1", "host2"}, false},
-		{"Host address included", "host1", "192.168.0.1", []string{"192.168.0.1", "192.168.0.2"}, true},
-		{"Host address excluded", "host1", "192.168.0.1", []string{"!192.168.0.1", "192.168.0.2"}, false},
-		{"Host not included", "host1", "192.168.0.1", []string{"host2", "host3"}, false},
-		{"All hosts excluded", "host1", "192.168.0.1", []string{"!host1", "!host2"}, false},
-		{"All hosts included but one", "host3", "192.168.0.3", []string{"host1", "host2", "!host3"}, false},
-		{"Empty hostname, host address included", "", "192.168.0.1", []string{"192.168.0.1", "192.168.0.2"}, true},
-		{"Empty hostname, host address excluded", "", "192.168.0.1", []string{"!192.168.0.1", "192.168.0.2"}, false},
-		{"Empty hostname, host not included", "", "192.168.0.1", []string{"192.168.0.2", "192.168.0.3"}, false},
+		{
+			name:     "with no restrictions",
+			cmd:      config.Cmd{Name: "echo"},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "with hostname restriction",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"host1"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "with ip address restriction",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"192.168.1.1"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "with excluded hostname restriction",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!host1"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "with excluded ip address restriction",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!192.168.1.1"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "in only list",
+			cmd:      config.Cmd{Name: "echo"},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{"echo"},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "not in only list",
+			cmd:      config.Cmd{Name: "echo"},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{"ls"},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "in skip list",
+			cmd:      config.Cmd{Name: "echo"},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{"echo"},
+			expected: false,
+		},
+		{
+			name:     "not in skip list",
+			cmd:      config.Cmd{Name: "echo"},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{"ls"},
+			expected: true,
+		},
+		{
+			name:     "with noauto option and not in only list",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{NoAuto: true}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "with noauto option and in only list",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{NoAuto: true}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{"echo"},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "with multiple hostname restrictions",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"host1", "host2"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "with multiple ip address restrictions",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"192.168.1.1", "192.168.1.2"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "with excluded and included hostname restrictions",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!host1", "host2"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := p.shouldRunCmd(tt.onlyOn, tt.hostName, tt.hostAddr)
-			assert.Equal(t, tt.want, got)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Process{Only: tc.only, Skip: tc.skip}
+			assert.Equal(t, tc.expected, p.shouldRunCmd(tc.cmd, tc.hostName, tc.hostAddr))
 		})
 	}
 }
