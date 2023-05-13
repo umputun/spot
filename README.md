@@ -315,7 +315,7 @@ Each command type supports the following options:
 - `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 - `sudo`: if set to `true` the command will be executed with `sudo` privileges.
-- `only_on`: optional, allows to set a list of host names or addresses where the command will be executed. If not set, the command will be executed on all hosts.
+- `only_on`: optional, allows to set a list of host names or addresses where the command will be executed. If not set, the command will be executed on all hosts. For example, `only_on: [host1, host2]` will execute command on `host1` and `host2` only. This option also supports reversed condition, so if user wants to execute command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute command on all hosts except `host1` and `host2`. 
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
 

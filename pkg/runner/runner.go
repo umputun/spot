@@ -252,30 +252,17 @@ func (p *Process) shouldRunCmd(onlyOn []string, hostName, hostAddr string) bool 
 		return true
 	}
 
-	isExcluded := func(host string) bool {
-		return strings.HasPrefix(host, "!") &&
-			(hostName == strings.TrimPrefix(host, "!") || hostAddr == strings.TrimPrefix(host, "!"))
-	}
-
-	isIncluded := func(host string) bool {
-		return !strings.HasPrefix(host, "!") && (hostName == host || hostAddr == host)
-	}
-
 	for _, host := range onlyOn {
-		if isExcluded(host) {
-			return false
+		if strings.HasPrefix(host, "!") { // exclude host
+			if hostName == host[1:] || hostAddr == host[1:] {
+				return false
+			}
+			continue
 		}
-		if isIncluded(host) {
+		if hostName == host || hostAddr == host { // include host
 			return true
 		}
 	}
 
-	// Default to running if there were no inclusions.
-	for _, host := range onlyOn {
-		if !strings.HasPrefix(host, "!") {
-			return false
-		}
-	}
-
-	return true
+	return false
 }
