@@ -61,6 +61,38 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 1, res.Hosts)
 	})
 
+	t.Run("simple playbook with only_on skip", func(t *testing.T) {
+		conf, err := config.New("testdata/conf-simple.yml", nil, nil)
+		require.NoError(t, err)
+		conf.Tasks[0].Commands[0].Options.OnlyOn = []string{"not-existing-host"}
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		}
+		res, err := p.Run(ctx, "default", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 6, res.Commands, "should skip one command")
+		assert.Equal(t, 1, res.Hosts)
+	})
+
+	t.Run("simple playbook with only_on include", func(t *testing.T) {
+		conf, err := config.New("testdata/conf-simple.yml", nil, nil)
+		require.NoError(t, err)
+		conf.Tasks[0].Commands[0].Options.OnlyOn = []string{testingHostAndPort}
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		}
+		res, err := p.Run(ctx, "default", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 7, res.Commands, "should include the only_on command")
+		assert.Equal(t, 1, res.Hosts)
+	})
+
 	t.Run("with runtime vars", func(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
@@ -543,6 +575,34 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	_, err = p.Run(ctx, "with_wait", testingHostAndPort)
 	require.NoError(t, err)
 	assert.Contains(t, buf.String(), "wait done")
+}
+
+func TestProcess_shouldRunCmd(t *testing.T) {
+	p := &Process{}
+	tests := []struct {
+		name, hostName, hostAddr string
+		onlyOn                   []string
+		want                     bool
+	}{
+		{"Empty onlyOn list", "host1", "192.168.0.1", []string{}, true},
+		{"Hostname included", "host1", "192.168.0.1", []string{"host1", "host2"}, true},
+		{"Hostname excluded", "host1", "192.168.0.1", []string{"!host1", "host2"}, false},
+		{"Host address included", "host1", "192.168.0.1", []string{"192.168.0.1", "192.168.0.2"}, true},
+		{"Host address excluded", "host1", "192.168.0.1", []string{"!192.168.0.1", "192.168.0.2"}, false},
+		{"Host not included", "host1", "192.168.0.1", []string{"host2", "host3"}, false},
+		{"All hosts excluded", "host1", "192.168.0.1", []string{"!host1", "!host2"}, false},
+		{"All hosts included but one", "host3", "192.168.0.3", []string{"host1", "host2", "!host3"}, false},
+		{"Empty hostname, host address included", "", "192.168.0.1", []string{"192.168.0.1", "192.168.0.2"}, true},
+		{"Empty hostname, host address excluded", "", "192.168.0.1", []string{"!192.168.0.1", "192.168.0.2"}, false},
+		{"Empty hostname, host not included", "", "192.168.0.1", []string{"192.168.0.2", "192.168.0.3"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := p.shouldRunCmd(tt.onlyOn, tt.hostName, tt.hostAddr)
+			assert.Equal(t, tt.want, got)
+		})
+	}
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {

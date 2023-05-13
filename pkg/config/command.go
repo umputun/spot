@@ -30,11 +30,12 @@ type Cmd struct {
 
 // CmdOptions defines options for a command
 type CmdOptions struct {
-	IgnoreErrors bool     `yaml:"ignore_errors" toml:"ignore_errors"`
-	NoAuto       bool     `yaml:"no_auto" toml:"no_auto"`
-	Local        bool     `yaml:"local" toml:"local"`
-	Sudo         bool     `yaml:"sudo" toml:"sudo"`
-	Secrets      []string `yaml:"secrets" toml:"secrets"`
+	IgnoreErrors bool     `yaml:"ignore_errors" toml:"ignore_errors"` // ignore errors and continue
+	NoAuto       bool     `yaml:"no_auto" toml:"no_auto"`             // don't run command automatically
+	Local        bool     `yaml:"local" toml:"local"`                 // run command on localhost
+	Sudo         bool     `yaml:"sudo" toml:"sudo"`                   // run command with sudo
+	Secrets      []string `yaml:"secrets" toml:"secrets"`             // list of secrets (keys) to load
+	OnlyOn       []string `yaml:"only_on" toml:"only_on"`             // only run on these hosts
 }
 
 // CopyInternal defines copy command, implemented internally

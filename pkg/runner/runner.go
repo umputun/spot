@@ -136,6 +136,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			// skip command if it has NoAuto option and not in Only list
 			continue
 		}
+		if !p.shouldRunCmd(cmd.Options.OnlyOn, hostName, hostAddr) {
+			log.Printf("[DEBUG] skip command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
+			continue
+		}
 
 		infoMsg := fmt.Sprintf("run command %q on host %q (%s)", cmd.Name, hostAddr, hostName)
 		if hostName == "" {
@@ -235,4 +239,30 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 	default:
 		return "", nil, fmt.Errorf("unknown command %q", ec.cmd.Name)
 	}
+}
+
+// shouldRunCmd checks if the command should be executed on the host. If the command has no restrictions
+// (onlyOn field), it will be executed on all hosts. If the command has restrictions, it will be executed
+// only on the hosts that match the restrictions.
+// The onlyOn field can contain hostnames or IP addresses. If the hostname starts with "!", it will be
+// excluded from the list of hosts. If the hostname doesn't start with "!", it will be included in the list
+// of hosts. If the onlyOn field is empty, the command will be executed on all hosts.
+func (p *Process) shouldRunCmd(onlyOn []string, hostName, hostAddr string) bool {
+	if len(onlyOn) == 0 {
+		return true
+	}
+
+	for _, host := range onlyOn {
+		if strings.HasPrefix(host, "!") { // exclude host
+			if hostName == host[1:] || hostAddr == host[1:] {
+				return false
+			}
+			continue
+		}
+		if hostName == host || hostAddr == host { // include host
+			return true
+		}
+	}
+
+	return false
 }
