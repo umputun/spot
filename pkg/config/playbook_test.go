@@ -368,6 +368,71 @@ func TestTargetHosts(t *testing.T) {
 	}
 }
 
+func TestPlayBook_UpdateTasksTargets(t *testing.T) {
+	tests := []struct {
+		name     string
+		playbook PlayBook
+		vars     map[string]string
+		expected PlayBook
+	}{
+		{
+			name: "replace target variables",
+			playbook: PlayBook{
+				Tasks: []Task{{Targets: []string{"$target1", "target2"}}, {Targets: []string{"target3", "$target4"}}},
+			},
+			vars: map[string]string{"target1": "actualTarget1", "target4": "actualTarget4"},
+			expected: PlayBook{
+				Tasks: []Task{{Targets: []string{"actualTarget1", "target2"}}, {Targets: []string{"target3", "actualTarget4"}}},
+			},
+		},
+		{
+			name: "ignore single dollar sign",
+			playbook: PlayBook{
+				Tasks: []Task{{Targets: []string{"$"}}},
+			},
+			vars: map[string]string{"$": "actualTarget1"},
+			expected: PlayBook{
+				Tasks: []Task{{Targets: []string{"$"}}},
+			},
+		},
+		{
+			name: "ignore undefined variables",
+			playbook: PlayBook{
+				Tasks: []Task{{Targets: []string{"$undefined"}}},
+			},
+			vars: map[string]string{},
+			expected: PlayBook{
+				Tasks: []Task{{Targets: []string{}}},
+			},
+		},
+		{
+			name:     "playbook with no tasks",
+			playbook: PlayBook{},
+			vars: map[string]string{
+				"target1": "actualTarget1",
+			},
+			expected: PlayBook{},
+		},
+		{
+			name: "nil target variables",
+			playbook: PlayBook{
+				Tasks: []Task{{Targets: []string{"$target1", "target2"}}, {Targets: []string{"target3", "$target4"}}},
+			},
+			vars: nil,
+			expected: PlayBook{
+				Tasks: []Task{{Targets: []string{"target2"}}, {Targets: []string{"target3"}}},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.playbook.UpdateTasksTargets(tt.vars)
+			assert.Equal(t, tt.expected, tt.playbook)
+		})
+	}
+}
+
 func TestPlayBook_loadInventory(t *testing.T) {
 	// create temporary inventory files
 	yamlData := []byte(`

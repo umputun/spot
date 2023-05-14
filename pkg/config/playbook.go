@@ -363,6 +363,28 @@ func (p *PlayBook) AllSecretValues() []string {
 	return res
 }
 
+// UpdateTasksTargets updates the targets of all tasks in the playbook with the values from the specified map of variables.
+// The method is used to replace variables in the targets of tasks with their actual values and this way provide dynamic targets.
+func (p *PlayBook) UpdateTasksTargets(vars map[string]string) {
+	for i, task := range p.Tasks {
+		targets := []string{}
+		for _, tg := range task.Targets {
+			if len(tg) > 1 && strings.HasPrefix(tg, "$") {
+				if vars == nil {
+					continue
+				}
+				if v, ok := vars[tg[1:]]; ok {
+					log.Printf("[DEBUG] set target %s to %q", tg, v)
+					targets = append(targets, v)
+				}
+				continue
+			}
+			targets = append(targets, tg)
+		}
+		p.Tasks[i].Targets = targets
+	}
+}
+
 // loadInventory loads the inventory data from the specified location (file or URL) and returns it as an InventoryData struct.
 // The inventory data is parsed as either YAML or TOML, depending on the file extension.
 // The method also performs some additional processing on the inventory data:

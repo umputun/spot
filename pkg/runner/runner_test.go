@@ -43,6 +43,7 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 8, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
+		assert.EqualValues(t, map[string]string{"bar": "9", "baz": "zzzzz", "foo": "6"}, res.Vars)
 	})
 
 	t.Run("simple playbook", func(t *testing.T) {
@@ -167,6 +168,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `> var foo: 6`)
 		assert.Contains(t, outWriter.String(), `> var bar: 9`)
 		assert.Contains(t, outWriter.String(), `> var baz: qux`, "was not overwritten")
+		assert.EqualValues(t, map[string]string{"bar": "9", "baz": "zzzzz", "foo": "6"}, res.Vars)
 	})
 
 	t.Run("with secrets", func(t *testing.T) {
@@ -212,6 +214,7 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, res.Commands)
 		assert.Contains(t, outWriter.String(), ` > setvar filename=testdata/conf.yml`)
+		assert.EqualValues(t, map[string]string{"filename": "testdata/conf.yml"}, res.Vars)
 	})
 
 	t.Run("env variables for copy command", func(t *testing.T) {
