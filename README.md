@@ -284,11 +284,36 @@ Each task consists of a list of commands that will be executed on the remote hos
 
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of playbook file for the specified task.
-- `targets` - list of target names, group, tags or host addresses to execute the task on. Command line `-t` flag can be used to override this field. 
+- `targets` - list of target names, group, tags or host addresses to execute the task on. Command line `-t` flag can be used to override this field. The `targets` field may include variables. For more details see [Dynamic targets](#dynamic-targets) section.
 
 *Note: these fields supported in the full playbook type only*
 
 All tasks are executed sequentially one a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with missing `name` field will fail to execute immediately. Duplicate task names are not allowed either.
+
+## Dynamic targets
+
+Spot offers support for dynamic targets, allowing the list of targets to be defined dynamically using variables. This feature becomes particularly useful when users need to ascertain a destination address within one task, and subsequently use it in another task. Here is an illustrative example:
+
+```yaml
+tasks:
+  - name: get host
+    targets: ["default"]
+    script: |
+      export thehost=$(curl -s http://example.com/next-host)
+    options: {local: true}
+    
+  - name: run on host
+    targets: ["$thehost"]
+    script: |
+      echo "doing something on $thehost"
+```
+
+In this example, the host address is initially fetched from http://example.com/next-host. Following this, the task "run on host" is executed on the host that was just identified. This ability to use dynamic targets proves beneficial in a variety of scenarios, especially when the list of hosts is not predetermined.
+
+A practical use case for dynamic targets arises during the provisioning of a new host, followed by the execution of commands on it. Since the IP address of the new host isn't known beforehand, dynamic retrieval becomes essential.
+
+_The reason the first task specifies `targets: ["default"]` is because Spot requires some target to execute a task. In this case, all commands in "get host" tasks are local and won't be invoked on a remote host. The `default` target is utilized by Spot if no alternative target is specified via the command line._
+
 
 ## Relative paths resolution
 
