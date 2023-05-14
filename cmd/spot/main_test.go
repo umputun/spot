@@ -102,6 +102,25 @@ func Test_runCompleted(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, time.Since(st) < 1*time.Second)
 	})
+
+	t.Run("run with dynamic targets", func(t *testing.T) {
+		opts := options{
+			SSHUser:      "test",
+			SSHKey:       "testdata/test_ssh_key",
+			PlaybookFile: "testdata/conf-dynamic.yml",
+			SecretsProvider: SecretsProvider{
+				Provider: "spot",
+				Conn:     "testdata/test-secrets.db",
+				Key:      "1234567890",
+			},
+			Env: map[string]string{
+				"hostAndPort": hostAndPort,
+			},
+		}
+		setupLog(true)
+		err := run(opts)
+		require.NoError(t, err)
+	})
 }
 
 func Test_runCompletedSimplePlaybook(t *testing.T) {

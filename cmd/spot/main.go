@@ -178,7 +178,7 @@ func run(opts options) error {
 	if opts.PositionalArgs.AdHocCmd != "" { // run ad-hoc command
 		r.Verbose = true // always verbose for ad-hoc
 		for _, targetName := range opts.Targets {
-			if err := runTaskForTarget(ctx, r, "ad-hoc", targetName); err != nil {
+			if err := runTaskForTarget(ctx, r, "ad-hoc", targetName, conf); err != nil {
 				errs = multierror.Append(errs, err)
 			}
 		}
@@ -187,7 +187,7 @@ func run(opts options) error {
 
 	if opts.TaskName != "" { // run a single task
 		for _, targetName := range targetsForTask(opts, opts.TaskName, conf) {
-			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName); err != nil {
+			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName, conf); err != nil {
 				return err
 			}
 		}
@@ -197,7 +197,7 @@ func run(opts options) error {
 	// run all tasks
 	for _, task := range conf.Tasks {
 		for _, targetName := range targetsForTask(opts, task.Name, conf) {
-			if err := runTaskForTarget(ctx, r, task.Name, targetName); err != nil {
+			if err := runTaskForTarget(ctx, r, task.Name, targetName, conf); err != nil {
 				return err
 			}
 		}
@@ -206,14 +206,15 @@ func run(opts options) error {
 	return nil
 }
 
-func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetName string) error {
+func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetName string, conf *config.PlayBook) error {
 	st := time.Now()
-	stats, err := r.Run(ctx, taskName, targetName)
+	res, err := r.Run(ctx, taskName, targetName)
 	if err != nil {
 		return fmt.Errorf("can't run task %q for target %q: %w", taskName, targetName, err)
 	}
 	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
-		stats.Hosts, stats.Commands, time.Since(st).Truncate(100*time.Millisecond))
+		res.Hosts, res.Commands, time.Since(st).Truncate(100*time.Millisecond))
+	conf.UpdateTasksTargets(res.Vars)
 	return nil
 }
 

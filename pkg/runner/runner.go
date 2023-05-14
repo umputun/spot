@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,42 +42,55 @@ type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
 }
 
-// ProcStats holds the information about processed commands and hosts.
-type ProcStats struct {
+// ProcResp holds the information about processed commands and hosts.
+type ProcResp struct {
+	Vars     map[string]string
 	Commands int
 	Hosts    int
 }
 
+type vars map[string]string
+
 // Run runs a task for a set of target hosts. Runs in parallel with limited concurrency,
-// each host is processed in separate goroutine.
-func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, err error) {
+// each host is processed in separate goroutine. Returns ProcResp with the information about processed commands and hosts
+// plus vars from all thr commands.
+func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err error) {
 	tsk, err := p.Config.Task(task)
 	if err != nil {
-		return ProcStats{}, fmt.Errorf("can't get task %s: %w", task, err)
+		return ProcResp{}, fmt.Errorf("can't get task %s: %w", task, err)
 	}
 	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
 
+	allVars := make(map[string]string)
 	targetHosts, err := p.Config.TargetHosts(target)
 	if err != nil {
-		return ProcStats{}, fmt.Errorf("can't get target %s: %w", target, err)
+		return ProcResp{}, fmt.Errorf("can't get target %s: %w", target, err)
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
 	p.secrets = p.Config.AllSecretValues()
+	var commands int32
+	lock := sync.Mutex{}
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
-	var commands int32
 	for i, host := range targetHosts {
 		i, host := i, host
 		wg.Go(func() error {
-			count, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, host.User)
+			count, vv, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, host.User)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(count))
 			}
+
+			lock.Lock()
 			if e != nil {
 				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose, p.secrets)
 				errLog.Write([]byte(e.Error())) // nolint
 			}
+			for k, v := range vv {
+				allVars[k] = v
+			}
+			lock.Unlock()
+
 			return e
 		})
 	}
@@ -87,29 +101,37 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcStats, er
 		p.onError(ctx, tsk)
 	}
 
-	return ProcStats{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands))}, err
+	return ProcResp{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands)), Vars: allVars}, err
 }
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, error) {
+// returns number of executed commands, vars from all commands and error if any.
+func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, vars, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
 		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), f, vals...)
 	}
 	since := func(st time.Time) time.Duration { return time.Since(st).Truncate(time.Millisecond) }
 
 	stTask := time.Now()
-	remote, err := p.Connector.Connect(ctx, hostAddr, hostName, user)
-	if err != nil {
-		if hostName != "" {
-			return 0, fmt.Errorf("can't connect to %s: %w", hostName, err)
+
+	var remote executor.Interface
+	if p.anyRemoteCommand(tsk) {
+		// make remote executor only if there is a remote command in the taks
+		var err error
+		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
+		if err != nil {
+			if hostName != "" {
+				return 0, nil, fmt.Errorf("can't connect to %s: %w", hostName, err)
+			}
+			return 0, nil, err
 		}
-		return 0, err
+		defer remote.Close()
+		remote.SetSecrets(p.secrets)
 	}
-	defer remote.Close()
-	remote.SetSecrets(p.secrets)
 
 	report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
+	tskVars := vars{}
 	for _, cmd := range tsk.Commands {
 		if !p.shouldRunCmd(cmd, hostName, hostAddr) {
 			continue
@@ -118,12 +140,12 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: tsk, exec: remote, verbose: p.Verbose}
-		ec = p.pickExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
+		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		details, vars, err := p.execCommand(ctx, ec)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
-				return count, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
+				return count, nil, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
 			}
 			report(ec.hostAddr, ec.hostName, "failed command %q%s (%v)", cmd.Name, details, since(stCmd))
 			continue
@@ -132,10 +154,13 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		p.updateVars(vars, cmd, tsk) // set variables from command output to all commands env in task
 		report(ec.hostAddr, ec.hostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
 		count++
+		for k, v := range vars {
+			tskVars[k] = v
+		}
 	}
 
 	report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
-	return count, nil
+	return count, tskVars, nil
 }
 
 // execCommand executes a single command on a target host.
@@ -166,8 +191,8 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 	}
 }
 
-// pickExecutor returns executor for dry run or local command, otherwise returns the default executor.
-func (p *Process) pickExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
+// pickCmdExecutor returns executor for dry run or local command, otherwise returns the default executor.
+func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
 	switch {
 	case cmd.Options.Local:
 		log.Printf("[DEBUG] run local command %q", cmd.Name)
@@ -204,6 +229,15 @@ func (p *Process) onError(ctx context.Context, tsk *config.Task) {
 	if exErr := onErrCmd.Run(); exErr != nil {
 		log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
 	}
+}
+
+func (p *Process) anyRemoteCommand(tsk *config.Task) bool {
+	for _, cmd := range tsk.Commands {
+		if !cmd.Options.Local {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Process) infoMessage(cmd config.Cmd, hostAddr, hostName string) string {

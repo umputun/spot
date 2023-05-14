@@ -1,0 +1,33 @@
+targets:
+  remark42:
+    hosts: [{host: "h1.example.com"}, {host: "h2.example.com"}]
+  staging:
+    inventory_file: {location: "testdata/inventory"}
+
+
+tasks:
+  - name: task1
+    targets: ["default"]
+    commands:
+      - name: some command
+        script: |
+          export host2=$hostAndPort
+          ls -laR /tmp
+          echo "blah" > /tmp/conf.yml
+          cat /tmp/conf.yml
+          echo "all good, 123 - $FOO $BAR"
+        env:
+          FOO: foo-val
+          BAR: bar-val
+        options: {local: true}
+
+
+  - name: task2
+    targets: ["$host2"]
+    commands:
+      - name: good command
+        script: echo good command 1
+      - name: good command
+        script: echo good command 2
+      - name: task vars
+        script: env
