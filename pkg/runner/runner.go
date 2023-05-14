@@ -127,9 +127,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 		defer remote.Close()
 		remote.SetSecrets(p.secrets)
+		report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
+	} else {
+		report("localhost", "", "run task %q, commands: %d (local)\n", tsk.Name, len(tsk.Commands))
 	}
 
-	report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
 	count := 0
 	tskVars := vars{}
 	for _, cmd := range tsk.Commands {
@@ -159,7 +161,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 	}
 
-	report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
+	if p.anyRemoteCommand(tsk) {
+		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
+	} else {
+		report("localhost", "", "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
+	}
 	return count, tskVars, nil
 }
 
