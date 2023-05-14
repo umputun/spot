@@ -28,11 +28,19 @@ type execCmd struct {
 
 const tmpRemoteDir = "/tmp/.spot" // this is a directory on remote host to store temporary files
 
-// script executes a script command on a target host. It can be a single line or multiline script,
+// Script executes a script command on a target host. It can be a single line or multiline script,
 // this part is translated by the prepScript function.
 // If sudo option is set, it will execute the script with sudo. If output contains variables as "setvar foo=bar",
 // it will return the variables as map.
-func (ec *execCmd) script(ctx context.Context) (details string, vars map[string]string, err error) {
+func (ec *execCmd) Script(ctx context.Context) (details string, vars map[string]string, err error) {
+	cond, err := ec.checkCondition(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+	if !cond {
+		return fmt.Sprintf(" {skip: %s}", ec.cmd.Name), nil, nil
+	}
+
 	single, multiRdr := ec.cmd.GetScript()
 	c, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
@@ -74,10 +82,10 @@ func (ec *execCmd) script(ctx context.Context) (details string, vars map[string]
 	return details, vars, nil
 }
 
-// copy uploads a single file or multiple files (if wildcard is used) to a target host.
+// Copy uploads a single file or multiple files (if wildcard is used) to a target host.
 // if sudo option is set, it will make a temporary directory and upload the files there,
 // then move it to the final destination with sudo script execution.
-func (ec *execCmd) copy(ctx context.Context) (details string, vars map[string]string, err error) {
+func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]string, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 
 	src := tmpl.apply(ec.cmd.Copy.Source)
@@ -124,8 +132,8 @@ func (ec *execCmd) copy(ctx context.Context) (details string, vars map[string]st
 	return details, nil, nil
 }
 
-// mcopy uploads multiple files to a target host. It calls copy function for each file.
-func (ec *execCmd) mcopy(ctx context.Context) (details string, vars map[string]string, err error) {
+// Mcopy uploads multiple files to a target host. It calls copy function for each file.
+func (ec *execCmd) Mcopy(ctx context.Context) (details string, vars map[string]string, err error) {
 	msgs := []string{}
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	for _, c := range ec.cmd.MCopy {
@@ -134,7 +142,7 @@ func (ec *execCmd) mcopy(ctx context.Context) (details string, vars map[string]s
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
 		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir}
-		if _, _, err := ecSingle.copy(ctx); err != nil {
+		if _, _, err := ecSingle.Copy(ctx); err != nil {
 			return details, nil, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 	}
@@ -142,8 +150,8 @@ func (ec *execCmd) mcopy(ctx context.Context) (details string, vars map[string]s
 	return details, nil, nil
 }
 
-// sync synchronizes files from a source to a destination on a target host.
-func (ec *execCmd) sync(ctx context.Context) (details string, vars map[string]string, err error) {
+// Sync synchronizes files from a source to a destination on a target host.
+func (ec *execCmd) Sync(ctx context.Context) (details string, vars map[string]string, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
@@ -154,8 +162,8 @@ func (ec *execCmd) sync(ctx context.Context) (details string, vars map[string]st
 	return details, nil, nil
 }
 
-// delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
-func (ec *execCmd) delete(ctx context.Context) (details string, vars map[string]string, err error) {
+// Delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
+func (ec *execCmd) Delete(ctx context.Context) (details string, vars map[string]string, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	loc := tmpl.apply(ec.cmd.Delete.Location)
 
@@ -182,9 +190,9 @@ func (ec *execCmd) delete(ctx context.Context) (details string, vars map[string]
 	return details, nil, nil
 }
 
-// wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
+// Wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
-func (ec *execCmd) wait(ctx context.Context) (details string, vars map[string]string, err error) {
+func (ec *execCmd) Wait(ctx context.Context) (details string, vars map[string]string, err error) {
 	single, multiRdr := ec.cmd.GetWait()
 	c, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
@@ -234,6 +242,36 @@ func (ec *execCmd) wait(ctx context.Context) (details string, vars map[string]st
 			}
 		}
 	}
+}
+
+func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
+	if ec.cmd.Condition == "" {
+		return true, nil // no condition, always allow
+	}
+	single, multiRdr := ec.cmd.GetCondition()
+	c, teardown, err := ec.prepScript(ctx, single, multiRdr)
+	if err != nil {
+		return false, fmt.Errorf("can't prepare condition script on %s: %w", ec.hostAddr, err)
+	}
+	defer func() {
+		if teardown == nil {
+			return
+		}
+		if err = teardown(); err != nil {
+			log.Printf("[WARN] can't teardown coindition script on %s: %v", ec.hostAddr, err)
+		}
+	}()
+
+	if ec.cmd.Options.Sudo { // command's sudo also applies to condition script
+		c = fmt.Sprintf("sudo sh -c %q", c)
+	}
+
+	// run the condition command
+	if _, err := ec.exec.Run(ctx, c, ec.verbose); err != nil {
+		log.Printf("[DEBUG] condition not passed on %s: %v", ec.hostAddr, err)
+		return false, nil
+	}
+	return true, nil
 }
 
 // prepScript prepares a script for execution. Script can be either a single command or a multiline script.
