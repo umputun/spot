@@ -341,6 +341,7 @@ Each command type supports the following options:
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 - `sudo`: if set to `true` the command will be executed with `sudo` privileges.
 - `only_on`: optional, allows to set a list of host names or addresses where the command will be executed. If not set, the command will be executed on all hosts. For example, `only_on: [host1, host2]` will execute command on `host1` and `host2` only. This option also supports reversed condition, so if user wants to execute command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute command on all hosts except `host1` and `host2`. 
+- `cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. `cond` option supported for `script` command type only.
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
 

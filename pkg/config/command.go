@@ -24,8 +24,9 @@ type Cmd struct {
 	Script      string            `yaml:"script" toml:"script,multiline"`
 	Environment map[string]string `yaml:"env" toml:"env"`
 	Options     CmdOptions        `yaml:"options" toml:"options,omitempty"`
+	Condition   string            `yaml:"cond" toml:"cond,omitempty"`
 
-	Secrets map[string]string `yaml:"-" toml:"-"` // loaded Secrets, filled by playbook
+	Secrets map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
 }
 
 // CmdOptions defines options for a command
@@ -96,6 +97,22 @@ func (cmd *Cmd) GetWait() (command string, rdr io.Reader) {
 
 	log.Printf("[DEBUG] wait command %q is single line, using command string", cmd.Name)
 	return cmd.scriptCommand(cmd.Wait.Command), nil
+}
+
+// GetCondition returns a condition command as a string and an io.Reader based on whether the command is a single line or multiline
+func (cmd *Cmd) GetCondition() (command string, rdr io.Reader) {
+	if cmd.Condition == "" {
+		return "", nil
+	}
+
+	elems := strings.Split(cmd.Condition, "\n")
+	if len(elems) > 1 {
+		log.Printf("[DEBUG] condition %q is multiline, using script file", cmd.Name)
+		return "", cmd.scriptFile(cmd.Condition)
+	}
+
+	log.Printf("[DEBUG] condition %q is single line, using condition string", cmd.Name)
+	return cmd.scriptCommand(cmd.Condition), nil
 }
 
 // scriptCommand concatenates all script lines in commands into one a string to be executed by shell.

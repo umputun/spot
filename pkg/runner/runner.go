@@ -176,22 +176,22 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 	switch {
 	case ec.cmd.Script != "":
 		log.Printf("[DEBUG] execute script %q on %s", ec.cmd.Name, ec.hostAddr)
-		return ec.script(ctx)
+		return ec.Script(ctx)
 	case ec.cmd.Copy.Source != "" && ec.cmd.Copy.Dest != "":
 		log.Printf("[DEBUG] copy file to %s", ec.hostAddr)
-		return ec.copy(ctx)
+		return ec.Copy(ctx)
 	case len(ec.cmd.MCopy) > 0:
 		log.Printf("[DEBUG] copy multiple files to %s", ec.hostAddr)
-		return ec.mcopy(ctx)
+		return ec.Mcopy(ctx)
 	case ec.cmd.Sync.Source != "" && ec.cmd.Sync.Dest != "":
 		log.Printf("[DEBUG] sync files on %s", ec.hostAddr)
-		return ec.sync(ctx)
+		return ec.Sync(ctx)
 	case ec.cmd.Delete.Location != "":
 		log.Printf("[DEBUG] delete files on %s", ec.hostAddr)
-		return ec.delete(ctx)
+		return ec.Delete(ctx)
 	case ec.cmd.Wait.Command != "":
 		log.Printf("[DEBUG] wait for command on %s", ec.hostAddr)
-		return ec.wait(ctx)
+		return ec.Wait(ctx)
 	default:
 		return "", nil, fmt.Errorf("unknown command %q", ec.cmd.Name)
 	}

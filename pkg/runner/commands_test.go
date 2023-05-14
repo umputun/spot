@@ -127,20 +127,19 @@ func Test_templaterApply(t *testing.T) {
 }
 
 func Test_execCmd(t *testing.T) {
-
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
 	ctx := context.Background()
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
-	require.NoError(t, err)
-	sess, err := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
-	require.NoError(t, err)
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, errSess)
 
 	t.Run("copy a single file", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
-		details, _, err := ec.copy(ctx)
+		details, _, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
 	})
@@ -151,7 +150,7 @@ func Test_execCmd(t *testing.T) {
 		})
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
-		details, _, err := ec.wait(ctx)
+		details, _, err := ec.Wait(ctx)
 		require.NoError(t, err)
 		t.Log(details)
 	})
@@ -162,7 +161,7 @@ func Test_execCmd(t *testing.T) {
 		})
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "echo this is wait\ncat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
-		details, _, err := ec.wait(ctx)
+		details, _, err := ec.Wait(ctx)
 		require.NoError(t, err)
 		t.Log(details)
 	})
@@ -174,7 +173,7 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /srv/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100},
 			Options: config.CmdOptions{Sudo: true}}}
-		details, _, err := ec.wait(ctx)
+		details, _, err := ec.Wait(ctx)
 		require.NoError(t, err)
 		t.Log(details)
 	})
@@ -182,7 +181,7 @@ func Test_execCmd(t *testing.T) {
 	t.Run("wait failed", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /tmp/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100}}}
-		_, _, err := ec.wait(ctx)
+		_, _, err := ec.Wait(ctx)
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
@@ -190,7 +189,7 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100},
 			Options: config.CmdOptions{Sudo: true}}}
-		_, _, err := ec.wait(ctx)
+		_, _, err := ec.Wait(ctx)
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
@@ -199,7 +198,7 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/tmp/delete.me"}}}
-		_, _, err = ec.delete(ctx)
+		_, _, err = ec.Delete(ctx)
 		require.NoError(t, err)
 	})
 
@@ -215,7 +214,7 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/tmp/delete-recursive", Recursive: true}}}
 
-		_, _, err = ec.delete(ctx)
+		_, _, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
 		_, err = sess.Run(ctx, "ls /tmp/delete-recursive", true)
@@ -228,13 +227,13 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: false}}}
 
-		_, _, err = ec.delete(ctx)
+		_, _, err = ec.Delete(ctx)
 		require.Error(t, err, "should fail because of missing sudo")
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: true}}}
 
-		_, _, err = ec.delete(ctx)
+		_, _, err = ec.Delete(ctx)
 		require.NoError(t, err, "should fail pass with sudo")
 	})
 
@@ -250,10 +249,28 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete-recursive", Recursive: true}, Options: config.CmdOptions{Sudo: true}}}
 
-		_, _, err = ec.delete(ctx)
+		_, _, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
 		_, err = sess.Run(ctx, "ls /srv/delete-recursive", true)
 		require.Error(t, err, "should not exist")
+	})
+
+	t.Run("condition false", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls /srv/test.condition",
+			Script: "echo 'condition false'", Name: "test"}}
+		details, _, err := ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", details)
+	})
+
+	t.Run("condition true", func(t *testing.T) {
+		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", true)
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls -la /srv/test.condition",
+			Script: "echo condition true", Name: "test"}}
+		details, _, err := ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {script: sh -c 'echo condition true'}", details)
 	})
 }

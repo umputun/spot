@@ -483,3 +483,48 @@ echo 'Goodbye, World!'
 		})
 	}
 }
+
+func TestCmd_GetCondition(t *testing.T) {
+	testCases := []struct {
+		name           string
+		cmd            *Cmd
+		expectedCmd    string
+		expectedReader io.Reader
+	}{
+		{
+			name:        "single-line wait command",
+			cmd:         &Cmd{Condition: "echo Hello, World!"},
+			expectedCmd: `sh -c 'echo Hello, World!'`,
+		},
+		{
+			name: "multi-line wait command",
+			cmd: &Cmd{Condition: `echo 'Hello, World!'
+echo 'Goodbye, World!'`,
+			},
+			expectedReader: strings.NewReader(`#!/bin/sh
+set -e
+echo 'Hello, World!'
+echo 'Goodbye, World!'
+`),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd, reader := tc.cmd.GetCondition()
+			assert.Equal(t, tc.expectedCmd, cmd)
+
+			if tc.expectedReader != nil {
+				expectedBytes, err := io.ReadAll(tc.expectedReader)
+				assert.NoError(t, err)
+
+				actualBytes, err := io.ReadAll(reader)
+				assert.NoError(t, err)
+
+				assert.Equal(t, string(expectedBytes), string(actualBytes))
+			} else {
+				assert.Nil(t, reader)
+			}
+		})
+	}
+}
