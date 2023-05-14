@@ -69,6 +69,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - spot.1
     rlcp: true
 
 
@@ -103,4 +104,3 @@ nfpms:
     bindir: /usr/bin
     epoch: 1
     release: 1
-

@@ -40,4 +40,18 @@ site:
 	docker cp "spot-site":/srv/site/ site/public
 	docker rm -f spot-site
 
-.PHONY: build release test site
+man:
+	@echo "generating man page..."
+	@grep -v "<div align=\"center\">" README.md | \
+	grep -v "<details markdown>" | \
+	sed '/^<\/div>/,/^<\/details>/d' | \
+	sed '/<details markdown>Other install methods/,/<\/details>/d' > /tmp/temp.md
+	@pandoc -s -f gfm -t man -o /tmp/spot.tmp /tmp/temp.md
+	@echo ".TH \"SPOT\" 1 $(TAG) $(TIMESTAMP) spot manual" > spot.1
+	@cat /tmp/spot.tmp >> spot.1
+	@rm /tmp/temp.md /tmp/spot.tmp
+	@sed -i '' '/.TH "" "" "" "" ""/d' spot.1
+	@echo "made spot.1 man"
+
+
+.PHONY: build release test site man version
