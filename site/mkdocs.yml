@@ -44,7 +44,7 @@ extra:
       link: https://twitter.com/umputun
   analytics:
     provider: custom
-    analytic_id: 9db03a56-ef6f-4c36-b73e-c058b8a29c11
+    analytic_id: 04942b40-0a7a-47a1-9dbc-76eb9a9e7999
 
 markdown_extensions:
   - smarty
