@@ -246,7 +246,7 @@ func (ec *execCmd) Wait(ctx context.Context) (details string, vars map[string]st
 
 // Echo prints a message. It enforces the echo command to start with "echo " and adds sudo if needed.
 // It returns the result of the echo command as details string.
-func (ec *execCmd) Echo(ctx context.Context) (string, map[string]string, error) {
+func (ec *execCmd) Echo(ctx context.Context) (details string, vars map[string]string, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	echoCmd := tmpl.apply(ec.cmd.Echo)
 	if !strings.HasPrefix(echoCmd, "echo ") {
@@ -259,7 +259,7 @@ func (ec *execCmd) Echo(ctx context.Context) (string, map[string]string, error) 
 	if err != nil {
 		return "", nil, fmt.Errorf("can't run echo command on %s: %w", ec.hostAddr, err)
 	}
-	details := fmt.Sprintf(" {echo: %s}", strings.Join(out, "; "))
+	details = fmt.Sprintf(" {echo: %s}", strings.Join(out, "; "))
 	return details, nil, nil
 }
 
