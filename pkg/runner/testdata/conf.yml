@@ -99,6 +99,10 @@ tasks:
         copy: {src: "${filename}", dst: "/srv/conf.yml"}
         options: {no_auto: true, sudo: true}
 
+      - name: echo things
+        echo: vars - $foo, $bar, $baz
+        options: {no_auto: true}
+
   - name: failed_task
     commands:
       - name: good command

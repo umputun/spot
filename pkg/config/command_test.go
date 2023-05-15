@@ -415,7 +415,7 @@ func TestCmd_validate(t *testing.T) {
 		{"only wait", Cmd{Wait: WaitInternal{Command: "command"}}, ""},
 		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
 			"only one of [script, copy] is allowed"},
-		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, sync, wait] must be set"},
+		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, sync, wait, echo] must be set"},
 	}
 
 	for _, tt := range tbl {

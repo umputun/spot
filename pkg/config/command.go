@@ -22,6 +22,7 @@ type Cmd struct {
 	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
 	Script      string            `yaml:"script" toml:"script,multiline"`
+	Echo        string            `yaml:"echo" toml:"echo"`
 	Environment map[string]string `yaml:"env" toml:"env"`
 	Options     CmdOptions        `yaml:"options" toml:"options,omitempty"`
 	Condition   string            `yaml:"cond" toml:"cond,omitempty"`
@@ -330,6 +331,7 @@ func (cmd *Cmd) validate() error {
 		{"delete", func() bool { return cmd.Delete.Location != "" }},
 		{"sync", func() bool { return cmd.Sync.Source != "" && cmd.Sync.Dest != "" }},
 		{"wait", func() bool { return cmd.Wait.Command != "" }},
+		{"echo", func() bool { return cmd.Echo != "" }},
 	}
 
 	setCmds, names := []string{}, []string{}
