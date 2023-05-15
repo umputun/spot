@@ -490,11 +490,19 @@ func TestCmd_GetCondition(t *testing.T) {
 		cmd            *Cmd
 		expectedCmd    string
 		expectedReader io.Reader
+		expectedInvert bool
 	}{
 		{
-			name:        "single-line wait command",
-			cmd:         &Cmd{Condition: "echo Hello, World!"},
-			expectedCmd: `sh -c 'echo Hello, World!'`,
+			name:           "single-line wait command",
+			cmd:            &Cmd{Condition: "echo Hello, World!"},
+			expectedCmd:    `sh -c 'echo Hello, World!'`,
+			expectedInvert: false,
+		},
+		{
+			name:           "single-line wait command inverted",
+			cmd:            &Cmd{Condition: "! echo Hello, World!"},
+			expectedCmd:    `sh -c 'echo Hello, World!'`,
+			expectedInvert: true,
 		},
 		{
 			name: "multi-line wait command",
@@ -506,13 +514,27 @@ set -e
 echo 'Hello, World!'
 echo 'Goodbye, World!'
 `),
+			expectedInvert: false,
+		},
+		{
+			name: "multi-line wait command inverted",
+			cmd: &Cmd{Condition: `!echo 'Hello, World!'
+echo 'Goodbye, World!'`,
+			},
+			expectedReader: strings.NewReader(`#!/bin/sh
+set -e
+echo 'Hello, World!'
+echo 'Goodbye, World!'
+`),
+			expectedInvert: true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmd, reader := tc.cmd.GetCondition()
+			cmd, reader, invert := tc.cmd.GetCondition()
 			assert.Equal(t, tc.expectedCmd, cmd)
+			assert.Equal(t, tc.expectedInvert, invert)
 
 			if tc.expectedReader != nil {
 				expectedBytes, err := io.ReadAll(tc.expectedReader)

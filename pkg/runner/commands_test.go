@@ -273,4 +273,14 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, " {script: sh -c 'echo condition true'}", details)
 	})
+
+	t.Run("condition true inverted", func(t *testing.T) {
+		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", true)
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "! ls -la /srv/test.condition",
+			Script: "echo condition true", Name: "test"}}
+		details, _, err := ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", details)
+	})
 }
