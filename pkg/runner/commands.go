@@ -248,7 +248,8 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	if ec.cmd.Condition == "" {
 		return true, nil // no condition, always allow
 	}
-	single, multiRdr := ec.cmd.GetCondition()
+
+	single, multiRdr, inverted := ec.cmd.GetCondition()
 	c, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
 		return false, fmt.Errorf("can't prepare condition script on %s: %w", ec.hostAddr, err)
@@ -258,7 +259,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 			return
 		}
 		if err = teardown(); err != nil {
-			log.Printf("[WARN] can't teardown coindition script on %s: %v", ec.hostAddr, err)
+			log.Printf("[WARN] can't teardown condition script on %s: %v", ec.hostAddr, err)
 		}
 	}()
 
@@ -269,7 +270,15 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	// run the condition command
 	if _, err := ec.exec.Run(ctx, c, ec.verbose); err != nil {
 		log.Printf("[DEBUG] condition not passed on %s: %v", ec.hostAddr, err)
+		if inverted {
+			return true, nil // inverted condition failed, so we return true
+		}
 		return false, nil
+	}
+
+	// If condition passed
+	if inverted {
+		return false, nil // inverted condition passed, so we return false
 	}
 	return true, nil
 }

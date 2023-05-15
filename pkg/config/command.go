@@ -100,19 +100,23 @@ func (cmd *Cmd) GetWait() (command string, rdr io.Reader) {
 }
 
 // GetCondition returns a condition command as a string and an io.Reader based on whether the command is a single line or multiline
-func (cmd *Cmd) GetCondition() (command string, rdr io.Reader) {
+func (cmd *Cmd) GetCondition() (command string, rdr io.Reader, inverted bool) {
 	if cmd.Condition == "" {
-		return "", nil
+		return "", nil, false
 	}
 
-	elems := strings.Split(cmd.Condition, "\n")
+	inverted = strings.HasPrefix(cmd.Condition, "!")
+	cond := strings.TrimPrefix(cmd.Condition, "!")
+	cond = strings.TrimSpace(cond)
+
+	elems := strings.Split(cond, "\n")
 	if len(elems) > 1 {
 		log.Printf("[DEBUG] condition %q is multiline, using script file", cmd.Name)
-		return "", cmd.scriptFile(cmd.Condition)
+		return "", cmd.scriptFile(cond), inverted
 	}
 
 	log.Printf("[DEBUG] condition %q is single line, using condition string", cmd.Name)
-	return cmd.scriptCommand(cmd.Condition), nil
+	return cmd.scriptCommand(cond), nil, inverted
 }
 
 // scriptCommand concatenates all script lines in commands into one a string to be executed by shell.
