@@ -283,4 +283,21 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, " {skip: test}", details)
 	})
+
+	t.Run("echo command", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "welcome back", Name: "test"}}
+		details, _, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", details)
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "echo welcome back", Name: "test"}}
+		details, _, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", details)
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$var1 welcome back", Name: "test", Environment: map[string]string{"var1": "foo"}}}
+		details, _, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: foo welcome back}", details)
+	})
 }

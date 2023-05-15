@@ -243,6 +243,26 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `uploaded testdata/conf.yml to localhost:/tmp/.spot/conf.yml`)
 	})
 
+	t.Run("echo with variables", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		outWriter := &bytes.Buffer{}
+		wr := io.MultiWriter(outWriter, os.Stderr)
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(wr, "", "", "", nil),
+			Only:        []string{"copy configuration", "some command", "echo things"},
+			Verbose:     true,
+		}
+		log.SetOutput(io.Discard)
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 3, res.Commands)
+		assert.Contains(t, outWriter.String(), `completed command "echo things" {echo: vars - 6, 9, zzzzz}`)
+	})
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {

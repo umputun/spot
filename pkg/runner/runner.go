@@ -192,6 +192,9 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 	case ec.cmd.Wait.Command != "":
 		log.Printf("[DEBUG] wait for command on %s", ec.hostAddr)
 		return ec.Wait(ctx)
+	case ec.cmd.Echo != "":
+		log.Printf("[DEBUG] echo on %s", ec.hostAddr)
+		return ec.Echo(ctx)
 	default:
 		return "", nil, fmt.Errorf("unknown command %q", ec.cmd.Name)
 	}
