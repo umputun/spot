@@ -668,6 +668,10 @@ Available commands:
 
 ```
 
+<details markdown>
+  <summary>Why Spot? Is it replacing Ansible?</summary>
+
+
 ## Why Spot?
 
 Spot is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
@@ -702,6 +706,7 @@ Spot is not designed as a direct replacement for Ansible; however, in certain us
 
 Spot is an appealing choice for those seeking a lightweight, simple, and easy-to-use tool for deployment and configuration management, especially for smaller projects or when extensive features aren't necessary. Its single binary distribution, easy-to-comprehend structure, and minimal dependencies offer a low-maintenance solution. However, if a more comprehensive tool with a wide range of built-in modules, plugins, and integrations is needed, Ansible may be a better fit. While Ansible has advanced features and a robust ecosystem, its reliance on Python and additional libraries can sometimes be less convenient in certain environments or situations with specific constraints.
 
+</details>
 
 ## Getting latest development version
 
