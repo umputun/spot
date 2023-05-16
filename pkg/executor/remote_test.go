@@ -271,7 +271,7 @@ func TestExecuter_Sync(t *testing.T) {
 	defer sess.Close()
 
 	t.Run("sync", func(t *testing.T) {
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
@@ -282,13 +282,13 @@ func TestExecuter_Sync(t *testing.T) {
 	})
 
 	t.Run("sync_again", func(t *testing.T) {
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
 		require.NoError(t, e)
 		assert.Equal(t, 0, len(res), "no files should be synced", res)
 	})
 
 	t.Run("sync no src", func(t *testing.T) {
-		_, err = sess.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", true)
+		_, err = sess.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", true, nil)
 		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
 			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})
@@ -296,7 +296,7 @@ func TestExecuter_Sync(t *testing.T) {
 	t.Run("sync with empty dir on remote to delete", func(t *testing.T) {
 		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest2/empty", true)
 		require.NoError(t, e)
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", true)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", true, nil)
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
@@ -311,7 +311,7 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		_, e = sess.Run(ctx, "touch /tmp/sync.dest3/empty/afile1.txt", true)
 		require.NoError(t, e)
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", true)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", true, nil)
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
@@ -326,7 +326,7 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", true)
 		require.NoError(t, e)
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", false)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", false, nil)
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
@@ -349,7 +349,7 @@ func TestExecuter_Delete(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true)
+	res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
 	require.NoError(t, err)
 	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 	assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
@@ -410,6 +410,7 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 		name    string
 		local   map[string]fileProperties
 		remote  map[string]fileProperties
+		exclude []string
 		updated []string
 		deleted []string
 	}{
@@ -453,6 +454,20 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 			deleted: []string{},
 		},
 		{
+			name: "no files match, exclude file1",
+			local: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(0, 0)},
+				"file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			remote: map[string]fileProperties{
+				"file1": {Size: 100, Time: time.Unix(1, 1)},
+				"file2": {Size: 200, Time: time.Unix(1, 1)},
+			},
+			exclude: []string{"file1"},
+			updated: []string{"file2"},
+			deleted: []string{},
+		},
+		{
 			name: "some local files deleted",
 			local: map[string]fileProperties{
 				"file1": {Size: 100, Time: time.Unix(0, 0)},
@@ -466,12 +481,27 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 			updated: []string{},
 			deleted: []string{"file3"},
 		},
+		{
+			name: "some match, some excluded, some deleted",
+			local: map[string]fileProperties{
+				"d1/file1": {Size: 100, Time: time.Unix(0, 0)},
+				"d1/file2": {Size: 200, Time: time.Unix(0, 0)},
+				"d3/file2": {Size: 300, Time: time.Unix(0, 0)},
+			},
+			remote: map[string]fileProperties{
+				"d1/file1": {Size: 100, Time: time.Unix(0, 0)},
+				"d4/file2": {Size: 200, Time: time.Unix(0, 0)},
+			},
+			exclude: []string{"d1/*"},
+			updated: []string{"d3/file2"},
+			deleted: []string{"d4/file2"},
+		},
 	}
 
 	for _, tc := range tbl {
 		t.Run(tc.name, func(t *testing.T) {
 			ex := &Remote{}
-			updated, deleted := ex.findUnmatchedFiles(tc.local, tc.remote)
+			updated, deleted := ex.findUnmatchedFiles(tc.local, tc.remote, tc.exclude)
 			assert.Equal(t, tc.updated, updated)
 			assert.Equal(t, tc.deleted, deleted)
 		})

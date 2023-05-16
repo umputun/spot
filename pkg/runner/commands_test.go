@@ -300,4 +300,18 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, " {echo: foo welcome back}", details)
 	})
+
+	t.Run("sync command", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Sync: config.SyncInternal{
+			Source: "testdata", Dest: "/tmp/sync.testdata", Exclude: []string{"conf2.yml"}}, Name: "test"}}
+		details, _, err := ec.Sync(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata}", details)
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata)", Name: "test"}}
+		details, _, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, details, "conf.yml")
+		assert.NotContains(t, details, "conf2.yml")
+	})
 }

@@ -156,7 +156,7 @@ func (ec *execCmd) Sync(ctx context.Context) (details string, vars map[string]st
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-	if _, err := ec.exec.Sync(ctx, src, dst, ec.cmd.Sync.Delete); err != nil {
+	if _, err := ec.exec.Sync(ctx, src, dst, ec.cmd.Sync.Delete, ec.cmd.Sync.Exclude); err != nil {
 		return details, nil, fmt.Errorf("can't sync files on %s: %w", ec.hostAddr, err)
 	}
 	return details, nil, nil
