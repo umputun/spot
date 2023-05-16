@@ -259,6 +259,7 @@ func TestLocal_Sync(t *testing.T) {
 		srcStructure map[string]string
 		dstStructure map[string]string
 		del          bool
+		exclude      []string
 		expected     []string
 	}{
 		{
@@ -272,6 +273,33 @@ func TestLocal_Sync(t *testing.T) {
 			expected: []string{
 				"file1.txt",
 				"file2.txt",
+			},
+		},
+		{
+			name: "sync non-empty src to empty dst with exclude",
+			srcStructure: map[string]string{
+				"file1.txt": "content1",
+				"file2.txt": "content2",
+			},
+			dstStructure: nil,
+			del:          false,
+			exclude:      []string{"file1.txt"},
+			expected: []string{
+				"file2.txt",
+			},
+		},
+		{
+			name: "sync with path and with exclude",
+			srcStructure: map[string]string{
+				"d1/file1.txt": "content1",
+				"d1/file2.txt": "content2",
+				"d2/file3.txt": "content2",
+			},
+			dstStructure: nil,
+			del:          false,
+			exclude:      []string{"d1/*"},
+			expected: []string{
+				"d2/file3.txt",
 			},
 		},
 		{
@@ -421,7 +449,7 @@ func TestLocal_Sync(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			copiedFiles, err := svc.Sync(ctx, srcDir, dstDir, tc.del)
+			copiedFiles, err := svc.Sync(ctx, srcDir, dstDir, tc.del, tc.exclude)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tc.expected, copiedFiles)
 
@@ -540,7 +568,7 @@ func TestLocal_syncSrcToDst_InvalidSrcPath(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dst)
 
-	_, err = l.syncSrcToDst(context.Background(), src, dst)
+	_, err = l.syncSrcToDst(context.Background(), src, dst, nil)
 	assert.Error(t, err, "expected an error")
 }
 
@@ -687,7 +715,7 @@ func TestSyncSrcToDst_UnhappyPath(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err = l.syncSrcToDst(ctx, tmpSrcDir, tmpDstDir)
+		_, err = l.syncSrcToDst(ctx, tmpSrcDir, tmpDstDir, nil)
 		assert.Error(t, err, "syncSrcToDst should return an error when the context is canceled")
 	})
 
@@ -697,7 +725,7 @@ func TestSyncSrcToDst_UnhappyPath(t *testing.T) {
 		assert.NoError(t, err, "creating a temporary destination directory should not return an error")
 		defer os.RemoveAll(tmpDstDir)
 
-		_, err = l.syncSrcToDst(context.Background(), invalidSrcPath, tmpDstDir)
+		_, err = l.syncSrcToDst(context.Background(), invalidSrcPath, tmpDstDir, nil)
 		assert.Error(t, err, "syncSrcToDst should return an error when there's an error while walking the source directory")
 	})
 }

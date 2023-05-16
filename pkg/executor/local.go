@@ -83,8 +83,8 @@ func (l *Local) Download(_ context.Context, src, dst string, mkdir bool) (err er
 }
 
 // Sync directories from src to dst
-func (l *Local) Sync(ctx context.Context, src, dst string, del bool) ([]string, error) {
-	copiedFiles, err := l.syncSrcToDst(ctx, src, dst)
+func (l *Local) Sync(ctx context.Context, src, dst string, del bool, excl []string) ([]string, error) {
+	copiedFiles, err := l.syncSrcToDst(ctx, src, dst, excl)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (l *Local) Delete(_ context.Context, remoteFile string, recursive bool) (er
 // Close does nothing for local
 func (l *Local) Close() error { return nil }
 
-func (l *Local) syncSrcToDst(ctx context.Context, src, dst string) ([]string, error) {
+func (l *Local) syncSrcToDst(ctx context.Context, src, dst string, excl []string) ([]string, error) {
 	var copiedFiles []string
 
 	err := filepath.Walk(src, func(srcPath string, info os.FileInfo, err error) error {
@@ -125,6 +125,9 @@ func (l *Local) syncSrcToDst(ctx context.Context, src, dst string) ([]string, er
 		if err != nil {
 			return err
 		}
+		if isExcluded(relPath, excl) {
+			return nil
+		}
 
 		dstPath := filepath.Join(dst, relPath)
 		if info.IsDir() {
@@ -136,6 +139,7 @@ func (l *Local) syncSrcToDst(ctx context.Context, src, dst string) ([]string, er
 			}
 			return nil
 		}
+
 		if err := fileutils.CopyFile(srcPath, dstPath); err != nil {
 			return err
 		}

@@ -11,6 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -23,7 +24,7 @@ type Interface interface {
 	Run(ctx context.Context, c string, verbose bool) (out []string, err error)
 	Upload(ctx context.Context, local, remote string, mkdir bool) (err error)
 	Download(ctx context.Context, remote, local string, mkdir bool) (err error)
-	Sync(ctx context.Context, localDir, remoteDir string, del bool) ([]string, error)
+	Sync(ctx context.Context, localDir, remoteDir string, del bool, exclude []string) ([]string, error)
 	Delete(ctx context.Context, remoteFile string, recursive bool) (err error)
 	Close() error
 }
@@ -134,4 +135,17 @@ func maskSecrets(s string, secrets []string) string {
 		s = strings.ReplaceAll(s, secret, "****")
 	}
 	return s
+}
+
+func isExcluded(path string, excl []string) bool {
+	for _, ex := range excl {
+		match, err := filepath.Match(ex, path)
+		if err != nil {
+			continue
+		}
+		if match {
+			return true
+		}
+	}
+	return false
 }

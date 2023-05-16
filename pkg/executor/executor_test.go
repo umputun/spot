@@ -279,3 +279,32 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		assert.Contains(t, bufOut.String(), "[WARN]  ! ****, err!", "captured stderr should contain the err message")
 	})
 }
+
+func Test_isExcluded(t *testing.T) {
+	testCases := []struct {
+		name     string
+		path     string
+		excl     []string
+		expected bool
+	}{
+		{"exact match", "test.txt", []string{"test.txt"}, true},
+		{"glob match", "test.txt", []string{"*.txt"}, true},
+		{"no match", "test.txt", []string{"*.jpg"}, false},
+		{"invalid pattern", "test.txt", []string{"["}, false}, // invalid pattern
+		{"empty exclusion list", "test.txt", []string{}, false},
+		{"empty path", "", []string{"*.txt"}, false},
+		{"directory exclusion", "folder/test.txt", []string{"folder/*"}, true},
+		{"partial match", "folder/test.txt", []string{"folder/*test.txt"}, true},
+		{"non-wildcard match", "folder/test.txt", []string{"folder/"}, false},
+		{"match with ? wildcard", "test.txt", []string{"t?st.txt"}, true},
+		{"match with multiple wildcards", "folder/subfolder/test.txt", []string{"folder/*/test.txt"}, true},
+		{"case sensitivity", "Test.txt", []string{"test.txt"}, false}, // assumes a case-sensitive file system
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := isExcluded(tc.path, tc.excl)
+			assert.Equal(t, tc.expected, actual)
+		})
+	}
+}

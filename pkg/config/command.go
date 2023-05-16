@@ -49,9 +49,10 @@ type CopyInternal struct {
 
 // SyncInternal defines sync command (recursive copy), implemented internally
 type SyncInternal struct {
-	Source string `yaml:"src" toml:"src"`
-	Dest   string `yaml:"dst" toml:"dst"`
-	Delete bool   `yaml:"delete" toml:"delete"`
+	Source  string   `yaml:"src" toml:"src"`
+	Dest    string   `yaml:"dst" toml:"dst"`
+	Delete  bool     `yaml:"delete" toml:"delete"`
+	Exclude []string `yaml:"exclude" toml:"exclude"`
 }
 
 // DeleteInternal defines delete command, implemented internally

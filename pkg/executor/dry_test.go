@@ -84,7 +84,7 @@ func TestDryOperations(t *testing.T) {
 		{
 			name: "sync",
 			operation: func() error {
-				_, err := dry.Sync(context.Background(), "local/dir", "remote/dir", true)
+				_, err := dry.Sync(context.Background(), "local/dir", "remote/dir", true, nil)
 				return err
 			},
 			expectedLog: "[DEBUG] sync local/dir to remote/dir, delite: true",

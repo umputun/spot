@@ -115,7 +115,7 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool) ([]string, error) {
+func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool, excl []string) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
@@ -126,7 +126,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool
 		return nil, fmt.Errorf("failed to get remote files properties for %s: %w", remoteDir, err)
 	}
 
-	unmatchedFiles, deletedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles)
+	unmatchedFiles, deletedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles, excl)
 	for _, file := range unmatchedFiles {
 		localPath := filepath.Join(localDir, file)
 		remotePath := filepath.Join(remoteDir, file)
@@ -460,7 +460,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map
 	return fileProps, nil
 }
 
-func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties) (updatedFiles, deletedFiles []string) {
+func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, excl []string) (updatedFiles, deletedFiles []string) {
 	isWithinOneSecond := func(t1, t2 time.Time) bool {
 		diff := t1.Sub(t2)
 		if diff < 0 {
@@ -475,6 +475,9 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties) (u
 	for localPath, localProps := range local {
 		if localProps.IsDir {
 			continue // don't put directories to unmatched files, no need to upload them
+		}
+		if isExcluded(localPath, excl) {
+			continue // don't put excluded files to unmatched files, no need to upload them
 		}
 		remoteProps, exists := remote[localPath]
 		if !exists || localProps.Size != remoteProps.Size || !isWithinOneSecond(localProps.Time, remoteProps.Time) {
