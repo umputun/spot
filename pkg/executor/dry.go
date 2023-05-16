@@ -76,7 +76,7 @@ func (ex *Dry) Download(_ context.Context, remote, local string, mkdir bool) (er
 
 // Sync doesn't sync anything, just prints the command
 func (ex *Dry) Sync(_ context.Context, localDir, remoteDir string, del bool, exclude []string) ([]string, error) {
-	log.Printf("[DEBUG] sync %s to %s, delite: %v, exlcude: %v", localDir, remoteDir, del, exclude)
+	log.Printf("[DEBUG] sync %s to %s, delite: %v, exlcude: %v", localDir, remoteDir, del, exclude) //nolint
 	return nil, nil
 }
 
