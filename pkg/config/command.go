@@ -319,7 +319,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// validate checks if a Cmd has the exactly one command type set (script, copy, mcopy, delete, sync, or wait)
+// validate checks if a Cmd has the exactly one command type set (script, copy, mcopy, delete, sync, wait or echo)
 // and returns an error if there are either multiple command types set or none set.
 func (cmd *Cmd) validate() error {
 	cmdTypes := []struct {
