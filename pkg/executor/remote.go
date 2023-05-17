@@ -121,7 +121,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
 	}
 
-	remoteFiles, err := ex.getRemoteFilesProperties(ctx, remoteDir)
+	remoteFiles, err := ex.getRemoteFilesProperties(ctx, remoteDir, excl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remote files properties for %s: %w", remoteDir, err)
 	}
@@ -419,7 +419,7 @@ func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties
 	return fileProps, nil
 }
 
-func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map[string]fileProperties, error) {
+func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl []string) (map[string]fileProperties, error) {
 	sftpClient, err := sftp.NewClient(ex.client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create sftp client: %v", err)
@@ -436,12 +436,17 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map
 			return nil, ctx.Err()
 		default:
 		}
-
+		log.Printf("[DEBUG] remote walker path: %s", walker.Path())
 		if walker.Err() != nil {
+			if os.IsPermission(walker.Err()) {
+				continue
+			}
+
 			if walker.Err().Error() == "file does not exist" {
 				return fileProps, nil
 			}
-			return nil, fmt.Errorf("failed to walk remote directory: %v", walker.Err())
+
+			return nil, fmt.Errorf("failed to walk remote directory %s: %v", walker.Path(), walker.Err())
 		}
 
 		fileInfo, fullPath := walker.Stat(), walker.Path()
@@ -452,6 +457,11 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string) (map
 		relPath, err := filepath.Rel(dir, fullPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get relative path for %s: %w", fullPath, err)
+		}
+
+		// Check if the file should be excluded
+		if isExcluded(relPath, excl) {
+			continue
 		}
 
 		fileProps[relPath] = fileProperties{Size: fileInfo.Size(), Time: fileInfo.ModTime(), FileName: fullPath, IsDir: fileInfo.IsDir()}
