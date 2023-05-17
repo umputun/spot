@@ -149,6 +149,10 @@ func isExcluded(path string, excl []string) bool {
 			if match {
 				return true
 			}
+			// treat directory in exclusion list as excluding all of its contents
+			if strings.TrimSuffix(ex, "/*") == subpath {
+				return true
+			}
 		}
 	}
 	return false

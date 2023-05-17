@@ -290,16 +290,18 @@ func Test_isExcluded(t *testing.T) {
 		{"exact match", "test.txt", []string{"test.txt"}, true},
 		{"glob match", "test.txt", []string{"*.txt"}, true},
 		{"no match", "test.txt", []string{"*.jpg"}, false},
-		{"invalid pattern", "test.txt", []string{"["}, false}, // invalid pattern
+		{"invalid pattern", "test.txt", []string{"["}, false},
 		{"empty exclusion list", "test.txt", []string{}, false},
 		{"empty path", "", []string{"*.txt"}, false},
 		{"directory exclusion", "folder/test.txt", []string{"folder/*"}, true},
+		{"directory exclusion without wildcard", "folder/test.txt", []string{"folder"}, true},
+		{"recursive exclusion", "folder/subfolder/test.txt", []string{"folder/*"}, true},
+		{"recursive exclusion without wildcard", "folder/subfolder/test.txt", []string{"folder"}, true},
 		{"partial match", "folder/test.txt", []string{"folder/*test.txt"}, true},
 		{"non-wildcard match", "folder/test.txt", []string{"folder/"}, false},
 		{"match with ? wildcard", "test.txt", []string{"t?st.txt"}, true},
 		{"match with multiple wildcards", "folder/subfolder/test.txt", []string{"folder/*/test.txt"}, true},
-		{"case sensitivity", "Test.txt", []string{"test.txt"}, false}, // assumes a case-sensitive file system
-		{"recursive exclusion", "folder/subfolder/test.txt", []string{"folder/*"}, true},
+		{"case sensitivity", "Test.txt", []string{"test.txt"}, false},
 	}
 
 	for _, tc := range testCases {
