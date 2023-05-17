@@ -299,6 +299,7 @@ func Test_isExcluded(t *testing.T) {
 		{"match with ? wildcard", "test.txt", []string{"t?st.txt"}, true},
 		{"match with multiple wildcards", "folder/subfolder/test.txt", []string{"folder/*/test.txt"}, true},
 		{"case sensitivity", "Test.txt", []string{"test.txt"}, false}, // assumes a case-sensitive file system
+		{"recursive exclusion", "folder/subfolder/test.txt", []string{"folder/*"}, true},
 	}
 
 	for _, tc := range testCases {

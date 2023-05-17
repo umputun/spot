@@ -138,13 +138,17 @@ func maskSecrets(s string, secrets []string) string {
 }
 
 func isExcluded(path string, excl []string) bool {
-	for _, ex := range excl {
-		match, err := filepath.Match(ex, path)
-		if err != nil {
-			continue
-		}
-		if match {
-			return true
+	pathSegments := strings.Split(path, string(filepath.Separator))
+	for i := range pathSegments {
+		subpath := filepath.Join(pathSegments[:i+1]...)
+		for _, ex := range excl {
+			match, err := filepath.Match(ex, subpath)
+			if err != nil {
+				continue
+			}
+			if match {
+				return true
+			}
 		}
 	}
 	return false
