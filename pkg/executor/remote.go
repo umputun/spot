@@ -3,6 +3,7 @@ package executor
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -419,52 +420,64 @@ func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties
 	return fileProps, nil
 }
 
+// this function is used to get file properties for remote files. Instead of using sftpClient.Walk, we use
+// sftpClient.ReadDir to get file properties for all files in the remote directory. This is because sftpClient.Walk
+// doesn't support excluding files/directories, and we can speed up the process by excluding files/directories that
+// are not needed.
 func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl []string) (map[string]fileProperties, error) {
-	sftpClient, err := sftp.NewClient(ex.client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create sftp client: %v", err)
+	sftpClient, e := sftp.NewClient(ex.client)
+	if e != nil {
+		return nil, fmt.Errorf("failed to create sftp client: %v", e)
 	}
 	defer sftpClient.Close()
 
 	fileProps := make(map[string]fileProperties)
 
-	walker := sftpClient.Walk(dir)
+	// recursive function to walk remote directory and get file properties
+	var processEntry func(ctx context.Context, client *sftp.Client, root string, excl []string, dir string) error
 
-	for walker.Step() {
+	processEntry = func(ctx context.Context, client *sftp.Client, root string, excl []string, dir string) error {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		default:
 		}
-		log.Printf("[DEBUG] remote walker path: %s", walker.Path())
-		if walker.Err() != nil {
-			if os.IsPermission(walker.Err()) {
+
+		entries, err := client.ReadDir(dir)
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		for _, entry := range entries {
+			fullPath := filepath.Join(dir, entry.Name())
+			relPath, err := filepath.Rel(root, fullPath)
+			if err != nil {
+				log.Printf("[ERROR] failed to get relative path for %s: %v", fullPath, err)
 				continue
 			}
 
-			if walker.Err().Error() == "file does not exist" {
-				return fileProps, nil
+			if isExcluded(relPath, excl) {
+				continue
 			}
 
-			return nil, fmt.Errorf("failed to walk remote directory %s: %v", walker.Path(), walker.Err())
-		}
+			if entry.IsDir() {
+				err := processEntry(ctx, client, root, excl, fullPath)
+				if err != nil {
+					log.Printf("[ERROR] failed to process directory %s: %v", fullPath, err)
+				}
+				continue
+			}
 
-		fileInfo, fullPath := walker.Stat(), walker.Path()
-		if fileInfo.IsDir() && fileInfo.Name() == "." {
-			continue
+			fileProps[relPath] = fileProperties{Size: entry.Size(), Time: entry.ModTime(), FileName: fullPath, IsDir: entry.IsDir()}
 		}
+		return nil
+	}
 
-		relPath, err := filepath.Rel(dir, fullPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get relative path for %s: %w", fullPath, err)
-		}
-
-		// Check if the file should be excluded
-		if isExcluded(relPath, excl) {
-			continue
-		}
-
-		fileProps[relPath] = fileProperties{Size: fileInfo.Size(), Time: fileInfo.ModTime(), FileName: fullPath, IsDir: fileInfo.IsDir()}
+	if err := processEntry(ctx, sftpClient, dir, excl, dir); err != nil {
+		return nil, fmt.Errorf("failed to get remote files properties for %s: %w", dir, err)
 	}
 
 	return fileProps, nil

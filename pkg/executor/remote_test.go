@@ -251,9 +251,9 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("ctx canceled", func(t *testing.T) {
-		ctxc, cancel := context.WithCancel(ctx)
+		ctxCancel, cancel := context.WithCancel(ctx)
 		cancel()
-		_, err := sess.Run(ctxc, "sh -c 'echo hello world'", false)
+		_, err := sess.Run(ctxCancel, "sh -c 'echo hello world'", false)
 		assert.ErrorContains(t, err, "context canceled")
 	})
 
@@ -279,10 +279,8 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
-	})
 
-	t.Run("sync_again", func(t *testing.T) {
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
+		res, e = sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
 		require.NoError(t, e)
 		assert.Equal(t, 0, len(res), "no files should be synced", res)
 	})
@@ -505,6 +503,54 @@ func TestExecuter_findUnmatchedFiles(t *testing.T) {
 			assert.Equal(t, tc.updated, updated)
 			assert.Equal(t, tc.deleted, deleted)
 		})
+	}
+}
+
+func Test_getRemoteFilesProperties(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// create some test data on the remote host.
+	_, err = sess.Run(ctx, "mkdir -p /tmp/testdata/dir1 /tmp/testdata/dir2 && echo 'Hello' > /tmp/testdata/dir1/file1.txt && echo 'World' > /tmp/testdata/dir2/file2.txt", true)
+	require.NoError(t, err)
+
+	props, err := sess.getRemoteFilesProperties(ctx, "/tmp/testdata", nil)
+	require.NoError(t, err)
+
+	// check if the file properties match what's expected.
+	expected := map[string]fileProperties{
+		"dir1/file1.txt": {
+			Size:     6,
+			FileName: "/tmp/testdata/dir1/file1.txt",
+			IsDir:    false,
+		},
+		"dir2/file2.txt": {
+			Size:     6,
+			FileName: "/tmp/testdata/dir2/file2.txt",
+			IsDir:    false,
+		},
+	}
+
+	for path, prop := range props {
+		t.Logf("path: %s, properties: %+v", path, prop)
+
+		expectedProp, ok := expected[path]
+		if !ok {
+			t.Errorf("unexpected file: %s", path)
+			continue
+		}
+
+		if prop.Size != expectedProp.Size || prop.FileName != expectedProp.FileName || prop.IsDir != expectedProp.IsDir {
+			t.Errorf("properties of %s do not match. expected %+v, got %+v", path, expectedProp, prop)
+		}
 	}
 }
 
