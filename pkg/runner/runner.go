@@ -184,8 +184,11 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 		log.Printf("[DEBUG] copy multiple files to %s", ec.hostAddr)
 		return ec.Mcopy(ctx)
 	case ec.cmd.Sync.Source != "" && ec.cmd.Sync.Dest != "":
-		log.Printf("[DEBUG] sync files on %s", ec.hostAddr)
+		log.Printf("[DEBUG] sync files to %s", ec.hostAddr)
 		return ec.Sync(ctx)
+	case len(ec.cmd.MSync) > 0:
+		log.Printf("[DEBUG] sync multiple locations to %s", ec.hostAddr)
+		return ec.Msync(ctx)
 	case ec.cmd.Delete.Location != "":
 		log.Printf("[DEBUG] delete files on %s", ec.hostAddr)
 		return ec.Delete(ctx)

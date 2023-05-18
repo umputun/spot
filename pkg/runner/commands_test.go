@@ -314,4 +314,28 @@ func Test_execCmd(t *testing.T) {
 		assert.Contains(t, details, "conf.yml")
 		assert.NotContains(t, details, "conf2.yml")
 	})
+
+	t.Run("msync command", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MSync: []config.SyncInternal{
+			{Source: "testdata", Dest: "/tmp/sync.testdata_m1", Exclude: []string{"conf2.yml"}},
+			{Source: "testdata", Dest: "/tmp/sync.testdata_m2"},
+		}, Name: "test"}}
+		details, _, err := ec.Msync(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata_m1, testdata -> /tmp/sync.testdata_m2}", details)
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata_m1)",
+			Name: "test"}}
+		details, _, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, details, "conf.yml")
+		assert.NotContains(t, details, "conf2.yml")
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata_m2)",
+			Name: "test"}}
+		details, _, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, details, "conf.yml")
+		assert.Contains(t, details, "conf2.yml")
+	})
 }

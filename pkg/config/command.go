@@ -19,6 +19,7 @@ type Cmd struct {
 	Copy        CopyInternal      `yaml:"copy" toml:"copy"`
 	MCopy       []CopyInternal    `yaml:"mcopy" toml:"mcopy"`
 	Sync        SyncInternal      `yaml:"sync" toml:"sync"`
+	MSync       []SyncInternal    `yaml:"msync" toml:"msync"`
 	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
 	Script      string            `yaml:"script" toml:"script,multiline"`
@@ -300,7 +301,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		fieldName := field.Tag.Get("yaml")
 
 		// skip copy, processed separately. fields without yaml tag or with "-" are skipped too
-		if fieldName == "copy" || fieldName == "" || fieldName == "-" {
+		if fieldName == "copy" || fieldName == "sync" || fieldName == "" || fieldName == "-" {
 			continue
 		}
 
@@ -316,6 +317,14 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return err
 		}
 	}
+
+	// sync is a special case, as it can be either a struct or a list of structs
+	if err := unmarshalField("sync", &cmd.Sync); err != nil {
+		if err := unmarshalField("sync", &cmd.MSync); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -331,6 +340,7 @@ func (cmd *Cmd) validate() error {
 		{"mcopy", func() bool { return len(cmd.MCopy) > 0 }},
 		{"delete", func() bool { return cmd.Delete.Location != "" }},
 		{"sync", func() bool { return cmd.Sync.Source != "" && cmd.Sync.Dest != "" }},
+		{"msync", func() bool { return len(cmd.MSync) > 0 }},
 		{"wait", func() bool { return cmd.Wait.Command != "" }},
 		{"echo", func() bool { return cmd.Echo != "" }},
 	}
