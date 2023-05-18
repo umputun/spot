@@ -286,7 +286,7 @@ func TestCmd_UnmarshalYAML(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name: "Simple case",
+			name: "simple case",
 			yamlInput: `
 name: test
 script: echo "Hello, World!"
@@ -298,19 +298,30 @@ script: echo "Hello, World!"
 		},
 
 		{
-			name: "Copy and Mcopy",
+			name: "copy multiple sets",
 			yamlInput: `
 name: test
 copy:
-  src: source
-  dst: destination
+  - {src: source1, dst: destination1}
+  - {src: source2, dst: destination2}
 `,
 			expectedCmd: Cmd{
-				Name: "test",
-				Copy: CopyInternal{
-					Source: "source",
-					Dest:   "destination",
-				},
+				Name:  "test",
+				MCopy: []CopyInternal{{Source: "source1", Dest: "destination1"}, {Source: "source2", Dest: "destination2"}},
+			},
+		},
+
+		{
+			name: "msync",
+			yamlInput: `
+name: test
+sync:
+  - {src: source1, dst: destination1}
+  - {src: source2, dst: destination2}
+`,
+			expectedCmd: Cmd{
+				Name:  "test",
+				MSync: []SyncInternal{{Source: "source1", Dest: "destination1"}, {Source: "source2", Dest: "destination2"}},
 			},
 		},
 
@@ -412,10 +423,11 @@ func TestCmd_validate(t *testing.T) {
 		{"only mcopy", Cmd{MCopy: []CopyInternal{{Source: "source1", Dest: "dest1"}, {Source: "source2", Dest: "dest2"}}}, ""},
 		{"only delete", Cmd{Delete: DeleteInternal{Location: "location"}}, ""},
 		{"only sync", Cmd{Sync: SyncInternal{Source: "source", Dest: "dest"}}, ""},
+		{"only msync", Cmd{MSync: []SyncInternal{{Source: "source", Dest: "dest"}}}, ""},
 		{"only wait", Cmd{Wait: WaitInternal{Command: "command"}}, ""},
 		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
 			"only one of [script, copy] is allowed"},
-		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, sync, wait, echo] must be set"},
+		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, sync, msync, wait, echo] must be set"},
 	}
 
 	for _, tt := range tbl {

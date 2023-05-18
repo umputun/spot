@@ -162,6 +162,24 @@ func (ec *execCmd) Sync(ctx context.Context) (details string, vars map[string]st
 	return details, nil, nil
 }
 
+// Msync synchronizes multiple locations from a source to a destination on a target host.
+func (ec *execCmd) Msync(ctx context.Context) (details string, vars map[string]string, err error) {
+	msgs := []string{}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	for _, c := range ec.cmd.MSync {
+		src := tmpl.apply(c.Source)
+		dst := tmpl.apply(c.Dest)
+		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
+		ecSingle := ec
+		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete}
+		if _, _, err := ecSingle.Sync(ctx); err != nil {
+			return details, nil, fmt.Errorf("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
+		}
+	}
+	details = fmt.Sprintf(" {sync: %s}", strings.Join(msgs, ", "))
+	return details, nil, nil
+}
+
 // Delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
 func (ec *execCmd) Delete(ctx context.Context) (details string, vars map[string]string, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
