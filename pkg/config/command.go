@@ -243,7 +243,7 @@ func (cmd *Cmd) getSecrets() []string {
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler interface
-// It allows to unmarshal a "copy" from a single field or a slice
+// It allows to unmarshal a "copy", "sync" and "delete" from a single field or a slice
 // All other fields are unmarshalled as usual. Limited to string, int, struct, slice or map
 func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var asMap map[string]interface{}
