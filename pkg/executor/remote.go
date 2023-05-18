@@ -437,6 +437,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 	var processEntry func(ctx context.Context, client *sftp.Client, root string, excl []string, dir string) error
 
 	processEntry = func(ctx context.Context, client *sftp.Client, root string, excl []string, dir string) error {
+		log.Printf("[DEBUG] processing remote directory %s", dir)
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -455,7 +456,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 			fullPath := filepath.Join(dir, entry.Name())
 			relPath, err := filepath.Rel(root, fullPath)
 			if err != nil {
-				log.Printf("[ERROR] failed to get relative path for %s: %v", fullPath, err)
+				log.Printf("[WARN] failed to get relative path for %s: %v", fullPath, err)
 				continue
 			}
 
@@ -465,8 +466,8 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 
 			if entry.IsDir() {
 				err := processEntry(ctx, client, root, excl, fullPath)
-				if err != nil {
-					log.Printf("[ERROR] failed to process directory %s: %v", fullPath, err)
+				if err != nil && err.Error() != "context canceled" {
+					log.Printf("[WARN] failed to process directory %s: %v", fullPath, err)
 				}
 				continue
 			}
