@@ -164,6 +164,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 		inventoryLoc = overrides.Inventory // inventory set in cli overrides
 	}
 	if inventoryLoc != "" { // load inventory if set. if not set, assume direct hosts in targets are used
+		log.Printf("[DEBUG] inventory location %q", inventoryLoc)
 		res.inventory, err = res.loadInventory(inventoryLoc)
 		if err != nil {
 			return nil, fmt.Errorf("can't load inventory %s: %w", inventoryLoc, err)
@@ -232,7 +233,7 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
 		res.Tasks[0].Name = "default"               // we have only one task, set it as default
 
-		hasInventory := simple.Inventory != "" || (overrides != nil && overrides.Inventory != "")
+		hasInventory := simple.Inventory != "" || (overrides != nil && overrides.Inventory != "") || os.Getenv(inventoryEnv) != ""
 
 		target := Target{}
 		targets := append([]string{}, simple.Targets...)
