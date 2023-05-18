@@ -263,6 +263,30 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 3, res.Commands)
 		assert.Contains(t, outWriter.String(), `completed command "echo things" {echo: vars - 6, 9, zzzzz}`)
 	})
+
+	t.Run("delete multiple files", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Config:      conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+			Only:        []string{"prep multiple files for delete", "delete multiple files"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 2, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), `deleted /tmp/deleteme.1`)
+		assert.Contains(t, outWriter.String(), `deleted /tmp/deleteme.2`)
+	})
+
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {

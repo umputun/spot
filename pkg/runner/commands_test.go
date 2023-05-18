@@ -202,6 +202,21 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("delete a multi-files", func(t *testing.T) {
+		_, err := sess.Run(ctx, "touch /tmp/delete1.me /tmp/delete2.me ", true)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "ls /tmp/delete1.me", true)
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MDelete: []config.DeleteInternal{
+			{Location: "/tmp/delete1.me"}, {Location: "/tmp/delete2.me"}}}}
+		_, _, err = ec.MDelete(ctx)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "ls /tmp/delete1.me", true)
+		require.Error(t, err)
+		_, err = sess.Run(ctx, "ls /tmp/delete2.me", true)
+		require.Error(t, err)
+	})
+
 	t.Run("delete files recursive", func(t *testing.T) {
 		var err error
 		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-recursive", true)

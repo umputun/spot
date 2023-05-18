@@ -192,6 +192,9 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 	case ec.cmd.Delete.Location != "":
 		log.Printf("[DEBUG] delete files on %s", ec.hostAddr)
 		return ec.Delete(ctx)
+	case len(ec.cmd.MDelete) > 0:
+		log.Printf("[DEBUG] delete multiple files on %s", ec.hostAddr)
+		return ec.MDelete(ctx)
 	case ec.cmd.Wait.Command != "":
 		log.Printf("[DEBUG] wait for command on %s", ec.hostAddr)
 		return ec.Wait(ctx)
