@@ -9,6 +9,7 @@ require (
 	github.com/fatih/color v1.15.0
 	github.com/go-pkgz/fileutils v0.2.0
 	github.com/go-pkgz/lgr v0.11.0
+	github.com/go-pkgz/stringutils v1.0.0
 	github.com/go-pkgz/syncs v1.3.0
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/hashicorp/go-multierror v1.1.1

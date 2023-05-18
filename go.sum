@@ -61,6 +61,8 @@ github.com/go-pkgz/fileutils v0.2.0 h1:TyCYD02ESjG+5rPVBMydmyWYaGdMEbjbvG6kNRuW6
 github.com/go-pkgz/fileutils v0.2.0/go.mod h1:8J7iLe7WensJoQ/WjqODxoAI9ju8jXR/3iVWCDtyZWY=
 github.com/go-pkgz/lgr v0.11.0 h1:9XH5o+vj09L0sRWEswIGK1lJ6g07xVB4/Z28RV9Z+qM=
 github.com/go-pkgz/lgr v0.11.0/go.mod h1:4rdRmMSs4yGFjnUg0rSDbKx21LmFNZoH4y8OLl3qDnU=
+github.com/go-pkgz/stringutils v1.0.0 h1:uXFJBl7OqY9rUR+ATOSY8eFGpMYXdIsjdemZJM+0FtU=
+github.com/go-pkgz/stringutils v1.0.0/go.mod h1:p5XLM6BpFFOhtJYdUAbeE8a41vBsEqj4BFHbklNI5mo=
 github.com/go-pkgz/syncs v1.3.0 h1:SS5hJRQFKOdYBzxcVvW/CDQ07VJncOlRqrAiQ6sXulQ=
 github.com/go-pkgz/syncs v1.3.0/go.mod h1:qjgzpp7OpuhDf7BWsW/FHCu9DLjE32NPy6/vXAXT/Cw=
 github.com/go-sql-driver/mysql v1.7.1 h1:lUIinVbN1DY0xBg0eMOzmmtGoHwWBbvnWubQUrtU8EI=

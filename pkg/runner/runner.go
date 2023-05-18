@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/go-pkgz/stringutils"
 	"github.com/go-pkgz/syncs"
 
 	"github.com/umputun/spot/pkg/config"
@@ -296,24 +297,16 @@ func (p *Process) updateVars(vars map[string]string, cmd config.Cmd, tsk *config
 // of hosts. If the onlyOn field is empty, the command will be executed on all hosts.
 // It also checks if the command is in the 'only' or 'skip' list, and considers the 'NoAuto' option.
 func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
-	contains := func(list []string, s string) bool {
-		for _, v := range list {
-			if strings.EqualFold(v, s) {
-				return true
-			}
-		}
-		return false
-	}
 
-	if len(p.Only) > 0 && !contains(p.Only, cmd.Name) {
+	if len(p.Only) > 0 && !stringutils.Contains(cmd.Name, p.Only) {
 		log.Printf("[DEBUG] skip command %q, not in only list", cmd.Name)
 		return false
 	}
-	if len(p.Skip) > 0 && contains(p.Skip, cmd.Name) {
+	if len(p.Skip) > 0 && stringutils.Contains(cmd.Name, p.Skip) {
 		log.Printf("[DEBUG] skip command %q, in skip list", cmd.Name)
 		return false
 	}
-	if cmd.Options.NoAuto && (len(p.Only) == 0 || !contains(p.Only, cmd.Name)) {
+	if cmd.Options.NoAuto && (len(p.Only) == 0 || !stringutils.Contains(cmd.Name, p.Only)) {
 		log.Printf("[DEBUG] skip command %q, has noauto option", cmd.Name)
 		return false
 	}

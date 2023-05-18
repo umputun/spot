@@ -167,6 +167,9 @@ github.com/go-pkgz/fileutils
 # github.com/go-pkgz/lgr v0.11.0
 ## explicit; go 1.19
 github.com/go-pkgz/lgr
+# github.com/go-pkgz/stringutils v1.0.0
+## explicit; go 1.20
+github.com/go-pkgz/stringutils
 # github.com/go-pkgz/syncs v1.3.0
 ## explicit; go 1.20
 github.com/go-pkgz/syncs
