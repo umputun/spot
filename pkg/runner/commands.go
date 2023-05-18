@@ -208,6 +208,23 @@ func (ec *execCmd) Delete(ctx context.Context) (details string, vars map[string]
 	return details, nil, nil
 }
 
+// MDelete deletes multiple locations on a target host.
+func (ec *execCmd) MDelete(ctx context.Context) (details string, vars map[string]string, err error) {
+	msgs := []string{}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	for _, c := range ec.cmd.MDelete {
+		loc := tmpl.apply(c.Location)
+		ecSingle := ec
+		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive}
+		if _, _, err := ecSingle.Delete(ctx); err != nil {
+			return details, nil, fmt.Errorf("can't delete %s on %s: %w", loc, ec.hostAddr, err)
+		}
+		msgs = append(msgs, loc)
+	}
+	details = fmt.Sprintf(" {delete: %s}", strings.Join(msgs, ", "))
+	return details, nil, nil
+}
+
 // Wait waits for a command to complete on a target hostAddr. It runs the command in a loop with a check duration
 // until the command succeeds or the timeout is exceeded.
 func (ec *execCmd) Wait(ctx context.Context) (details string, vars map[string]string, err error) {

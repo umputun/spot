@@ -17,10 +17,11 @@ import (
 type Cmd struct {
 	Name        string            `yaml:"name" toml:"name"`
 	Copy        CopyInternal      `yaml:"copy" toml:"copy"`
-	MCopy       []CopyInternal    `yaml:"mcopy" toml:"mcopy"`
+	MCopy       []CopyInternal    `yaml:"mcopy" toml:"mcopy"` // multiple copy commands, implemented internally
 	Sync        SyncInternal      `yaml:"sync" toml:"sync"`
-	MSync       []SyncInternal    `yaml:"msync" toml:"msync"`
+	MSync       []SyncInternal    `yaml:"msync" toml:"msync"` // multiple sync commands, implemented internally
 	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
+	MDelete     []DeleteInternal  `yaml:"mdelete" toml:"mdelete"` // multiple delete commands, implemented internally
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
 	Script      string            `yaml:"script" toml:"script,multiline"`
 	Echo        string            `yaml:"echo" toml:"echo"`
@@ -301,7 +302,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		fieldName := field.Tag.Get("yaml")
 
 		// skip copy, processed separately. fields without yaml tag or with "-" are skipped too
-		if fieldName == "copy" || fieldName == "sync" || fieldName == "" || fieldName == "-" {
+		if fieldName == "copy" || fieldName == "sync" || fieldName == "delete" || fieldName == "" || fieldName == "-" {
 			continue
 		}
 
@@ -325,6 +326,13 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
+	// sync is a special case, as it can be either a struct or a list of structs
+	if err := unmarshalField("delete", &cmd.Delete); err != nil {
+		if err := unmarshalField("delete", &cmd.MDelete); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -339,6 +347,7 @@ func (cmd *Cmd) validate() error {
 		{"copy", func() bool { return cmd.Copy.Source != "" && cmd.Copy.Dest != "" }},
 		{"mcopy", func() bool { return len(cmd.MCopy) > 0 }},
 		{"delete", func() bool { return cmd.Delete.Location != "" }},
+		{"mdelete", func() bool { return len(cmd.MDelete) > 0 }},
 		{"sync", func() bool { return cmd.Sync.Source != "" && cmd.Sync.Dest != "" }},
 		{"msync", func() bool { return len(cmd.MSync) > 0 }},
 		{"wait", func() bool { return cmd.Wait.Command != "" }},

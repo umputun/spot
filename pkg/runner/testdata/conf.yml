@@ -103,6 +103,19 @@ tasks:
         echo: vars - $foo, $bar, $baz
         options: {no_auto: true}
 
+      - name: prep multiple files for delete
+        copy:
+          - {src: testdata/conf.yml, dst: /tmp/deleteme.1}
+          - {src: testdata/conf.yml, dst: /tmp/deleteme.2}
+        options: {no_auto: true}
+      - name: delete multiple files
+        delete:
+          - {path: "/tmp/deleteme.1"}
+          - {path: "/tmp/deleteme.2"}
+        options: {no_auto: true}
+
+
+
   - name: failed_task
     commands:
       - name: good command
