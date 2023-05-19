@@ -58,7 +58,7 @@ github.com/aws/aws-sdk-go-v2/internal/ini
 # github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.27
 ## explicit; go 1.15
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url
-# github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.7
+# github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.19.8
 ## explicit; go 1.15
 github.com/aws/aws-sdk-go-v2/service/secretsmanager
 github.com/aws/aws-sdk-go-v2/service/secretsmanager/internal/endpoints
@@ -462,7 +462,7 @@ modernc.org/cc/v3
 # modernc.org/ccgo/v3 v3.16.13
 ## explicit; go 1.17
 modernc.org/ccgo/v3/lib
-# modernc.org/libc v1.22.5
+# modernc.org/libc v1.22.6
 ## explicit; go 1.18
 modernc.org/libc
 modernc.org/libc/errno
