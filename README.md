@@ -730,6 +730,8 @@ If you want to try the latest development version, you can install it directly f
 
 The project is currently in active development, and breaking changes may occur until the release of version 1.0. However, we strive to minimize disruptions and will only introduce breaking changes when there is a compelling reason to do so.
 
+*Update: Version 1 has been released and is now considered stable. We do not anticipate any breaking changes for this version.*
+
 ## Contributing
 
 Please feel free to open a discussion, submit issues, fork the repository, and send pull requests. See [CONTRIBUTING.md](https://github.com/umputun/spot/blob/master/CONTRIBUTING.md) for more information.
