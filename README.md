@@ -314,20 +314,89 @@ This approach is intentional to prevent confusion and make it easier to comprehe
 
 Spot supports the following command types:
 
-- `script`: can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
-- `copy`: copies a file from the local machine to the remote host(s). Example: `copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash. The command also supports glob patterns in `src` field. Example: `copy: {"src": "testdata/*.csv", "dst": "/tmp/things"}`. 
-- `sync`: syncs directory from the local machine to the remote host(s). Optionally supports deleting files on the remote host(s) that don't exist locally. Example: `sync: {"src": "testdata", "dst": "/tmp/things", "delete": true}`. Another option is `exclude` which allows to specify a list of files to exclude from the sync. Example: `sync: {"src": "testdata", "dst": "/tmp/things", "exclude": ["*.txt", "*.yml"]}`.
-- `delete`: deletes a file or directory on the remote host(s), optionally can remove recursively. Example: `delete: {"path": "/tmp/things", "recur": true}`
-- `wait`: waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when you need to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval. Example: `wait: {"cmd": "curl -s --fail localhost:8080", "timeout": "30s", "interval": "1s"}`
-- `echo`: prints the specified message to the console. Example: `echo: "Hello World $some_var"`. This command is useful for debugging purposes and also to print the value of variables to the console.
+#### `script`
 
-Note: `copy`, `sync`, and `delete` commands support lists the list form as well, so multiple files/paths can be copied, synced or deleted in one command. For example:
+Can be any valid shell script. The script will be executed on the remote host(s) using SSH, inside a shell.
 
-```yml
-copy: 
-  - {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml"}, 
-  - {"src": "testdata/conf2.yml", "dst": "/tmp/conf2.yml"}
-  - {"src": "testdata/etc/*", "dst": "/tmp/etc", "mkdir": true}
+```yaml
+script: |
+  ls -laR /tmp
+  du -hcs /srv
+  cat /tmp/conf.yml
+  echo all good, 123
+```
+
+#### `copy`
+
+Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
+
+```yaml
+- name: copy file with mkdir
+  copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`
+
+- name: copy files with glob
+  copy: {"src": "testdata/*.csv", "dst": "/tmp/things"}`
+```
+
+Copy also supports list format to copy multiple files at once:
+
+```yaml
+- name: copy files with glob
+  copy:
+    - {"src": "testdata/*.csv", "dst": "/tmp/things"}
+    - {"src": "testdata/*.yml", "dst": "/tmp/things"}
+```
+
+#### `sync`
+
+Synchronises directory from the local machine to the remote host(s). Optionally supports deleting files on the remote host(s) that don't exist locally with `"delete": true` flag. Another option is `exclude` which allows to specify a list of files to exclude from the sync.
+
+
+```yaml
+- name: sync directory
+  sync: {"src": "testdata", "dst": "/tmp/things"}
+
+- name: sync directory with delete
+  sync: {"src": "testdata", "dst": "/tmp/things", "delete": true}
+
+- name: sync directory with exclude
+  sync: {"src": "testdata", "dst": "/tmp/things", "exclude": ["*.txt", "*.yml"]}
+  
+```  
+
+Sync also supports list format to sync multiple paths at once.
+
+#### `delete`
+
+Deletes a file or directory on the remote host(s), optionally can remove recursively. 
+
+```yaml
+- name: delete file
+  delete: {"path": "/tmp/things.csv"}
+- name: delete directory recursively
+  delete: {"path": "/tmp/things", "recur": true}
+```
+
+Delete also supports list format to remove multiple paths at once.
+
+#### `wait`
+
+Waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when user needs to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval.
+
+```yaml
+- name: wait for service to start
+  wait: {"cmd": "curl -s --fail localhost:8080", "timeout": "30s", "interval": "1s"}
+```
+
+#### `echo`
+
+Prints the specified message to the console. This command is useful for debugging purposes and also to print the value of variables to the console.
+
+```yaml
+- name: print message
+  echo: "hello world"
+- name: print variable
+  echo: $some_var
 ```
 
 ### Command options
