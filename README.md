@@ -145,6 +145,18 @@ Spot supports the following command-line options:
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
 - `-h` `--help`: Displays the help message, listing all available command-line options.
 
+## Basic Concepts
+
+- **Playbook**:  A playbook is a YAML or TOML file that defines a list of tasks to be executed on one or more target hosts. Each task consists of a series of commands that can be executed on the target hosts. Playbooks can be used to automate deployment and configuration management tasks.
+
+- **Task**: A task is a named set of commands that can be executed on one or more target hosts. Tasks can be defined in a playbook and can be executed concurrently on multiple hosts.
+
+- **Command**: A command is an action that can be executed on a target host. Spot supports several built-in commands, including copy, sync, delete, script, echo and wait. 
+
+- **Target**: A target is a host or group of hosts on which a task can be executed. Targets can be specified directly in a playbook or can be defined in an inventory file. Spot supports several inventory file formats.
+
+- **Inventory**: An inventory is a list of targets that can be used to define the hosts and groups of hosts on which a task can be executed. 
+
 ## Playbooks
 
 ### Full playbook example
