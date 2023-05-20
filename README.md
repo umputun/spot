@@ -472,7 +472,7 @@ The target selection is done in the following order:
 - if `--target` is not set, Spot will try check it `targets` list for the task. If set, it will use it following the same logic as above.
 - and finally, Spot will assume the `default` target.
 
-## Dynamic targets
+### Dynamic targets
 
 Spot offers support for dynamic targets, allowing the list of targets to be defined dynamically using variables. This feature becomes particularly useful when users need to ascertain a destination address within one task, and subsequently use it in another task. Here is an illustrative example:
 
