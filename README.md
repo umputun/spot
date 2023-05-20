@@ -145,7 +145,9 @@ Spot supports the following command-line options:
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
 - `-h` `--help`: Displays the help message, listing all available command-line options.
 
-## Full playbook example
+## Playbooks
+
+### Full playbook example
 
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
@@ -211,7 +213,7 @@ tasks:
 
 *Alternatively, the playbook can be represented using the TOML format.*
 
-## Simplified playbook example
+### Simplified playbook example
 
 In some cases the rich syntax of the full playbook is not needed and can felt over-engineered and even overwhelming. For those situations, Spot supports a simplified playbook format, which is easier to read and write, but also more limited in its capabilities.
 
@@ -264,7 +266,7 @@ task:
 
 ```
 
-## Playbook Types
+### Playbook Types
 
 Spot supports two types of playbooks: full and simplified. Both can be represented in either YAML or TOML format. The full playbook is more powerful and flexible but also more verbose and complex. The simplified playbook, on the other hand, is easier to read and write but has more limited capabilities.
 
@@ -278,7 +280,7 @@ Here are the main differences between the two types of playbooks:
 
 Both types of playbooks support the remaining fields and options.
 
-## Task details
+## Tasks and Commands
 
 Each task consists of a list of commands that will be executed on the remote host(s). The task can also define the following optional fields:
 
@@ -290,13 +292,13 @@ Each task consists of a list of commands that will be executed on the remote hos
 
 All tasks are executed sequentially one a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with missing `name` field will fail to execute immediately. Duplicate task names are not allowed either.
 
-## Relative paths resolution
+### Relative paths resolution
 
 Relative path resolution is a frequent issue in systems that involve file references or inclusion. Different systems handle this in various ways. Spot uses a widely-adopted method of resolving relative paths based on the current working directory of the process. This means that if you run Spot from different directories, the way relative paths are resolved will change. In simpler terms, Spot doesn't resolve relative paths according to the location of the playbook file itself.
 
 This approach is intentional to prevent confusion and make it easier to comprehend relative path resolution. Generally, it's a good practice to run Spot from the same directory where the playbook file is located when using relative paths. Alternatively, you can use absolute paths for even better results.
 
-## Command Types
+### Command Types
 
 Spot supports the following command types:
 
