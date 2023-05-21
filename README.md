@@ -335,14 +335,14 @@ and skips the copy if it does. This option can be disabled by setting `force: tr
 
 ```yaml
 - name: copy file with mkdir
-  copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`
+  copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
 
 - name: copy files with glob
-  copy: {"src": "testdata/*.csv", "dst": "/tmp/things"}`
+  copy: {"src": "testdata/*.csv", "dst": "/tmp/things"}
 
 
 - name: copy files with force flag
-  copy: {"src": "testdata/*.csv", "dst": "/tmp/things", "force": true}`
+  copy: {"src": "testdata/*.csv", "dst": "/tmp/things", "force": true}
 ```
 
 Copy also supports list format to copy multiple files at once:
