@@ -29,9 +29,9 @@ func (ex *Dry) SetSecrets(secrets []string) {
 }
 
 // Run shows the command content, doesn't execute it
-func (ex *Dry) Run(_ context.Context, cmd string, verbose bool) (out []string, err error) {
+func (ex *Dry) Run(_ context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	log.Printf("[DEBUG] run %s", cmd)
-	outLog, _ := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets)
+	outLog, _ := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, opts != nil && opts.Verbose, ex.secrets)
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(outLog, &stdoutBuf)
 	mwr.Write([]byte(cmd)) //nolint
@@ -44,7 +44,8 @@ func (ex *Dry) Run(_ context.Context, cmd string, verbose bool) (out []string, e
 }
 
 // Upload doesn't actually upload, just prints the command
-func (ex *Dry) Upload(_ context.Context, local, remote string, mkdir bool) (err error) {
+func (ex *Dry) Upload(_ context.Context, local, remote string, opts *UpDownOpts) (err error) {
+	mkdir := opts != nil && opts.Mkdir
 	log.Printf("[DEBUG] upload %s to %s, mkdir: %v", local, remote, mkdir)
 	if strings.Contains(remote, "spot-script") {
 		// this is a temp script created by spot to perform script execution on remote host
@@ -69,19 +70,26 @@ func (ex *Dry) Upload(_ context.Context, local, remote string, mkdir bool) (err 
 }
 
 // Download file from remote server with scp
-func (ex *Dry) Download(_ context.Context, remote, local string, mkdir bool) (err error) {
+func (ex *Dry) Download(_ context.Context, remote, local string, opts *UpDownOpts) (err error) {
+	mkdir := opts != nil && opts.Mkdir
 	log.Printf("[DEBUG] download %s to %s, mkdir: %v", local, remote, mkdir)
 	return nil
 }
 
 // Sync doesn't sync anything, just prints the command
-func (ex *Dry) Sync(_ context.Context, localDir, remoteDir string, del bool, exclude []string) ([]string, error) {
-	log.Printf("[DEBUG] sync %s to %s, delite: %v, exlcude: %v", localDir, remoteDir, del, exclude) //nolint
+func (ex *Dry) Sync(_ context.Context, localDir, remoteDir string, opts *SyncOpts) ([]string, error) {
+	del := opts != nil && opts.Delete
+	exclude := []string{}
+	if opts != nil {
+		exclude = opts.Exclude
+	}
+	log.Printf("[DEBUG] sync %s to %s, delete: %v, exlcude: %v", localDir, remoteDir, del, exclude) //nolint
 	return nil, nil
 }
 
 // Delete doesn't delete anything, just prints the command
-func (ex *Dry) Delete(_ context.Context, remoteFile string, recursive bool) (err error) {
+func (ex *Dry) Delete(_ context.Context, remoteFile string, opts *DeleteOpts) (err error) {
+	recursive := opts != nil && opts.Recursive
 	log.Printf("[DEBUG] delete %s, recursive: %v", remoteFile, recursive)
 	return nil
 }

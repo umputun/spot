@@ -21,12 +21,37 @@ import (
 // Implemented by Remote and Local structs.
 type Interface interface {
 	SetSecrets(secrets []string)
-	Run(ctx context.Context, c string, verbose bool) (out []string, err error)
-	Upload(ctx context.Context, local, remote string, mkdir bool) (err error)
-	Download(ctx context.Context, remote, local string, mkdir bool) (err error)
-	Sync(ctx context.Context, localDir, remoteDir string, del bool, exclude []string) ([]string, error)
-	Delete(ctx context.Context, remoteFile string, recursive bool) (err error)
+	Run(ctx context.Context, c string, opts *RunOpts) (out []string, err error)
+	Upload(ctx context.Context, local, remote string, opts *UpDownOpts) (err error)
+	Download(ctx context.Context, remote, local string, opts *UpDownOpts) (err error)
+	Sync(ctx context.Context, localDir, remoteDir string, opts *SyncOpts) ([]string, error)
+	Delete(ctx context.Context, remoteFile string, opts *DeleteOpts) (err error)
 	Close() error
+}
+
+// RunOpts is a struct for run options.
+type RunOpts struct {
+	Verbose bool // print more info to primary stdout
+}
+
+// UpDownOpts is a struct for upload and download options.
+type UpDownOpts struct {
+	Mkdir    bool // create remote directory if it does not exist
+	Checksum bool // compare checksums of local and remote files, default is size and modtime
+	Force    bool // overwrite existing files on remote
+}
+
+// SyncOpts is a struct for sync options.
+type SyncOpts struct {
+	Delete   bool     // delete extra files on remote
+	Exclude  []string // exclude files matching the given patterns
+	Checksum bool     // compare checksums of local and remote files, default is size and modtime
+	Force    bool     // overwrite existing files on remote
+}
+
+// DeleteOpts is a struct for delete options.
+type DeleteOpts struct {
+	Recursive bool // delete directories recursively
 }
 
 // StdOutLogWriter is a writer that writes to log with a prefix and a log level.

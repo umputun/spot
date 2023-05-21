@@ -15,7 +15,7 @@ import (
 func TestDry_Run(t *testing.T) {
 	ctx := context.Background()
 	dry := NewDry("hostAddr", "hostName")
-	res, err := dry.Run(ctx, "ls -la /srv", true)
+	res, err := dry.Run(ctx, "ls -la /srv", &RunOpts{Verbose: true})
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	require.Equal(t, "ls -la /srv", res[0])
@@ -37,7 +37,7 @@ func TestDryUpload(t *testing.T) {
 	}
 
 	stdout := captureOutput(func() {
-		err = dry.Upload(context.Background(), tempFile.Name(), "remote/path/spot-script", true)
+		err = dry.Upload(context.Background(), tempFile.Name(), "remote/path/spot-script", &UpDownOpts{Mkdir: true})
 	})
 
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestDryUpload_FileOpenError(t *testing.T) {
 		hostName: "host1",
 	}
 
-	err := dry.Upload(context.Background(), nonExistentFile, "remote/path/spot-script", true)
+	err := dry.Upload(context.Background(), nonExistentFile, "remote/path/spot-script", &UpDownOpts{Mkdir: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "open non_existent_file", "expected error message containing 'open non_existent_file' not found")
 }
@@ -77,22 +77,22 @@ func TestDryOperations(t *testing.T) {
 		{
 			name: "download",
 			operation: func() error {
-				return dry.Download(context.Background(), "remote/path", "local/path", true)
+				return dry.Download(context.Background(), "remote/path", "local/path", &UpDownOpts{Mkdir: true})
 			},
 			expectedLog: "[DEBUG] download local/path to remote/path, mkdir: true",
 		},
 		{
 			name: "sync",
 			operation: func() error {
-				_, err := dry.Sync(context.Background(), "local/dir", "remote/dir", true, nil)
+				_, err := dry.Sync(context.Background(), "local/dir", "remote/dir", &SyncOpts{Delete: true})
 				return err
 			},
-			expectedLog: "[DEBUG] sync local/dir to remote/dir, delite: true",
+			expectedLog: "[DEBUG] sync local/dir to remote/dir, delete: true",
 		},
 		{
 			name: "delete",
 			operation: func() error {
-				return dry.Delete(context.Background(), "remote/file", true)
+				return dry.Delete(context.Background(), "remote/file", &DeleteOpts{Recursive: true})
 			},
 			expectedLog: "[DEBUG] delete remote/file, recursive: true",
 		},

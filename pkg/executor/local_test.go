@@ -19,26 +19,26 @@ func TestRun(t *testing.T) {
 	l := &Local{}
 
 	t.Run("single line out success", func(t *testing.T) {
-		out, e := l.Run(ctx, "echo 'hello world'", false)
+		out, e := l.Run(ctx, "echo 'hello world'", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
 
 	t.Run("single line out fail", func(t *testing.T) {
-		_, e := l.Run(ctx, "nonexistent-command", false)
+		_, e := l.Run(ctx, "nonexistent-command", nil)
 		require.Error(t, e)
 	})
 
 	t.Run("multi line out success", func(t *testing.T) {
 		// Prepare the test environment
-		_, err := l.Run(ctx, "mkdir -p /tmp/st", true)
+		_, err := l.Run(ctx, "mkdir -p /tmp/st", &RunOpts{Verbose: true})
 		require.NoError(t, err)
-		_, err = l.Run(ctx, "cp testdata/data1.txt /tmp/st/data1.txt", true)
+		_, err = l.Run(ctx, "cp testdata/data1.txt /tmp/st/data1.txt", &RunOpts{Verbose: true})
 		require.NoError(t, err)
-		_, err = l.Run(ctx, "cp testdata/data2.txt /tmp/st/data2.txt", true)
+		_, err = l.Run(ctx, "cp testdata/data2.txt /tmp/st/data2.txt", &RunOpts{Verbose: true})
 		require.NoError(t, err)
 
-		out, err := l.Run(ctx, "ls -1 /tmp/st", false)
+		out, err := l.Run(ctx, "ls -1 /tmp/st", nil)
 		require.NoError(t, err)
 		assert.Equal(t, 2, len(out))
 		assert.Equal(t, "data1.txt", out[0])
@@ -46,12 +46,12 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("multi line out fail", func(t *testing.T) {
-		_, err := l.Run(ctx, "nonexistent-command", false)
+		_, err := l.Run(ctx, "nonexistent-command", nil)
 		require.Error(t, err)
 	})
 
 	t.Run("find out", func(t *testing.T) {
-		out, e := l.Run(ctx, "find /tmp/st -type f", true)
+		out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Contains(t, out, "/tmp/st/data1.txt")
@@ -66,7 +66,7 @@ func TestRun(t *testing.T) {
 		// Set up the test environment
 		l.SetSecrets([]string{"data2"})
 		defer l.SetSecrets(nil)
-		out, e := l.Run(ctx, "find /tmp/st -type f", true)
+		out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
 		writer.Close()
 		os.Stdout = originalStdout
 
@@ -112,7 +112,7 @@ func TestUploadAndDownload(t *testing.T) {
 	}
 
 	// we want to test both upload and download, so we create a function type. those functions should do the same thing
-	type fn func(ctx context.Context, src, dst string, mkdir bool) (err error)
+	type fn func(ctx context.Context, src, dst string, opts *UpDownOpts) (err error)
 	l := &Local{}
 	fns := []struct {
 		name string
@@ -141,7 +141,7 @@ func TestUploadAndDownload(t *testing.T) {
 
 				dstFile := filepath.Join(dstDir, filepath.Base(srcFile.Name()))
 
-				err = fn.fn(context.Background(), srcFile.Name(), dstFile, tc.mkdir)
+				err = fn.fn(context.Background(), srcFile.Name(), dstFile, &UpDownOpts{Mkdir: tc.mkdir})
 
 				if tc.expectError {
 					assert.Error(t, err, "expected an error")
@@ -176,7 +176,7 @@ func TestUploadDownloadWithGlob(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(dstDir)
 
-	type fn func(ctx context.Context, src, dst string, mkdir bool) (err error)
+	type fn func(ctx context.Context, src, dst string, opts *UpDownOpts) (err error)
 
 	l := &Local{}
 	fns := []struct {
@@ -226,8 +226,7 @@ func TestUploadDownloadWithGlob(t *testing.T) {
 	} {
 		for _, fn := range fns {
 			t.Run(fmt.Sprintf("%s#%s", tc.name, fn.name), func(t *testing.T) {
-				err := fn.fn(context.Background(), tc.src, tc.dst, tc.mkdir)
-
+				err := fn.fn(context.Background(), tc.src, tc.dst, &UpDownOpts{Mkdir: tc.mkdir})
 				if tc.expectError {
 					assert.Error(t, err, "expected an error")
 					return
@@ -449,7 +448,7 @@ func TestLocal_Sync(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			copiedFiles, err := svc.Sync(ctx, srcDir, dstDir, tc.del, tc.exclude)
+			copiedFiles, err := svc.Sync(ctx, srcDir, dstDir, &SyncOpts{Delete: tc.del, Exclude: tc.exclude})
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tc.expected, copiedFiles)
 
@@ -542,7 +541,7 @@ func TestDelete(t *testing.T) {
 			}
 
 			l := &Local{}
-			err = l.Delete(context.Background(), remoteFile, tc.recursive)
+			err = l.Delete(context.Background(), remoteFile, &DeleteOpts{Recursive: tc.recursive})
 			if tc.expectError {
 				assert.Error(t, err, "expected an error")
 			} else {
@@ -596,7 +595,7 @@ func TestUpload_SpecialCharacterInPath(t *testing.T) {
 
 	dstFile := filepath.Join(dstDir, "file_with_special_#_character.txt")
 
-	err = l.Upload(context.Background(), srcFile.Name(), dstFile, true)
+	err = l.Upload(context.Background(), srcFile.Name(), dstFile, &UpDownOpts{Mkdir: true})
 	assert.NoError(t, err, "unexpected error")
 
 	dstContent, err := os.ReadFile(dstFile)

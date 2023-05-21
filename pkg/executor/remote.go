@@ -40,17 +40,17 @@ func (ex *Remote) SetSecrets(secrets []string) {
 }
 
 // Run command on remote server.
-func (ex *Remote) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
+func (ex *Remote) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
 	log.Printf("[DEBUG] run %s", cmd)
 
-	return ex.sshRun(ctx, ex.client, cmd, verbose)
+	return ex.sshRun(ctx, ex.client, cmd, opts != nil && opts.Verbose)
 }
 
 // Upload file to remote server with scp
-func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) (err error) {
+func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDownOpts) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
@@ -81,7 +81,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) 
 			client:     ex.client,
 			localFile:  match,
 			remoteFile: remoteFile,
-			mkdir:      mkdir,
+			mkdir:      opts != nil && opts.Mkdir,
 			remoteHost: host,
 			remotePort: port,
 		}
@@ -93,7 +93,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, mkdir bool) 
 }
 
 // Download file from remote server with scp
-func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool) (err error) {
+func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDownOpts) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
@@ -108,7 +108,7 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool
 		client:     ex.client,
 		localFile:  local,
 		remoteFile: remote,
-		mkdir:      mkdir,
+		mkdir:      opts != nil && opts.Mkdir,
 		remoteHost: host,
 		remotePort: port,
 	}
@@ -116,12 +116,16 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, mkdir bool
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool, excl []string) ([]string, error) {
+func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *SyncOpts) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
 	}
 
+	excl := []string{}
+	if opts != nil {
+		excl = opts.Exclude
+	}
 	remoteFiles, err := ex.getRemoteFilesProperties(ctx, remoteDir, excl)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get remote files properties for %s: %w", remoteDir, err)
@@ -131,19 +135,19 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool
 	for _, file := range unmatchedFiles {
 		localPath := filepath.Join(localDir, file)
 		remotePath := filepath.Join(remoteDir, file)
-		if err = ex.Upload(ctx, localPath, remotePath, true); err != nil {
+		if err = ex.Upload(ctx, localPath, remotePath, &UpDownOpts{Mkdir: true}); err != nil {
 			return nil, fmt.Errorf("failed to upload %s to %s: %w", localPath, remotePath, err)
 		}
 		log.Printf("[INFO] synced %s to %s", localPath, remotePath)
 	}
 
-	if del {
+	if opts != nil && opts.Delete {
 		// delete remote files which are not in local.
 		// if the missing file is a directory, delete it recursively.
 		// note: this may cause attempts to remove files from already deleted directories, but it's ok, Delete is idempotent.
 		for _, file := range deletedFiles {
-			recur := remoteFiles[file].IsDir
-			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), recur); err != nil {
+			deleteOpts := &DeleteOpts{Recursive: remoteFiles[file].IsDir}
+			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), deleteOpts); err != nil {
 				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
 			}
 		}
@@ -154,7 +158,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, del bool
 
 // Delete file on remote server. Recursively if recursive is true.
 // if a file or directory does not exist, returns nil, i.e. no error.
-func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool) (err error) {
+func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpts) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
@@ -173,6 +177,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, recursive bool)
 		return fmt.Errorf("failed to stat %s: %w", remoteFile, err)
 	}
 
+	recursive := opts != nil && opts.Recursive
 	if fileInfo.IsDir() && recursive {
 		walker := sftpClient.Walk(remoteFile)
 
