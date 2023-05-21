@@ -1,8 +1,12 @@
 package runner
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"os"
 	"testing"
 	"time"
 
@@ -353,4 +357,37 @@ func Test_execCmd(t *testing.T) {
 		assert.Contains(t, details, "conf.yml")
 		assert.Contains(t, details, "conf2.yml")
 	})
+
+	t.Run("dbl-copy non-forced", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
+		details, _, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+		// copy again, should be skipped
+		details, _, err = ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, wr.String(), "remote file /tmp/inventory.txt identical to local file testdata/inventory.yml, skipping upload")
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+	})
+
+	t.Run("dbl-copy forced", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Force: true}}}
+		details, _, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+		// copy again, should not be skipped
+		details, _, err = ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, wr.String(), "remote file /tmp/inventory.txt identical to local file testdata/inventory.yml, skipping upload")
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+	})
+
 }

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 )
@@ -181,4 +182,12 @@ func isExcluded(path string, excl []string) bool {
 		}
 	}
 	return false
+}
+
+func isWithinOneSecond(t1, t2 time.Time) bool {
+	diff := t1.Sub(t2)
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= time.Second
 }

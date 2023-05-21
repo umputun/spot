@@ -1,9 +1,11 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"sort"
 	"testing"
@@ -168,6 +170,39 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/data1.txt", nil)
 	require.EqualError(t, err, "failed to copy file: context canceled")
+}
+
+func TestUpload_UploadOverwriteWithAndWithoutForce(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	wr := &bytes.Buffer{}
+	log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+	// first upload
+	err = sess.Upload(ctx, "testdata/data1.txt", "testdata/data2.txt", &UpDownOpts{Mkdir: true})
+	require.NoError(t, err)
+	assert.NotContains(t, wr.String(), " skipping upload")
+	wr.Reset()
+
+	// attempt to upload again without force
+	err = sess.Upload(ctx, "testdata/data1.txt", "testdata/data2.txt", &UpDownOpts{Mkdir: true})
+	assert.NoError(t, err)
+	assert.Contains(t, wr.String(), "remote file testdata/data2.txt identical to local file testdata/data1.txt, skipping upload")
+	wr.Reset()
+
+	// attempt to upload again with force
+	err = sess.Upload(ctx, "testdata/data1.txt", "testdata/data2.txt", &UpDownOpts{Mkdir: true, Force: true})
+	assert.NoError(t, err)
+	assert.NotContains(t, wr.String(), "skipping upload")
 }
 
 func TestExecuter_ConnectCanceled(t *testing.T) {

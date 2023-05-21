@@ -94,7 +94,8 @@ func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]st
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can use the original destination and upload the file directly
 		details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-		if err := ec.exec.Upload(ctx, src, dst, &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir}); err != nil {
+		opts := &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir, Force: ec.cmd.Copy.Force}
+		if err := ec.exec.Upload(ctx, src, dst, opts); err != nil {
 			return details, nil, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 		return details, nil, nil
@@ -104,7 +105,7 @@ func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]st
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
 		details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
 		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
-		if err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true}); err != nil {
+		if err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true}); err != nil {
 			// upload to a temporary directory with mkdir
 			return details, nil, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -142,7 +143,7 @@ func (ec *execCmd) Mcopy(ctx context.Context) (details string, vars map[string]s
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
-		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir}
+		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force}
 		if _, _, err := ecSingle.Copy(ctx); err != nil {
 			return details, nil, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -157,7 +158,8 @@ func (ec *execCmd) Sync(ctx context.Context) (details string, vars map[string]st
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-	if _, err := ec.exec.Sync(ctx, src, dst, &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude}); err != nil {
+	opts := &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude, Force: ec.cmd.Sync.Force}
+	if _, err := ec.exec.Sync(ctx, src, dst, opts); err != nil {
 		return details, nil, fmt.Errorf("can't sync files on %s: %w", ec.hostAddr, err)
 	}
 	return details, nil, nil
@@ -172,7 +174,7 @@ func (ec *execCmd) Msync(ctx context.Context) (details string, vars map[string]s
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
-		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete}
+		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete, Force: c.Force}
 		if _, _, err := ecSingle.Sync(ctx); err != nil {
 			return details, nil, fmt.Errorf("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
 		}
