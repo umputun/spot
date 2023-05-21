@@ -330,12 +330,19 @@ script: |
 
 Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
 
+Copy command performs a quick check to see if the file already exists on the remote host(s) with the same size and modification time,
+and skips the copy if it does. This option can be disabled by setting `force: true` flag.
+
 ```yaml
 - name: copy file with mkdir
   copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}`
 
 - name: copy files with glob
   copy: {"src": "testdata/*.csv", "dst": "/tmp/things"}`
+
+
+- name: copy files with force flag
+  copy: {"src": "testdata/*.csv", "dst": "/tmp/things", "force": true}`
 ```
 
 Copy also supports list format to copy multiple files at once:
