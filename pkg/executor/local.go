@@ -25,10 +25,10 @@ func (l *Local) SetSecrets(secrets []string) {
 }
 
 // Run executes command on local hostAddr, inside the shell
-func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string, err error) {
+func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 
-	outLog, errLog := MakeOutAndErrWriters("localhost", "", verbose, l.secrets)
+	outLog, errLog := MakeOutAndErrWriters("localhost", "", opts != nil && opts.Verbose, l.secrets)
 	outLog.Write([]byte(cmd)) //nolint
 
 	var stdoutBuf bytes.Buffer
@@ -47,7 +47,7 @@ func (l *Local) Run(ctx context.Context, cmd string, verbose bool) (out []string
 }
 
 // Upload just copy file from one place to another
-func (l *Local) Upload(_ context.Context, src, dst string, mkdir bool) (err error) {
+func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (err error) {
 
 	// check if the local parameter contains a glob pattern
 	matches, err := filepath.Glob(src)
@@ -59,7 +59,7 @@ func (l *Local) Upload(_ context.Context, src, dst string, mkdir bool) (err erro
 		return fmt.Errorf("source file %q not found", src)
 	}
 
-	if mkdir {
+	if opts != nil && opts.Mkdir {
 		if err = os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return fmt.Errorf("can't create local dir %s: %w", filepath.Dir(dst), err)
 		}
@@ -78,18 +78,22 @@ func (l *Local) Upload(_ context.Context, src, dst string, mkdir bool) (err erro
 }
 
 // Download just copy file from one place to another
-func (l *Local) Download(_ context.Context, src, dst string, mkdir bool) (err error) {
-	return l.Upload(context.Background(), src, dst, mkdir) // same as upload for local
+func (l *Local) Download(_ context.Context, src, dst string, opts *UpDownOpts) (err error) {
+	return l.Upload(context.Background(), src, dst, opts) // same as upload for local
 }
 
 // Sync directories from src to dst
-func (l *Local) Sync(ctx context.Context, src, dst string, del bool, excl []string) ([]string, error) {
+func (l *Local) Sync(ctx context.Context, src, dst string, opts *SyncOpts) ([]string, error) {
+	excl := []string{}
+	if opts != nil {
+		excl = opts.Exclude
+	}
 	copiedFiles, err := l.syncSrcToDst(ctx, src, dst, excl)
 	if err != nil {
 		return nil, err
 	}
 
-	if del {
+	if opts != nil && opts.Delete {
 		if err := l.removeExtraDstFiles(ctx, src, dst); err != nil {
 			return nil, err
 		}
@@ -99,7 +103,8 @@ func (l *Local) Sync(ctx context.Context, src, dst string, del bool, excl []stri
 }
 
 // Delete file or directory
-func (l *Local) Delete(_ context.Context, remoteFile string, recursive bool) (err error) {
+func (l *Local) Delete(_ context.Context, remoteFile string, opts *DeleteOpts) (err error) {
+	recursive := opts != nil && opts.Recursive
 	if !recursive {
 		return os.Remove(remoteFile)
 	}

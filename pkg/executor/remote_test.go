@@ -28,13 +28,13 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", true)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", &UpDownOpts{Mkdir: true})
 	require.NoError(t, err)
 
 	tmpFile, err := fileutils.TempFileName("", "data1.txt")
 	require.NoError(t, err)
 	defer os.RemoveAll(tmpFile)
-	err = sess.Download(ctx, "/tmp/blah/data1.txt", tmpFile, true)
+	err = sess.Download(ctx, "/tmp/blah/data1.txt", tmpFile, &UpDownOpts{Mkdir: true})
 	require.NoError(t, err)
 	assert.FileExists(t, tmpFile)
 	exp, err := os.ReadFile("testdata/data1.txt")
@@ -56,14 +56,14 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data*.txt", "/tmp/blah", true)
+	err = sess.Upload(ctx, "testdata/data*.txt", "/tmp/blah", &UpDownOpts{Mkdir: true})
 	require.NoError(t, err)
 
 	{
 		tmpFile, err := fileutils.TempFileName("", "data1.txt")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpFile)
-		err = sess.Download(ctx, "/tmp/blah/data1.txt", tmpFile, true)
+		err = sess.Download(ctx, "/tmp/blah/data1.txt", tmpFile, &UpDownOpts{Mkdir: true})
 		require.NoError(t, err)
 		assert.FileExists(t, tmpFile)
 		exp, err := os.ReadFile("testdata/data1.txt")
@@ -76,7 +76,7 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 		tmpFile, err := fileutils.TempFileName("", "data2.txt")
 		require.NoError(t, err)
 		defer os.RemoveAll(tmpFile)
-		err = sess.Download(ctx, "/tmp/blah/data2.txt", tmpFile, true)
+		err = sess.Download(ctx, "/tmp/blah/data2.txt", tmpFile, &UpDownOpts{Mkdir: true})
 		require.NoError(t, err)
 		assert.FileExists(t, tmpFile)
 		exp, err := os.ReadFile("testdata/data2.txt")
@@ -99,7 +99,7 @@ func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data-not-found.txt", "/tmp/blah/data.txt", true)
+	err = sess.Upload(ctx, "testdata/data-not-found.txt", "/tmp/blah/data.txt", &UpDownOpts{Mkdir: true})
 	require.EqualError(t, err, "source file \"testdata/data-not-found.txt\" not found")
 }
 
@@ -115,7 +115,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", false)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", nil)
 	require.EqualError(t, err, "failed to create remote file: file does not exist")
 }
 
@@ -131,7 +131,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data1.txt", "/dev/blah/data1.txt", true)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/dev/blah/data1.txt", &UpDownOpts{Mkdir: true})
 	require.EqualError(t, err, "failed to create remote directory: permission denied")
 }
 
@@ -148,7 +148,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 	defer sess.Close()
 
 	cancel()
-	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", true)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", &UpDownOpts{Mkdir: true})
 	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
@@ -166,7 +166,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	cancel()
 
-	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/data1.txt", false)
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/data1.txt", nil)
 	require.EqualError(t, err, "failed to copy file: context canceled")
 }
 
@@ -195,18 +195,18 @@ func TestExecuter_Run(t *testing.T) {
 	defer sess.Close()
 
 	t.Run("single line out", func(t *testing.T) {
-		out, e := sess.Run(ctx, "sh -c 'echo hello world'", false)
+		out, e := sess.Run(ctx, "sh -c 'echo hello world'", nil)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
 
 	t.Run("multi line out", func(t *testing.T) {
-		err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/st/data1.txt", true)
+		err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/st/data1.txt", &UpDownOpts{Mkdir: true})
 		assert.NoError(t, err)
-		err = sess.Upload(ctx, "testdata/data2.txt", "/tmp/st/data2.txt", true)
+		err = sess.Upload(ctx, "testdata/data2.txt", "/tmp/st/data2.txt", &UpDownOpts{Mkdir: true})
 		assert.NoError(t, err)
 
-		out, err := sess.Run(ctx, "ls -1 /tmp/st", false)
+		out, err := sess.Run(ctx, "ls -1 /tmp/st", nil)
 		require.NoError(t, err)
 		t.Logf("out: %v", out)
 		assert.Equal(t, 2, len(out))
@@ -216,7 +216,7 @@ func TestExecuter_Run(t *testing.T) {
 
 	t.Run("find out", func(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
-		out, e := sess.Run(ctx, cmd, true)
+		out, e := sess.Run(ctx, cmd, &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
@@ -230,7 +230,7 @@ func TestExecuter_Run(t *testing.T) {
 		sess.SetSecrets([]string{"data2"})
 		defer sess.SetSecrets(nil)
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
-		out, e := sess.Run(ctx, cmd, true)
+		out, e := sess.Run(ctx, cmd, &RunOpts{Verbose: true})
 		writer.Close()
 		os.Stdout = originalStdout
 
@@ -246,14 +246,14 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("command failed", func(t *testing.T) {
-		_, err := sess.Run(ctx, "sh -c 'exit 1'", false)
+		_, err := sess.Run(ctx, "sh -c 'exit 1'", nil)
 		assert.ErrorContains(t, err, "failed to run command on remote server")
 	})
 
 	t.Run("ctx canceled", func(t *testing.T) {
 		ctxCancel, cancel := context.WithCancel(ctx)
 		cancel()
-		_, err := sess.Run(ctxCancel, "sh -c 'echo hello world'", false)
+		_, err := sess.Run(ctxCancel, "sh -c 'echo hello world'", nil)
 		assert.ErrorContains(t, err, "context canceled")
 	})
 
@@ -271,64 +271,64 @@ func TestExecuter_Sync(t *testing.T) {
 	defer sess.Close()
 
 	t.Run("sync", func(t *testing.T) {
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", &SyncOpts{Delete: true})
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;", true)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
 
-		res, e = sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
+		res, e = sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", &SyncOpts{Delete: true})
 		require.NoError(t, e)
 		assert.Equal(t, 0, len(res), "no files should be synced", res)
 	})
 
 	t.Run("sync no src", func(t *testing.T) {
-		_, err = sess.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", true, nil)
+		_, err = sess.Sync(ctx, "/tmp/no-such-place", "/tmp/sync.dest", &SyncOpts{Delete: true})
 		require.EqualError(t, err, "failed to get local files properties for /tmp/no-such-place: failed to walk local directory"+
 			" /tmp/no-such-place: lstat /tmp/no-such-place: no such file or directory")
 	})
 
 	t.Run("sync with empty dir on remote to delete", func(t *testing.T) {
-		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest2/empty", true)
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest2/empty", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", true, nil)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", &SyncOpts{Delete: true})
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest2 -type f -exec stat -c '%s %n' {} \\;", true)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest2 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest2/d1/file11.txt", "185 /tmp/sync.dest2/file1.txt", "61 /tmp/sync.dest2/file2.txt"}, out)
 	})
 
 	t.Run("sync with non-empty dir on remote to delete", func(t *testing.T) {
-		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest3/empty", true)
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest3/empty", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		_, e = sess.Run(ctx, "touch /tmp/sync.dest3/empty/afile1.txt", true)
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest3/empty/afile1.txt", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", true, nil)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", &SyncOpts{Delete: true})
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest3 -type f -exec stat -c '%s %n' {} \\;", true)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest3 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"17 /tmp/sync.dest3/d1/file11.txt", "185 /tmp/sync.dest3/file1.txt", "61 /tmp/sync.dest3/file2.txt"}, out)
 	})
 
 	t.Run("sync  with non-empty dir on remote to keep", func(t *testing.T) {
-		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest4/empty", true)
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest4/empty", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", true)
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", false, nil)
+		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", nil)
 		require.NoError(t, e)
 		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", true)
+		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
 		assert.Equal(t, []string{"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
@@ -347,52 +347,52 @@ func TestExecuter_Delete(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", true, nil)
+	res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", &SyncOpts{Delete: true})
 	require.NoError(t, err)
 	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
 	assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 
 	t.Run("delete file", func(t *testing.T) {
-		err = sess.Delete(ctx, "/tmp/sync.dest/file1.txt", false)
+		err = sess.Delete(ctx, "/tmp/sync.dest/file1.txt", nil)
 		assert.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", false)
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", nil)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"d1", "file2.txt"}, out)
 	})
 
 	t.Run("delete dir non-recursive", func(t *testing.T) {
-		err = sess.Delete(ctx, "/tmp/sync.dest", false)
+		err = sess.Delete(ctx, "/tmp/sync.dest", nil)
 		require.Error(t, err)
 	})
 
 	t.Run("delete dir", func(t *testing.T) {
-		err = sess.Delete(ctx, "/tmp/sync.dest", true)
+		err = sess.Delete(ctx, "/tmp/sync.dest", &DeleteOpts{Recursive: true})
 		assert.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/", true)
+		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
 	})
 
 	t.Run("delete empty dir", func(t *testing.T) {
-		_, err = sess.Run(ctx, "mkdir -p /tmp/sync.dest/empty", true)
+		_, err = sess.Run(ctx, "mkdir -p /tmp/sync.dest/empty", &RunOpts{Verbose: true})
 		require.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", true)
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.Contains(t, out, "empty", out)
-		err = sess.Delete(ctx, "/tmp/sync.dest/empty", false)
+		err = sess.Delete(ctx, "/tmp/sync.dest/empty", nil)
 		assert.NoError(t, err)
-		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", true)
+		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.NotContains(t, out, "empty", out)
 	})
 
 	t.Run("delete no-such-file", func(t *testing.T) {
-		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-file", false)
+		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-file", nil)
 		assert.NoError(t, err)
 	})
 
 	t.Run("delete no-such-dir", func(t *testing.T) {
-		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-dir", true)
+		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-dir", &DeleteOpts{Recursive: true})
 		assert.NoError(t, err)
 	})
 }
@@ -519,7 +519,7 @@ func Test_getRemoteFilesProperties(t *testing.T) {
 	defer sess.Close()
 
 	// create some test data on the remote host.
-	_, err = sess.Run(ctx, "mkdir -p /tmp/testdata/dir1 /tmp/testdata/dir2 && echo 'Hello' > /tmp/testdata/dir1/file1.txt && echo 'World' > /tmp/testdata/dir2/file2.txt", true)
+	_, err = sess.Run(ctx, "mkdir -p /tmp/testdata/dir1 /tmp/testdata/dir2 && echo 'Hello' > /tmp/testdata/dir1/file1.txt && echo 'World' > /tmp/testdata/dir2/file2.txt", &RunOpts{Verbose: true})
 	require.NoError(t, err)
 
 	props, err := sess.getRemoteFilesProperties(ctx, "/tmp/testdata", nil)

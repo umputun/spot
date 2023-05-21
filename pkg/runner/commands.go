@@ -59,7 +59,7 @@ func (ec *execCmd) Script(ctx context.Context) (details string, vars map[string]
 		details = fmt.Sprintf(" {script: %s, sudo: true}", c)
 		c = fmt.Sprintf("sudo sh -c %q", c)
 	}
-	out, err := ec.exec.Run(ctx, c, ec.verbose)
+	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose})
 	if err != nil {
 		return details, nil, fmt.Errorf("can't run script on %s: %w", ec.hostAddr, err)
 	}
@@ -94,7 +94,7 @@ func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]st
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can use the original destination and upload the file directly
 		details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-		if err := ec.exec.Upload(ctx, src, dst, ec.cmd.Copy.Mkdir); err != nil {
+		if err := ec.exec.Upload(ctx, src, dst, &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir}); err != nil {
 			return details, nil, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 		return details, nil, nil
@@ -104,7 +104,8 @@ func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]st
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
 		details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
 		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
-		if err := ec.exec.Upload(ctx, src, tmpDest, true); err != nil { // upload to a temporary directory with mkdir
+		if err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true}); err != nil {
+			// upload to a temporary directory with mkdir
 			return details, nil, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 
@@ -113,7 +114,7 @@ func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]st
 			mvCmd = fmt.Sprintf("mv -f %s/* %s", tmpDest, dst) // move multiple files, if wildcard is used
 			defer func() {
 				// remove temporary directory we created under /tmp/.spot for multiple files
-				if _, err := ec.exec.Run(ctx, fmt.Sprintf("rm -rf %s", tmpDest), ec.verbose); err != nil {
+				if _, err := ec.exec.Run(ctx, fmt.Sprintf("rm -rf %s", tmpDest), &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 					log.Printf("[WARN] can't remove temporary directory on %s: %v", ec.hostAddr, err)
 				}
 			}()
@@ -124,7 +125,7 @@ func (ec *execCmd) Copy(ctx context.Context) (details string, vars map[string]st
 		}
 
 		sudoMove := fmt.Sprintf("sudo %s", c)
-		if _, err := ec.exec.Run(ctx, sudoMove, ec.verbose); err != nil {
+		if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 			return details, nil, fmt.Errorf("can't move file to %s: %w", ec.hostAddr, err)
 		}
 	}
@@ -156,7 +157,7 @@ func (ec *execCmd) Sync(ctx context.Context) (details string, vars map[string]st
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-	if _, err := ec.exec.Sync(ctx, src, dst, ec.cmd.Sync.Delete, ec.cmd.Sync.Exclude); err != nil {
+	if _, err := ec.exec.Sync(ctx, src, dst, &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude}); err != nil {
 		return details, nil, fmt.Errorf("can't sync files on %s: %w", ec.hostAddr, err)
 	}
 	return details, nil, nil
@@ -187,7 +188,7 @@ func (ec *execCmd) Delete(ctx context.Context) (details string, vars map[string]
 
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can delete the file directly
-		if err := ec.exec.Delete(ctx, loc, ec.cmd.Delete.Recursive); err != nil {
+		if err := ec.exec.Delete(ctx, loc, &executor.DeleteOpts{Recursive: ec.cmd.Delete.Recursive}); err != nil {
 			return details, nil, fmt.Errorf("can't delete files on %s: %w", ec.hostAddr, err)
 		}
 		details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ec.cmd.Delete.Recursive)
@@ -199,7 +200,7 @@ func (ec *execCmd) Delete(ctx context.Context) (details string, vars map[string]
 		if ec.cmd.Delete.Recursive {
 			cmd = fmt.Sprintf("sudo rm -rf %s", loc)
 		}
-		if _, err := ec.exec.Run(ctx, cmd, ec.verbose); err != nil {
+		if _, err := ec.exec.Run(ctx, cmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 			return details, nil, fmt.Errorf("can't delete file(s) on %s: %w", ec.hostAddr, err)
 		}
 		details = fmt.Sprintf(" {delete: %s, recursive: %v, sudo: true}", loc, ec.cmd.Delete.Recursive)
@@ -272,7 +273,7 @@ func (ec *execCmd) Wait(ctx context.Context) (details string, vars map[string]st
 		case <-timeoutTk.C:
 			return details, nil, fmt.Errorf("timeout exceeded")
 		case <-checkTk.C:
-			if _, err := ec.exec.Run(ctx, waitCmd, false); err == nil {
+			if _, err := ec.exec.Run(ctx, waitCmd, nil); err == nil {
 				return details, nil, nil // command succeeded
 			}
 		}
@@ -290,7 +291,7 @@ func (ec *execCmd) Echo(ctx context.Context) (details string, vars map[string]st
 	if ec.cmd.Options.Sudo {
 		echoCmd = fmt.Sprintf("sudo %s", echoCmd)
 	}
-	out, err := ec.exec.Run(ctx, echoCmd, false)
+	out, err := ec.exec.Run(ctx, echoCmd, nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("can't run echo command on %s: %w", ec.hostAddr, err)
 	}
@@ -322,7 +323,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	}
 
 	// run the condition command
-	if _, err := ec.exec.Run(ctx, c, ec.verbose); err != nil {
+	if _, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 		log.Printf("[DEBUG] condition not passed on %s: %v", ec.hostAddr, err)
 		if inverted {
 			return true, nil // inverted condition failed, so we return true
@@ -377,14 +378,14 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd s
 	dst := filepath.Join(tmpRemoteDir, filepath.Base(tmp.Name())) // nolint
 
 	// upload the script to the remote hostAddr
-	if err = ec.exec.Upload(ctx, tmp.Name(), dst, true); err != nil {
+	if err = ec.exec.Upload(ctx, tmp.Name(), dst, &executor.UpDownOpts{Mkdir: true}); err != nil {
 		return "", nil, fmt.Errorf("can't upload script to %s: %w", ec.hostAddr, err)
 	}
 	cmd = fmt.Sprintf("sh -c %s", dst)
 
 	teardown = func() error {
 		// remove the script from the remote hostAddr, should be invoked by the caller after the command is executed
-		if err := ec.exec.Delete(ctx, dst, false); err != nil {
+		if err := ec.exec.Delete(ctx, dst, nil); err != nil {
 			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ec.hostAddr, err)
 		}
 		return nil
