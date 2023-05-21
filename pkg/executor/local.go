@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,6 +71,26 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 		if len(matches) > 1 {
 			destination = filepath.Join(dst, filepath.Base(match))
 		}
+
+		// check source file info
+		srcInfo, err := os.Stat(match)
+		if err != nil {
+			return fmt.Errorf("failed to stat source file %s: %w", match, err)
+		}
+
+		// check destination file info
+		dstInfo, err := os.Stat(destination)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to stat destination file %s: %w", destination, err)
+		}
+
+		// if destination file exists, and source and destination have the same size and modification time, skip copying
+		forced := opts != nil && opts.Force
+		if err == nil && !forced && srcInfo.Size() == dstInfo.Size() && srcInfo.ModTime().Equal(dstInfo.ModTime()) {
+			log.Printf("[DEBUG] skip copying %s to %s, same size and modification time", match, destination)
+			continue
+		}
+
 		if err = l.copyFile(match, destination); err != nil {
 			return fmt.Errorf("can't copy local file from %s to %s: %w", match, dst, err)
 		}

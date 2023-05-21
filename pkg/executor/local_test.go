@@ -1,9 +1,11 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -88,40 +90,79 @@ func TestUploadAndDownload(t *testing.T) {
 		srcContent  string
 		dstDir      string
 		mkdir       bool
+		force       bool
 		expectError bool
+		expectLog   string
+		setupDst    bool // new flag to indicate whether to setup destination file before upload
 	}{
 		{
-			name:       "successful upload with mkdir=true",
-			srcContent: "test content",
-			dstDir:     "dst",
-			mkdir:      true,
+			name:        "successful upload with mkdir=true",
+			srcContent:  "test content",
+			dstDir:      "dst",
+			mkdir:       true,
+			force:       false,
+			expectError: false,
+			expectLog:   "",
 		},
 		{
-			name:       "successful upload with mkdir=false",
-			srcContent: "test content",
-			dstDir:     "",
-			mkdir:      false,
+			name:        "successful upload with mkdir=false",
+			srcContent:  "test content",
+			dstDir:      "",
+			mkdir:       false,
+			force:       false,
+			expectError: false,
+			expectLog:   "",
 		},
 		{
 			name:        "failed upload with non-existent directory and mkdir=false",
 			srcContent:  "test content",
 			dstDir:      "nonexistent",
 			mkdir:       false,
+			force:       false,
 			expectError: true,
+			expectLog:   "",
+		},
+		{
+			name:        "successful force upload with same content",
+			srcContent:  "test content",
+			dstDir:      "dst",
+			mkdir:       true,
+			force:       true,
+			expectError: false,
+			expectLog:   "",
+			setupDst:    true, // set up destination file before upload
+		},
+		{
+			name:        "skip non-force upload with same content",
+			srcContent:  "test content",
+			dstDir:      "dst",
+			mkdir:       true,
+			force:       false,
+			expectError: false,
+			expectLog:   "[DEBUG] skip copying",
+			setupDst:    true, // set up destination file before upload
 		},
 	}
 
-	// we want to test both upload and download, so we create a function type. those functions should do the same thing
 	type fn func(ctx context.Context, src, dst string, opts *UpDownOpts) (err error)
 	l := &Local{}
 	fns := []struct {
 		name string
 		fn   fn
-	}{{"upload", l.Upload}, {"download", l.Download}}
+	}{
+		{"upload", l.Upload},
+		{"download", l.Download},
+	}
 
 	for _, tc := range testCases {
 		for _, fn := range fns {
 			t.Run(tc.name+"#"+fn.name, func(t *testing.T) {
+				var logBuf bytes.Buffer
+				log.SetOutput(&logBuf)
+				defer func() {
+					log.SetOutput(os.Stderr)
+				}()
+
 				srcFile, err := os.CreateTemp("", "src")
 				require.NoError(t, err)
 				defer os.Remove(srcFile.Name())
@@ -141,7 +182,24 @@ func TestUploadAndDownload(t *testing.T) {
 
 				dstFile := filepath.Join(dstDir, filepath.Base(srcFile.Name()))
 
-				err = fn.fn(context.Background(), srcFile.Name(), dstFile, &UpDownOpts{Mkdir: tc.mkdir})
+				if tc.setupDst {
+					srcInfo, serr := os.Stat(srcFile.Name())
+					require.NoError(t, serr)
+
+					// ensure the destination directory is created
+					err = os.MkdirAll(filepath.Dir(dstFile), 0o750)
+					require.NoError(t, err)
+
+					// set up destination file with the same content as source
+					err = os.WriteFile(dstFile, []byte(tc.srcContent), 0o644)
+					require.NoError(t, err)
+
+					// set the modification time to be the same as the source file
+					err = os.Chtimes(dstFile, srcInfo.ModTime(), srcInfo.ModTime())
+					require.NoError(t, err)
+				}
+
+				err = fn.fn(context.Background(), srcFile.Name(), dstFile, &UpDownOpts{Mkdir: tc.mkdir, Force: tc.force})
 
 				if tc.expectError {
 					assert.Error(t, err, "expected an error")
@@ -149,9 +207,15 @@ func TestUploadAndDownload(t *testing.T) {
 				}
 
 				assert.NoError(t, err, "unexpected error")
+
 				dstContent, err := os.ReadFile(dstFile)
 				require.NoError(t, err)
 				assert.Equal(t, tc.srcContent, string(dstContent), "uploaded content should match source content")
+
+				// check if expected log is in the log output
+				if tc.expectLog != "" {
+					assert.Contains(t, logBuf.String(), tc.expectLog, "expected log message not found")
+				}
 			})
 		}
 	}
@@ -603,7 +667,7 @@ func TestUpload_SpecialCharacterInPath(t *testing.T) {
 	assert.Equal(t, "", string(dstContent), "uploaded content should match source content")
 }
 
-func TestLocalCopyFile(t *testing.T) {
+func TestLocal_copyFile(t *testing.T) {
 	l := &Local{}
 
 	t.Run("happy path", func(t *testing.T) {

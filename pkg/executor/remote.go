@@ -82,6 +82,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 			localFile:  match,
 			remoteFile: remoteFile,
 			mkdir:      opts != nil && opts.Mkdir,
+			force:      opts != nil && opts.Force,
 			remoteHost: host,
 			remotePort: port,
 		}
@@ -281,6 +282,7 @@ type sftpReq struct {
 	remotePort string
 	remoteFile string
 	mkdir      bool
+	force      bool
 	client     *ssh.Client
 }
 
@@ -295,11 +297,6 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
 	defer sftpClient.Close()
-	if req.mkdir {
-		if e := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); e != nil {
-			return fmt.Errorf("failed to create remote directory: %v", e)
-		}
-	}
 
 	inpFh, err := os.Open(req.localFile)
 	if err != nil {
@@ -313,11 +310,26 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	}
 	log.Printf("[DEBUG] file mode for %s: %s", req.localFile, fmt.Sprintf("%04o", inpFi.Mode().Perm()))
 
+	remoteFi, err := sftpClient.Stat(req.remoteFile)
+	if err == nil {
+		// if remote file exists, and has the same size and mod time, skip upload. Force flag overrides this.
+		if !req.force && remoteFi.Size() == inpFi.Size() && isWithinOneSecond(remoteFi.ModTime(), inpFi.ModTime()) {
+			log.Printf("[INFO] remote file %s identical to local file %s, skipping upload", req.remoteFile, req.localFile)
+			return nil
+		}
+	}
+
+	if req.mkdir {
+		if e := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); e != nil {
+			return fmt.Errorf("failed to create remote directory: %v", e)
+		}
+	}
+
 	remoteFh, err := sftpClient.Create(req.remoteFile)
 	if err != nil {
 		return fmt.Errorf("failed to create remote file: %v", err)
 	}
-	defer remoteFh.Close() // nolint
+	defer remoteFh.Close()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -344,16 +356,9 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	return nil
 }
-
 func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
-
-	if req.mkdir {
-		if err := os.MkdirAll(filepath.Dir(req.localFile), 0o750); err != nil {
-			return fmt.Errorf("failed to create local directory: %w", err)
-		}
-	}
 
 	sftpClient, err := sftp.NewClient(req.client)
 	if err != nil {
@@ -361,21 +366,49 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	}
 	defer sftpClient.Close()
 
-	outFh, err := os.Create(req.localFile)
-	if err != nil {
-		return fmt.Errorf("failed to open local file %s: %v", req.localFile, err)
-	}
-	defer outFh.Close() // nolint
-
 	remoteFh, err := sftpClient.Open(req.remoteFile)
 	if err != nil {
 		return fmt.Errorf("failed to open remote file: %v", err)
 	}
 	defer remoteFh.Close() // nolint
 
+	remoteFi, err := remoteFh.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat remote file: %v", err)
+	}
+
+	// Check if local file exists, if not create it.
+	if _, stErr := os.Stat(req.localFile); stErr != nil {
+		if !os.IsNotExist(stErr) {
+			return fmt.Errorf("failed to stat local file: %v", stErr)
+		}
+		outFh, crErr := os.Create(req.localFile)
+		if crErr != nil {
+			return fmt.Errorf("failed to open local file %s: %v", req.localFile, crErr)
+		}
+		defer outFh.Close() // nolint
+	}
+
+	localFh, err := os.OpenFile(req.localFile, os.O_WRONLY|os.O_CREATE, 0o600)
+	if err != nil {
+		return fmt.Errorf("failed to open local file: %v", err)
+	}
+	defer localFh.Close() // nolint
+
+	localFi, err := localFh.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat local file: %v", err)
+	}
+
+	// if the local file size and mod time are the same as the remote file, don't download. Force flag overrides this.
+	if !req.force && localFi.Size() == remoteFi.Size() && isWithinOneSecond(localFi.ModTime(), remoteFi.ModTime()) {
+		log.Printf("[INFO] local file %s is up-to-date.", req.localFile)
+		return nil
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
-		_, e := io.Copy(outFh, remoteFh)
+		_, e := io.Copy(localFh, remoteFh)
 		errCh <- e
 	}()
 
@@ -388,7 +421,7 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		}
 	}
 
-	return outFh.Sync() // nolint
+	return localFh.Sync() // nolint
 }
 
 type fileProperties struct {
@@ -490,14 +523,6 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 }
 
 func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, excl []string) (updatedFiles, deletedFiles []string) {
-	isWithinOneSecond := func(t1, t2 time.Time) bool {
-		diff := t1.Sub(t2)
-		if diff < 0 {
-			diff = -diff
-		}
-		return diff <= time.Second
-	}
-
 	updatedFiles = []string{}
 	deletedFiles = []string{}
 
