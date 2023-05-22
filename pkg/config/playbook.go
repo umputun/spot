@@ -220,11 +220,11 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		return host, port
 	}
 
-	errors := new(multierror.Error)
+	errs := new(multierror.Error)
 	if err = unmarshal(data, res); err == nil && len(res.Tasks) > 0 {
 		return nil // success, this is full PlayBook config
 	}
-	errors = multierror.Append(errors, err)
+	errs = multierror.Append(errs, err)
 
 	simple := &SimplePlayBook{}
 	if err = unmarshal(data, simple); err == nil && len(simple.Task) > 0 {
@@ -262,7 +262,7 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		return nil
 	}
 
-	return multierror.Append(errors, err).Unwrap()
+	return multierror.Append(errs, err).Unwrap()
 }
 
 // Task returns the task with the specified name from the playbook's list of tasks. If the name is "ad-hoc" and an ad-hoc
