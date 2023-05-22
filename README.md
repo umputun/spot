@@ -769,8 +769,9 @@ Available commands:
 TLDR: Spot is simple. It only has a few basic commands with a very limited set of options and flags. The playbook is just a list of commands to run, plus a list of remote targets to apply those commands against. Each command is made to be as intuitive and as direct as possible. Despite its simplicity, Spot is surprisingly powerful and can help get things done. This tool was built out of frustration with the complexity of similar tools. All I wanted was something that was simple, easy to use, and easy to understand, capable of handling most of the usual deployment tasks. I didn't want to have to check documentation or resort to googling every time I used it. Spot is the result of that effort.
 
 <details markdown>
+  
   <summary>Why Spot? Is it replacing Ansible?</summary>
-
+  
 Spot is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
 It addresses the need for a tool that is easy to set up and use, while still offering powerful features for managing infrastructure.
 
