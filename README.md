@@ -483,7 +483,7 @@ By using this approach, Spot enables users to write and execute more complex scr
 
 ### Passing variables from one script command to another
 
-Spot allows passing variables from one script command to another. This is useful when you need to pass the output of one command to another command. For example if one command creates a file and you need to pass the file name to another command. To pass such variables, user need to use usual shell's `export` command in the first script command, and then all the variables exported in the first command will be available in the subsequent commands. 
+Spot allows to pass variables from one command to another. This feature is especially useful when a command, often a script, sets a variable, and the subsequent command requires this variable. For instance, if one command creates a file and the file name is needed in another command. To pass these variables, user must use the conventional shell's export directive in the initial script command. Subsequently, all variables exported in this initial command will be accessible in the following commands.
 
 For example:
 
@@ -496,6 +496,8 @@ commands:
   - name: second command
     script: |
       echo "File name is $FILE_NAME"
+  - name: third command
+    copy: {src: $FILE_NAME, dest: /tmp/file2}
 ```
 
 ## Targets
