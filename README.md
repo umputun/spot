@@ -413,9 +413,9 @@ Each command type supports the following options:
 - `ignore_errors`: if set to `true` the command will not fail the task in case of an error.
 - `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
-- `sudo`: if set to `true` the command will be executed with `sudo` privileges.
-- `only_on`: optional, allows to set a list of host names or addresses where the command will be executed. If not set, the command will be executed on all hosts. For example, `only_on: [host1, host2]` will execute command on `host1` and `host2` only. This option also supports reversed condition, so if user wants to execute command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute command on all hosts except `host1` and `host2`. 
-- `cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. Condition can be inverted by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if file `/tmp/foo` doesn't exist. Please note that `cond` option supported for `script` command type only.
+- `sudo`: if set to `true` the command will be executed with `sudo` privileges. This option is not supported for `sync` command type but can be used with any other command type.
+- `only_on`: allows to set a list of host names or addresses where the command will be executed. For example, `only_on: [host1, host2]` will execute command on `host1` and `host2` only. This option also supports reversed condition, so if user wants to execute command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute command on all hosts except `host1` and `host2`. 
+- `cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. Condition can be reversed by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if file `/tmp/foo` doesn't exist. Please note that `cond` option supported for `script` command type only.
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
 
@@ -425,9 +425,6 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
         script: sleep 5s
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
 ```
-
-Please note that the `sudo` option is not supported for the `sync` command type, but all other command types support it.
-
 
 ### Script Execution
 
@@ -766,11 +763,13 @@ Available commands:
 
 ```
 
-<details markdown>
-  <summary>Why Spot? Is it replacing Ansible?</summary>
-
 
 ## Why Spot?
+
+TLDR: Spot is simple. It only has a few basic commands with a very limited set of options and flags. The playbook is just a list of commands to run, plus a list of remote targets to apply those commands against. Each command is made to be as intuitive and as direct as possible. Despite its simplicity, Spot is surprisingly powerful and can help get things done. This tool was built out of frustration with the complexity of similar tools. All I wanted was something that was simple, easy to use, and easy to understand, capable of handling most of the usual deployment tasks. I didn't want to have to check documentation or resort to googling every time I used it. Spot is the result of that effort.
+
+<details markdown>
+  <summary>Why Spot? Is it replacing Ansible?</summary>
 
 Spot is designed to provide a simple, efficient, and flexible solution for deployment and configuration management. 
 It addresses the need for a tool that is easy to set up and use, while still offering powerful features for managing infrastructure.
