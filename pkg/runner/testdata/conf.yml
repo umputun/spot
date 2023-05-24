@@ -135,6 +135,15 @@ tasks:
       - name: good command
         script: echo good command 2
 
+  - name: failed_task_with_bad_onerror
+    on_error: exit 1
+    commands:
+      - name: good command
+        script: echo good command 1
+      - name: bad command
+        script: echo bad command && exit 1
+      - name: good command
+        script: echo good command 2
 
   - name: with_wait
     commands:

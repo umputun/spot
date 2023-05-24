@@ -1,0 +1,3 @@
+{{- range .}}
+"Name": "{{.Name}}", "Host": "{{.Host}}", "Port": {{.Port}}, "User": "{{.User}}","Tags": [{{range .Tags}}"{{.}}"{{end}}]
+{{- end -}}

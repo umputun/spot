@@ -244,6 +244,36 @@ func Test_runNoConfig(t *testing.T) {
 	require.ErrorContains(t, err, "can't load playbook \"testdata/conf-not-found.yml\"")
 }
 
+func Test_runGen_goTmplFile(t *testing.T) {
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf.yml",
+		TaskName:     "task1",
+		Targets:      []string{"dev"},
+		SecretsProvider: SecretsProvider{
+			Provider: "spot",
+			Conn:     "testdata/test-secrets.db",
+			Key:      "1234567890",
+		},
+		Inventory:   "testdata/inventory.yml",
+		GenEnable:   true,
+		GenOutput:   filepath.Join(os.TempDir(), "test_gen_output.data"),
+		GenTemplate: "testdata/gen.tmpl",
+	}
+	defer os.Remove(opts.GenOutput)
+
+	setupLog(true)
+	err := run(opts)
+	require.NoError(t, err)
+
+	res, err := os.ReadFile(opts.GenOutput)
+	require.NoError(t, err)
+	exp := "\n" + `"Name": "dev1", "Host": "dev1.umputun.dev", "Port": 22, "User": "test","Tags": []` + "\n" +
+		`"Name": "dev2", "Host": "dev2.umputun.dev", "Port": 22, "User": "test","Tags": []`
+	assert.Equal(t, exp, string(res), "expected output")
+}
+
 func Test_connectFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()

@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/template"
 	"time"
 
 	"github.com/go-pkgz/stringutils"
@@ -21,13 +23,14 @@ import (
 )
 
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
+//go:generate moq -out mocks/config.go -pkg mocks -skip-ensure -fmt goimports . Config
 
 // Process is a struct that holds the information needed to run a process.
 // It responsible for running a task on a target hosts.
 type Process struct {
 	Concurrency int
 	Connector   Connector
-	Config      *config.PlayBook
+	Config      Config
 	ColorWriter *executor.ColorizedWriter
 	Verbose     bool
 	Dry         bool
@@ -41,6 +44,13 @@ type Process struct {
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
+}
+
+// Config is an interface for getting task and target information from playbook.
+type Config interface {
+	Task(name string) (*config.Task, error)
+	TargetHosts(name string) ([]config.Destination, error)
+	AllSecretValues() []string
 }
 
 // ProcResp holds the information about processed commands and hosts.
@@ -103,6 +113,40 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	}
 
 	return ProcResp{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands)), Vars: allVars}, err
+}
+
+// Gen generates the list target hosts for a given target, applying templates.
+func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) error {
+
+	targetHosts := []config.Destination{}
+	for _, target := range targets {
+		hosts, err := p.Config.TargetHosts(target)
+		if err != nil {
+			return fmt.Errorf("can't get target %s: %w", target, err)
+		}
+		targetHosts = append(targetHosts, hosts...)
+	}
+	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
+
+	// if no reader provided, just encode target hosts as json
+	if tmplRdr == nil {
+		return json.NewEncoder(respWr).Encode(targetHosts)
+	}
+
+	templateBytes, err := io.ReadAll(tmplRdr)
+	if err != nil {
+		return fmt.Errorf("can't read template: %w", err)
+	}
+
+	tmpl, err := template.New("spot").Parse(string(templateBytes))
+	if err != nil {
+		return fmt.Errorf("can't parse template: %w", err)
+	}
+	if err = tmpl.Execute(respWr, targetHosts); err != nil {
+		return fmt.Errorf("can't execute template: %w", err)
+	}
+
+	return nil
 }
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.

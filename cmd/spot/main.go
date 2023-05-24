@@ -49,6 +49,11 @@ type options struct {
 	// secrets
 	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SPOT_SECRETS"`
 
+	// generate inventory destinations from template
+	GenEnable   bool   `long:"gen" description:"generate inventory destinations from template"`
+	GenTemplate string `long:"gen.template" description:"template file" default:"json"`
+	GenOutput   string `long:"gen.output" description:"output file" default:"stdout"`
+
 	Version bool `long:"version" description:"show version"`
 
 	Dry     bool `long:"dry" description:"dry run"`
@@ -79,7 +84,6 @@ type SecretsProvider struct {
 var revision = "latest"
 
 func main() {
-	fmt.Printf("spot %s\n", revision)
 
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
@@ -90,6 +94,10 @@ func main() {
 		os.Exit(0) // already printed
 	}
 	setupLog(opts.Dbg)
+
+	if !opts.GenEnable || opts.GenOutput != "stdout" {
+		fmt.Printf("spot %s\n", revision) // print version only if not generating inventory to stdout
+	}
 
 	if err := run(opts); err != nil {
 		if opts.Dbg {
@@ -185,6 +193,10 @@ func run(opts options) error {
 		return errs.ErrorOrNil()
 	}
 
+	if opts.GenEnable { // generate list of destination from inventory targets
+		return runGen(&r, opts, conf)
+	}
+
 	if opts.TaskName != "" { // run a single task
 		for _, targetName := range targetsForTask(opts, opts.TaskName, conf) {
 			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName, conf); err != nil {
@@ -203,6 +215,39 @@ func run(opts options) error {
 		}
 	}
 	log.Printf("[INFO] completed all %d targets in %v", len(opts.Targets), time.Since(st).Truncate(100*time.Millisecond))
+	return nil
+}
+
+// runGen generates destination report for the task's targets
+func runGen(r *runner.Process, opts options, conf *config.PlayBook) (err error) {
+	targets := targetsForTask(opts, opts.TaskName, conf)
+
+	var fh io.ReadCloser
+	if opts.GenTemplate != "" && opts.GenTemplate != "json" {
+		fh, err = os.Open(opts.GenTemplate)
+		if err != nil {
+			return fmt.Errorf("can't open template file %q: %w", opts.GenTemplate, err)
+		}
+		defer fh.Close() //nolint this is read-only
+	}
+
+	wr := os.Stdout
+	if opts.GenOutput != "" && opts.GenOutput != "stdout" {
+		log.Printf("[INFO] writing report to %q", opts.GenOutput)
+		wr, err = os.Create(opts.GenOutput)
+		if err != nil {
+			return fmt.Errorf("can't open output file %q: %w", opts.GenOutput, err)
+		}
+		defer wr.Close() //nolint this happens after sync
+	}
+
+	err = r.Gen(targets, fh, wr)
+	if err != nil {
+		return fmt.Errorf("can't generate report: %w", err)
+	}
+	if err = wr.Sync(); err != nil {
+		return fmt.Errorf("can't sync report: %w", err)
+	}
 	return nil
 }
 
