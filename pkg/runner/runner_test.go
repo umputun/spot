@@ -19,6 +19,7 @@ import (
 
 	"github.com/umputun/spot/pkg/config"
 	"github.com/umputun/spot/pkg/executor"
+	"github.com/umputun/spot/pkg/runner/mocks"
 	"github.com/umputun/spot/pkg/secrets"
 )
 
@@ -762,6 +763,65 @@ func Test_shouldRunCmd(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := &Process{Only: tc.only, Skip: tc.skip}
 			assert.Equal(t, tc.expected, p.shouldRunCmd(tc.cmd, tc.hostName, tc.hostAddr))
+		})
+	}
+}
+
+func TestGen(t *testing.T) {
+	mockConfig := &mocks.ConfigMock{
+		TargetHostsFunc: func(name string) ([]config.Destination, error) {
+			return []config.Destination{
+				{Name: "test1", Host: "host1", Port: 8080, User: "user1", Tags: []string{"tag1", "tag2"}},
+				{Name: "test2", Host: "host2", Port: 8081, User: "user2", Tags: []string{"tag3", "tag4"}},
+			}, nil
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		target    string
+		tmplInput string
+		wantErr   bool
+		want      string
+	}{
+		{
+			name:      "single field",
+			target:    "test",
+			tmplInput: `{{range .}}{{.Name}}{{end}}`,
+			wantErr:   false,
+			want:      "test1test2",
+		},
+		{
+			name:      "multiple fields",
+			target:    "test",
+			tmplInput: `{{range .}}{{.Name}}, {{.Host}}, {{.Port}}, {{.User}}{{end}}`,
+			wantErr:   false,
+			want:      "test1, host1, 8080, user1test2, host2, 8081, user2",
+		},
+		{
+			name:      "invalid template",
+			target:    "test",
+			tmplInput: `{{range .}{.Name}}{{end}}`,
+			wantErr:   true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Process{
+				Config: mockConfig,
+			}
+
+			tmplRdr := bytes.NewBufferString(tc.tmplInput)
+			respWr := &bytes.Buffer{}
+
+			err := p.Gen([]string{tc.target}, tmplRdr, respWr)
+			if tc.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.want, respWr.String())
+			}
 		})
 	}
 }

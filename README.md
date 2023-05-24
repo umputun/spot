@@ -629,6 +629,26 @@ In each case inventory automatically merged and a special group `all` will be cr
 
 *Alternatively, the inventory can be represented using the TOML format.*
 
+### Export 
+
+Spot supports export all the destination from selected/matched targets to the file or stdout. This is useful when user want to use the same hosts/ports/server-names/etc in other systems. By default, with `--gen` option, Spot will export to stdout in json format. To export to the file, `--gen.output=/path/to/file` option can be used.
+
+This exported list of destinations can be consumed by other system, but practically it will require some conversion from the spot's json to the format that is supported by the system. This can be addressed by injecting [`jq`](https://stedolan.github.io/jq/) into the mix but spot  also offers a better solution - templating with the standard go templates. To turn this feature on, `--gen.template=/path/to/template` option can be used.
+
+Example of the template file, showing all the fields that can be used:
+
+```
+{{- range .}}
+"Name": "{{.Name}}"
+"Host:Port": "{{.Host}}:{{.Port}}"
+"User": "{{.User}}"
+"Tags": [{{range .Tags}}"{{.}}"{{end}}]
+{{- end -}}
+```
+
+_for more info see [go templates](https://pkg.go.dev/text/template)_
+
+
 ## Runtime variables
 
 Spot supports runtime variables that can be used in the playbook file. The following variables are supported:

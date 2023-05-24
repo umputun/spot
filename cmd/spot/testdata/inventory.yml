@@ -1,0 +1,6 @@
+groups:
+  dev:
+    - {host: "dev1.umputun.dev", name: "dev1", user: "umputun"}
+    - {host: "dev2.umputun.dev", name: "dev2", user: "umputun"}
+  prod:
+    - {host: "prod1.umputun.dev", name: "prod1", user: "umputun"}
