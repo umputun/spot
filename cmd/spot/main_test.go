@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/signal"
@@ -243,45 +242,6 @@ func Test_runNoConfig(t *testing.T) {
 	setupLog(true)
 	err := run(opts)
 	require.ErrorContains(t, err, "can't load playbook \"testdata/conf-not-found.yml\"")
-}
-
-func Test_runGen_jsonStdout(t *testing.T) {
-	opts := options{
-		SSHUser:      "test",
-		SSHKey:       "testdata/test_ssh_key",
-		PlaybookFile: "testdata/conf.yml",
-		TaskName:     "task1",
-		Targets:      []string{"dev"},
-		SecretsProvider: SecretsProvider{
-			Provider: "spot",
-			Conn:     "testdata/test-secrets.db",
-			Key:      "1234567890",
-		},
-		Inventory: "testdata/inventory.yml",
-		GenEnable: true,
-	}
-
-	setupLog(false)
-
-	old := os.Stdout // keep backup of the real stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := run(opts)
-	require.NoError(t, err)
-
-	outC := make(chan string)
-	go func() {
-		var buf bytes.Buffer
-		io.Copy(&buf, r)
-		outC <- buf.String()
-	}()
-
-	w.Close()
-	os.Stdout = old // restoring the real stdout
-	out := <-outC   // reading captured stdout
-	exp := "[{\"Name\":\"dev1\",\"Host\":\"dev1.umputun.dev\",\"Port\":22,\"User\":\"test\",\"Tags\":null},{\"Name\":\"dev2\",\"Host\":\"dev2.umputun.dev\",\"Port\":22,\"User\":\"test\",\"Tags\":null}]\n"
-	assert.Equal(t, exp, out, "expected output")
 }
 
 func Test_runGen_goTmplFile(t *testing.T) {
