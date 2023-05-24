@@ -21,13 +21,14 @@ import (
 )
 
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
+//go:generate moq -out mocks/config.go -pkg mocks -skip-ensure -fmt goimports . Config
 
 // Process is a struct that holds the information needed to run a process.
 // It responsible for running a task on a target hosts.
 type Process struct {
 	Concurrency int
 	Connector   Connector
-	Config      *config.PlayBook
+	Config      Config
 	ColorWriter *executor.ColorizedWriter
 	Verbose     bool
 	Dry         bool
@@ -41,6 +42,13 @@ type Process struct {
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
+}
+
+// Config is an interface for getting task and target information from playbook.
+type Config interface {
+	Task(name string) (*config.Task, error)
+	TargetHosts(name string) ([]config.Destination, error)
+	AllSecretValues() []string
 }
 
 // ProcResp holds the information about processed commands and hosts.

@@ -565,16 +565,12 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		var buf bytes.Buffer
 		log.SetOutput(&buf)
 
-		tsk := p.Config.Tasks[2]
-		require.Equal(t, "failed_task_with_onerror", tsk.Name)
-		tsk.OnError = "bad command"
-		p.Config.Tasks[2] = tsk
-		_, err = p.Run(ctx, "failed_task_with_onerror", testingHostAndPort)
+		_, err = p.Run(ctx, "failed_task_with_bad_onerror", testingHostAndPort)
 		require.ErrorContains(t, err, `failed command "bad command" on host`)
 		t.Log(buf.String())
 		require.NotContains(t, buf.String(), "onerror called")
 		assert.Contains(t, buf.String(), "[WARN]")
-		assert.Contains(t, buf.String(), "not found")
+		assert.Contains(t, buf.String(), `can't run on-error command "exit 1`)
 	})
 }
 
