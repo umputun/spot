@@ -128,7 +128,7 @@ func run(opts options) error {
 	}
 	lgr.Setup(lgr.Secret(pbook.AllSecretValues()...)) // mask secrets in logs
 
-	if pbook.User, err = sshUser(opts.SSHUser, pbook, &defaultUserInfoProvider{}); err != nil {
+	if pbook.User, err = sshUser(opts.SSHUser, pbook); err != nil {
 		return fmt.Errorf("can't get ssh user: %w", err)
 	}
 
@@ -138,7 +138,7 @@ func run(opts options) error {
 	}
 
 	if opts.PositionalArgs.AdHocCmd != "" { // run ad-hoc command
-		if r.Playbook, err = setAdHocConf(opts, pbook, &defaultUserInfoProvider{}); err != nil {
+		if r.Playbook, err = setAdHocConf(opts, pbook); err != nil {
 			return fmt.Errorf("can't setup ad-hoc config: %w", err)
 		}
 		return runAdHoc(ctx, opts.Targets, r)
@@ -241,6 +241,22 @@ func inventory(inventory string) (string, error) {
 }
 
 func playbook(opts options, inventory string) (*config.PlayBook, error) {
+	// makeSecretsProvider creates secrets provider based on options
+	makeSecretsProvider := func(sopts SecretsProvider) (config.SecretsProvider, error) {
+		switch sopts.Provider {
+		case "none":
+			return &secrets.NoOpProvider{}, nil
+		case "spot":
+			return secrets.NewInternalProvider(sopts.Conn, []byte(sopts.Key))
+		case "vault":
+			return secrets.NewHashiVaultProvider(sopts.Vault.URL, sopts.Vault.Path, sopts.Vault.Token)
+		case "aws":
+			return secrets.NewAWSSecretsProvider(sopts.Aws.AccessKey, sopts.Aws.SecretKey, sopts.Aws.Region)
+		}
+		log.Printf("[WARN] unknown secrets provider %q", sopts.Provider)
+		return &secrets.NoOpProvider{}, nil
+	}
+
 	overrides := config.Overrides{
 		Inventory:    inventory,
 		Environment:  opts.Env,
@@ -262,7 +278,7 @@ func playbook(opts options, inventory string) (*config.PlayBook, error) {
 }
 
 func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
-	sshKey, err := sshKey(opts.SSHKey, pbook, &defaultUserInfoProvider{})
+	sshKey, err := sshKey(opts.SSHKey, pbook)
 	if err != nil {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
@@ -330,24 +346,8 @@ func targetsForTask(targets []string, taskName string, pbook *config.PlayBook) [
 	return tsk.Targets
 }
 
-// makeSecretsProvider creates secrets provider based on options
-func makeSecretsProvider(sopts SecretsProvider) (config.SecretsProvider, error) {
-	switch sopts.Provider {
-	case "none":
-		return &secrets.NoOpProvider{}, nil
-	case "spot":
-		return secrets.NewInternalProvider(sopts.Conn, []byte(sopts.Key))
-	case "vault":
-		return secrets.NewHashiVaultProvider(sopts.Vault.URL, sopts.Vault.Path, sopts.Vault.Token)
-	case "aws":
-		return secrets.NewAWSSecretsProvider(sopts.Aws.AccessKey, sopts.Aws.SecretKey, sopts.Aws.Region)
-	}
-	log.Printf("[WARN] unknown secrets provider %q", sopts.Provider)
-	return &secrets.NoOpProvider{}, nil
-}
-
 // get ssh key from cli or playbook. if no key is provided, use default ~/.ssh/id_rsa
-func sshKey(sshKey string, pbook *config.PlayBook, provider userInfoProvider) (key string, err error) {
+func sshKey(sshKey string, pbook *config.PlayBook) (key string, err error) {
 	if sshKey == "" && (pbook == nil || pbook.SSHKey != "") { // no key provided in cli
 		sshKey = pbook.SSHKey // use playbook's ssh_key
 	}
@@ -356,7 +356,7 @@ func sshKey(sshKey string, pbook *config.PlayBook, provider userInfoProvider) (k
 	}
 
 	if sshKey == "" { // no key provided in cli or playbook
-		u, err := provider.Current()
+		u, err := userProvider.Current()
 		if err != nil {
 			return "", fmt.Errorf("can't get current user: %w", err)
 		}
@@ -368,12 +368,12 @@ func sshKey(sshKey string, pbook *config.PlayBook, provider userInfoProvider) (k
 }
 
 // get ssh user from cli or playbook. if no user is provided, use current user from os
-func sshUser(sshUser string, pbook *config.PlayBook, provider userInfoProvider) (res string, err error) {
+func sshUser(sshUser string, pbook *config.PlayBook) (string, error) {
 	if sshUser == "" && (pbook == nil || pbook.User != "") { // no user provided in cli
 		sshUser = pbook.User // use playbook's user
 	}
 	if sshUser == "" { // no user provided in cli or playbook
-		u, err := provider.Current()
+		u, err := userProvider.Current()
 		if err != nil {
 			return "", fmt.Errorf("can't get current user: %w", err)
 		}
@@ -384,7 +384,7 @@ func sshUser(sshUser string, pbook *config.PlayBook, provider userInfoProvider) 
 
 func expandPath(path string) (string, error) {
 	if strings.HasPrefix(path, "~") {
-		usr, err := user.Current()
+		usr, err := userProvider.Current()
 		if err != nil {
 			return "", err
 		}
@@ -394,27 +394,17 @@ func expandPath(path string) (string, error) {
 	return path, nil
 }
 
-type userInfoProvider interface {
-	Current() (*user.User, error)
-}
-
-type defaultUserInfoProvider struct{}
-
-func (p *defaultUserInfoProvider) Current() (*user.User, error) {
-	return user.Current()
-}
-
 // setAdHocConf prepares config for ad-hoc command
-func setAdHocConf(opts options, pbook *config.PlayBook, provider userInfoProvider) (*config.PlayBook, error) {
+func setAdHocConf(opts options, pbook *config.PlayBook) (*config.PlayBook, error) {
 	if opts.SSHUser == "" {
-		u, err := provider.Current()
+		u, err := userProvider.Current()
 		if err != nil {
 			return nil, fmt.Errorf("can't get current user: %w", err)
 		}
 		pbook.User = u.Username
 	}
 	if opts.SSHKey == "" {
-		u, err := provider.Current()
+		u, err := userProvider.Current()
 		if err != nil {
 			return nil, fmt.Errorf("can't get current user: %w", err)
 		}
@@ -465,4 +455,17 @@ func setupLog(dbg bool) {
 
 	lgr.SetupStdLogger(logOpts...)
 	lgr.Setup(logOpts...)
+}
+
+// userProvider is used to get current user. It's a var so it can be mocked in tests
+var userProvider userInfoProvider = &defaultUserInfoProvider{}
+
+type userInfoProvider interface {
+	Current() (*user.User, error)
+}
+
+type defaultUserInfoProvider struct{}
+
+func (p *defaultUserInfoProvider) Current() (*user.User, error) {
+	return user.Current()
 }

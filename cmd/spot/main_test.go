@@ -369,10 +369,10 @@ func Test_sshUserAndKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			key, err := sshKey(tc.opts.SSHKey, &tc.conf, &defaultUserInfoProvider{})
+			key, err := sshKey(tc.opts.SSHKey, &tc.conf)
 			require.NoError(t, err, "sshKey should not return an error")
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
-			sshUser, err := sshUser(tc.opts.SSHUser, &tc.conf, &defaultUserInfoProvider{})
+			sshUser, err := sshUser(tc.opts.SSHUser, &tc.conf)
 			require.NoError(t, err, "sshUser should not return an error")
 			assert.Equal(t, tc.expectedUser, sshUser, "sshUser should match expected user")
 		})
@@ -398,12 +398,13 @@ func TestAdHocConf(t *testing.T) {
 			Username: "testuser",
 			HomeDir:  "/tmp/test-home",
 		}
-		mockProvider := &mockUserInfoProvider{user: mockUser}
+		userProvider = &mockUserInfoProvider{user: mockUser}
+		defer func() { userProvider = &defaultUserInfoProvider{} }()
 
 		// call adHocConf with empty options and mock provider.
 		opts := options{}
 		pbook := &config.PlayBook{}
-		pbook, err := setAdHocConf(opts, pbook, mockProvider)
+		pbook, err := setAdHocConf(opts, pbook)
 		require.NoError(t, err)
 
 		assert.Equal(t, mockUser.Username, pbook.User)
@@ -415,7 +416,8 @@ func TestAdHocConf(t *testing.T) {
 			Username: "testuser",
 			HomeDir:  "/tmp/test-home",
 		}
-		mockProvider := &mockUserInfoProvider{user: mockUser}
+		userProvider = &mockUserInfoProvider{user: mockUser}
+		defer func() { userProvider = &defaultUserInfoProvider{} }()
 
 		opts := options{
 			SSHUser: "customuser",
@@ -425,17 +427,18 @@ func TestAdHocConf(t *testing.T) {
 			User:   "customuser",
 			SSHKey: "/tmp/custom-key",
 		}
-		pbook, err := setAdHocConf(opts, pbook, mockProvider)
+		pbook, err := setAdHocConf(opts, pbook)
 		require.NoError(t, err)
 		assert.Equal(t, opts.SSHUser, pbook.User)
 		assert.Equal(t, opts.SSHKey, pbook.SSHKey)
 	})
 
 	t.Run("error getting current user", func(t *testing.T) {
-		mockProvider := &mockUserInfoProvider{err: errors.New("user error")}
+		userProvider = &mockUserInfoProvider{err: errors.New("user error")}
+		defer func() { userProvider = &defaultUserInfoProvider{} }()
 		opts := options{}
 		pbook := &config.PlayBook{}
-		_, err := setAdHocConf(opts, pbook, mockProvider)
+		_, err := setAdHocConf(opts, pbook)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
@@ -445,13 +448,14 @@ func TestAdHocConf(t *testing.T) {
 			Username: "testuser",
 			HomeDir:  "/tmp/test-home",
 		}
-		mockProvider := &mockUserInfoProvider{user: mockUser, err: errors.New("user error")}
+		userProvider = &mockUserInfoProvider{user: mockUser, err: errors.New("user error")}
+		defer func() { userProvider = &defaultUserInfoProvider{} }()
 
 		opts := options{
 			SSHUser: "customuser",
 		}
 		conf := &config.PlayBook{}
-		_, err := setAdHocConf(opts, conf, mockProvider)
+		_, err := setAdHocConf(opts, conf)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
