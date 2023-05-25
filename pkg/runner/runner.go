@@ -48,6 +48,7 @@ type Connector interface {
 
 // Playbook is an interface for getting task and target information from playbook.
 type Playbook interface {
+	AllTasks() []config.Task
 	Task(name string) (*config.Task, error)
 	TargetHosts(name string) ([]config.Destination, error)
 	AllSecretValues() []string

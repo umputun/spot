@@ -678,3 +678,15 @@ func TestPlayBook_loadSecrets(t *testing.T) {
 		assert.Equal(t, "can't get secret \"unknown\" defined in task \"\", command \"\": unknown secret key \"unknown\"", err.Error())
 	})
 }
+
+func TestPlayBook_AllTasks(t *testing.T) {
+	p := PlayBook{Tasks: []Task{
+		{Name: "task1", Targets: []string{"target1"}},
+		{Name: "task2", Targets: []string{"target2", "target3"}},
+	}}
+	assert.Equal(t, 2, len(p.AllTasks()))
+	assert.Equal(t, "task1", p.AllTasks()[0].Name)
+	assert.Equal(t, "task2", p.AllTasks()[1].Name)
+	assert.Equal(t, []string{"target1"}, p.AllTasks()[0].Targets)
+	assert.Equal(t, []string{"target2", "target3"}, p.AllTasks()[1].Targets)
+}

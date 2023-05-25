@@ -265,6 +265,19 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	return multierror.Append(errs, err).Unwrap()
 }
 
+// AllTasks returns the playbook's list of tasks.
+// This method performs a deep copy of the tasks to avoid side effects of overrides on the original config.
+func (p *PlayBook) AllTasks() []Task {
+	cp := deepcopy.Copy(p.Tasks)
+	res, ok := cp.([]Task)
+	if !ok {
+		// this should never happen
+		return p.Tasks
+	}
+
+	return res
+}
+
 // Task returns the task with the specified name from the playbook's list of tasks. If the name is "ad-hoc" and an ad-hoc
 // command is specified in the playbook's overrides, a fake task with a single command is created.
 // The method performs a deep copy of the task to avoid side effects of overrides on the original config and also applies

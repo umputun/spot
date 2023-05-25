@@ -18,6 +18,9 @@ import (
 //			AllSecretValuesFunc: func() []string {
 //				panic("mock out the AllSecretValues method")
 //			},
+//			AllTasksFunc: func() []config.Task {
+//				panic("mock out the AllTasks method")
+//			},
 //			TargetHostsFunc: func(name string) ([]config.Destination, error) {
 //				panic("mock out the TargetHosts method")
 //			},
@@ -37,6 +40,9 @@ type PlaybookMock struct {
 	// AllSecretValuesFunc mocks the AllSecretValues method.
 	AllSecretValuesFunc func() []string
 
+	// AllTasksFunc mocks the AllTasks method.
+	AllTasksFunc func() []config.Task
+
 	// TargetHostsFunc mocks the TargetHosts method.
 	TargetHostsFunc func(name string) ([]config.Destination, error)
 
@@ -50,6 +56,9 @@ type PlaybookMock struct {
 	calls struct {
 		// AllSecretValues holds details about calls to the AllSecretValues method.
 		AllSecretValues []struct {
+		}
+		// AllTasks holds details about calls to the AllTasks method.
+		AllTasks []struct {
 		}
 		// TargetHosts holds details about calls to the TargetHosts method.
 		TargetHosts []struct {
@@ -68,6 +77,7 @@ type PlaybookMock struct {
 		}
 	}
 	lockAllSecretValues    sync.RWMutex
+	lockAllTasks           sync.RWMutex
 	lockTargetHosts        sync.RWMutex
 	lockTask               sync.RWMutex
 	lockUpdateTasksTargets sync.RWMutex
@@ -97,6 +107,33 @@ func (mock *PlaybookMock) AllSecretValuesCalls() []struct {
 	mock.lockAllSecretValues.RLock()
 	calls = mock.calls.AllSecretValues
 	mock.lockAllSecretValues.RUnlock()
+	return calls
+}
+
+// AllTasks calls AllTasksFunc.
+func (mock *PlaybookMock) AllTasks() []config.Task {
+	if mock.AllTasksFunc == nil {
+		panic("PlaybookMock.AllTasksFunc: method is nil but Playbook.AllTasks was just called")
+	}
+	callInfo := struct {
+	}{}
+	mock.lockAllTasks.Lock()
+	mock.calls.AllTasks = append(mock.calls.AllTasks, callInfo)
+	mock.lockAllTasks.Unlock()
+	return mock.AllTasksFunc()
+}
+
+// AllTasksCalls gets all the calls that were made to AllTasks.
+// Check the length with:
+//
+//	len(mockedPlaybook.AllTasksCalls())
+func (mock *PlaybookMock) AllTasksCalls() []struct {
+} {
+	var calls []struct {
+	}
+	mock.lockAllTasks.RLock()
+	calls = mock.calls.AllTasks
+	mock.lockAllTasks.RUnlock()
 	return calls
 }
 
