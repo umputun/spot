@@ -404,7 +404,7 @@ func TestAdHocConf(t *testing.T) {
 		// call adHocConf with empty options and mock provider.
 		opts := options{}
 		pbook := &config.PlayBook{}
-		pbook, err := setAdHocConf(opts, pbook)
+		pbook, err := setAdHocSSH(opts, pbook)
 		require.NoError(t, err)
 
 		assert.Equal(t, mockUser.Username, pbook.User)
@@ -427,7 +427,7 @@ func TestAdHocConf(t *testing.T) {
 			User:   "customuser",
 			SSHKey: "/tmp/custom-key",
 		}
-		pbook, err := setAdHocConf(opts, pbook)
+		pbook, err := setAdHocSSH(opts, pbook)
 		require.NoError(t, err)
 		assert.Equal(t, opts.SSHUser, pbook.User)
 		assert.Equal(t, opts.SSHKey, pbook.SSHKey)
@@ -438,7 +438,7 @@ func TestAdHocConf(t *testing.T) {
 		defer func() { userProvider = &defaultUserInfoProvider{} }()
 		opts := options{}
 		pbook := &config.PlayBook{}
-		_, err := setAdHocConf(opts, pbook)
+		_, err := setAdHocSSH(opts, pbook)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
@@ -455,7 +455,7 @@ func TestAdHocConf(t *testing.T) {
 			SSHUser: "customuser",
 		}
 		conf := &config.PlayBook{}
-		_, err := setAdHocConf(opts, conf)
+		_, err := setAdHocSSH(opts, conf)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
