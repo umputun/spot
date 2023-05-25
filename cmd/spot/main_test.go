@@ -241,7 +241,7 @@ func Test_runNoConfig(t *testing.T) {
 	}
 	setupLog(true)
 	err := run(opts)
-	require.ErrorContains(t, err, "can't load playbook \"testdata/conf-not-found.yml\"")
+	require.ErrorContains(t, err, "can't get playbook \"testdata/conf-not-found.yml\"")
 }
 
 func Test_runGen_goTmplFile(t *testing.T) {
@@ -369,10 +369,10 @@ func Test_sshUserAndKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			key, err := sshKey(tc.opts, &tc.conf, &defaultUserInfoProvider{})
+			key, err := sshKey(tc.opts.SSHKey, &tc.conf, &defaultUserInfoProvider{})
 			require.NoError(t, err, "sshKey should not return an error")
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
-			sshUser, err := sshUser(tc.opts, &tc.conf, &defaultUserInfoProvider{})
+			sshUser, err := sshUser(tc.opts.SSHUser, &tc.conf, &defaultUserInfoProvider{})
 			require.NoError(t, err, "sshUser should not return an error")
 			assert.Equal(t, tc.expectedUser, sshUser, "sshUser should match expected user")
 		})
@@ -402,13 +402,12 @@ func TestAdHocConf(t *testing.T) {
 
 		// call adHocConf with empty options and mock provider.
 		opts := options{}
-		conf := &config.PlayBook{}
-		err := adHocConf(opts, conf, mockProvider)
-
-		// check if the function correctly sets the user and the SSH key.
+		pbook := &config.PlayBook{}
+		pbook, err := setAdHocConf(opts, pbook, mockProvider)
 		require.NoError(t, err)
-		assert.Equal(t, mockUser.Username, conf.User)
-		assert.Equal(t, filepath.Join(mockUser.HomeDir, ".ssh", "id_rsa"), conf.SSHKey)
+
+		assert.Equal(t, mockUser.Username, pbook.User)
+		assert.Equal(t, filepath.Join(mockUser.HomeDir, ".ssh", "id_rsa"), pbook.SSHKey)
 	})
 
 	t.Run("provided SSH user and key", func(t *testing.T) {
@@ -418,32 +417,25 @@ func TestAdHocConf(t *testing.T) {
 		}
 		mockProvider := &mockUserInfoProvider{user: mockUser}
 
-		// call adHocConf with custom SSH user and key options and mock provider.
 		opts := options{
 			SSHUser: "customuser",
 			SSHKey:  "/tmp/custom-key",
 		}
-		conf := &config.PlayBook{
+		pbook := &config.PlayBook{
 			User:   "customuser",
 			SSHKey: "/tmp/custom-key",
 		}
-		err := adHocConf(opts, conf, mockProvider)
-
-		// check if the function correctly sets the custom user and the SSH key.
+		pbook, err := setAdHocConf(opts, pbook, mockProvider)
 		require.NoError(t, err)
-		assert.Equal(t, opts.SSHUser, conf.User)
-		assert.Equal(t, opts.SSHKey, conf.SSHKey)
+		assert.Equal(t, opts.SSHUser, pbook.User)
+		assert.Equal(t, opts.SSHKey, pbook.SSHKey)
 	})
 
 	t.Run("error getting current user", func(t *testing.T) {
 		mockProvider := &mockUserInfoProvider{err: errors.New("user error")}
-
-		// call adHocConf with empty options and mock provider that returns an error
 		opts := options{}
-		conf := &config.PlayBook{}
-		err := adHocConf(opts, conf, mockProvider)
-
-		// check if the function returns the expected error
+		pbook := &config.PlayBook{}
+		_, err := setAdHocConf(opts, pbook, mockProvider)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
@@ -455,14 +447,11 @@ func TestAdHocConf(t *testing.T) {
 		}
 		mockProvider := &mockUserInfoProvider{user: mockUser, err: errors.New("user error")}
 
-		// call adHocConf with custom SSH user and mock provider that returns an error
 		opts := options{
 			SSHUser: "customuser",
 		}
 		conf := &config.PlayBook{}
-		err := adHocConf(opts, conf, mockProvider)
-
-		// check if the function returns the expected error
+		_, err := setAdHocConf(opts, conf, mockProvider)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "can't get current user")
 	})
@@ -617,7 +606,7 @@ func Test_targetsForTask(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := targetsForTask(tc.opts, tc.taskName, tc.conf)
+			result := targetsForTask(tc.opts.Targets, tc.taskName, tc.conf)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}

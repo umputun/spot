@@ -110,117 +110,92 @@ func main() {
 
 func run(opts options) error {
 	if opts.Dry {
-		if opts.Dbg {
-			log.Printf("[WARN] dry run, no changes will be made and no commands will be executed")
-		} else {
-			msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
-			fmt.Print(msg)
-		}
+		printDryRunWarn(opts.Dbg)
 	}
 
 	st := time.Now()
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	exInventory, err := expandPath(opts.Inventory)
+	exInventory, err := inventory(opts.Inventory)
 	if err != nil {
-		return fmt.Errorf("can't expand inventory path %q: %w", exInventory, err)
+		return fmt.Errorf("can't get inentoru %q: %w", opts.Inventory, err)
 	}
 
-	overrides := config.Overrides{
-		Inventory:    exInventory,
-		Environment:  opts.Env,
-		User:         opts.SSHUser,
-		AdHocCommand: opts.PositionalArgs.AdHocCmd,
-	}
-
-	exPlaybookFile, err := expandPath(opts.PlaybookFile)
+	pbook, err := playbook(opts, exInventory)
 	if err != nil {
-		return fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
+		return fmt.Errorf("can't get playbook %q: %w", opts.PlaybookFile, err)
 	}
+	lgr.Setup(lgr.Secret(pbook.AllSecretValues()...)) // mask secrets in logs
 
-	secretsProvider, err := makeSecretsProvider(opts.SecretsProvider)
-	if err != nil {
-		return fmt.Errorf("can't make secrets provider: %w", err)
-	}
-
-	conf, err := config.New(exPlaybookFile, &overrides, secretsProvider)
-	if err != nil {
-		return fmt.Errorf("can't load playbook %q: %w", exPlaybookFile, err)
-	}
-
-	lgr.Setup(lgr.Secret(conf.AllSecretValues()...)) // mask secrets in logs
-
-	if conf.User, err = sshUser(opts, conf, &defaultUserInfoProvider{}); err != nil {
+	if pbook.User, err = sshUser(opts.SSHUser, pbook, &defaultUserInfoProvider{}); err != nil {
 		return fmt.Errorf("can't get ssh user: %w", err)
 	}
 
 	if opts.PositionalArgs.AdHocCmd != "" {
-		if err = adHocConf(opts, conf, &defaultUserInfoProvider{}); err != nil {
+		if pbook, err = setAdHocConf(opts, pbook, &defaultUserInfoProvider{}); err != nil {
 			return fmt.Errorf("can't setup ad-hoc config: %w", err)
 		}
 	}
 
-	sshKey, err := sshKey(opts, conf, &defaultUserInfoProvider{})
+	r, err := makeRunner(opts, pbook)
 	if err != nil {
-		return fmt.Errorf("can't get ssh key: %w", err)
-	}
-	log.Printf("[INFO] ssh key: %s", sshKey)
-
-	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout)
-	if err != nil {
-		return fmt.Errorf("can't create connector: %w", err)
-	}
-	r := runner.Process{
-		Concurrency: opts.Concurrent,
-		Connector:   connector,
-		Config:      conf,
-		Only:        opts.Only,
-		Skip:        opts.Skip,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
-		Verbose:     opts.Verbose,
-		Dry:         opts.Dry,
+		return fmt.Errorf("can't make runner: %w", err)
 	}
 
-	errs := new(multierror.Error)
 	if opts.PositionalArgs.AdHocCmd != "" { // run ad-hoc command
-		r.Verbose = true // always verbose for ad-hoc
-		for _, targetName := range opts.Targets {
-			if err := runTaskForTarget(ctx, r, "ad-hoc", targetName, conf); err != nil {
-				errs = multierror.Append(errs, err)
-			}
-		}
-		return errs.ErrorOrNil()
+		return runAdHoc(ctx, opts.Targets, r, pbook)
 	}
 
-	if opts.GenEnable { // generate list of destination from inventory targets
-		return runGen(&r, opts, conf)
+	if opts.GenEnable {
+		// generate list of destination from inventory targets
+		return runGen(r, opts, pbook)
 	}
 
-	if opts.TaskName != "" { // run a single task
-		for _, targetName := range targetsForTask(opts, opts.TaskName, conf) {
-			if err := runTaskForTarget(ctx, r, opts.TaskName, targetName, conf); err != nil {
+	if err := runTasks(ctx, opts.TaskName, opts.Targets, r, pbook); err != nil {
+		return err
+	}
+
+	log.Printf("[INFO] completed all %d targets in %v", len(opts.Targets), time.Since(st).Truncate(100*time.Millisecond))
+	return nil
+}
+
+func runTasks(ctx context.Context, taskName string, targets []string, r *runner.Process, pbook *config.PlayBook) error {
+	// run a single task if specified
+	if taskName != "" {
+		for _, targetName := range targetsForTask(targets, taskName, pbook) {
+			if err := runTaskForTarget(ctx, r, taskName, targetName, pbook); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
 
-	// run all tasks
-	for _, task := range conf.Tasks {
-		for _, targetName := range targetsForTask(opts, task.Name, conf) {
-			if err := runTaskForTarget(ctx, r, task.Name, targetName, conf); err != nil {
+	// run all tasks in playbook if no task specified
+	for _, task := range pbook.Tasks {
+		for _, targetName := range targetsForTask(targets, task.Name, pbook) {
+			if err := runTaskForTarget(ctx, r, task.Name, targetName, pbook); err != nil {
 				return err
 			}
 		}
 	}
-	log.Printf("[INFO] completed all %d targets in %v", len(opts.Targets), time.Since(st).Truncate(100*time.Millisecond))
 	return nil
 }
 
+func runAdHoc(ctx context.Context, targets []string, r *runner.Process, pbook *config.PlayBook) error {
+	errs := new(multierror.Error)
+	r.Verbose = true // always verbose for ad-hoc
+	for _, targetName := range targets {
+		if err := runTaskForTarget(ctx, r, "ad-hoc", targetName, pbook); err != nil {
+			errs = multierror.Append(errs, err)
+		}
+	}
+	return errs.ErrorOrNil()
+}
+
 // runGen generates destination report for the task's targets
-func runGen(r *runner.Process, opts options, conf *config.PlayBook) (err error) {
-	targets := targetsForTask(opts, opts.TaskName, conf)
+func runGen(r *runner.Process, opts options, pbook *config.PlayBook) (err error) {
+	targets := targetsForTask(opts.Targets, opts.TaskName, pbook)
 
 	var fh io.ReadCloser
 	if opts.GenTemplate != "" && opts.GenTemplate != "json" {
@@ -251,7 +226,68 @@ func runGen(r *runner.Process, opts options, conf *config.PlayBook) (err error) 
 	return nil
 }
 
-func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetName string, conf *config.PlayBook) error {
+func printDryRunWarn(dbg bool) {
+	if dbg {
+		log.Printf("[WARN] dry run, no changes will be made and no commands will be executed")
+		return
+	}
+	msg := color.New(color.FgHiRed).SprintfFunc()("dry run - no changes will be made and no commands will be executed\n")
+	fmt.Print(msg)
+}
+
+func inventory(inventory string) (string, error) {
+	exInventory, err := expandPath(inventory)
+	if err != nil {
+		return "", fmt.Errorf("can't expand inventory path %q: %w", exInventory, err)
+	}
+	return exInventory, nil
+}
+
+func playbook(opts options, inventory string) (*config.PlayBook, error) {
+	overrides := config.Overrides{
+		Inventory:    inventory,
+		Environment:  opts.Env,
+		User:         opts.SSHUser,
+		AdHocCommand: opts.PositionalArgs.AdHocCmd,
+	}
+
+	exPlaybookFile, err := expandPath(opts.PlaybookFile)
+	if err != nil {
+		return nil, fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
+	}
+
+	secretsProvider, err := makeSecretsProvider(opts.SecretsProvider)
+	if err != nil {
+		return nil, fmt.Errorf("can't make secrets provider: %w", err)
+	}
+
+	return config.New(exPlaybookFile, &overrides, secretsProvider)
+}
+
+func makeRunner(opts options, playbook *config.PlayBook) (*runner.Process, error) {
+	sshKey, err := sshKey(opts.SSHKey, playbook, &defaultUserInfoProvider{})
+	if err != nil {
+		return nil, fmt.Errorf("can't get ssh key: %w", err)
+	}
+
+	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("can't create connector: %w", err)
+	}
+	r := runner.Process{
+		Concurrency: opts.Concurrent,
+		Connector:   connector,
+		Config:      playbook,
+		Only:        opts.Only,
+		Skip:        opts.Skip,
+		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		Verbose:     opts.Verbose,
+		Dry:         opts.Dry,
+	}
+	return &r, nil
+}
+
+func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetName string, pbook *config.PlayBook) error {
 	st := time.Now()
 	res, err := r.Run(ctx, taskName, targetName)
 	if err != nil {
@@ -259,21 +295,21 @@ func runTaskForTarget(ctx context.Context, r runner.Process, taskName, targetNam
 	}
 	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
 		res.Hosts, res.Commands, time.Since(st).Truncate(100*time.Millisecond))
-	conf.UpdateTasksTargets(res.Vars)
+	pbook.UpdateTasksTargets(res.Vars)
 	return nil
 }
 
 // get the list of targets for the task. Usually this is just a list of all targets from the command line,
 // however, if the task has targets defined AND cli has the default target, then only those targets will be used.
-func targetsForTask(opts options, taskName string, conf *config.PlayBook) []string {
-	if len(opts.Targets) > 1 || (len(opts.Targets) == 1 && opts.Targets[0] != "default") {
+func targetsForTask(targets []string, taskName string, pbook *config.PlayBook) []string {
+	if len(targets) > 1 || (len(targets) == 1 && targets[0] != "default") {
 		// non-default target specified on command line
-		return opts.Targets
+		return targets
 	}
 
 	lookupTask := func(name string) (tsk config.Task) {
 		// get task by name
-		for _, t := range conf.Tasks {
+		for _, t := range pbook.Tasks {
 			if t.Name == taskName {
 				tsk = t
 				return tsk
@@ -285,12 +321,12 @@ func targetsForTask(opts options, taskName string, conf *config.PlayBook) []stri
 	tsk := lookupTask(taskName)
 	if tsk.Name == "" {
 		// this should never happen, task name is validated on playbook level
-		return opts.Targets
+		return targets
 	}
 
 	if len(tsk.Targets) == 0 {
 		// no targets defined for task
-		return opts.Targets
+		return targets
 	}
 
 	log.Printf("[INFO] task %q has %d targets [%s] pre-defined", taskName, len(tsk.Targets), strings.Join(tsk.Targets, ", "))
@@ -314,10 +350,9 @@ func makeSecretsProvider(sopts SecretsProvider) (config.SecretsProvider, error) 
 }
 
 // get ssh key from cli or playbook. if no key is provided, use default ~/.ssh/id_rsa
-func sshKey(opts options, conf *config.PlayBook, provider userInfoProvider) (key string, err error) {
-	sshKey := opts.SSHKey
-	if sshKey == "" && (conf == nil || conf.SSHKey != "") { // no key provided in cli
-		sshKey = conf.SSHKey // use playbook's ssh_key
+func sshKey(sshKey string, pbook *config.PlayBook, provider userInfoProvider) (key string, err error) {
+	if sshKey == "" && (pbook == nil || pbook.SSHKey != "") { // no key provided in cli
+		sshKey = pbook.SSHKey // use playbook's ssh_key
 	}
 	if p, err := expandPath(sshKey); err == nil {
 		sshKey = p
@@ -330,14 +365,15 @@ func sshKey(opts options, conf *config.PlayBook, provider userInfoProvider) (key
 		}
 		sshKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
 	}
+
+	log.Printf("[INFO] ssh key: %s", sshKey)
 	return sshKey, nil
 }
 
 // get ssh user from cli or playbook. if no user is provided, use current user from os
-func sshUser(opts options, conf *config.PlayBook, provider userInfoProvider) (res string, err error) {
-	sshUser := opts.SSHUser
-	if sshUser == "" && (conf == nil || conf.User != "") { // no user provided in cli
-		sshUser = conf.User // use playbook's user
+func sshUser(sshUser string, pbook *config.PlayBook, provider userInfoProvider) (res string, err error) {
+	if sshUser == "" && (pbook == nil || pbook.User != "") { // no user provided in cli
+		sshUser = pbook.User // use playbook's user
 	}
 	if sshUser == "" { // no user provided in cli or playbook
 		u, err := provider.Current()
@@ -371,23 +407,23 @@ func (p *defaultUserInfoProvider) Current() (*user.User, error) {
 	return user.Current()
 }
 
-// adHocConf prepares config for ad-hoc command
-func adHocConf(opts options, conf *config.PlayBook, provider userInfoProvider) error {
+// setAdHocConf prepares config for ad-hoc command
+func setAdHocConf(opts options, pbook *config.PlayBook, provider userInfoProvider) (*config.PlayBook, error) {
 	if opts.SSHUser == "" {
 		u, err := provider.Current()
 		if err != nil {
-			return fmt.Errorf("can't get current user: %w", err)
+			return nil, fmt.Errorf("can't get current user: %w", err)
 		}
-		conf.User = u.Username
+		pbook.User = u.Username
 	}
 	if opts.SSHKey == "" {
 		u, err := provider.Current()
 		if err != nil {
-			return fmt.Errorf("can't get current user: %w", err)
+			return nil, fmt.Errorf("can't get current user: %w", err)
 		}
-		conf.SSHKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
+		pbook.SSHKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
 	}
-	return nil
+	return pbook, nil
 }
 
 func formatErrorString(input string) string {
