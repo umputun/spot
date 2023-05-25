@@ -119,7 +119,7 @@ func run(opts options) error {
 
 	inventoryFile, err := inventoryFile(opts.Inventory)
 	if err != nil {
-		return fmt.Errorf("can't get inentoru %q: %w", opts.Inventory, err)
+		return fmt.Errorf("can't get inentory %q: %w", opts.Inventory, err)
 	}
 
 	pbook, err := makePlaybook(opts, inventoryFile)
