@@ -37,7 +37,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		}
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
@@ -54,7 +54,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		}
 		res, err := p.Run(ctx, "default", testingHostAndPort)
@@ -70,7 +70,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		}
 		res, err := p.Run(ctx, "default", testingHostAndPort)
@@ -86,7 +86,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		}
 		res, err := p.Run(ctx, "default", testingHostAndPort)
@@ -111,7 +111,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"runtime variables"},
 		}
@@ -132,7 +132,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"copy multiple files"},
 		}
@@ -155,7 +155,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"copy configuration", "some command", "user variables"},
 		}
@@ -179,7 +179,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", conf.AllSecretValues()),
 			Only:        []string{"secrets"},
 		}
@@ -203,7 +203,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"set filename for copy to env", "copy filename from env"},
 		}
@@ -230,7 +230,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"copy filename from env"},
 		}
@@ -253,7 +253,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(wr, "", "", "", nil),
 			Only:        []string{"copy configuration", "some command", "echo things"},
 			Verbose:     true,
@@ -272,7 +272,7 @@ func TestProcess_Run(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"prep multiple files for delete", "delete multiple files"},
 		}
@@ -304,7 +304,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only single line"},
 		}
@@ -322,7 +322,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only multiline"},
 		}
@@ -340,7 +340,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only copy single file"},
 		}
@@ -364,7 +364,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only copy multiple files"},
 		}
@@ -404,7 +404,7 @@ func TestProcess_RunDry(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Dry:         true,
 	}
@@ -428,7 +428,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"show content"},
 		}
@@ -442,7 +442,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"show content", "no auto cmd"},
 		}
@@ -456,7 +456,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 		p := Process{
 			Concurrency: 1,
 			Connector:   connector,
-			Config:      conf,
+			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Skip:        []string{"wait", "show content"},
 		}
@@ -480,7 +480,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Verbose:     true,
 		Skip:        []string{"wait"},
@@ -504,7 +504,7 @@ func TestProcess_RunLocal(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Verbose:     true,
 	}
@@ -528,7 +528,7 @@ func TestProcess_RunFailed(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 	_, err = p.Run(ctx, "failed_task", testingHostAndPort)
@@ -548,7 +548,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 
@@ -589,7 +589,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 	_, err = p.Run(ctx, "failed_task", testingHostAndPort)
@@ -609,7 +609,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	p := Process{
 		Concurrency: 1,
 		Connector:   connector,
-		Config:      conf,
+		Playbook:    conf,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 	}
 
@@ -768,7 +768,7 @@ func Test_shouldRunCmd(t *testing.T) {
 }
 
 func TestGen(t *testing.T) {
-	mockConfig := &mocks.ConfigMock{
+	mockPbook := &mocks.PlaybookMock{
 		TargetHostsFunc: func(name string) ([]config.Destination, error) {
 			return []config.Destination{
 				{Name: "test1", Host: "host1", Port: 8080, User: "user1", Tags: []string{"tag1", "tag2"}},
@@ -809,7 +809,7 @@ func TestGen(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := &Process{
-				Config: mockConfig,
+				Playbook: mockPbook,
 			}
 
 			tmplRdr := bytes.NewBufferString(tc.tmplInput)

@@ -132,23 +132,20 @@ func run(opts options) error {
 		return fmt.Errorf("can't get ssh user: %w", err)
 	}
 
-	if opts.PositionalArgs.AdHocCmd != "" {
-		if pbook, err = setAdHocConf(opts, pbook, &defaultUserInfoProvider{}); err != nil {
-			return fmt.Errorf("can't setup ad-hoc config: %w", err)
-		}
-	}
-
 	r, err := makeRunner(opts, pbook)
 	if err != nil {
 		return fmt.Errorf("can't make runner: %w", err)
 	}
 
 	if opts.PositionalArgs.AdHocCmd != "" { // run ad-hoc command
-		return runAdHoc(ctx, opts.Targets, r, pbook)
+		if r.Playbook, err = setAdHocConf(opts, pbook, &defaultUserInfoProvider{}); err != nil {
+			return fmt.Errorf("can't setup ad-hoc config: %w", err)
+		}
+		return runAdHoc(ctx, opts.Targets, r)
 	}
 
 	if opts.GenEnable {
-		// generate list of destination from inventory targets
+		// generate a list of destination from inventory targets
 		return runGen(r, opts, pbook)
 	}
 
@@ -164,7 +161,7 @@ func runTasks(ctx context.Context, taskName string, targets []string, r *runner.
 	// run a single task if specified
 	if taskName != "" {
 		for _, targetName := range targetsForTask(targets, taskName, pbook) {
-			if err := runTaskForTarget(ctx, r, taskName, targetName, pbook); err != nil {
+			if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
 				return err
 			}
 		}
@@ -174,7 +171,7 @@ func runTasks(ctx context.Context, taskName string, targets []string, r *runner.
 	// run all tasks in playbook if no task specified
 	for _, task := range pbook.Tasks {
 		for _, targetName := range targetsForTask(targets, task.Name, pbook) {
-			if err := runTaskForTarget(ctx, r, task.Name, targetName, pbook); err != nil {
+			if err := runTaskForTarget(ctx, r, task.Name, targetName); err != nil {
 				return err
 			}
 		}
@@ -182,18 +179,18 @@ func runTasks(ctx context.Context, taskName string, targets []string, r *runner.
 	return nil
 }
 
-func runAdHoc(ctx context.Context, targets []string, r *runner.Process, pbook *config.PlayBook) error {
+func runAdHoc(ctx context.Context, targets []string, r *runner.Process) error {
 	errs := new(multierror.Error)
 	r.Verbose = true // always verbose for ad-hoc
 	for _, targetName := range targets {
-		if err := runTaskForTarget(ctx, r, "ad-hoc", targetName, pbook); err != nil {
+		if err := runTaskForTarget(ctx, r, "ad-hoc", targetName); err != nil {
 			errs = multierror.Append(errs, err)
 		}
 	}
 	return errs.ErrorOrNil()
 }
 
-// runGen generates destination report for the task's targets
+// runGen generates a destination report for the task's targets
 func runGen(r *runner.Process, opts options, pbook *config.PlayBook) (err error) {
 	targets := targetsForTask(opts.Targets, opts.TaskName, pbook)
 
@@ -203,7 +200,7 @@ func runGen(r *runner.Process, opts options, pbook *config.PlayBook) (err error)
 		if err != nil {
 			return fmt.Errorf("can't open template file %q: %w", opts.GenTemplate, err)
 		}
-		defer fh.Close() //nolint this is read-only
+		defer fh.Close() // nolint this is read-only
 	}
 
 	wr := os.Stdout
@@ -213,7 +210,7 @@ func runGen(r *runner.Process, opts options, pbook *config.PlayBook) (err error)
 		if err != nil {
 			return fmt.Errorf("can't open output file %q: %w", opts.GenOutput, err)
 		}
-		defer wr.Close() //nolint this happens after sync
+		defer wr.Close() // nolint this happens after sync
 	}
 
 	err = r.Gen(targets, fh, wr)
@@ -264,8 +261,8 @@ func playbook(opts options, inventory string) (*config.PlayBook, error) {
 	return config.New(exPlaybookFile, &overrides, secretsProvider)
 }
 
-func makeRunner(opts options, playbook *config.PlayBook) (*runner.Process, error) {
-	sshKey, err := sshKey(opts.SSHKey, playbook, &defaultUserInfoProvider{})
+func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
+	sshKey, err := sshKey(opts.SSHKey, pbook, &defaultUserInfoProvider{})
 	if err != nil {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
@@ -277,7 +274,7 @@ func makeRunner(opts options, playbook *config.PlayBook) (*runner.Process, error
 	r := runner.Process{
 		Concurrency: opts.Concurrent,
 		Connector:   connector,
-		Config:      playbook,
+		Playbook:    pbook,
 		Only:        opts.Only,
 		Skip:        opts.Skip,
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
@@ -287,7 +284,7 @@ func makeRunner(opts options, playbook *config.PlayBook) (*runner.Process, error
 	return &r, nil
 }
 
-func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetName string, pbook *config.PlayBook) error {
+func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetName string) error {
 	st := time.Now()
 	res, err := r.Run(ctx, taskName, targetName)
 	if err != nil {
@@ -295,7 +292,7 @@ func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetNa
 	}
 	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
 		res.Hosts, res.Commands, time.Since(st).Truncate(100*time.Millisecond))
-	pbook.UpdateTasksTargets(res.Vars)
+	r.Playbook.UpdateTasksTargets(res.Vars)
 	return nil
 }
 

@@ -23,14 +23,14 @@ import (
 )
 
 //go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector
-//go:generate moq -out mocks/config.go -pkg mocks -skip-ensure -fmt goimports . Config
+//go:generate moq -out mocks/playbook.go -pkg mocks -skip-ensure -fmt goimports . Playbook
 
 // Process is a struct that holds the information needed to run a process.
 // It responsible for running a task on a target hosts.
 type Process struct {
 	Concurrency int
 	Connector   Connector
-	Config      Config
+	Playbook    Playbook
 	ColorWriter *executor.ColorizedWriter
 	Verbose     bool
 	Dry         bool
@@ -46,11 +46,12 @@ type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
 }
 
-// Config is an interface for getting task and target information from playbook.
-type Config interface {
+// Playbook is an interface for getting task and target information from playbook.
+type Playbook interface {
 	Task(name string) (*config.Task, error)
 	TargetHosts(name string) ([]config.Destination, error)
 	AllSecretValues() []string
+	UpdateTasksTargets(vars map[string]string)
 }
 
 // ProcResp holds the information about processed commands and hosts.
@@ -66,20 +67,20 @@ type vars map[string]string
 // each host is processed in separate goroutine. Returns ProcResp with the information about processed commands and hosts
 // plus vars from all thr commands.
 func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err error) {
-	tsk, err := p.Config.Task(task)
+	tsk, err := p.Playbook.Task(task)
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get task %s: %w", task, err)
 	}
 	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
 
 	allVars := make(map[string]string)
-	targetHosts, err := p.Config.TargetHosts(target)
+	targetHosts, err := p.Playbook.TargetHosts(target)
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get target %s: %w", target, err)
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
-	p.secrets = p.Config.AllSecretValues()
+	p.secrets = p.Playbook.AllSecretValues()
 	var commands int32
 	lock := sync.Mutex{}
 
@@ -120,7 +121,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 
 	targetHosts := []config.Destination{}
 	for _, target := range targets {
-		hosts, err := p.Config.TargetHosts(target)
+		hosts, err := p.Playbook.TargetHosts(target)
 		if err != nil {
 			return fmt.Errorf("can't get target %s: %w", target, err)
 		}

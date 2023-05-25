@@ -9,12 +9,12 @@ import (
 	"github.com/umputun/spot/pkg/config"
 )
 
-// ConfigMock is a mock implementation of runner.Config.
+// PlaybookMock is a mock implementation of runner.Playbook.
 //
-//	func TestSomethingThatUsesConfig(t *testing.T) {
+//	func TestSomethingThatUsesPlaybook(t *testing.T) {
 //
-//		// make and configure a mocked runner.Config
-//		mockedConfig := &ConfigMock{
+//		// make and configure a mocked runner.Playbook
+//		mockedPlaybook := &PlaybookMock{
 //			AllSecretValuesFunc: func() []string {
 //				panic("mock out the AllSecretValues method")
 //			},
@@ -24,13 +24,16 @@ import (
 //			TaskFunc: func(name string) (*config.Task, error) {
 //				panic("mock out the Task method")
 //			},
+//			UpdateTasksTargetsFunc: func(vars map[string]string)  {
+//				panic("mock out the UpdateTasksTargets method")
+//			},
 //		}
 //
-//		// use mockedConfig in code that requires runner.Config
+//		// use mockedPlaybook in code that requires runner.Playbook
 //		// and then make assertions.
 //
 //	}
-type ConfigMock struct {
+type PlaybookMock struct {
 	// AllSecretValuesFunc mocks the AllSecretValues method.
 	AllSecretValuesFunc func() []string
 
@@ -39,6 +42,9 @@ type ConfigMock struct {
 
 	// TaskFunc mocks the Task method.
 	TaskFunc func(name string) (*config.Task, error)
+
+	// UpdateTasksTargetsFunc mocks the UpdateTasksTargets method.
+	UpdateTasksTargetsFunc func(vars map[string]string)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -55,16 +61,22 @@ type ConfigMock struct {
 			// Name is the name argument value.
 			Name string
 		}
+		// UpdateTasksTargets holds details about calls to the UpdateTasksTargets method.
+		UpdateTasksTargets []struct {
+			// Vars is the vars argument value.
+			Vars map[string]string
+		}
 	}
-	lockAllSecretValues sync.RWMutex
-	lockTargetHosts     sync.RWMutex
-	lockTask            sync.RWMutex
+	lockAllSecretValues    sync.RWMutex
+	lockTargetHosts        sync.RWMutex
+	lockTask               sync.RWMutex
+	lockUpdateTasksTargets sync.RWMutex
 }
 
 // AllSecretValues calls AllSecretValuesFunc.
-func (mock *ConfigMock) AllSecretValues() []string {
+func (mock *PlaybookMock) AllSecretValues() []string {
 	if mock.AllSecretValuesFunc == nil {
-		panic("ConfigMock.AllSecretValuesFunc: method is nil but Config.AllSecretValues was just called")
+		panic("PlaybookMock.AllSecretValuesFunc: method is nil but Playbook.AllSecretValues was just called")
 	}
 	callInfo := struct {
 	}{}
@@ -77,8 +89,8 @@ func (mock *ConfigMock) AllSecretValues() []string {
 // AllSecretValuesCalls gets all the calls that were made to AllSecretValues.
 // Check the length with:
 //
-//	len(mockedConfig.AllSecretValuesCalls())
-func (mock *ConfigMock) AllSecretValuesCalls() []struct {
+//	len(mockedPlaybook.AllSecretValuesCalls())
+func (mock *PlaybookMock) AllSecretValuesCalls() []struct {
 } {
 	var calls []struct {
 	}
@@ -89,9 +101,9 @@ func (mock *ConfigMock) AllSecretValuesCalls() []struct {
 }
 
 // TargetHosts calls TargetHostsFunc.
-func (mock *ConfigMock) TargetHosts(name string) ([]config.Destination, error) {
+func (mock *PlaybookMock) TargetHosts(name string) ([]config.Destination, error) {
 	if mock.TargetHostsFunc == nil {
-		panic("ConfigMock.TargetHostsFunc: method is nil but Config.TargetHosts was just called")
+		panic("PlaybookMock.TargetHostsFunc: method is nil but Playbook.TargetHosts was just called")
 	}
 	callInfo := struct {
 		Name string
@@ -107,8 +119,8 @@ func (mock *ConfigMock) TargetHosts(name string) ([]config.Destination, error) {
 // TargetHostsCalls gets all the calls that were made to TargetHosts.
 // Check the length with:
 //
-//	len(mockedConfig.TargetHostsCalls())
-func (mock *ConfigMock) TargetHostsCalls() []struct {
+//	len(mockedPlaybook.TargetHostsCalls())
+func (mock *PlaybookMock) TargetHostsCalls() []struct {
 	Name string
 } {
 	var calls []struct {
@@ -121,9 +133,9 @@ func (mock *ConfigMock) TargetHostsCalls() []struct {
 }
 
 // Task calls TaskFunc.
-func (mock *ConfigMock) Task(name string) (*config.Task, error) {
+func (mock *PlaybookMock) Task(name string) (*config.Task, error) {
 	if mock.TaskFunc == nil {
-		panic("ConfigMock.TaskFunc: method is nil but Config.Task was just called")
+		panic("PlaybookMock.TaskFunc: method is nil but Playbook.Task was just called")
 	}
 	callInfo := struct {
 		Name string
@@ -139,8 +151,8 @@ func (mock *ConfigMock) Task(name string) (*config.Task, error) {
 // TaskCalls gets all the calls that were made to Task.
 // Check the length with:
 //
-//	len(mockedConfig.TaskCalls())
-func (mock *ConfigMock) TaskCalls() []struct {
+//	len(mockedPlaybook.TaskCalls())
+func (mock *PlaybookMock) TaskCalls() []struct {
 	Name string
 } {
 	var calls []struct {
@@ -149,5 +161,37 @@ func (mock *ConfigMock) TaskCalls() []struct {
 	mock.lockTask.RLock()
 	calls = mock.calls.Task
 	mock.lockTask.RUnlock()
+	return calls
+}
+
+// UpdateTasksTargets calls UpdateTasksTargetsFunc.
+func (mock *PlaybookMock) UpdateTasksTargets(vars map[string]string) {
+	if mock.UpdateTasksTargetsFunc == nil {
+		panic("PlaybookMock.UpdateTasksTargetsFunc: method is nil but Playbook.UpdateTasksTargets was just called")
+	}
+	callInfo := struct {
+		Vars map[string]string
+	}{
+		Vars: vars,
+	}
+	mock.lockUpdateTasksTargets.Lock()
+	mock.calls.UpdateTasksTargets = append(mock.calls.UpdateTasksTargets, callInfo)
+	mock.lockUpdateTasksTargets.Unlock()
+	mock.UpdateTasksTargetsFunc(vars)
+}
+
+// UpdateTasksTargetsCalls gets all the calls that were made to UpdateTasksTargets.
+// Check the length with:
+//
+//	len(mockedPlaybook.UpdateTasksTargetsCalls())
+func (mock *PlaybookMock) UpdateTasksTargetsCalls() []struct {
+	Vars map[string]string
+} {
+	var calls []struct {
+		Vars map[string]string
+	}
+	mock.lockUpdateTasksTargets.RLock()
+	calls = mock.calls.UpdateTasksTargets
+	mock.lockUpdateTasksTargets.RUnlock()
 	return calls
 }
