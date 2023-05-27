@@ -1,0 +1,22 @@
+# This example is another simplified playbook. It runs by CI on every commit and deploy to the dev environment.
+# The command is just `spot -p auto-ci.yml`.
+# Git clone and pull are used to sync the project code. Docker-compose is used to build and run the project.
+user: app
+targets: [server-dev1.example.com:22, server-dev2.example.com:22]
+
+task:
+  - name: git checkout
+    script: git clone git@github.com/my-project/docker.git /srv/my-project
+    cond: "[ ! -d /srv/my-project/.git ]" # run clone only if the .git directory does not exist
+
+  - name: git pull/update
+    script: |
+      cd /srv/my-project
+      git pull
+
+  - name: pull docker image and restart
+    script: |
+      cd /srv/my-project
+      docker-compose -f /srv/my-project/dev.yml pull my-service
+      docker-compose -f /srv/my-project/dev.yml up -d my-service
+    env: {MHOST: $SPOT_REMOTE_NAME}
