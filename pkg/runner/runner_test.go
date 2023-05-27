@@ -288,6 +288,26 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `deleted /tmp/deleteme.2`)
 	})
 
+	t.Run("multi-line failed script", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		_, err = p.Run(ctx, "multiline_failed", testingHostAndPort)
+		assert.ErrorContains(t, err, "failed to run command on remote server: Process exited with status 2")
+		assert.Contains(t, outWriter.String(), ` > good command 1`)
+		assert.NotContains(t, outWriter.String(), ` > good command 2`)
+		assert.NotContains(t, outWriter.String(), ` > good command 3`)
+	})
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {

@@ -50,8 +50,11 @@ func (ec *execCmd) Script(ctx context.Context) (details string, vars map[string]
 		if teardown == nil {
 			return
 		}
-		if err = teardown(); err != nil {
-			log.Printf("[WARN] can't teardown script on %s: %v", ec.hostAddr, err)
+		if tErr := teardown(); tErr != nil {
+			log.Printf("[WARN] can't teardown script on %s: %v", ec.hostAddr, tErr)
+			if err == nil { // if there is no error yet, set teardown error
+				err = tErr
+			}
 		}
 	}()
 	details = fmt.Sprintf(" {script: %s}", c)
