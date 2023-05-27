@@ -246,7 +246,7 @@ func (cmd *Cmd) getSecrets() []string {
 
 // UnmarshalYAML implements yaml.Unmarshaler interface
 // It allows to unmarshal a "copy", "sync" and "delete" from a single field or a slice
-// All other fields are unmarshalled as usual. Limited to string, int, struct, slice or map
+// All other fields are unmarshalled as usual.
 func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var asMap map[string]interface{}
 	if err := unmarshal(&asMap); err != nil {
@@ -260,37 +260,17 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			return nil
 		}
 
-		switch typedValue := fieldValue.(type) {
-		case string:
-			strTarget, ok := target.(*string)
-			if !ok {
-				return fmt.Errorf("expected string target for field '%s'", fieldName)
-			}
-			*strTarget = typedValue
-		case int:
-			intTarget, ok := target.(*int)
-			if !ok {
-				return fmt.Errorf("expected int target for field '%s'", fieldName)
-			}
-			*intTarget = typedValue
-		case map[string]interface{}:
-			fieldBytes, err := yaml.Marshal(typedValue)
-			if err != nil {
-				return err
-			}
-			if err := yaml.Unmarshal(fieldBytes, target); err != nil {
-				return err
-			}
-		case []interface{}:
-			fieldBytes, err := yaml.Marshal(typedValue)
-			if err != nil {
-				return err
-			}
-			if err := yaml.Unmarshal(fieldBytes, target); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("unsupported field type for '%s'", fieldName)
+		fieldBytes, err := yaml.Marshal(fieldValue)
+		if err != nil {
+			return err
+		}
+
+		decoder := yaml.NewDecoder(bytes.NewReader(fieldBytes))
+		decoder.KnownFields(true)
+
+		err = decoder.Decode(target)
+		if err != nil {
+			return fmt.Errorf("failed to decode field %q: %w", fieldName, err)
 		}
 
 		return nil
@@ -303,7 +283,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		field := structType.Field(i)
 		fieldName := field.Tag.Get("yaml")
 
-		// skip copy, processed separately. fields without yaml tag or with "-" are skipped too
+		// skip copy, sync, delete, fields without yaml tag or with "-" are skipped too
 		if fieldName == "copy" || fieldName == "sync" || fieldName == "delete" || fieldName == "" || fieldName == "-" {
 			continue
 		}

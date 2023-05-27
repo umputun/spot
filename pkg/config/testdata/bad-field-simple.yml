@@ -1,0 +1,10 @@
+user: umputun
+
+targets: ["h1.example.com", "h2.example.com"]
+
+task:
+  - name: wait
+    script: sleep 5
+
+  - name: copy configuration
+    copy: {"src": "/local/remark42.yml", "dst": "/srv/remark42.yml", "mkdir": true, "bad": true} # this is intentionally wrong
