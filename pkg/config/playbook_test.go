@@ -90,7 +90,7 @@ func TestPlaybook_New(t *testing.T) {
 
 	t.Run("incorrectly formatted file", func(t *testing.T) {
 		_, err := New("testdata/bad-format.yml", nil, nil)
-		assert.ErrorContains(t, err, "can't unmarshal config testdata/bad-format.yml")
+		assert.ErrorContains(t, err, " can't unmarshal yaml playbook testdata/bad-format.yml")
 	})
 
 	t.Run("missing file", func(t *testing.T) {
