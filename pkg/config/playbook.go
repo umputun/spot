@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -195,12 +196,14 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		// try to unmarshal yml first and then toml
 		switch {
 		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
-			if err = yaml.Unmarshal(data, v); err != nil {
-				return fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+			yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
+			yamlDecoder.KnownFields(true) // strict mode, fail on unknown fields
+			if err = yamlDecoder.Decode(v); err != nil {
+				return fmt.Errorf("can't unmarshal yaml playbook %s: %w", fname, err)
 			}
 		case strings.HasSuffix(fname, ".toml"):
 			if err = toml.Unmarshal(data, v); err != nil {
-				return fmt.Errorf("can't unmarshal config %s: %w", fname, err)
+				return fmt.Errorf("can't unmarshal toml playbook %s: %w", fname, err)
 			}
 		default:
 			return fmt.Errorf("unknown config format %s", fname)
