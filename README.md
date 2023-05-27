@@ -287,7 +287,7 @@ Here are the main differences between the two types of playbooks:
 - The full playbook supports multiple target sets, while the simplified playbook only supports a single target set. In other words, the full playbook can execute the same set of commands on multiple environments, with each environment defined as a separate target set. The simplified playbook can execute the same set of commands on just one environment.
 - The full playbook supports multiple tasks, while the simplified playbook only supports a single task. This means that the full playbook can execute multiple sets of commands, whereas the simplified playbook can only execute one set of commands.
 - The full playbook supports various target types, such as `hosts`, `groups`, and `names`, while the simplified playbook only supports a single type, which is a list of names or host addresses. See the [Targets](#targets) section for more details.
-- The simplified playbook does not support task-level `on_error`, `user`, and `ssh_key` fields, while the full playbook does. See the [Task details](#task-details) section for more information.
+- The simplified playbook does not support task-level `on_error`, `user`, and `ssh_key` fields, while the full playbook does. See the [Task details](#tasks-and-commands) section for more information.
 - The simplified playbook also has `target` field (in addition to `targets`) allows to set a single host/name only. This is useful when user want to run the playbook on a single host only. The full playbook does not have this field.
 
 Both types of playbooks support the remaining fields and options.
@@ -728,7 +728,7 @@ If `spot` provider is selected, the table `spot_secrets` will be created in the 
 The built-in secrets provider uses strong cryptography techniques to ensure the safety of your secrets. Below is a summary of the security methods employed:
 
 - **Argon2 key derivation**: The Argon2 key derivation function (argon2.IDKey) is used to derive a 32-byte key from the provided user key and a randomly generated salt. This function is memory-hard and designed to be resistant to GPU-based attacks, providing increased security for your secrets.
-- **NaCl SecretBox encryption**: Secrets are encrypted and decrypted using the [NaCl SecretBox](golang.org/x/crypto/nacl/secretbox) package, which provides authenticated encryption with additional data. It uses XSalsa20 for encryption and Poly1305 for authentication, ensuring the integrity and confidentiality of the stored secrets.
+- **NaCl SecretBox encryption**: Secrets are encrypted and decrypted using the [NaCl SecretBox](vendor/golang.org/x/crypto/nacl/secretbox) package, which provides authenticated encryption with additional data. It uses XSalsa20 for encryption and Poly1305 for authentication, ensuring the integrity and confidentiality of the stored secrets.
 - **Random nonces and salts**: Spot generates random nonces for each encryption operation and random salts for each key derivation operation. These values are produced using the crypto/rand package, which generates cryptographically secure random numbers.
 - **Base64 encoding**: Encrypted secret values are stored in the database as Base64 encoded strings, which provides a safe and compact way to represent binary data in text form.
 
