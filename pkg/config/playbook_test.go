@@ -90,7 +90,17 @@ func TestPlaybook_New(t *testing.T) {
 
 	t.Run("incorrectly formatted file", func(t *testing.T) {
 		_, err := New("testdata/bad-format.yml", nil, nil)
-		assert.ErrorContains(t, err, " can't unmarshal yaml playbook testdata/bad-format.yml")
+		assert.ErrorContains(t, err, " can't unmarshal yaml playbook (full mode) testdata/bad-format.yml")
+	})
+
+	t.Run("bad field in the full playbook", func(t *testing.T) {
+		_, err := New("testdata/bad-field.yml", nil, nil)
+		assert.ErrorContains(t, err, " field tragets not found")
+	})
+
+	t.Run("bad field in the simplified playbook", func(t *testing.T) {
+		_, err := New("testdata/bad-field-simple.yml", nil, nil)
+		assert.ErrorContains(t, err, "can't unmarshal yaml playbook (simple mode) testdata/bad-field-simple.yml: failed to decode field \"copy\"", err.Error())
 	})
 
 	t.Run("missing file", func(t *testing.T) {

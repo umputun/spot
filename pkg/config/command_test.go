@@ -298,6 +298,20 @@ script: echo "Hello, World!"
 		},
 
 		{
+			name: "delete multiple sets",
+			yamlInput: `
+name: test
+delete:
+  - {path: source1}
+  - {path: source2}
+`,
+			expectedCmd: Cmd{
+				Name:    "test",
+				MDelete: []DeleteInternal{{Location: "source1"}, {Location: "source2"}},
+			},
+		},
+
+		{
 			name: "copy multiple sets",
 			yamlInput: `
 name: test

@@ -192,14 +192,18 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 // it will try to unmarshal to a SimplePlayBook struct and convert it to a complete PlayBook struct.
 func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res *PlayBook) (err error) {
 
-	unmarshal := func(data []byte, v interface{}) error {
+	unmarshal := func(data []byte, v interface{}, isFull bool) error {
+		pbookType := "simple"
+		if isFull {
+			pbookType = "full"
+		}
 		// try to unmarshal yml first and then toml
 		switch {
 		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
 			yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 			yamlDecoder.KnownFields(true) // strict mode, fail on unknown fields
 			if err = yamlDecoder.Decode(v); err != nil {
-				return fmt.Errorf("can't unmarshal yaml playbook %s: %w", fname, err)
+				return fmt.Errorf("can't unmarshal yaml playbook (%s mode) %s: %w", pbookType, fname, err)
 			}
 		case strings.HasSuffix(fname, ".toml"):
 			if err = toml.Unmarshal(data, v); err != nil {
@@ -224,13 +228,13 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	}
 
 	errs := new(multierror.Error)
-	if err = unmarshal(data, res); err == nil && len(res.Tasks) > 0 {
+	if err = unmarshal(data, res, true); err == nil && len(res.Tasks) > 0 {
 		return nil // success, this is full PlayBook config
 	}
 	errs = multierror.Append(errs, err)
 
 	simple := &SimplePlayBook{}
-	if err = unmarshal(data, simple); err == nil && len(simple.Task) > 0 {
+	if err := unmarshal(data, simple, false); err == nil && len(simple.Task) > 0 {
 		// success, this is SimplePlayBook config, convert it to full PlayBook config
 		res.Inventory = simple.Inventory
 		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
@@ -263,9 +267,11 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		}
 		res.Targets = map[string]Target{"default": target}
 		return nil
+	} else { //nolint
+		errs = multierror.Append(errs, err)
 	}
 
-	return multierror.Append(errs, err).Unwrap()
+	return errs.ErrorOrNil()
 }
 
 // AllTasks returns the playbook's list of tasks.
