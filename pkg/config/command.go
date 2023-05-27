@@ -253,6 +253,27 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return err
 	}
 
+	// those fields are special and can be unmarshalled from a single field or a slice
+	specialFlds := []struct {
+		fld        string
+		destSingle any
+		destSlice  any
+	}{
+		{"copy", &cmd.Copy, &cmd.MCopy},
+		{"sync", &cmd.Sync, &cmd.MSync},
+		{"delete", &cmd.Delete, &cmd.MDelete},
+	}
+
+	// helper function to check if a field is special, matching by filed name (yaml tag)
+	isSpecialFld := func(fld string) bool {
+		for _, sf := range specialFlds {
+			if sf.fld == fld {
+				return true
+			}
+		}
+		return false
+	}
+
 	// helper function to unmarshal a field into a given target
 	unmarshalField := func(fieldName string, target interface{}) error {
 		fieldValue, exists := asMap[fieldName]
@@ -283,8 +304,8 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		field := structType.Field(i)
 		fieldName := field.Tag.Get("yaml")
 
-		// skip copy, sync, delete, fields without yaml tag or with "-" are skipped too
-		if fieldName == "copy" || fieldName == "sync" || fieldName == "delete" || fieldName == "" || fieldName == "-" {
+		// skip special fields, fields without yaml tag or with "-"
+		if isSpecialFld(fieldName) || fieldName == "" || fieldName == "-" {
 			continue
 		}
 
@@ -294,24 +315,12 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		}
 	}
 
-	// copy is a special case, as it can be either a struct or a list of structs
-	if err := unmarshalField("copy", &cmd.Copy); err != nil {
-		if err := unmarshalField("copy", &cmd.MCopy); err != nil {
-			return err
-		}
-	}
-
-	// sync is a special case, as it can be either a struct or a list of structs
-	if err := unmarshalField("sync", &cmd.Sync); err != nil {
-		if err := unmarshalField("sync", &cmd.MSync); err != nil {
-			return err
-		}
-	}
-
-	// sync is a special case, as it can be either a struct or a list of structs
-	if err := unmarshalField("delete", &cmd.Delete); err != nil {
-		if err := unmarshalField("delete", &cmd.MDelete); err != nil {
-			return err
+	// copy, sync and delete are special cases, as they can be either a struct or a list of structs
+	for _, sf := range specialFlds {
+		if err := unmarshalField(sf.fld, sf.destSingle); err != nil {
+			if err := unmarshalField(sf.fld, sf.destSlice); err != nil {
+				return err
+			}
 		}
 	}
 
