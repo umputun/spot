@@ -12,9 +12,10 @@ tasks:
       - name: some command
         script: |
           export host2=$hostAndPort
-          ls -laR /tmp
-          echo "blah" > /tmp/conf.yml
-          cat /tmp/conf.yml
+          mkdir -p /tmp/spot
+          ls -laR /tmp/spot
+          echo "blah" > /tmp/spot/conf.yml
+          cat /tmp/spot/conf.yml
           echo "all good, 123 - $FOO $BAR"
         env:
           FOO: foo-val
