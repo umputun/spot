@@ -4,7 +4,7 @@ This directory contains examples of how to use `spot` in different scenarios.
 
 - [minimal.yml](https://github.com/umputun/spot/blob/master/.examples/minimal.yml) - minimal playbook with a couple of commands
 - [podcast.yml](https://github.com/umputun/spot/blob/master/.examples/podcast.yml) - playbook for deploying new episodes of radio-t podcast
-
+- [auto-ci.yml](https://github.com/umputun/spot/blob/master/.examples/auto-ci.yml) - simple playbook for auto-deploying CI/CD pipeline with docker image and git
 
 ## Contributing
 
