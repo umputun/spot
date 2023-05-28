@@ -278,6 +278,8 @@ task:
 
 ```
 
+**For more examples see [.examples](https://github.com/umputun/spot/tree/master/.examples) directory.**
+
 ### Playbook Types
 
 Spot supports two types of playbooks: full and simplified. Both can be represented in either YAML or TOML format. The full playbook is more powerful and flexible but also more verbose and complex. The simplified playbook, on the other hand, is easier to read and write but has more limited capabilities.
