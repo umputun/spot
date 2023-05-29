@@ -4,7 +4,6 @@ import "context"
 
 type options struct {
 	ctx           context.Context
-	cancel        context.CancelFunc
 	preLock       bool
 	termOnError   bool
 	discardIfFull bool
@@ -13,10 +12,10 @@ type options struct {
 // GroupOption functional option type
 type GroupOption func(o *options)
 
-// Context passes ctx and makes it cancelable
+// Context passes ctx to group, goroutines will be canceled if ctx is canceled
 func Context(ctx context.Context) GroupOption {
 	return func(o *options) {
-		o.ctx, o.cancel = context.WithCancel(ctx)
+		o.ctx = ctx
 	}
 }
 

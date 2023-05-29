@@ -16,14 +16,14 @@ The `syncs` package offers extra synchronization primitives, such as `Semaphore`
 It is thread-safe. The `Lock` function increases the count, while Unlock decreases it. When the count is 0, `Unlock` will block, and `Lock` will block until the count is greater than 0. The `TryLock` function will return false if locking failed (i.e. semaphore is locked) and true otherwise.
 
 ```go
-    sema := syncs.NewSemaphore(10) // make semaphore with 10 initial capacity
-    for i :=0; i<10; i++ {
-        sema.Lock() // all 10 locks will pass, i.w. won't lock
-    }
-    sema.Lock() // this is 11 - will lock for real
+	sema := syncs.NewSemaphore(10) // make semaphore with 10 initial capacity
+	for i :=0; i<10; i++ {
+		sema.Lock() // all 10 locks will pass, i.w. won't lock
+	}
+	sema.Lock() // this is 11 - will lock for real
 
-    // in some other place/goroutine
-    sema.Unlock() // decrease semaphore counter
+	// in some other place/goroutine
+	sema.Unlock() // decrease semaphore counter
 	ok := sema.TryLock() // try to lock, will return false if semaphore is locked 
 ```
 
@@ -37,26 +37,26 @@ To block goroutines from starting, use the `Preemptive` option. Important: With 
 
 
 ```go
-    swg := syncs.NewSizedGroup(5) // wait group with max size=5
-     for i :=0; i<10; i++ {
-        swg.Go(func(ctx context.Context){
-            doThings(ctx) // only 5 of these will run in parallel
-        })
-    }
-    swg.Wait()
+	swg := syncs.NewSizedGroup(5) // wait group with max size=5
+	for i :=0; i<10; i++ {
+		swg.Go(func(ctx context.Context){
+			doThings(ctx) // only 5 of these will run in parallel
+	    })
+	}
+	swg.Wait()
 ```
 
 Another option is `Discard`, which will skip (won't start) goroutines if the semaphore is locked. In other words, if a defined number of goroutines are already running, the call will be discarded. `Discard` is useful when you don't care about the results of extra goroutines; i.e., you just want to run some tasks in parallel but can allow some number of them to be ignored. This flag sets `Preemptive` as well, because otherwise, it doesn't make sense.
 
 
 ```go
-    swg := syncs.NewSizedGroup(5, Discard) // wait group with max size=5 and discarding extra goroutines
-     for i :=0; i<10; i++ {
-        swg.Go(func(ctx context.Context){
-            doThings(ctx) // only 5 of these will run in parallel and 5 other can be discarded
-        })
-    }
-    swg.Wait()
+	swg := syncs.NewSizedGroup(5, Discard) // wait group with max size=5 and discarding extra goroutines
+	for i :=0; i<10; i++ {
+		swg.Go(func(ctx context.Context){
+			doThings(ctx) // only 5 of these will run in parallel and 5 other can be discarded
+		})
+	}
+	swg.Wait()
 ```
 
 
@@ -70,13 +70,13 @@ It can work as a regular errgrp.Group or with early termination. It is thread-sa
 
 
 ```go
-    ewg := syncs.NewErrSizedGroup(5, syncs.Preemptive) // error wait group with max size=5, don't try to start more if any error happened
-     for i :=0; i<10; i++ {
-        ewg.Go(func(ctx context.Context) error { // Go here could be blocked if trying to run >5 at the same time 
-           err := doThings(ctx)     // only 5 of these will run in parallel
-           return err
-        })
-    }
-    err := ewg.Wait()
+	ewg := syncs.NewErrSizedGroup(5, syncs.Preemptive) // error wait group with max size=5, don't try to start more if any error happened
+	for i :=0; i<10; i++ {
+		ewg.Go(func(ctx context.Context) error { // Go here could be blocked if trying to run >5 at the same time 
+			err := doThings(ctx)     // only 5 of these will run in parallel
+			return err
+		})
+	}
+	err := ewg.Wait()
 ```
 
