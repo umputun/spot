@@ -91,6 +91,7 @@ func main() {
 		os.Exit(1)
 	}
 	if opts.Version {
+		fmt.Printf("spot %s\n", revision)
 		os.Exit(0) // already printed
 	}
 	setupLog(opts.Dbg)
