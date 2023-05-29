@@ -730,7 +730,7 @@ If `spot` provider is selected, the table `spot_secrets` will be created in the 
 The built-in secrets provider uses strong cryptography techniques to ensure the safety of your secrets. Below is a summary of the security methods employed:
 
 - **Argon2 key derivation**: The Argon2 key derivation function (argon2.IDKey) is used to derive a 32-byte key from the provided user key and a randomly generated salt. This function is memory-hard and designed to be resistant to GPU-based attacks, providing increased security for your secrets.
-- **NaCl SecretBox encryption**: Secrets are encrypted and decrypted using the [NaCl SecretBox](vendor/golang.org/x/crypto/nacl/secretbox) package, which provides authenticated encryption with additional data. It uses XSalsa20 for encryption and Poly1305 for authentication, ensuring the integrity and confidentiality of the stored secrets.
+- **NaCl SecretBox encryption**: Secrets are encrypted and decrypted using the [NaCl SecretBox](https://pkg.go.dev/golang.org/x/crypto/nacl/secretbox) package, which provides authenticated encryption with additional data. It uses XSalsa20 for encryption and Poly1305 for authentication, ensuring the integrity and confidentiality of the stored secrets.
 - **Random nonces and salts**: Spot generates random nonces for each encryption operation and random salts for each key derivation operation. These values are produced using the crypto/rand package, which generates cryptographically secure random numbers.
 - **Base64 encoding**: Encrypted secret values are stored in the database as Base64 encoded strings, which provides a safe and compact way to represent binary data in text form.
 
