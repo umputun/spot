@@ -106,7 +106,7 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can use the original destination and upload the file directly
 		resp.details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-		opts := &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir, Force: ec.cmd.Copy.Force}
+		opts := &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir, Force: ec.cmd.Copy.Force, Exclude: ec.cmd.Copy.Exclude}
 		if err := ec.exec.Upload(ctx, src, dst, opts); err != nil {
 			return resp, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -117,7 +117,7 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
 		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
 		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
-		if err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true}); err != nil {
+		if err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude}); err != nil {
 			// upload to a temporary directory with mkdir
 			return resp, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}

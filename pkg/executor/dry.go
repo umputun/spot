@@ -45,8 +45,15 @@ func (ex *Dry) Run(_ context.Context, cmd string, opts *RunOpts) (out []string, 
 
 // Upload doesn't actually upload, just prints the command
 func (ex *Dry) Upload(_ context.Context, local, remote string, opts *UpDownOpts) (err error) {
-	mkdir := opts != nil && opts.Mkdir
-	log.Printf("[DEBUG] upload %s to %s, mkdir: %v", local, remote, mkdir)
+	var mkdir bool
+	var exclude []string
+
+	if opts != nil {
+		mkdir = opts.Mkdir
+		exclude = opts.Exclude
+	}
+
+	log.Printf("[DEBUG] upload %s to %s, mkdir: %v, exclude: %v", local, remote, mkdir, exclude)
 	if strings.Contains(remote, "spot-script") {
 		// this is a temp script created by spot to perform script execution on remote host
 		outLog, outErr := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, true, ex.secrets)
@@ -71,8 +78,15 @@ func (ex *Dry) Upload(_ context.Context, local, remote string, opts *UpDownOpts)
 
 // Download file from remote server with scp
 func (ex *Dry) Download(_ context.Context, remote, local string, opts *UpDownOpts) (err error) {
-	mkdir := opts != nil && opts.Mkdir
-	log.Printf("[DEBUG] download %s to %s, mkdir: %v", local, remote, mkdir)
+	var mkdir bool
+	var exclude []string
+
+	if opts != nil {
+		mkdir = opts.Mkdir
+		exclude = opts.Exclude
+	}
+
+	log.Printf("[DEBUG] download %s to %s, mkdir: %v, exclude: %v", local, remote, mkdir, exclude)
 	return nil
 }
 
@@ -89,8 +103,14 @@ func (ex *Dry) Sync(_ context.Context, localDir, remoteDir string, opts *SyncOpt
 
 // Delete doesn't delete anything, just prints the command
 func (ex *Dry) Delete(_ context.Context, remoteFile string, opts *DeleteOpts) (err error) {
-	recursive := opts != nil && opts.Recursive
-	log.Printf("[DEBUG] delete %s, recursive: %v", remoteFile, recursive)
+	var recursive bool
+	var exclude []string
+
+	if opts != nil {
+		recursive = opts.Recursive
+		exclude = opts.Exclude
+	}
+	log.Printf("[DEBUG] delete %s, recursive: %v, exclude: %v", remoteFile, recursive, exclude)
 	return nil
 }
 

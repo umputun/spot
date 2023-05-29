@@ -1,0 +1,6 @@
+// Process is a struct that holds the information needed to run a process.
+type Process struct {
+	RemoteHosts []string
+	Concurrency int
+	Executors   []remoteExecuter // executors pool
+}

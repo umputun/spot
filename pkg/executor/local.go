@@ -60,13 +60,29 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 		return fmt.Errorf("source file %q not found", src)
 	}
 
-	if opts != nil && opts.Mkdir {
+	var mkdir bool
+	var exclude []string
+
+	if opts != nil {
+		mkdir = opts.Mkdir
+		exclude = opts.Exclude
+	}
+
+	if mkdir {
 		if err = os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
 			return fmt.Errorf("can't create local dir %s: %w", filepath.Dir(dst), err)
 		}
 	}
 
 	for _, match := range matches {
+		relPath, e := filepath.Rel(filepath.Dir(src), match)
+		if e != nil {
+			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
+		}
+		if isExcluded(relPath, exclude) {
+			continue
+		}
+
 		destination := dst
 		if len(matches) > 1 {
 			destination = filepath.Join(dst, filepath.Base(match))
@@ -128,12 +144,18 @@ func (l *Local) Sync(ctx context.Context, src, dst string, opts *SyncOpts) ([]st
 }
 
 // Delete file or directory
-func (l *Local) Delete(_ context.Context, remoteFile string, opts *DeleteOpts) (err error) {
+func (l *Local) Delete(ctx context.Context, remoteFile string, opts *DeleteOpts) (err error) {
 	recursive := opts != nil && opts.Recursive
 	if !recursive {
 		return os.Remove(remoteFile)
 	}
-	return os.RemoveAll(remoteFile)
+
+	var exclude []string
+	if opts != nil {
+		exclude = opts.Exclude
+	}
+
+	return l.deletePath(ctx, remoteFile, exclude)
 }
 
 // Close does nothing for local
@@ -255,6 +277,68 @@ func (l *Local) copyFile(src, dst string) error {
 	}
 	if err := os.Chmod(dst, fi.Mode()); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (l *Local) deletePath(ctx context.Context, src string, excl []string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if !info.IsDir() || len(excl) == 0 {
+		return os.RemoveAll(src)
+	}
+
+	hasExclusion := false
+	err = filepath.Walk(src, func(filePath string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		relPath, err := filepath.Rel(src, filePath)
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() && isExcludedSubPath(relPath, excl) {
+			return nil
+		}
+
+		if isExcluded(relPath, excl) {
+			hasExclusion = true
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if !info.IsDir() {
+			return os.Remove(filePath)
+		}
+
+		err = os.RemoveAll(filePath)
+		if err != nil {
+			return err
+		}
+
+		return filepath.SkipDir
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// remove the whole directory if there are no actual exclusions
+	if !hasExclusion {
+		return os.RemoveAll(src)
 	}
 
 	return nil

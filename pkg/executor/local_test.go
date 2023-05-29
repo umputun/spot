@@ -319,6 +319,86 @@ func TestUploadDownloadWithGlob(t *testing.T) {
 	}
 }
 
+func TestUploadDownloadWithExclude(t *testing.T) {
+	l := &Local{}
+
+	for _, tc := range []struct {
+		name         string
+		src          string
+		dst          string
+		mkdir        bool
+		excl         []string
+		dstStructure map[string]string
+		expectError  bool
+	}{
+		{
+			name: "successful upload with mkdir=true and excluded file",
+			src:  "*.txt",
+			dstStructure: map[string]string{
+				"data1.txt": "data1 content",
+			},
+			mkdir: true,
+			excl:  []string{"data2.txt"},
+		},
+		{
+			name: "successful upload with mkdir=true and excluded glob",
+			src:  "*.txt",
+			dstStructure: map[string]string{
+				"data2.txt": "data2 content",
+			},
+			mkdir: true,
+			excl:  []string{"data1.*"},
+		},
+	} {
+
+		t.Run(fmt.Sprintf("%s#%s", tc.name, tc.name), func(t *testing.T) {
+			// create some temporary test files with content
+			tmpDir, err := os.MkdirTemp("", "test")
+			require.NoError(t, err)
+			defer os.RemoveAll(tmpDir)
+
+			data1File := filepath.Join(tmpDir, "data1.txt")
+			err = os.WriteFile(data1File, []byte("data1 content"), 0o644)
+			require.NoError(t, err)
+
+			data2File := filepath.Join(tmpDir, "data2.txt")
+			err = os.WriteFile(data2File, []byte("data2 content"), 0o644)
+			require.NoError(t, err)
+
+			// create a temporary destination directory
+			dstDir, err := os.MkdirTemp("", "dst")
+			require.NoError(t, err)
+			defer os.RemoveAll(dstDir)
+
+			if tc.src != "" {
+				dstDir = filepath.Join(dstDir, tc.dst)
+			}
+
+			err = l.Upload(context.Background(), filepath.Join(tmpDir, tc.src), dstDir, &UpDownOpts{Mkdir: tc.mkdir, Exclude: tc.excl})
+
+			if tc.expectError {
+				assert.Error(t, err, "expected an error")
+				return
+			}
+
+			assert.NoError(t, err, "unexpected error")
+
+			// assert that all files were uploaded
+			files, err := os.ReadDir(dstDir)
+			require.NoError(t, err)
+			assert.Len(t, files, len(tc.dstStructure), "unexpected number of uploaded files")
+
+			// assert that the contents of the uploaded files match the contents of the source files
+			for name, content := range tc.dstStructure {
+				dstContent, err := os.ReadFile(filepath.Join(dstDir, name))
+				require.NoError(t, err)
+				assert.Equal(t, content, string(dstContent), "uploaded content should match source content")
+			}
+		})
+
+	}
+}
+
 func TestLocal_Sync(t *testing.T) {
 
 	testCases := []struct {
@@ -617,6 +697,135 @@ func TestDelete(t *testing.T) {
 
 				_, err := os.Stat(remoteFile)
 				assert.True(t, os.IsNotExist(err), "remote file should be deleted")
+			}
+		})
+	}
+}
+
+func TestDeleteWithExclude(t *testing.T) {
+	type testCase struct {
+		name         string
+		recursive    bool
+		isDir        bool
+		srcStructure map[string]bool
+		dstStructure map[string]bool
+		expectError  bool
+		exclude      []string
+	}
+
+	testCases := []testCase{
+		{
+			name:  "successful delete directory with recursive=true and excluded files",
+			isDir: true,
+			srcStructure: map[string]bool{
+				"file1.txt":      false,
+				"file2.yaml":     false,
+				"file2.toml":     false,
+				"dir1/file3.txt": false,
+				"dir1/file4.txt": false,
+				"dir2/dir3/":     true,
+				"dir4/dir5/":     true,
+			},
+			dstStructure: map[string]bool{
+				"file1.txt":      false,
+				"file2.yaml":     false,
+				"file2.toml":     false,
+				"dir1/file3.txt": false,
+				"dir2/dir3/":     true,
+			},
+			recursive: true,
+			exclude: []string{
+				"file1.txt",
+				"file2.*",
+				"dir1/file3.txt",
+				"dir2/*",
+			},
+		},
+		{
+			name:  "successful delete directory with recursive=true and non-existing excluded file",
+			isDir: true,
+			srcStructure: map[string]bool{
+				"file1.txt":      false,
+				"dir1/file2.txt": false,
+				"dir1/file3.txt": false,
+				"dir2/dir3/*":    true,
+			},
+			dstStructure: map[string]bool{},
+			recursive:    true,
+			exclude: []string{
+				"dir5/file2.txt",
+			},
+		},
+		{
+			name:         "successfully delete file with recursive=true and defined exclusion list",
+			isDir:        false,
+			srcStructure: map[string]bool{},
+			dstStructure: map[string]bool{},
+			recursive:    true,
+			expectError:  false,
+			exclude: []string{
+				"file1.txt",
+			},
+		},
+	}
+
+	initTestCase := func(tc testCase) (string, error) {
+		if tc.isDir {
+			remoteFile, err := os.MkdirTemp("", "test")
+			require.NoError(t, err)
+
+			for subPath, isDir := range tc.srcStructure {
+				err = os.MkdirAll(filepath.Join(remoteFile, filepath.Dir(subPath)), 0o700)
+				if err != nil {
+					return "", err
+				}
+
+				if !isDir {
+					err = os.WriteFile(filepath.Join(remoteFile, subPath), []byte(""), 0o644)
+					if err != nil {
+						return "", err
+					}
+				}
+			}
+
+			return remoteFile, nil
+		}
+
+		require.Empty(t, tc.srcStructure, "structure can be defined for directory only")
+		tempFile, e := os.CreateTemp("", "test")
+		require.NoError(t, e)
+		err := tempFile.Close()
+		require.NoError(t, err)
+
+		return tempFile.Name(), nil
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			remoteFile, err := initTestCase(tc)
+			assert.NoError(t, err, "unable to initialize test case")
+
+			l := &Local{}
+			err = l.Delete(context.Background(), remoteFile, &DeleteOpts{Recursive: tc.recursive, Exclude: tc.exclude})
+			if tc.expectError {
+				assert.Error(t, err, "expected an error")
+			} else {
+				assert.NoError(t, err, "unexpected error")
+
+				if len(tc.dstStructure) == 0 {
+					_, err := os.Stat(remoteFile)
+					assert.True(t, os.IsNotExist(err), "remote file should be deleted")
+				} else {
+					for src := range tc.srcStructure {
+						_, shouldExist := tc.dstStructure[src]
+						_, err := os.Stat(filepath.Join(remoteFile, src))
+						if shouldExist {
+							assert.NoError(t, err, "remote file should not be deleted")
+						} else {
+							assert.True(t, os.IsNotExist(err), "remote file should be deleted")
+						}
+					}
+				}
 			}
 		})
 	}
