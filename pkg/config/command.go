@@ -44,10 +44,11 @@ type CmdOptions struct {
 
 // CopyInternal defines copy command, implemented internally
 type CopyInternal struct {
-	Source string `yaml:"src" toml:"src"`     // source must be a file or a glob pattern
-	Dest   string `yaml:"dst" toml:"dst"`     // destination must be a file or a directory
-	Mkdir  bool   `yaml:"mkdir" toml:"mkdir"` // create destination directory if it does not exist
-	Force  bool   `yaml:"force" toml:"force"` // force copy even if source and destination are the same
+	Source  string   `yaml:"src" toml:"src"`         // source must be a file or a glob pattern
+	Dest    string   `yaml:"dst" toml:"dst"`         // destination must be a file or a directory
+	Mkdir   bool     `yaml:"mkdir" toml:"mkdir"`     // create destination directory if it does not exist
+	Force   bool     `yaml:"force" toml:"force"`     // force copy even if source and destination are the same
+	Exclude []string `yaml:"exclude" toml:"exclude"` // exclude files matching these patterns
 }
 
 // SyncInternal defines sync command (recursive copy), implemented internally
@@ -61,8 +62,9 @@ type SyncInternal struct {
 
 // DeleteInternal defines delete command, implemented internally
 type DeleteInternal struct {
-	Location  string `yaml:"path" toml:"path"`
-	Recursive bool   `yaml:"recur" toml:"recur"`
+	Location  string   `yaml:"path" toml:"path"`
+	Recursive bool     `yaml:"recur" toml:"recur"`
+	Exclude   []string `yaml:"exclude" toml:"exclude"`
 }
 
 // WaitInternal defines wait command, implemented internally

@@ -37,9 +37,10 @@ type RunOpts struct {
 
 // UpDownOpts is a struct for upload and download options.
 type UpDownOpts struct {
-	Mkdir    bool // create remote directory if it does not exist
-	Checksum bool // compare checksums of local and remote files, default is size and modtime
-	Force    bool // overwrite existing files on remote
+	Mkdir    bool     // create remote directory if it does not exist
+	Checksum bool     // compare checksums of local and remote files, default is size and modtime
+	Force    bool     // overwrite existing files on remote
+	Exclude  []string // exclude files matching the given patterns
 }
 
 // SyncOpts is a struct for sync options.
@@ -52,7 +53,8 @@ type SyncOpts struct {
 
 // DeleteOpts is a struct for delete options.
 type DeleteOpts struct {
-	Recursive bool // delete directories recursively
+	Recursive bool     // delete directories recursively
+	Exclude   []string // exclude files matching the given patterns
 }
 
 // StdOutLogWriter is a writer that writes to log with a prefix and a log level.
@@ -179,6 +181,20 @@ func isExcluded(path string, excl []string) bool {
 			if strings.TrimSuffix(ex, "/*") == subpath {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+func isExcludedSubPath(path string, excl []string) bool {
+	subpath := filepath.Join(path, "*")
+	for _, ex := range excl {
+		match, err := filepath.Match(subpath, strings.TrimSuffix(ex, "/*"))
+		if err != nil {
+			continue
+		}
+		if match {
+			return true
 		}
 	}
 	return false

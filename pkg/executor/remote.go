@@ -71,8 +71,21 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 		return fmt.Errorf("source file %q not found", local)
 	}
 
+	var exclude []string
+	if opts != nil {
+		exclude = opts.Exclude
+	}
+
 	// upload each file matching the glob pattern. If no glob pattern is found, the file is matched as is
 	for _, match := range matches {
+		relPath, e := filepath.Rel(filepath.Dir(local), match)
+		if e != nil {
+			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
+		}
+		if isExcluded(relPath, exclude) {
+			continue
+		}
+
 		remoteFile := remote
 		if len(matches) > 1 { // if there are multiple files, treat remote as a directory
 			remoteFile = filepath.Join(remote, filepath.Base(match))
@@ -105,15 +118,43 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 		return fmt.Errorf("failed to split hostAddr and port: %w", err)
 	}
 
-	req := sftpReq{
-		client:     ex.client,
-		localFile:  local,
-		remoteFile: remote,
-		mkdir:      opts != nil && opts.Mkdir,
-		remoteHost: host,
-		remotePort: port,
+	var mkdir bool
+	var exclude []string
+
+	if opts != nil {
+		mkdir = opts.Mkdir
+		exclude = opts.Exclude
 	}
-	return ex.sftpDownload(ctx, req)
+
+	remoteFiles, err := ex.findMatchedFiles(remote, exclude)
+	if err != nil {
+		return fmt.Errorf("failed to list remote files by glob for %s: %w", remote, err)
+	}
+
+	for _, remoteFile := range remoteFiles {
+		localFile := local
+
+		// if the remote basename does not equal the remoteFile basename,
+		// treat remote as a glob pattern and local as a directory
+		if filepath.Base(remote) != filepath.Base(remoteFile) {
+			localFile = filepath.Join(local, filepath.Base(remoteFile))
+		}
+
+		req := sftpReq{
+			client:     ex.client,
+			localFile:  localFile,
+			remoteFile: remoteFile,
+			mkdir:      mkdir,
+			remoteHost: host,
+			remotePort: port,
+		}
+		err = ex.sftpDownload(ctx, req)
+		if err != nil {
+			return fmt.Errorf("failed to download remote file %s: %w", remoteFile, err)
+		}
+	}
+
+	return nil
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
@@ -178,8 +219,16 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 		return fmt.Errorf("failed to stat %s: %w", remoteFile, err)
 	}
 
-	recursive := opts != nil && opts.Recursive
+	var recursive bool
+	var exclude []string
+
+	if opts != nil {
+		recursive = opts.Recursive
+		exclude = opts.Exclude
+	}
+
 	if fileInfo.IsDir() && recursive {
+		hasExclusion := false
 		walker := sftpClient.Walk(remoteFile)
 
 		var pathsToDelete []string
@@ -187,7 +236,33 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			if walker.Err() != nil {
 				continue
 			}
+
+			path := walker.Path()
+			relPath, e := filepath.Rel(remoteFile, path)
+			if e != nil {
+				return e
+			}
+
+			// skip parent directories of the excluded files
+			if walker.Stat().IsDir() && (relPath == "." || isExcludedSubPath(relPath, exclude)) {
+				continue
+			}
+
+			if isExcluded(relPath, exclude) {
+				hasExclusion = true
+				if walker.Stat().IsDir() {
+					walker.SkipDir()
+				}
+
+				continue
+			}
+
 			pathsToDelete = append(pathsToDelete, walker.Path())
+		}
+
+		// there is no actual exclusions
+		if !hasExclusion {
+			pathsToDelete = append([]string{remoteFile}, pathsToDelete...)
 		}
 
 		// Delete files and directories in reverse order
@@ -358,6 +433,7 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	return nil
 }
+
 func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
@@ -552,4 +628,32 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, ex
 	sort.Slice(deletedFiles, func(i, j int) bool { return deletedFiles[i] < deletedFiles[j] })
 
 	return updatedFiles, deletedFiles
+}
+
+func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, error) {
+	sftpClient, err := sftp.NewClient(ex.client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create sftp client: %v", err)
+	}
+	defer sftpClient.Close()
+
+	matches, err := sftpClient.Glob(remote)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list remote files: %v", err)
+	}
+
+	files := make([]string, 0, len(matches))
+	for _, match := range matches {
+		relPath, e := filepath.Rel(filepath.Dir(remote), match)
+		if e != nil {
+			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, err)
+		}
+		if isExcluded(relPath, excl) {
+			continue
+		}
+
+		files = append(files, match)
+	}
+
+	return files, nil
 }

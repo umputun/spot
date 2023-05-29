@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"testing"
 	"time"
@@ -58,7 +59,7 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	require.NoError(t, err)
 	defer sess.Close()
 
-	err = sess.Upload(ctx, "testdata/data*.txt", "/tmp/blah", &UpDownOpts{Mkdir: true})
+	err = sess.Upload(ctx, "testdata/data*.txt", "/tmp/blah", &UpDownOpts{Mkdir: true, Exclude: []string{"data3.txt"}})
 	require.NoError(t, err)
 
 	{
@@ -86,6 +87,21 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 		act, err := os.ReadFile(tmpFile)
 		require.NoError(t, err)
 		assert.Equal(t, string(exp), string(act))
+	}
+	{
+		tmpDir, err := os.MkdirTemp("", "test")
+		require.NoError(t, err)
+		defer os.RemoveAll(tmpDir)
+		err = sess.Download(ctx, "/tmp/blah/data*.txt", tmpDir, &UpDownOpts{Mkdir: true, Exclude: []string{"data2.txt"}})
+		require.NoError(t, err)
+		assert.FileExists(t, filepath.Join(tmpDir, "data1.txt"))
+		exp, err := os.ReadFile("testdata/data1.txt")
+		require.NoError(t, err)
+		act, err := os.ReadFile(filepath.Join(tmpDir, "data1.txt"))
+		require.NoError(t, err)
+		assert.Equal(t, string(exp), string(act))
+		assert.NoFileExists(t, filepath.Join(tmpDir, "data2.txt"), "remote file should be downloaded")
+		assert.NoFileExists(t, filepath.Join(tmpDir, "data3.txt"), "remote file should be downloaded")
 	}
 }
 
@@ -429,6 +445,47 @@ func TestExecuter_Delete(t *testing.T) {
 	t.Run("delete no-such-dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-dir", &DeleteOpts{Recursive: true})
 		assert.NoError(t, err)
+	})
+}
+
+func TestExecuter_DeleteWithExclude(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	res, err := sess.Sync(ctx, "testdata/delete", "/tmp/delete.dest", &SyncOpts{Delete: true})
+	require.NoError(t, err)
+	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+	assert.Equal(t, []string{"d1/file11.txt", "d1/file12.txt", "d2/file21.txt", "d2/file22.txt", "file1.txt", "file2.txt", "file3.txt"}, res)
+
+	t.Run("delete dir with excluded files", func(t *testing.T) {
+		err = sess.Delete(ctx, "/tmp/delete.dest", &DeleteOpts{Recursive: true, Exclude: []string{"file2.*", "d1/*", "d2/file21.txt"}})
+		assert.NoError(t, err)
+		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.Contains(t, out, "delete.dest", out)
+
+		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.Contains(t, out, "d1", out)
+		assert.Contains(t, out, "d2", out)
+		assert.Contains(t, out, "file2.txt", out)
+		assert.NotContains(t, out, "file3.txt", out)
+
+		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest/d1", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.Contains(t, out, "file12.txt", out)
+
+		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest/d2", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.Contains(t, out, "file21.txt", out)
+		assert.NotContains(t, out, "file22.txt", out)
 	})
 }
 

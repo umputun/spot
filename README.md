@@ -333,7 +333,7 @@ script: |
 Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
 
 Copy command performs a quick check to see if the file already exists on the remote host(s) with the same size and modification time,
-and skips the copy if it does. This option can be disabled by setting `force: true` flag.
+and skips the copy if it does. This option can be disabled by setting `force: true` flag. Another option is `exclude` which allows to specify a list of files to exclude to be copied.
 
 ```yaml
 - name: copy file with mkdir
@@ -342,6 +342,8 @@ and skips the copy if it does. This option can be disabled by setting `force: tr
 - name: copy files with glob
   copy: {"src": "testdata/*.csv", "dst": "/tmp/things"}
 
+- name: copy files with glob and exclude
+  copy: {"src": "testdata/*.yml", "dst": "/tmp/things", "exclude": ["conf.dist.yml"]}
 
 - name: copy files with force flag
   copy: {"src": "testdata/*.csv", "dst": "/tmp/things", "force": true}
@@ -359,7 +361,6 @@ Copy also supports list format to copy multiple files at once:
 #### `sync`
 
 Synchronises directory from the local machine to the remote host(s). Optionally supports deleting files on the remote host(s) that don't exist locally with `"delete": true` flag. Another option is `exclude` which allows to specify a list of files to exclude from the sync.
-
 
 ```yaml
 - name: sync directory
@@ -382,8 +383,12 @@ Deletes a file or directory on the remote host(s), optionally can remove recursi
 ```yaml
 - name: delete file
   delete: {"path": "/tmp/things.csv"}
+  
 - name: delete directory recursively
   delete: {"path": "/tmp/things", "recur": true}
+  
+- name: delete directory recursively with exclude
+  delete: {"path": "/tmp/things", "recur": true, "exclude": ["*.txt", "*.yml"]}
 ```
 
 Delete also supports list format to remove multiple paths at once.
