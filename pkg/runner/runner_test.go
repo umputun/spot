@@ -492,21 +492,58 @@ func TestProcess_RunVerbose(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	log.SetOutput(io.Discard)
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil, nil)
-	require.NoError(t, err)
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Playbook:    conf,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
-		Verbose:     true,
-		Skip:        []string{"wait"},
-	}
-	_, err = p.Run(ctx, "task1", testingHostAndPort)
-	require.NoError(t, err)
+
+	t.Run("verbose task", func(t *testing.T) {
+		log.SetOutput(io.Discard)
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+			Verbose:     true,
+			Skip:        []string{"wait"},
+		}
+		_, err = p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+	})
+
+	t.Run("multi-line script with verbose", func(t *testing.T) {
+		log.SetOutput(io.Discard)
+
+		// capture stdout
+		originalStdout := os.Stdout
+		reader, writer, _ := os.Pipe()
+		os.Stdout = writer
+
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+			Only:        []string{"copy configuration", "some command"},
+			Verbose:     true,
+		}
+
+		_, err = p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+
+		writer.Close()
+		os.Stdout = originalStdout
+		capturedStdout, err := io.ReadAll(reader)
+		require.NoError(t, err)
+
+		assert.NoError(t, err)
+		t.Log(string(capturedStdout))
+		assert.Contains(t, string(capturedStdout), `+ #!/bin/sh`)
+		assert.Contains(t, string(capturedStdout), `+ du -hcs /srv`)
+	})
 }
 
 func TestProcess_RunLocal(t *testing.T) {
