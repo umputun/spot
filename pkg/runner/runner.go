@@ -191,19 +191,22 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: tsk, exec: remote, verbose: p.Verbose}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
-		details, vars, err := p.execCommand(ctx, ec)
+		exResp, err := p.execCommand(ctx, ec)
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
 				return count, nil, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
 			}
-			report(ec.hostAddr, ec.hostName, "failed command %q%s (%v)", cmd.Name, details, since(stCmd))
+			report(ec.hostAddr, ec.hostName, "failed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
 			continue
 		}
 
-		p.updateVars(vars, cmd, tsk) // set variables from command output to all commands env in task
-		report(ec.hostAddr, ec.hostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
+		p.updateVars(exResp.vars, cmd, tsk) // set variables from command output to all commands env in task
+		report(ec.hostAddr, ec.hostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
+		if exResp.verbose != "" && ec.verbose {
+			report(ec.hostAddr, ec.hostName, exResp.verbose)
+		}
 		count++
-		for k, v := range vars {
+		for k, v := range exResp.vars {
 			tskVars[k] = v
 		}
 	}
@@ -219,7 +222,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 // execCommand executes a single command on a target host.
 // It detects the command type based on the fields what are set.
 // Even if multiple fields for multiple commands are set, only one will be executed.
-func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, vars map[string]string, err error) {
+func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp, err error) {
 	switch {
 	case ec.cmd.Script != "":
 		log.Printf("[DEBUG] execute script %q on %s", ec.cmd.Name, ec.hostAddr)
@@ -249,7 +252,7 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (details string, 
 		log.Printf("[DEBUG] echo on %s", ec.hostAddr)
 		return ec.Echo(ctx)
 	default:
-		return "", nil, fmt.Errorf("unknown command %q", ec.cmd.Name)
+		return execCmdResp{}, fmt.Errorf("unknown command %q", ec.cmd.Name)
 	}
 }
 

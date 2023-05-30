@@ -143,9 +143,9 @@ func Test_execCmd(t *testing.T) {
 	t.Run("copy a single file", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
-		details, _, err := ec.Copy(ctx)
+		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 	})
 
 	t.Run("wait done", func(t *testing.T) {
@@ -154,9 +154,9 @@ func Test_execCmd(t *testing.T) {
 		})
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
-		details, _, err := ec.Wait(ctx)
+		resp, err := ec.Wait(ctx)
 		require.NoError(t, err)
-		t.Log(details)
+		t.Log(resp.details)
 	})
 
 	t.Run("wait multiline done", func(t *testing.T) {
@@ -165,9 +165,9 @@ func Test_execCmd(t *testing.T) {
 		})
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "echo this is wait\ncat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
-		details, _, err := ec.Wait(ctx)
+		resp, err := ec.Wait(ctx)
 		require.NoError(t, err)
-		t.Log(details)
+		t.Log(resp.details)
 	})
 
 	t.Run("wait done with sudo", func(t *testing.T) {
@@ -177,15 +177,15 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /srv/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100},
 			Options: config.CmdOptions{Sudo: true}}}
-		details, _, err := ec.Wait(ctx)
+		resp, err := ec.Wait(ctx)
 		require.NoError(t, err)
-		t.Log(details)
+		t.Log(resp.details)
 	})
 
 	t.Run("wait failed", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /tmp/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100}}}
-		_, _, err := ec.Wait(ctx)
+		_, err := ec.Wait(ctx)
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
@@ -193,7 +193,7 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100},
 			Options: config.CmdOptions{Sudo: true}}}
-		_, _, err := ec.Wait(ctx)
+		_, err := ec.Wait(ctx)
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
@@ -202,7 +202,7 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/tmp/delete.me"}}}
-		_, _, err = ec.Delete(ctx)
+		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 	})
 
@@ -213,7 +213,7 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MDelete: []config.DeleteInternal{
 			{Location: "/tmp/delete1.me"}, {Location: "/tmp/delete2.me"}}}}
-		_, _, err = ec.MDelete(ctx)
+		_, err = ec.MDelete(ctx)
 		require.NoError(t, err)
 		_, err = sess.Run(ctx, "ls /tmp/delete1.me", &executor.RunOpts{Verbose: true})
 		require.Error(t, err)
@@ -233,7 +233,7 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/tmp/delete-recursive", Recursive: true}}}
 
-		_, _, err = ec.Delete(ctx)
+		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
 		_, err = sess.Run(ctx, "ls /tmp/delete-recursive", &executor.RunOpts{Verbose: true})
@@ -246,13 +246,13 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: false}}}
 
-		_, _, err = ec.Delete(ctx)
+		_, err = ec.Delete(ctx)
 		require.Error(t, err, "should fail because of missing sudo")
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: true}}}
 
-		_, _, err = ec.Delete(ctx)
+		_, err = ec.Delete(ctx)
 		require.NoError(t, err, "should fail pass with sudo")
 	})
 
@@ -268,7 +268,7 @@ func Test_execCmd(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete-recursive", Recursive: true}, Options: config.CmdOptions{Sudo: true}}}
 
-		_, _, err = ec.Delete(ctx)
+		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
 		_, err = sess.Run(ctx, "ls /srv/delete-recursive", &executor.RunOpts{Verbose: true})
@@ -278,9 +278,9 @@ func Test_execCmd(t *testing.T) {
 	t.Run("condition false", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls /srv/test.condition",
 			Script: "echo 'condition false'", Name: "test"}}
-		details, _, err := ec.Script(ctx)
+		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {skip: test}", details)
+		assert.Equal(t, " {skip: test}", resp.details)
 	})
 
 	t.Run("condition true", func(t *testing.T) {
@@ -288,9 +288,9 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls -la /srv/test.condition",
 			Script: "echo condition true", Name: "test"}}
-		details, _, err := ec.Script(ctx)
+		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {script: sh -c 'echo condition true'}", details)
+		assert.Equal(t, " {script: sh -c 'echo condition true'}", resp.details)
 	})
 
 	t.Run("condition true inverted", func(t *testing.T) {
@@ -298,40 +298,40 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "! ls -la /srv/test.condition",
 			Script: "echo condition true", Name: "test"}}
-		details, _, err := ec.Script(ctx)
+		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {skip: test}", details)
+		assert.Equal(t, " {skip: test}", resp.details)
 	})
 
 	t.Run("echo command", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "welcome back", Name: "test"}}
-		details, _, err := ec.Echo(ctx)
+		resp, err := ec.Echo(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {echo: welcome back}", details)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "echo welcome back", Name: "test"}}
-		details, _, err = ec.Echo(ctx)
+		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {echo: welcome back}", details)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$var1 welcome back", Name: "test", Environment: map[string]string{"var1": "foo"}}}
-		details, _, err = ec.Echo(ctx)
+		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {echo: foo welcome back}", details)
+		assert.Equal(t, " {echo: foo welcome back}", resp.details)
 	})
 
 	t.Run("sync command", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Sync: config.SyncInternal{
 			Source: "testdata", Dest: "/tmp/sync.testdata", Exclude: []string{"conf2.yml"}}, Name: "test"}}
-		details, _, err := ec.Sync(ctx)
+		resp, err := ec.Sync(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata}", details)
+		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata}", resp.details)
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata)", Name: "test"}}
-		details, _, err = ec.Echo(ctx)
+		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
-		assert.Contains(t, details, "conf.yml")
-		assert.NotContains(t, details, "conf2.yml")
+		assert.Contains(t, resp.details, "conf.yml")
+		assert.NotContains(t, resp.details, "conf2.yml")
 	})
 
 	t.Run("msync command", func(t *testing.T) {
@@ -339,55 +339,55 @@ func Test_execCmd(t *testing.T) {
 			{Source: "testdata", Dest: "/tmp/sync.testdata_m1", Exclude: []string{"conf2.yml"}},
 			{Source: "testdata", Dest: "/tmp/sync.testdata_m2"},
 		}, Name: "test"}}
-		details, _, err := ec.Msync(ctx)
+		resp, err := ec.Msync(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata_m1, testdata -> /tmp/sync.testdata_m2}", details)
+		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata_m1, testdata -> /tmp/sync.testdata_m2}", resp.details)
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata_m1)",
 			Name: "test"}}
-		details, _, err = ec.Echo(ctx)
+		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
-		assert.Contains(t, details, "conf.yml")
-		assert.NotContains(t, details, "conf2.yml")
+		assert.Contains(t, resp.details, "conf.yml")
+		assert.NotContains(t, resp.details, "conf2.yml")
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata_m2)",
 			Name: "test"}}
-		details, _, err = ec.Echo(ctx)
+		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
-		assert.Contains(t, details, "conf.yml")
-		assert.Contains(t, details, "conf2.yml")
+		assert.Contains(t, resp.details, "conf.yml")
+		assert.Contains(t, resp.details, "conf2.yml")
 	})
 
 	t.Run("dbl-copy non-forced", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
-		details, _, err := ec.Copy(ctx)
+		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 
 		wr := bytes.NewBuffer(nil)
 		log.SetOutput(io.MultiWriter(wr, os.Stdout))
 		// copy again, should be skipped
-		details, _, err = ec.Copy(ctx)
+		resp, err = ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, wr.String(), "remote file /tmp/inventory.txt identical to local file testdata/inventory.yml, skipping upload")
-		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 	})
 
 	t.Run("dbl-copy forced", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Force: true}}}
-		details, _, err := ec.Copy(ctx)
+		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 
 		wr := bytes.NewBuffer(nil)
 		log.SetOutput(io.MultiWriter(wr, os.Stdout))
 		// copy again, should not be skipped
-		details, _, err = ec.Copy(ctx)
+		resp, err = ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.NotContains(t, wr.String(), "remote file /tmp/inventory.txt identical to local file testdata/inventory.yml, skipping upload")
-		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", details)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 	})
 
 }
