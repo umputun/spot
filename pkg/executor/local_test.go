@@ -197,6 +197,10 @@ func TestUploadAndDownload(t *testing.T) {
 					// set the modification time to be the same as the source file
 					err = os.Chtimes(dstFile, srcInfo.ModTime(), srcInfo.ModTime())
 					require.NoError(t, err)
+
+					// set the chmod
+					err = os.Chmod(dstFile, srcInfo.Mode())
+					require.NoError(t, err)
 				}
 
 				err = fn.fn(context.Background(), srcFile.Name(), dstFile, &UpDownOpts{Mkdir: tc.mkdir, Force: tc.force})

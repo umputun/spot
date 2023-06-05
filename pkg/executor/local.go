@@ -86,7 +86,11 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 
 		// if destination file exists, and source and destination have the same size and modification time, skip copying
 		forced := opts != nil && opts.Force
-		if err == nil && !forced && srcInfo.Size() == dstInfo.Size() && srcInfo.ModTime().Equal(dstInfo.ModTime()) {
+		isSame := func() bool {
+			return srcInfo.Size() == dstInfo.Size() && srcInfo.ModTime().Equal(dstInfo.ModTime()) &&
+				srcInfo.Mode() == dstInfo.Mode()
+		}
+		if err == nil && !forced && isSame() {
 			log.Printf("[DEBUG] skip copying %s to %s, same size and modification time", match, destination)
 			continue
 		}
