@@ -166,8 +166,10 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	var buf bytes.Buffer
 
-	buf.WriteString("#!/bin/sh\n") // add hashbang
-	buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
+	if !cmd.hasShebang(inp) {
+		buf.WriteString("#!/bin/sh\n") // add default shebang if not present
+		buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
+	}
 
 	envs := cmd.genEnv()
 	envs = append(envs, cmd.getSecrets()...)
@@ -186,10 +188,21 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 		if len(c) < 2 {
 			continue
 		}
+
+		if strings.HasPrefix(c, "#!") {
+			// if the line in the script is a shebang write it right away and add 'set -e' to make the script exit on error
+			buf.WriteString(c)
+			buf.WriteString("\n")
+			buf.WriteString("set -e\n")
+			continue
+		}
+
 		if strings.HasPrefix(c, "#") {
+			// skip comments
 			continue
 		}
 		if i := strings.Index(c, "#"); i > 0 {
+			// remove comments from the line
 			c = strings.TrimSpace(c[:i])
 		}
 		buf.WriteString(c)
@@ -220,6 +233,20 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	}
 
 	return &buf
+}
+
+func (cmd *Cmd) hasShebang(inp string) bool {
+	elems := strings.Split(inp, "\n")
+	for _, el := range elems {
+		c := strings.TrimSpace(el)
+		if len(c) < 2 {
+			continue
+		}
+		if strings.HasPrefix(c, "#!") {
+			return true
+		}
+	}
+	return false
 }
 
 // genEnv returns a sorted list of environment variables from the Environment map (part of the command)

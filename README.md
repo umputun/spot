@@ -480,6 +480,18 @@ echo "All done! $FOO $BAR"
 
 By using this approach, Spot enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
 
+User can also set any custom shebang for the script by adding `#!` at the beginning of the script. For example:
+
+```yaml
+commands:
+  - name: multi_line_script
+    script: |
+      #!/bin/bash
+      touch /tmp/file1
+      echo "Hello World" > /tmp/file2
+
+```
+
 ### Passing variables from one script command to another
 
 Spot allows to pass variables from one command to another. This feature is especially useful when a command, often a script, sets a variable, and the subsequent command requires this variable. For instance, if one command creates a file and the file name is needed in another command. To pass these variables, user must use the conventional shell's export directive in the initial script command. Subsequently, all variables exported in this initial command will be accessible in the following commands.
