@@ -19,6 +19,7 @@ import (
 	"github.com/go-pkgz/syncs"
 
 	"github.com/umputun/spot/pkg/config"
+	"github.com/umputun/spot/pkg/config/deepcopy"
 	"github.com/umputun/spot/pkg/executor"
 )
 
@@ -181,14 +182,18 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 
 	count := 0
 	tskVars := vars{}
-	for _, cmd := range tsk.Commands {
+
+	// copy task to prevent one task on hostA modifying task on hostB as it does updateVars
+	activeTask := deepcopy.Copy(*tsk).(config.Task)
+
+	for _, cmd := range activeTask.Commands {
 		if !p.shouldRunCmd(cmd, hostName, hostAddr) {
 			continue
 		}
 
 		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
-		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: tsk, exec: remote, verbose: p.Verbose}
+		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote, verbose: p.Verbose}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		exResp, err := p.execCommand(ctx, ec)
@@ -200,7 +205,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			continue
 		}
 
-		p.updateVars(exResp.vars, cmd, tsk) // set variables from command output to all commands env in task
+		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
 		report(ec.hostAddr, ec.hostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
 		if exResp.verbose != "" && ec.verbose {
 			report(ec.hostAddr, ec.hostName, exResp.verbose)
@@ -211,10 +216,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 	}
 
-	if p.anyRemoteCommand(tsk) {
-		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
+	if p.anyRemoteCommand(&activeTask) {
+		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, count, since(stTask))
 	} else {
-		report("localhost", "", "completed task %q, commands: %d (%v)\n", tsk.Name, count, since(stTask))
+		report("localhost", "", "completed task %q, commands: %d (%v)\n", activeTask.Name, count, since(stTask))
 	}
 	return count, tskVars, nil
 }
