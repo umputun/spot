@@ -211,6 +211,13 @@ func TestCmd_getScriptFile(t *testing.T) {
 			expected: "#!/bin/sh\nset -e\necho 'Hello, World!'\n",
 		},
 		{
+			name: "with custom shebang",
+			cmd: &Cmd{
+				Script: "#!/bin/bash\necho 'Hello, World!'",
+			},
+			expected: "#!/bin/bash\nset -e\necho 'Hello, World!'\n",
+		},
+		{
 			name: "with one environment variable",
 			cmd: &Cmd{
 				Script: "echo 'Hello, World!'",
@@ -573,6 +580,27 @@ echo 'Goodbye, World!'
 			} else {
 				assert.Nil(t, reader)
 			}
+		})
+	}
+}
+
+func TestHasShebang(t *testing.T) {
+	testCases := []struct {
+		name string
+		inp  string
+		exp  bool
+	}{
+		{"empty string", "", false},
+		{"no newline", "test data", false},
+		{"newline, no shebang", "test\ndata", false},
+		{"newline, shebang not at start", "test\n# data", false},
+		{"newline, shebang at start", "#!test\ndata", true},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := &Cmd{} // Assuming Cmd is your type with hasShebang method
+			require.Equal(t, tc.exp, cmd.hasShebang(tc.inp))
 		})
 	}
 }
