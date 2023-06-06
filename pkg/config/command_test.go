@@ -317,7 +317,17 @@ delete:
 				MDelete: []DeleteInternal{{Location: "source1"}, {Location: "source2"}},
 			},
 		},
-
+		{
+			name: "simple copy",
+			yamlInput: `
+name: test
+copy: {src: source, dst: destination}
+`,
+			expectedCmd: Cmd{
+				Name: "test",
+				Copy: CopyInternal{Source: "source", Dest: "destination"},
+			},
+		},
 		{
 			name: "copy multiple sets",
 			yamlInput: `
@@ -332,6 +342,17 @@ copy:
 			},
 		},
 
+		{
+			name: "simple sync",
+			yamlInput: `
+name: sync dirs
+sync: {src: ".", dst: "/srv", exclude: [".DS_Store", ".git", ".idea", ".gitignore", "var", "spot.yml"]}
+`,
+			expectedCmd: Cmd{
+				Name: "sync dirs",
+				Sync: SyncInternal{Source: ".", Dest: "/srv", Exclude: []string{".DS_Store", ".git", ".idea", ".gitignore", "var", "spot.yml"}},
+			},
+		},
 		{
 			name: "msync",
 			yamlInput: `
