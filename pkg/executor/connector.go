@@ -84,11 +84,11 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 	// if ssh agent is enabled, it will be used, otherwise private key will be used.
 	getAuth := func() (auth []ssh.AuthMethod, err error) {
 		if privateKeyPath == "" || c.enableAgent {
-			if aconn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); err == nil {
+			if aconn, e := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); e == nil {
 				auth = append(auth, ssh.PublicKeysCallback(agent.NewClient(aconn).Signers))
 				log.Printf("[DEBUG] ssh agent found at %s", os.Getenv("SSH_AUTH_SOCK"))
 			} else {
-				return nil, fmt.Errorf("unable to connect to ssh agent: %w", err)
+				return nil, fmt.Errorf("unable to connect to ssh agent: %w", e)
 			}
 			return auth, nil
 		}
