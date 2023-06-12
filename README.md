@@ -768,6 +768,16 @@ Spot supports AWS Secrets Manager as a secrets provider. To use it, user needs t
 
 note: by default, the AWS Secrets Manager secrets provider will use the default AWS credential. This means that the provider will use the credentials from the environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. 
 
+### Ansible Vault Secrets Provider
+
+Spot gives ability to use full encrypted `YAML` files by [ansbile-vault](https://docs.ansible.com/ansible/latest/cli/ansible-vault.html)
+
+`--secrets.provider=ansible-vault`: selects the Ansible Vault secrets provider.
+`--secrets.ansible.path` or `$SPOT_SECRETS_ANSIBLE_PATH` path to the ansible-vault file
+`--secrets.ansible.secret` or `$SPOT_SECRETS_ANSIBLE_SECRET` secret string for decrypting ansible-vault file
+
+note: encrypted values in the vault should be in next format `key[string]:value[string]` without nested `lists` and `maps`.
+
 ### Managing Secrets with `spot-secrets`
 
 Spot provides a simple way to manage secrets for builtin provider using the `spot-secrets` utility. This command can be used to set, delete, get and list secrets in the database. 
