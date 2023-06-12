@@ -46,6 +46,7 @@ echo 'Goodbye, World!'`,
 				Script: `echo 'Hello, World!'
 export FOO='bar'
 echo 'Goodbye, World!'
+ echo "with space"
 export BAR='foo'
 `,
 			},
@@ -56,6 +57,7 @@ export BAR='foo'
 				"echo 'Hello, World!'",
 				"export FOO='bar'",
 				"echo 'Goodbye, World!'",
+				" echo \"with space\"",
 				"export BAR='foo'",
 				"echo setvar FOO=${FOO}",
 				"echo setvar BAR=${BAR}",
