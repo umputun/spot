@@ -325,6 +325,9 @@ github.com/ryanuber/go-glob
 # github.com/sirupsen/logrus v1.9.0
 ## explicit; go 1.13
 github.com/sirupsen/logrus
+# github.com/sosedoff/ansible-vault-go v0.2.0
+## explicit; go 1.20
+github.com/sosedoff/ansible-vault-go
 # github.com/stretchr/testify v1.8.3
 ## explicit; go 1.20
 github.com/stretchr/testify/assert
