@@ -329,6 +329,8 @@ script: |
   echo all good, 123
 ```
 
+Read more about YAML multiline string formatting on [yaml-multiline.info](https://yaml-multiline.info/) and this [stackoverflow post](https://stackoverflow.com/questions/3790454/how-do-i-break-a-string-in-yaml-over-multiple-lines).
+
 #### `copy`
 
 Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
