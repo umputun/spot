@@ -185,8 +185,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	// process all the exported variables in the script
 	exports := []string{} // we collect them all here to pass as setenv to the next command
 	elems := strings.Split(inp, "\n")
-	for _, el := range elems {
-		c := el
+	for _, c := range elems {
 		if len(c) < 2 {
 			continue
 		}
