@@ -35,6 +35,7 @@ type options struct {
 	Targets      []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout   time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
+	SSHAgent     bool          `long:"ssh-agent" env:"SPOT_SSH_AGENT" description:"use ssh-agent"`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
@@ -294,6 +295,10 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't create connector: %w", err)
 	}
+	if opts.SSHAgent {
+		connector = connector.WithAgent()
+	}
+
 	r := runner.Process{
 		Concurrency: opts.Concurrent,
 		Connector:   connector,
