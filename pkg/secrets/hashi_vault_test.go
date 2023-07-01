@@ -60,7 +60,7 @@ func TestHashiVaultProvider_Get(t *testing.T) {
 func createVaultTestContainer(t *testing.T) (vaultC testcontainers.Container, vaultAddr string) {
 	ctx := context.Background()
 	req := testcontainers.ContainerRequest{
-		Image:        "vault:latest",
+		Image:        "vault:1.13.3",
 		ExposedPorts: []string{"8200/tcp"},
 		Env: map[string]string{
 			"VAULT_DEV_ROOT_TOKEN_ID":  "myroot-token",
