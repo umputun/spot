@@ -524,7 +524,7 @@ commands:
 
 Environment variables can be set with `--env` / `-e` cli option. For example: `-e VAR1:VALUE1 -e VAR2:VALUE2`. Environment variables can also be set in the environment file (default `env.yml` can be changed with `--env-file` / `-E` cli flag). For example:
 ```yaml
-env:  
+vars:  
   VAR1: VALUE1
   VAR2: VALUE2
 ```
