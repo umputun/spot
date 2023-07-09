@@ -18,6 +18,7 @@ import (
 	"github.com/go-pkgz/lgr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jessevdk/go-flags"
+	"gopkg.in/yaml.v3"
 
 	"github.com/umputun/spot/pkg/config"
 	"github.com/umputun/spot/pkg/executor"
@@ -42,6 +43,7 @@ type options struct {
 	SSHUser   string            `short:"u" long:"user" description:"ssh user"`
 	SSHKey    string            `short:"k" long:"key" description:"ssh key"`
 	Env       map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
+	EnvFile   string            `short:"E" long:"env-file" description:"environment variables from file" default:"env.yml"`
 
 	// commands filter
 	Skip []string `long:"skip" description:"skip commands"`
@@ -263,9 +265,14 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
 		return &secrets.NoOpProvider{}, nil
 	}
 
+	env, err := envVars(opts.Env, opts.EnvFile)
+	if err != nil {
+		return nil, fmt.Errorf("can't read environment variables: %w", err)
+	}
+
 	overrides := config.Overrides{
 		Inventory:    inventory,
-		Environment:  opts.Env,
+		Environment:  env,
 		User:         opts.SSHUser,
 		AdHocCommand: opts.PositionalArgs.AdHocCmd,
 	}
@@ -419,6 +426,33 @@ func setAdHocSSH(opts options, pbook *config.PlayBook) (*config.PlayBook, error)
 		pbook.SSHKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
 	}
 	return pbook, nil
+}
+
+// envVars returns a map of environment variables from the cli and env file, cli vars override env file vars if duplicated
+func envVars(vars map[string]string, envFile string) (map[string]string, error) {
+	res := make(map[string]string)
+
+	// load env file vars
+	envFileData := struct {
+		Vars map[string]string `yaml:"vars"`
+	}{}
+	fh, err := os.Open(envFile) //nolint:gosec // file inclusion from cli is intentional
+	if err == nil {
+		defer fh.Close()
+		if err := yaml.NewDecoder(fh).Decode(&envFileData); err != nil {
+			log.Printf("[WARN] can't parse env file %q: %v", envFile, err)
+		}
+		for k, v := range envFileData.Vars {
+			res[k] = v
+		}
+	}
+
+	// cli vars override env file vars
+	for k, v := range vars {
+		res[k] = v
+	}
+
+	return res, nil
 }
 
 func formatErrorString(input string) string {
