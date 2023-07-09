@@ -538,6 +538,8 @@ commands:
     copy: {"src": "testdata/*.csv", "dst": "$VAR2"}
 ```
 
+In case of a conflict between environment variables set in the environment file and the cli, the cli variables will take precedence.
+
 ## Targets
 
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
