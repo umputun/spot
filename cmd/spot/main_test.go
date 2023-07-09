@@ -616,6 +616,78 @@ func Test_targetsForTask(t *testing.T) {
 	}
 }
 
+func TestEnvVars(t *testing.T) {
+	tests := []struct {
+		name          string
+		cliVars       map[string]string
+		envFileData   string
+		expectedVars  map[string]string
+		expectedError bool
+	}{
+		{
+			name: "override env file vars",
+			cliVars: map[string]string{
+				"key1": "cliValue1",
+				"key2": "cliValue2",
+			},
+			envFileData: `vars:
+  key1: fileValue1
+  key2: fileValue2
+  key3: fileValue3
+`,
+			expectedVars: map[string]string{
+				"key1": "cliValue1",
+				"key2": "cliValue2",
+				"key3": "fileValue3",
+			},
+			expectedError: false,
+		},
+		{
+			name: "no env file vars",
+			cliVars: map[string]string{
+				"key1": "cliValue1",
+				"key2": "cliValue2",
+			},
+			envFileData: "",
+			expectedVars: map[string]string{
+				"key1": "cliValue1",
+				"key2": "cliValue2",
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			envFile := "/tmp/env-not-exist.yaml"
+			if tt.envFileData != "" {
+				// create a temp file
+				file, err := os.CreateTemp("", "*.yaml")
+				if err != nil {
+					t.Fatalf("could not create temp file: %v", err)
+				}
+				defer os.Remove(file.Name())
+
+				// write data to temp file
+				if _, err = file.WriteString(tt.envFileData); err != nil {
+					t.Fatalf("could not write to temp file: %v", err)
+				}
+
+				// close file
+				if err = file.Close(); err != nil {
+					t.Fatalf("could not close temp file: %v", err)
+				}
+				envFile = file.Name()
+			}
+			// get environment variables
+			actualVars, err := envVars(tt.cliVars, envFile)
+			assert.Equal(t, tt.expectedError, err != nil)
+			assert.Equal(t, tt.expectedVars, actualVars)
+		})
+	}
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	t.Helper()
 	ctx := context.Background()

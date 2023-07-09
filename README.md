@@ -141,6 +141,7 @@ Spot supports the following command-line options:
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`.
+- `-E`, `--env-file=`: Sets the environment variables from file to be used during the task execution. Default is env.yml`
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
@@ -518,6 +519,26 @@ commands:
   - name: third command
     copy: {src: $FILE_NAME, dest: /tmp/file2}
 ```
+
+### Setting environment variables
+
+Environment variables can be set with `--env` / `-e` cli option. For example: `-e VAR1:VALUE1 -e VAR2:VALUE2`. Environment variables can also be set in the environment file (default `env.yml` can be changed with `--env-file` / `-E` cli flag). For example:
+```yaml
+vars:  
+  VAR1: VALUE1
+  VAR2: VALUE2
+```
+Environment variable can be used in the playbook file with the expected syntax: `$VAR_NAME` or `${VAR_NAME}`. For example:
+
+```yaml
+commands:
+  - name: some command
+    script: echo $VAR1
+  - name: another command
+    copy: {"src": "testdata/*.csv", "dst": "$VAR2"}
+```
+
+In case of a conflict between environment variables set in the environment file and the cli, the cli variables will take precedence.
 
 ## Targets
 
