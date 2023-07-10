@@ -724,7 +724,7 @@ tasks:
 
 ## Ad-hoc commands
 
-Spot supports ad-hoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "la -la /tmp"` and usually accompanied by the `--target=<host>` (`-t <host>`) flags. Example: `spot "ls -la" -t h1.example.com -t h2.example.com`. 
+Spot supports ad-hoc commands that can be executed on the remote hosts. This is useful when all is needed is to execute a command on the remote hosts without creating a playbook file. This command optionally passed as a first argument, i.e. `spot "ls -la /tmp"` and usually accompanied by the `--target=<host>` (`-t <host>`) flags. Example: `spot "ls -la" -t h1.example.com -t h2.example.com`.
 
 All other overrides can be used with adhoc commands as well, for example `--user`and `--key` to specify the user and sshkey to use when connecting to the remote hosts. By default, Spot will use the current user and the default ssh key. Inventory can be passed to such commands as well, for example `--inventory=inventory.yml`.
 
