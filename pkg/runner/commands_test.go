@@ -7,6 +7,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -390,4 +392,134 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 	})
 
+}
+
+func Test_execCmdWithTmp(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	ctx := context.Background()
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, errSess)
+
+	extractTmpPath := func(log string) string {
+		pattern := `upload\s+\S+\s+to\s+(\S+/tmp/\S+/)`
+		re := regexp.MustCompile(pattern)
+		match := re.FindStringSubmatch(log)
+		if len(match) > 1 {
+
+			return strings.ReplaceAll(match[1], "localhost:", "")
+		}
+		return ""
+	}
+
+	t.Run("multi-line script", func(t *testing.T) {
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Script:  "echo 'hello world'\n" + "echo 'hello world2'\n" + "echo 'hello world3'\n" + "echo 'hello world4'\n",
+		}}
+		resp, err := ec.Script(ctx)
+		require.NoError(t, err)
+		// {script: sh -c /tmp/.spot-8420993611669644288/spot-script1149755050, sudo: true}
+		assert.Contains(t, resp.details, " {script: sh -c /tmp/.spot-")
+		assert.Contains(t, resp.details, ", sudo: true}")
+
+		// [INFO] deleted recursively /tmp/.spot-8279767396215533568
+		assert.Contains(t, wr.String(), "deleted recursively /tmp/.spot-")
+
+		assert.Contains(t, wr.String(), "> hello world")
+		assert.Contains(t, wr.String(), "> hello world2")
+		assert.Contains(t, wr.String(), "> hello world3")
+		assert.Contains(t, wr.String(), "> hello world4")
+
+		// check if tmp dir removed
+		tmpPath := extractTmpPath(wr.String())
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Script:  "ls -la " + tmpPath},
+		}
+		resp, err = ec.Script(ctx)
+		require.Error(t, err)
+		assert.Contains(t, wr.String(), fmt.Sprintf("ls: cannot access '%s'", tmpPath))
+	})
+
+	t.Run("copy a single file with sudo", func(t *testing.T) {
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Copy:    config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt, sudo: true}", resp.details)
+		tmpPath := extractTmpPath(wr.String())
+		assert.NotEmpty(t, tmpPath)
+		t.Logf("tmpPath: %s", tmpPath)
+
+		// check if dest contains file
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Script: "ls -la /tmp/inventory.txt"},
+		}
+		resp, err = ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, wr.String(), "/tmp/inventory.txt")
+		assert.Contains(t, wr.String(), "> -rw-r--r-- ")
+
+		// check if tmp dir removed
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Script:  "ls -la " + tmpPath},
+		}
+		resp, err = ec.Script(ctx)
+		require.Error(t, err)
+		assert.Contains(t, wr.String(), fmt.Sprintf("ls: cannot access '%s'", tmpPath))
+	})
+
+	t.Run("copy multiple files with sudo", func(t *testing.T) {
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+		defer func() {
+			_ = os.RemoveAll("/tmp/spot-test-dest")
+		}()
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Copy:    config.CopyInternal{Source: "testdata/*.yml", Dest: "/tmp/spot-test-dest", Mkdir: true}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {copy: testdata/*.yml -> /tmp/spot-test-dest, sudo: true}", resp.details)
+		tmpPath := extractTmpPath(wr.String())
+		assert.NotEmpty(t, tmpPath)
+		t.Logf("tmpPath: %s", tmpPath)
+
+		// check if dest contains files
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Script: "ls -la /tmp/spot-test-dest"},
+		}
+		resp, err = ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, wr.String(), "inventory.yml")
+		assert.Contains(t, wr.String(), "conf.yml")
+
+		// check if tmp dir removed
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Script:  "ls -la " + tmpPath},
+		}
+		resp, err = ec.Script(ctx)
+		require.Error(t, err)
+		assert.Contains(t, wr.String(), fmt.Sprintf("ls: cannot access '%s'", tmpPath))
+	})
 }

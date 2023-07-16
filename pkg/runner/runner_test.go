@@ -241,7 +241,9 @@ func TestProcess_Run(t *testing.T) {
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
-		assert.Contains(t, outWriter.String(), `uploaded testdata/conf.yml to localhost:/tmp/.spot/conf.yml`)
+		// msg like "uploaded testdata/conf.yml to localhost:/tmp/.spot-1101281563531463808/conf.yml in"
+		assert.Contains(t, outWriter.String(), `uploaded testdata/conf.yml to localhost:/tmp/.spot-`)
+		assert.Contains(t, outWriter.String(), `/conf.yml in`)
 	})
 
 	t.Run("echo with variables", func(t *testing.T) {
@@ -372,7 +374,8 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
-		assert.Contains(t, outWriter.String(), "> sudo mv -f /tmp/.spot/conf.yml /srv/conf.yml")
+		assert.Contains(t, outWriter.String(), "> sudo mv -f /tmp/.spot-")
+		assert.Contains(t, outWriter.String(), "/conf.yml /srv/conf.yml")
 
 		p.Only = []string{"root only stat /srv/conf.yml"}
 		_, err = p.Run(ctx, "task1", testingHostAndPort)
@@ -396,8 +399,10 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
-		assert.Contains(t, outWriter.String(), " > sudo mv -f /tmp/.spot/srv/* /srv", "files were copied to /srv")
-		assert.Contains(t, outWriter.String(), " > rm -rf /tmp/.spot/srv", "tmp dir was removed")
+		// check for "sudo mv -f /tmp/.spot-3004145016712714752/srv/* /srv", ignore the random tmp dir suffix
+		assert.Contains(t, outWriter.String(), " > sudo mv -f /tmp/.spot-", "files were copied to /srv")
+		assert.Contains(t, outWriter.String(), "/srv/* /srv", "files were copied to /srv")
+		assert.Contains(t, outWriter.String(), "deleted recursively /tmp/.spot-", "tmp dir was removed")
 
 		p.Only = []string{"root only ls /srv"}
 		_, err = p.Run(ctx, "task1", testingHostAndPort)
