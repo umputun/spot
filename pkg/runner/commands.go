@@ -3,9 +3,13 @@ package runner
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
+	"math"
+	mr "math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,7 +36,7 @@ type execCmdResp struct {
 	vars    map[string]string
 }
 
-const tmpRemoteDir = "/tmp/.spot" // this is a directory on remote host to store temporary files
+const tmpRemoteDirPrefix = "/tmp/.spot-" // this is a directory on remote host to store temporary files
 
 // Script executes a script command on a target host. It can be a single line or multiline script,
 // this part is translated by the prepScript function.
@@ -115,31 +119,37 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 
 	if ec.cmd.Options.Sudo {
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
+		tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
 		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
 		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
-		if err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude}); err != nil {
-			// upload to a temporary directory with mkdir
+
+		// upload to a temporary directory with mkdir
+		err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
+		if err != nil {
 			return resp, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
 		}
+		defer func() {
+			// remove temporary directory we created under /tmp/.spot-<rand>
+			if e := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); e != nil {
+				log.Printf("[WARN] can't remove temporary directory %q on %s: %v", tmpRemoteDir, ec.hostAddr, e)
+			}
+		}()
 
 		mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
 		if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
-			mvCmd = fmt.Sprintf("mv -f %s/* %s", tmpDest, dst) // move multiple files, if wildcard is used
-			defer func() {
-				// remove temporary directory we created under /tmp/.spot for multiple files
-				if _, err := ec.exec.Run(ctx, fmt.Sprintf("rm -rf %s", tmpDest), &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-					log.Printf("[WARN] can't remove temporary directory on %s: %v", ec.hostAddr, err)
-				}
-			}()
+			mvCmd = fmt.Sprintf("mkdir -p %s\nmv -f %s/* %s", dst, tmpDest, dst) // move multiple files, if wildcard is used
 		}
 		c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
 		if err != nil {
 			return resp, fmt.Errorf("can't prepare sudo moving command on %s: %w", ec.hostAddr, err)
 		}
 
-		sudoMove := fmt.Sprintf("sudo %s", c)
-		if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-			return resp, fmt.Errorf("can't move file to %s: %w", ec.hostAddr, err)
+		// run move command with sudo
+		for _, line := range strings.Split(c, "\n") {
+			sudoMove := fmt.Sprintf("sudo %s", line)
+			if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+				return resp, fmt.Errorf("can't move file to %s: %w", ec.hostAddr, err)
+			}
 		}
 	}
 
@@ -399,6 +409,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	}
 
 	// get temp file name for remote hostAddr
+	tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
 	dst := filepath.Join(tmpRemoteDir, filepath.Base(tmp.Name())) // nolint
 	scr = fmt.Sprintf("script: %s\n", dst) + scr
 
@@ -409,8 +420,9 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	cmd = fmt.Sprintf("sh -c %s", dst)
 
 	teardown = func() error {
-		// remove the script from the remote hostAddr, should be invoked by the caller after the command is executed
-		if err := ec.exec.Delete(ctx, dst, nil); err != nil {
+		// remove the temp dir with the script from the remote hostAddr,
+		// should be invoked by the caller after the command is executed
+		if err := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); err != nil {
 			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ec.hostAddr, err)
 		}
 		return nil
@@ -457,4 +469,19 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	return res
+}
+
+func (ec *execCmd) uniqueTmp(prefix string) string {
+	rndInt := func() int64 {
+		var randomInt int64
+		// try using the cryptographic random number generator
+		err := binary.Read(rand.Reader, binary.BigEndian, &randomInt)
+		if err == nil {
+			return int64(math.Abs(float64(randomInt)))
+		}
+		// fallback to math/rand
+		randomInt = mr.Int63() //nolint gosec // this used as fallback only
+		return randomInt
+	}
+	return fmt.Sprintf("%s%d", prefix, rndInt())
 }
