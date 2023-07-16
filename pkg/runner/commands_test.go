@@ -446,7 +446,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
-		assert.Contains(t, wr.String(), fmt.Sprintf("ls: cannot access '%s'", tmpPath))
+		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
 	})
 
 	t.Run("copy a single file with sudo", func(t *testing.T) {
@@ -481,7 +481,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
-		assert.Contains(t, wr.String(), fmt.Sprintf("ls: cannot access '%s'", tmpPath))
+		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
 	})
 
 	t.Run("copy multiple files with sudo", func(t *testing.T) {
@@ -520,6 +520,6 @@ func Test_execCmdWithTmp(t *testing.T) {
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
-		assert.Contains(t, wr.String(), fmt.Sprintf("ls: cannot access '%s'", tmpPath))
+		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
 	})
 }
