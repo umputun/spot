@@ -286,6 +286,18 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 
 // onError executes on-error command if any error occurred during task execution and on-error command is defined
 func (p *Process) onError(ctx context.Context, tsk *config.Task) {
+
+	// ex := execCmd{
+	// 	tsk: tsk,
+	// 	cmd: config.Cmd{
+	// 		Name:   "on-error",
+	// 		Script: tsk.OnError,
+	// 		Options: config.CmdOptions{
+	// 			Local: true,
+	// 		},
+	// 	},
+	// }
+
 	onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) // nolint we want to run shell here
 	onErrCmd.Env = os.Environ()
 
