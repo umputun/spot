@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json",
+  "title": "Spot Inventory",
+  "description": "Spot Inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "oneOf": [
+    {
+      "required": [
+        "hosts"
+      ]
+    }, {
+      "required": [
+        "groups"
+      ]
+    }
+  ],
+  "properties": {
+    "hosts": {
+      "type": "array",
+      "additionalItems": false,
+      "items": {
+        "$ref": "#/definitions/host"
+      }
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        ".*": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/host"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 22
+        },
+        "user": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
