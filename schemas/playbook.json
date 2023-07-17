@@ -1,0 +1,403 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json",
+  "title": "Spot Playbook",
+  "description": "Spot Playbook",
+  "type": "object",
+  "anyOf": [
+    {
+      "required": [
+        "user",
+        "ssh_key",
+        "inventory",
+        "task"
+      ]
+    },
+    {
+      "required": [
+        "user",
+        "ssh_key",
+        "inventory",
+        "tasks"
+      ]
+    }
+  ],
+  "properties": {
+    "user": {
+      "type": "string"
+    },
+    "ssh_key": {
+      "type": "string"
+    },
+    "inventory": {
+      "type": "string"
+    },
+    "task": {
+      "type": "array",
+      "additionalItems": false,
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/command"
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "additionalItems": false,
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/task"
+      }
+    }
+  },
+  "dependencies": {
+    "task": {
+      "oneOf": [
+        {
+          "required": [
+            "targets"
+          ]
+        },
+        {
+          "required": [
+            "target"
+          ]
+        }
+      ],
+      "properties": {
+        "targets": {
+          "type": "array",
+          "additionalItems": false,
+          "items": {
+            "type": "string"
+          }
+        },
+        "target": {
+          "type": "string"
+        }
+      }
+    },
+    "tasks": {
+      "required": [
+        "targets"
+      ],
+      "properties": {
+        "targets": {
+          "$ref": "#/definitions/targets"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "hostsTargetType": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hosts": {
+          "type": "array",
+          "additionalItems": false,
+          "items": {
+            "$ref": "#/definitions/host"
+          }
+        }
+      }
+    },
+    "groupsTargetType": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "groups": {
+          "type": "array",
+          "additionalItems": false,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "namesTargetType": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "names": {
+          "type": "array",
+          "additionalItems": false,
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        ".*": {
+          "type": "object",
+          "additionalProperties": false,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/hostsTargetType"
+            },
+            {
+              "$ref": "#/definitions/groupsTargetType"
+            },
+            {
+              "$ref": "#/definitions/namesTargetType"
+            }
+          ]
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 22
+        },
+        "user": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "command": {
+      "type": "object",
+      "oneOf": [
+        {
+          "required": [
+            "echo"
+          ]
+        },
+        {
+          "required": [
+            "script"
+          ]
+        },
+        {
+          "required": [
+            "copy"
+          ]
+        },
+        {
+          "required": [
+            "sync"
+          ]
+        },
+        {
+          "required": [
+            "delete"
+          ]
+        },
+        {
+          "required": [
+            "wait"
+          ]
+        }
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ignore_errors": {
+              "type": "boolean",
+              "default": false
+            },
+            "no_auto": {
+              "type": "boolean",
+              "default": false
+            },
+            "local": {
+              "type": "boolean",
+              "default": false
+            },
+            "only_on": {
+              "type": "array",
+              "additionalItems": false,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "env": {
+          "type": "object",
+          "patternProperties": {
+            ".*": {
+              "type": "string"
+            }
+          }
+        },
+        "echo": {
+          "type": "string"
+        },
+        "script": {
+          "type": "string"
+        },
+        "copy": {
+          "type": [
+            "object",
+            "array"
+          ],
+          "additionalProperties": false,
+          "additionalItems": false,
+          "minItems": 1,
+          "required": [
+            "src",
+            "dst"
+          ],
+          "properties": {
+            "src": {
+              "type": "string"
+            },
+            "dst": {
+              "type": "string"
+            },
+            "mkdir": {
+              "type": "boolean",
+              "default": false
+            },
+            "recur": {
+              "type": "boolean",
+              "default": false
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "sync": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "src",
+            "dst"
+          ],
+          "properties": {
+            "src": {
+              "type": "string"
+            },
+            "dst": {
+              "type": "string"
+            },
+            "delete": {
+              "type": "boolean",
+              "default": false
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "delete": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "recur": {
+              "type": "boolean",
+              "default": false
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "wait": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cmd",
+            "timeout",
+            "interval"
+          ],
+          "properties": {
+            "cmd": {
+              "type": "string"
+            },
+            "timeout": {
+              "type": "string"
+            },
+            "interval": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "dependencies": {
+        "script": {
+          "properties": {
+            "cond": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "commands"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "on_error": {
+          "type": "string"
+        },
+        "targets": {
+          "$ref": "#/definitions/targets"
+        },
+        "user": {
+          "type": "string"
+        },
+        "commands": {
+          "type": "array",
+          "additionalItems": false,
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/command"
+          }
+        }
+      }
+    }
+  }
+}
