@@ -78,7 +78,11 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {script: %s}", c)
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {script: %s, sudo: true}", c)
-		c = fmt.Sprintf("sudo sh -c %q", c)
+		if strings.HasPrefix(c, "sh -c ") { // single line script already has sh -c
+			c = fmt.Sprintf("sudo %s", c)
+		} else {
+			c = fmt.Sprintf("sudo sh -c %q", c)
+		}
 	}
 	resp.verbose = scr
 
