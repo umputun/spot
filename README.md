@@ -128,7 +128,7 @@ Spot supports the following command-line options:
 
 - `-p`, `--playbook=`: Specifies the playbook file to be used. Defaults to `spot.yml`. You can also set the environment
   variable `$SPOT_PLAYBOOK` to define the playbook file path.
-- `--task=`: Specifies the task name to execute. The task should be defined in the playbook file.
+- `--task=`: Specifies task names to execute. The task should be defined in the playbook file. Several tasks can be executed by providing the `--task` flag multiple times, e.g., `--task copy_files --task warmup_cache`.
   If not specified all the tasks will be executed.
 - `-t`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified the `default` target will be used. User can pass a host name, group name, tag or IP instead of the target name for a quick override. Providing the `-t`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-t prod -t dev` or `-t example1.com -t example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.

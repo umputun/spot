@@ -40,7 +40,7 @@ func Test_runCompleted(t *testing.T) {
 			SSHUser:      "test",
 			SSHKey:       "testdata/test_ssh_key",
 			PlaybookFile: "testdata/conf.yml",
-			TaskName:     "task1",
+			TaskNames:    []string{"task1"},
 			Targets:      []string{hostAndPort},
 			Only:         []string{"wait"},
 			SecretsProvider: SecretsProvider{
@@ -61,7 +61,7 @@ func Test_runCompleted(t *testing.T) {
 			SSHUser:      "test",
 			SSHKey:       "testdata/test_ssh_key",
 			PlaybookFile: "testdata/conf.yml",
-			TaskName:     "task1",
+			TaskNames:    []string{"task1"},
 			Targets:      []string{hostAndPort},
 			Only:         []string{"copy configuration", "some command"},
 			SecretsProvider: SecretsProvider{
@@ -86,7 +86,7 @@ func Test_runCompleted(t *testing.T) {
 			SSHUser:      "test",
 			SSHKey:       "testdata/test_ssh_key",
 			PlaybookFile: "testdata/conf.yml",
-			TaskName:     "task1",
+			TaskNames:    []string{"task1"},
 			Targets:      []string{hostAndPort},
 			Only:         []string{"wait"},
 			Dry:          true,
@@ -156,6 +156,33 @@ func Test_runAdhoc(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func Test_runCompletedSeveralTasks(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "testdata/test_ssh_key",
+		PlaybookFile: "testdata/conf3.yml",
+		TaskNames:    []string{"task1", "task2"},
+		Targets:      []string{hostAndPort},
+		Dbg:          true,
+	}
+	setupLog(true)
+
+	wr := &bytes.Buffer{}
+	log.SetOutput(wr)
+
+	st := time.Now()
+	err := run(opts)
+	t.Log("dbg: ", wr.String())
+	require.NoError(t, err)
+	assert.True(t, time.Since(st) >= 1*time.Second)
+	assert.Contains(t, wr.String(), "task 1 command 1")
+	assert.Contains(t, wr.String(), "task 2 command 1")
+	assert.NotContains(t, wr.String(), "task 3 command 1")
+}
+
 func Test_runCompletedAllTasks(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
@@ -193,7 +220,7 @@ func Test_runCanceled(t *testing.T) {
 		SSHUser:      "test",
 		SSHKey:       "testdata/test_ssh_key",
 		PlaybookFile: "testdata/conf.yml",
-		TaskName:     "task1",
+		TaskNames:    []string{"task1"},
 		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
 		SecretsProvider: SecretsProvider{
@@ -222,7 +249,7 @@ func Test_runFailed(t *testing.T) {
 		SSHUser:      "test",
 		SSHKey:       "testdata/test_ssh_key",
 		PlaybookFile: "testdata/conf-local-failed.yml",
-		TaskName:     "default",
+		TaskNames:    []string{"default"},
 		Targets:      []string{hostAndPort},
 	}
 	setupLog(true)
@@ -235,7 +262,7 @@ func Test_runNoConfig(t *testing.T) {
 		SSHUser:      "test",
 		SSHKey:       "testdata/test_ssh_key",
 		PlaybookFile: "testdata/conf-not-found.yml",
-		TaskName:     "task1",
+		TaskNames:    []string{"task1"},
 		Targets:      []string{"localhost"},
 		Only:         []string{"wait"},
 	}
@@ -245,33 +272,66 @@ func Test_runNoConfig(t *testing.T) {
 }
 
 func Test_runGen_goTmplFile(t *testing.T) {
-	opts := options{
-		SSHUser:      "test",
-		SSHKey:       "testdata/test_ssh_key",
-		PlaybookFile: "testdata/conf.yml",
-		TaskName:     "task1",
-		Targets:      []string{"dev"},
-		SecretsProvider: SecretsProvider{
-			Provider: "spot",
-			Conn:     "testdata/test-secrets.db",
-			Key:      "1234567890",
+	outputFilename := filepath.Join(os.TempDir(), "test_gen_output.data")
+	testCases := []struct {
+		name string
+		opts options
+	}{{
+		name: "generate output for a task",
+		opts: options{
+			SSHUser:      "test",
+			SSHKey:       "testdata/test_ssh_key",
+			PlaybookFile: "testdata/conf.yml",
+			TaskNames:    []string{"task1"},
+			Targets:      []string{"dev"},
+			SecretsProvider: SecretsProvider{
+				Provider: "spot",
+				Conn:     "testdata/test-secrets.db",
+				Key:      "1234567890",
+			},
+			Inventory:   "testdata/inventory.yml",
+			GenEnable:   true,
+			GenOutput:   outputFilename,
+			GenTemplate: "testdata/gen.tmpl",
+		}},
+		{
+			name: "generate output for multiple tasks",
+			opts: options{
+				SSHUser:      "test",
+				SSHKey:       "testdata/test_ssh_key",
+				PlaybookFile: "testdata/conf.yml",
+				TaskNames:    []string{"task1", "failed_task"},
+				Targets:      []string{"dev"},
+				SecretsProvider: SecretsProvider{
+					Provider: "spot",
+					Conn:     "testdata/test-secrets.db",
+					Key:      "1234567890",
+				},
+				Inventory:   "testdata/inventory.yml",
+				GenEnable:   true,
+				GenOutput:   outputFilename,
+				GenTemplate: "testdata/gen.tmpl",
+			},
 		},
-		Inventory:   "testdata/inventory.yml",
-		GenEnable:   true,
-		GenOutput:   filepath.Join(os.TempDir(), "test_gen_output.data"),
-		GenTemplate: "testdata/gen.tmpl",
 	}
-	defer os.Remove(opts.GenOutput)
 
-	setupLog(true)
-	err := run(opts)
-	require.NoError(t, err)
+	defer os.Remove(outputFilename)
 
-	res, err := os.ReadFile(opts.GenOutput)
-	require.NoError(t, err)
-	exp := "\n" + `"Name": "dev1", "Host": "dev1.umputun.dev", "Port": 22, "User": "test","Tags": []` + "\n" +
-		`"Name": "dev2", "Host": "dev2.umputun.dev", "Port": 22, "User": "test","Tags": []`
-	assert.Equal(t, exp, string(res), "expected output")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Remove(tc.opts.GenOutput)
+
+			setupLog(true)
+			err := run(tc.opts)
+			require.NoError(t, err)
+
+			res, err := os.ReadFile(tc.opts.GenOutput)
+			require.NoError(t, err)
+			exp := "\n" + `"Name": "dev1", "Host": "dev1.umputun.dev", "Port": 22, "User": "test","Tags": []` + "\n" +
+				`"Name": "dev2", "Host": "dev2.umputun.dev", "Port": 22, "User": "test","Tags": []`
+			assert.Equal(t, exp, string(res), "expected output")
+		})
+	}
 }
 
 func Test_connectFailed(t *testing.T) {
@@ -282,7 +342,7 @@ func Test_connectFailed(t *testing.T) {
 		SSHUser:      "bad_user",
 		SSHKey:       "testdata/test_ssh_key",
 		PlaybookFile: "testdata/conf.yml",
-		TaskName:     "task1",
+		TaskNames:    []string{"task1"},
 		Targets:      []string{hostAndPort},
 		SecretsProvider: SecretsProvider{
 			Provider: "spot",
@@ -321,9 +381,9 @@ func Test_sshUserAndKey(t *testing.T) {
 		{
 			name: "command line overrides all",
 			opts: options{
-				TaskName: "test_task",
-				SSHUser:  "cmd_user",
-				SSHKey:   "cmd_key",
+				TaskNames: []string{"test_task"},
+				SSHUser:   "cmd_user",
+				SSHKey:    "cmd_key",
 			},
 			conf: config.PlayBook{
 				User:   "default_user",
@@ -338,7 +398,7 @@ func Test_sshUserAndKey(t *testing.T) {
 		{
 			name: "no user or key in playbook and no in command line",
 			opts: options{
-				TaskName: "test_task",
+				TaskNames: []string{"test_task"},
 			},
 			conf: config.PlayBook{
 				Tasks: []config.Task{
@@ -351,9 +411,9 @@ func Test_sshUserAndKey(t *testing.T) {
 		{
 			name: "tilde expansion in key path",
 			opts: options{
-				TaskName: "test_task",
-				SSHUser:  "cmd_user",
-				SSHKey:   "~/cmd_key",
+				TaskNames: []string{"test_task"},
+				SSHUser:   "cmd_user",
+				SSHKey:    "~/cmd_key",
 			},
 			conf: config.PlayBook{
 				User:   "default_user",

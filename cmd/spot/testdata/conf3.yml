@@ -1,0 +1,22 @@
+targets:
+  remark42:
+    hosts: [{ host: "h1.example.com" }]
+
+tasks:
+
+  - name: task1
+    commands:
+      - name: wait
+        script: sleep 1s
+      - name: good command
+        script: echo task 1 command 1
+
+  - name: task2
+    commands:
+      - name: good command
+        script: echo task 2 command 1
+
+  - name: task3
+    commands:
+      - name: good command
+        script: echo task 3 command 1
