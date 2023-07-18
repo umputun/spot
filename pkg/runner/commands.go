@@ -36,6 +36,13 @@ type execCmdResp struct {
 	vars    map[string]string
 }
 
+type execCmdErr struct {
+	err error
+	cmd execCmd
+}
+
+func (e execCmdErr) Error() string { return e.err.Error() }
+
 const tmpRemoteDirPrefix = "/tmp/.spot-" // this is a directory on remote host to store temporary files
 
 // Script executes a script command on a target host. It can be a single line or multiline script,
@@ -55,7 +62,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
-		return resp, fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err)
+		return resp, &execCmdErr{err: fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err), cmd: *ec}
 	}
 	defer func() {
 		if teardown == nil {
@@ -64,7 +71,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		if tErr := teardown(); tErr != nil {
 			log.Printf("[WARN] can't teardown script on %s: %v", ec.hostAddr, tErr)
 			if err == nil { // if there is no error yet, set teardown error
-				err = tErr
+				err = ec.error(tErr)
 			}
 		}
 	}()
@@ -77,7 +84,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 
 	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose})
 	if err != nil {
-		return resp, fmt.Errorf("can't run script on %s: %w", ec.hostAddr, err)
+		return resp, ec.errorFmt("can't run script on %s: %w", ec.hostAddr, err)
 	}
 
 	// collect setvar output to vars and latter it will be set to the environment. This is needed for the next commands.
@@ -112,7 +119,7 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		resp.details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
 		opts := &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir, Force: ec.cmd.Copy.Force, Exclude: ec.cmd.Copy.Exclude}
 		if err := ec.exec.Upload(ctx, src, dst, opts); err != nil {
-			return resp, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 		return resp, nil
 	}
@@ -126,7 +133,7 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		// upload to a temporary directory with mkdir
 		err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
 		if err != nil {
-			return resp, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 		defer func() {
 			// remove temporary directory we created under /tmp/.spot-<rand>
@@ -141,14 +148,14 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		}
 		c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
 		if err != nil {
-			return resp, fmt.Errorf("can't prepare sudo moving command on %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt("can't prepare sudo moving command on %s: %w", ec.hostAddr, err)
 		}
 
 		// run move command with sudo
 		for _, line := range strings.Split(c, "\n") {
 			sudoMove := fmt.Sprintf("sudo %s", line)
 			if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-				return resp, fmt.Errorf("can't move file to %s: %w", ec.hostAddr, err)
+				return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
 			}
 		}
 	}
@@ -167,7 +174,7 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 		ecSingle := ec
 		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force}
 		if _, err := ecSingle.Copy(ctx); err != nil {
-			return resp, fmt.Errorf("can't copy file to %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 	}
 	resp.details = fmt.Sprintf(" {copy: %s}", strings.Join(msgs, ", "))
@@ -182,7 +189,7 @@ func (ec *execCmd) Sync(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
 	opts := &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude, Force: ec.cmd.Sync.Force}
 	if _, err := ec.exec.Sync(ctx, src, dst, opts); err != nil {
-		return resp, fmt.Errorf("can't sync files on %s: %w", ec.hostAddr, err)
+		return resp, ec.errorFmt("can't sync files on %s: %w", ec.hostAddr, err)
 	}
 	return resp, nil
 }
@@ -198,7 +205,7 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 		ecSingle := ec
 		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete, Force: c.Force}
 		if _, err := ecSingle.Sync(ctx); err != nil {
-			return resp, fmt.Errorf("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
+			return resp, ec.errorFmt("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
 		}
 	}
 	resp.details = fmt.Sprintf(" {sync: %s}", strings.Join(msgs, ", "))
@@ -213,7 +220,7 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can delete the file directly
 		if err := ec.exec.Delete(ctx, loc, &executor.DeleteOpts{Recursive: ec.cmd.Delete.Recursive}); err != nil {
-			return resp, fmt.Errorf("can't delete files on %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt("can't delete files on %s: %w", ec.hostAddr, err)
 		}
 		resp.details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ec.cmd.Delete.Recursive)
 	}
@@ -225,7 +232,7 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 			cmd = fmt.Sprintf("sudo rm -rf %s", loc)
 		}
 		if _, err := ec.exec.Run(ctx, cmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-			return resp, fmt.Errorf("can't delete file(s) on %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt("can't delete file(s) on %s: %w", ec.hostAddr, err)
 		}
 		resp.details = fmt.Sprintf(" {delete: %s, recursive: %v, sudo: true}", loc, ec.cmd.Delete.Recursive)
 	}
@@ -242,7 +249,7 @@ func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 		ecSingle := ec
 		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive}
 		if _, err := ecSingle.Delete(ctx); err != nil {
-			return resp, fmt.Errorf("can't delete %s on %s: %w", loc, ec.hostAddr, err)
+			return resp, ec.errorFmt("can't delete %s on %s: %w", loc, ec.hostAddr, err)
 		}
 		msgs = append(msgs, loc)
 	}
@@ -256,7 +263,7 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 	single, multiRdr := ec.cmd.GetWait()
 	c, script, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
-		return resp, fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err)
+		return resp, ec.errorFmt("can't prepare script on %s: %w", ec.hostAddr, err)
 	}
 	defer func() {
 		if teardown == nil {
@@ -296,7 +303,7 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 		case <-ctx.Done():
 			return resp, ctx.Err()
 		case <-timeoutTk.C:
-			return resp, fmt.Errorf("timeout exceeded")
+			return resp, ec.errorFmt("timeout exceeded")
 		case <-checkTk.C:
 			if _, err := ec.exec.Run(ctx, waitCmd, nil); err == nil {
 				return resp, nil // command succeeded
@@ -318,7 +325,7 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	}
 	out, err := ec.exec.Run(ctx, echoCmd, nil)
 	if err != nil {
-		return resp, fmt.Errorf("can't run echo command on %s: %w", ec.hostAddr, err)
+		return resp, ec.errorFmt("can't run echo command on %s: %w", ec.hostAddr, err)
 	}
 	resp.details = fmt.Sprintf(" {echo: %s}", strings.Join(out, "; "))
 	return resp, nil
@@ -332,7 +339,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	single, multiRdr, inverted := ec.cmd.GetCondition()
 	c, _, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
-		return false, fmt.Errorf("can't prepare condition script on %s: %w", ec.hostAddr, err)
+		return false, ec.errorFmt("can't prepare condition script on %s: %w", ec.hostAddr, err)
 	}
 	defer func() {
 		if teardown == nil {
@@ -379,7 +386,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	// read the script from the reader and apply templates
 	var buf bytes.Buffer
 	if _, err = io.Copy(&buf, r); err != nil {
-		return "", "", nil, fmt.Errorf("can't read script: %w", err)
+		return "", "", nil, ec.errorFmt("can't read script: %w", err)
 	}
 	rdr := bytes.NewBuffer([]byte(tmpl.apply(buf.String())))
 
@@ -394,18 +401,18 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	// make a temporary file and copy the script to it
 	tmp, err := os.CreateTemp("", "spot-script")
 	if err != nil {
-		return "", "", nil, fmt.Errorf("can't create temporary file: %w", err)
+		return "", "", nil, ec.errorFmt("can't create temporary file: %w", err)
 	}
 	if _, err = io.Copy(tmp, rdr); err != nil {
-		return "", "", nil, fmt.Errorf("can't copy script to temporary file: %w", err)
+		return "", "", nil, ec.errorFmt("can't copy script to temporary file: %w", err)
 	}
 	if err = tmp.Close(); err != nil {
-		return "", "", nil, fmt.Errorf("can't close temporary file: %w", err)
+		return "", "", nil, ec.errorFmt("can't close temporary file: %w", err)
 	}
 
 	// make the script executable locally, upload preserves the permissions
 	if err = os.Chmod(tmp.Name(), 0o700); err != nil { // nolint
-		return "", "", nil, fmt.Errorf("can't chmod temporary file: %w", err)
+		return "", "", nil, ec.errorFmt("can't chmod temporary file: %w", err)
 	}
 
 	// get temp file name for remote hostAddr
@@ -415,7 +422,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 
 	// upload the script to the remote hostAddr
 	if err = ec.exec.Upload(ctx, tmp.Name(), dst, &executor.UpDownOpts{Mkdir: true}); err != nil {
-		return "", "", nil, fmt.Errorf("can't upload script to %s: %w", ec.hostAddr, err)
+		return "", "", nil, ec.errorFmt("can't upload script to %s: %w", ec.hostAddr, err)
 	}
 	cmd = fmt.Sprintf("sh -c %s", dst)
 
@@ -423,7 +430,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		// remove the temp dir with the script from the remote hostAddr,
 		// should be invoked by the caller after the command is executed
 		if err := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); err != nil {
-			return fmt.Errorf("can't remove temporary remote script %s (%s): %w", dst, ec.hostAddr, err)
+			return ec.errorFmt("can't remove temporary remote script %s (%s): %w", dst, ec.hostAddr, err)
 		}
 		return nil
 	}
@@ -480,8 +487,16 @@ func (ec *execCmd) uniqueTmp(prefix string) string {
 			return int64(math.Abs(float64(randomInt)))
 		}
 		// fallback to math/rand
-		randomInt = mr.Int63() //nolint gosec // this used as fallback only
+		randomInt = mr.Int63() // nolint gosec // this used as fallback only
 		return randomInt
 	}
 	return fmt.Sprintf("%s%d", prefix, rndInt())
+}
+
+func (ec *execCmd) error(err error) *execCmdErr {
+	return &execCmdErr{err: err, cmd: *ec}
+}
+
+func (ec *execCmd) errorFmt(format string, a ...any) *execCmdErr {
+	return &execCmdErr{err: fmt.Errorf(format, a...), cmd: *ec}
 }

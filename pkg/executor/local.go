@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-pkgz/fileutils"
 )
@@ -27,10 +28,17 @@ func (l *Local) SetSecrets(secrets []string) {
 
 // Run executes command on local hostAddr, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
+
+	if strings.HasPrefix(cmd, "sh -c ") {
+		// strip sh -c 'command' to just command to avoid double shell
+		cmd = strings.TrimPrefix(cmd, "sh -c ")
+		cmd = strings.TrimPrefix(cmd, "'")
+		cmd = strings.TrimSuffix(cmd, "'")
+	}
 	command := exec.CommandContext(ctx, "sh", "-c", cmd)
 
 	outLog, errLog := MakeOutAndErrWriters("localhost", "", opts != nil && opts.Verbose, l.secrets)
-	outLog.Write([]byte(cmd)) //nolint
+	outLog.Write([]byte(cmd)) // nolint
 
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(outLog, &stdoutBuf)

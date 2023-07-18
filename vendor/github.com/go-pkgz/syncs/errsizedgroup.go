@@ -14,7 +14,7 @@ type ErrSizedGroup struct {
 	wg   sync.WaitGroup
 	sema Locker
 
-	err     *multierror
+	err     *MultiError
 	errLock sync.RWMutex
 	errOnce sync.Once
 }
@@ -26,7 +26,7 @@ type ErrSizedGroup struct {
 func NewErrSizedGroup(size int, options ...GroupOption) *ErrSizedGroup {
 	res := ErrSizedGroup{
 		sema: NewSemaphore(size),
-		err:  new(multierror),
+		err:  new(MultiError),
 	}
 
 	for _, opt := range options {
@@ -90,7 +90,7 @@ func (g *ErrSizedGroup) Go(f func() error) {
 			}
 			g.errLock.RLock()
 			defer g.errLock.RUnlock()
-			return g.err.errorOrNil() != nil
+			return g.err.ErrorOrNil() != nil
 		}
 
 		defer func() {
@@ -120,22 +120,24 @@ func (g *ErrSizedGroup) Go(f func() error) {
 // returns all errors (if any) wrapped with multierror from them.
 func (g *ErrSizedGroup) Wait() error {
 	g.wg.Wait()
-	return g.err.errorOrNil()
+	return g.err.ErrorOrNil()
 }
 
-type multierror struct {
+// MultiError is a thread safe container for multi-error type that implements error interface
+type MultiError struct {
 	errors []error
 	lock   sync.Mutex
 }
 
-func (m *multierror) append(err error) *multierror {
+func (m *MultiError) append(err error) *MultiError {
 	m.lock.Lock()
 	m.errors = append(m.errors, err)
 	m.lock.Unlock()
 	return m
 }
 
-func (m *multierror) errorOrNil() error {
+// ErrorOrNil returns nil if no errors or multierror if errors occurred
+func (m *MultiError) ErrorOrNil() error {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if len(m.errors) == 0 {
@@ -145,7 +147,7 @@ func (m *multierror) errorOrNil() error {
 }
 
 // Error returns multi-error string
-func (m *multierror) Error() string {
+func (m *MultiError) Error() string {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	if len(m.errors) == 0 {
@@ -158,4 +160,10 @@ func (m *multierror) Error() string {
 		errs = append(errs, fmt.Sprintf("[%d] {%s}", n, e.Error()))
 	}
 	return fmt.Sprintf("%d error(s) occurred: %s", len(m.errors), strings.Join(errs, ", "))
+}
+
+func (m *MultiError) Errors() []error {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	return m.errors
 }

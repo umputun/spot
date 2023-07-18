@@ -102,14 +102,14 @@ func Test_templaterApply(t *testing.T) {
 		},
 		{
 			name: "with error msg",
-			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR}",
+			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR} and $SPOT_ERROR",
 			tmpl: templater{
 				hostAddr: "example.com",
 				command:  "ls",
 				task:     &config.Task{Name: "task1", User: "user"},
 				err:      fmt.Errorf("some error"),
 			},
-			expected: "example.com:user:ls some error",
+			expected: "example.com:user:ls some error and some error",
 		},
 		{
 			name: "with error msg but no error",

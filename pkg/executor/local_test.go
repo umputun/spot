@@ -20,8 +20,20 @@ func TestRun(t *testing.T) {
 	ctx := context.Background()
 	l := &Local{}
 
-	t.Run("single line out success", func(t *testing.T) {
+	t.Run("single line out, success", func(t *testing.T) {
 		out, e := l.Run(ctx, "echo 'hello world'", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.Equal(t, []string{"hello world"}, out)
+	})
+
+	t.Run("single line with sh -c, success", func(t *testing.T) {
+		out, e := l.Run(ctx, "sh -c echo hello world", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.Equal(t, []string{"hello world"}, out)
+	})
+
+	t.Run("single line with sh -c with single quotes, success", func(t *testing.T) {
+		out, e := l.Run(ctx, "sh -c 'echo hello world'", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
