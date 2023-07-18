@@ -1,3 +1,16 @@
+# v1.19.11 (2023-07-13)
+
+* **Documentation**: Documentation updates for Secrets Manager
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.19.10 (2023-06-15)
+
+* No change notes available for this release.
+
+# v1.19.9 (2023-06-13)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.19.8 (2023-05-16)
 
 * **Documentation**: Documentation updates for Secrets Manager
