@@ -41,7 +41,7 @@ type execCmdErr struct {
 	cmd execCmd
 }
 
-func (e *execCmdErr) Error() string { return e.err.Error() }
+func (e execCmdErr) Error() string { return e.err.Error() }
 
 const tmpRemoteDirPrefix = "/tmp/.spot-" // this is a directory on remote host to store temporary files
 

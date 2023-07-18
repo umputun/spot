@@ -121,7 +121,7 @@ tasks:
         script: echo good command 2
 
   - name: failed_task_with_onerror
-    on_error: "echo onerror called. task: ${SPOT_TASK}, host: ${SPOT_REMOTE_HOST}, error: ${SPOT_ERROR}, name: ${SPOT_REMOTE_NAME}"
+    on_error: 'echo "onerror called. task: ${SPOT_TASK}, host: ${SPOT_REMOTE_HOST}, error: ${SPOT_ERROR}"'
     commands:
       - name: good command
         script: echo good command 1

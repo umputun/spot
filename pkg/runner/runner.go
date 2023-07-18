@@ -1,14 +1,12 @@
 package runner
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
-	"os"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -112,7 +110,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 	// execute on-error command if any error occurred during task execution and on-error command is defined
 	if err != nil && tsk.OnError != "" {
-		p.onError(ctx, tsk)
+		p.onError(ctx, err)
 	}
 
 	return ProcResp{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands)), Vars: allVars}, err
@@ -284,32 +282,51 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 	return ec
 }
 
-// onError executes on-error command if any error occurred during task execution and on-error command is defined
-func (p *Process) onError(ctx context.Context, tsk *config.Task) {
+// onError executes on-error command locally if any error occurred during task execution and on-error command is defined
+func (p *Process) onError(ctx context.Context, err error) {
 
-	// ex := execCmd{
-	// 	tsk: tsk,
-	// 	cmd: config.Cmd{
-	// 		Name:   "on-error",
-	// 		Script: tsk.OnError,
-	// 		Options: config.CmdOptions{
-	// 			Local: true,
-	// 		},
-	// 	},
-	// }
+	// unwrapError unwraps error to get execCmdErr with all details about command execution
+	unwrapError := func(err error) (execCmdErr, bool) {
+		execErr := &execCmdErr{}
+		if errors.As(err, &execErr) {
+			return *execErr, true
+		}
+		multiErr := &syncs.MultiError{}
+		if errors.As(err, &multiErr) {
+			for _, e := range multiErr.Errors() {
+				if errors.As(e, &execErr) {
+					// we need only the first error as we don't need to execute
+					// on-error command multiple times if multiple commands failed
+					return *execErr, true
+				}
+			}
+		}
+		return execCmdErr{}, false
+	}
 
-	onErrCmd := exec.CommandContext(ctx, "sh", "-c", tsk.OnError) // nolint we want to run shell here
-	onErrCmd.Env = os.Environ()
+	execErr, ok := unwrapError(err)
+	if !ok {
+		log.Printf("[WARN] can't unwrap error: %v", err)
+		return
+	}
 
-	outLog, errLog := executor.MakeOutAndErrWriters("localhost", "", p.Verbose, p.secrets)
-	outLog.Write([]byte(tsk.OnError)) // nolint
+	ec := execCmd{
+		tsk: execErr.cmd.tsk,
+		cmd: config.Cmd{
+			Name:    execErr.cmd.tsk.Name,
+			Script:  execErr.cmd.tsk.OnError,
+			Options: config.CmdOptions{Local: true}, // force local execution for on-error command
+		},
+		hostAddr: execErr.cmd.hostAddr,
+		hostName: execErr.cmd.hostName,
+		verbose:  p.Verbose,
+	}
 
-	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(outLog, &stdoutBuf)
-	onErrCmd.Stdout, onErrCmd.Stderr = mwr, errLog
-	onErrCmd.Stdout, onErrCmd.Stderr = mwr, executor.NewStdoutLogWriter("!", "WARN", p.secrets)
-	if exErr := onErrCmd.Run(); exErr != nil {
-		log.Printf("[WARN] can't run on-error command %q: %v", tsk.OnError, exErr)
+	ec = p.pickCmdExecutor(ec.cmd, ec, "localhost", ec.hostName) // pick executor for local command
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, err: execErr}
+	ec.cmd.Script = tmpl.apply(ec.cmd.Script)
+	if _, err = ec.Script(ctx); err != nil {
+		log.Printf("[WARN] can't run on-error command for %q, %q: %v", ec.cmd.Name, ec.cmd.Script, err)
 	}
 }
 

@@ -634,7 +634,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		t.Log(buf.String())
 		require.NotContains(t, buf.String(), "onerror called")
 		assert.Contains(t, buf.String(), "[WARN]")
-		assert.Contains(t, buf.String(), `can't run on-error command "exit 1`)
+		assert.Contains(t, buf.String(), `can't run on-error command for "failed_task_with_bad_onerror", "exit 1"`)
 	})
 }
 
