@@ -32,7 +32,7 @@ type options struct {
 	} `positional-args:"yes" positional-optional:"yes"`
 
 	PlaybookFile string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
-	TaskName     string        `long:"task" description:"task name"`
+	TaskNames    []string      `long:"task" description:"task name"`
 	Targets      []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout   time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
@@ -154,7 +154,7 @@ func run(opts options) error {
 		return runGen(opts, r)
 	}
 
-	if err := runTasks(ctx, opts.TaskName, opts.Targets, r); err != nil {
+	if err := runTasks(ctx, opts.TaskNames, opts.Targets, r); err != nil {
 		return err
 	}
 
@@ -163,12 +163,14 @@ func run(opts options) error {
 }
 
 // runTasks runs all tasks in playbook by default or a single task if specified in command line
-func runTasks(ctx context.Context, taskName string, targets []string, r *runner.Process) error {
-	// run a single task if specified
-	if taskName != "" {
-		for _, targetName := range targetsForTask(targets, taskName, r.Playbook) {
-			if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
-				return err
+func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Process) error {
+	// run specified tasks if there is any
+	if len(taskNames) > 0 {
+		for _, taskName := range taskNames {
+			for _, targetName := range targetsForTask(targets, taskName, r.Playbook) {
+				if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -196,9 +198,19 @@ func runAdHoc(ctx context.Context, targets []string, r *runner.Process) error {
 	return errs.ErrorOrNil()
 }
 
-// runGen generates a destination report for the task's targets
+// runGen generates a destination report for the tasks' targets
 func runGen(opts options, r *runner.Process) (err error) {
-	targets := targetsForTask(opts.Targets, opts.TaskName, r.Playbook)
+	var targets []string
+	uniqueTargets := make(map[string]bool)
+	for _, taskName := range opts.TaskNames {
+		for _, target := range targetsForTask(opts.Targets, taskName, r.Playbook) {
+			// ensure there is no duplicates in the targets list
+			if _, exists := uniqueTargets[target]; !exists {
+				uniqueTargets[target] = true
+				targets = append(targets, target)
+			}
+		}
+	}
 
 	var fh io.ReadCloser
 	if opts.GenTemplate != "" && opts.GenTemplate != "json" {
