@@ -222,10 +222,10 @@ func TestProcess_Run(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
 
-		cmd := conf.Tasks[0].Commands[18]
+		cmd := conf.Tasks[0].Commands[19]
 		assert.Equal(t, "copy filename from env", cmd.Name)
 		cmd.Environment = map[string]string{"filename": "testdata/conf.yml"}
-		conf.Tasks[0].Commands[18] = cmd
+		conf.Tasks[0].Commands[19] = cmd
 
 		p := Process{
 			Concurrency: 1,
@@ -338,6 +338,25 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
 		assert.Contains(t, outWriter.String(), "passwd")
+	})
+
+	t.Run("single line script with var", func(t *testing.T) {
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+			Only:        []string{"root only single line with var"},
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 1, res.Commands)
+		assert.Equal(t, 1, res.Hosts)
+		assert.Contains(t, outWriter.String(), " > sudo sh -c 'vvv=123 && echo var=$vvv'")
+		assert.Contains(t, outWriter.String(), " > var=123")
 	})
 
 	t.Run("multi line script", func(t *testing.T) {

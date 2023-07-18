@@ -71,6 +71,11 @@ tasks:
         script: ls -l /etc
         options: {no_auto: true, sudo: true}
 
+
+      - name: root only single line with var
+        script: vvv=123 && echo var=$vvv
+        options: {no_auto: true, sudo: true}
+
       - name: root only copy single file
         copy: {src: testdata/conf.yml, dst: /srv/conf.yml}
         options: {no_auto: true, sudo: true}
