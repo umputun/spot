@@ -134,6 +134,7 @@ Spot supports the following command-line options:
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
 - `--timeout`: Sets the SSH timeout. Defaults to `30s`. User can also set the environment variable `$SPOT_TIMEOUT` to define the SSH timeout.
 - `--ssh-agent`: Enables the use of the SSH agent for authentication. Defaults to `false`. User can also set the environment variable `SPOT_SSH_AGENT` to define the value.
+- `--shell` - shell to use for remote ssh execution, default is `/bin/sh`. User can also set the environment variable `SPOT_SHELL` to define the value.  
 - `-i`, `--inventory=`: Specifies the inventory file or url to use for the task execution. Overrides the inventory file defined in the
   playbook file. User can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
@@ -141,7 +142,7 @@ Spot supports the following command-line options:
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`.
-- `-E`, `--env-file=`: Sets the environment variables from file to be used during the task execution. Default is env.yml`
+- `-E`, `--env-file=`: Sets the environment variables from file to be used during the task execution. Default is env.yml. Can be also set with environment variable `SPOT_ENV_FILE`.
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution as well as diagnostic messages.
@@ -166,6 +167,7 @@ Spot supports the following command-line options:
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
+ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
 # list of targets, i.e. hosts, inventory files or inventory URLs
@@ -235,6 +237,7 @@ In some cases the rich syntax of the full playbook is not needed and can felt ov
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
+ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
 targets: ["devbox1", "devbox2", "h1.example.com:2222", "h2.example.com"] # list of host names from inventory and direct host ips

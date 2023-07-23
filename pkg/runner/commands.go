@@ -28,6 +28,7 @@ type execCmd struct {
 	tsk      *config.Task
 	exec     executor.Interface
 	verbose  bool
+	sshShell string
 }
 
 type execCmdResp struct {
@@ -78,10 +79,10 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {script: %s}", c)
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {script: %s, sudo: true}", c)
-		if strings.HasPrefix(c, "sh -c ") { // single line script already has sh -c
+		if strings.HasPrefix(c, ec.shell()+" ") { // single line script already has sh -c
 			c = fmt.Sprintf("sudo %s", c)
 		} else {
-			c = fmt.Sprintf("sudo sh -c %q", c)
+			c = fmt.Sprintf("sudo %s -c %q", ec.shell(), c)
 		}
 	}
 	resp.verbose = scr
@@ -289,11 +290,11 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
 		c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
 
-	waitCmd := fmt.Sprintf("sh -c %q", c) // run wait command in a shell
+	waitCmd := fmt.Sprintf("%s -c %q", ec.shell(), c) // run wait command in a shell
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v, sudo: true}",
 			c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
-		waitCmd = fmt.Sprintf("sudo sh -c %q", c) // add sudo if needed
+		waitCmd = fmt.Sprintf("sudo %s -c %q", ec.shell(), c) // add sudo if needed
 	}
 	resp.verbose = script
 
@@ -322,10 +323,10 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	echoCmd := tmpl.apply(ec.cmd.Echo)
 	if !strings.HasPrefix(echoCmd, "echo ") {
-		echoCmd = fmt.Sprintf("echo %s", echoCmd)
+		echoCmd = fmt.Sprintf("echo %q", echoCmd)
 	}
 	if ec.cmd.Options.Sudo {
-		echoCmd = fmt.Sprintf("sudo %s", echoCmd)
+		echoCmd = fmt.Sprintf("sudo %q", echoCmd)
 	}
 	out, err := ec.exec.Run(ctx, echoCmd, nil)
 	if err != nil {
@@ -355,7 +356,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	}()
 
 	if ec.cmd.Options.Sudo { // command's sudo also applies to condition script
-		c = fmt.Sprintf("sudo sh -c %q", c)
+		c = fmt.Sprintf("sudo %s -c %q", ec.shell(), c)
 	}
 
 	// run the condition command
@@ -428,7 +429,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	if err = ec.exec.Upload(ctx, tmp.Name(), dst, &executor.UpDownOpts{Mkdir: true}); err != nil {
 		return "", "", nil, ec.errorFmt("can't upload script to %s: %w", ec.hostAddr, err)
 	}
-	cmd = fmt.Sprintf("sh -c %s", dst)
+	cmd = fmt.Sprintf("%s -c %s", ec.shell(), dst)
 
 	teardown = func() error {
 		// remove the temp dir with the script from the remote hostAddr,
@@ -503,4 +504,17 @@ func (ec *execCmd) error(err error) *execCmdErr {
 
 func (ec *execCmd) errorFmt(format string, a ...any) *execCmdErr {
 	return &execCmdErr{err: fmt.Errorf(format, a...), cmd: *ec}
+}
+
+func (ec *execCmd) shell() string {
+	if ec.sshShell == "" {
+		return "/bin/sh"
+	}
+	if ec.cmd.Options.Local {
+		if os.Getenv("SHELL") == "" {
+			return "/bin/sh" // default to /bin/sh if SHELL env var is not set
+		}
+		return os.Getenv("SHELL") // local commands always use local sh
+	}
+	return ec.sshShell
 }

@@ -23,7 +23,7 @@ func TestCmd_GetScript(t *testing.T) {
 			cmd: &Cmd{
 				Script: "echo Hello, World!",
 			},
-			expectedScript:   `sh -c 'echo Hello, World!'`,
+			expectedScript:   `/bin/sh -c 'echo Hello, World!'`,
 			expectedContents: nil,
 		},
 		{
@@ -93,7 +93,7 @@ export FOO='bar'
 					"GREETING": "Hello, World!",
 				},
 			},
-			expectedScript:   `sh -c 'GREETING="Hello, World!"; echo $GREETING'`,
+			expectedScript:   `/bin/sh -c 'GREETING="Hello, World!"; echo $GREETING'`,
 			expectedContents: nil,
 		},
 		{
@@ -181,7 +181,7 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		cmd := c.Tasks[0].Commands[3]
 		assert.Equal(t, "git", cmd.Name, "name")
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, `sh -c 'git clone https://example.com/remark42.git /srv || true; cd /srv; git pull'`, res)
+		assert.Equal(t, `/bin/sh -c 'git clone https://example.com/remark42.git /srv || true; cd /srv; git pull'`, res)
 	})
 
 	t.Run("no-script", func(t *testing.T) {
@@ -195,7 +195,35 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		cmd := c.Tasks[0].Commands[4]
 		assert.Equal(t, "docker", cmd.Name)
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, `sh -c 'BAR="qux"; FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
+		assert.Equal(t, `/bin/sh -c 'BAR="qux"; FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
+	})
+}
+
+func TestCmd_getScriptCommandCustomShell(t *testing.T) {
+	c, err := New("testdata/f1.yml", &Overrides{SSHShell: "/bin/bash"}, nil)
+	require.NoError(t, err)
+	t.Logf("%+v", c)
+	assert.Equal(t, 1, len(c.Tasks), "single task")
+
+	t.Run("script", func(t *testing.T) {
+		cmd := c.Tasks[0].Commands[3]
+		assert.Equal(t, "git", cmd.Name, "name")
+		res := cmd.scriptCommand(cmd.Script)
+		assert.Equal(t, `/bin/bash -c 'git clone https://example.com/remark42.git /srv || true; cd /srv; git pull'`, res)
+	})
+
+	t.Run("no-script", func(t *testing.T) {
+		cmd := c.Tasks[0].Commands[1]
+		assert.Equal(t, "copy configuration", cmd.Name)
+		res := cmd.scriptCommand(cmd.Script)
+		assert.Equal(t, "", res)
+	})
+
+	t.Run("script with env", func(t *testing.T) {
+		cmd := c.Tasks[0].Commands[4]
+		assert.Equal(t, "docker", cmd.Name)
+		res := cmd.scriptCommand(cmd.Script)
+		assert.Equal(t, `/bin/bash -c 'BAR="qux"; FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
 	})
 }
 
@@ -218,6 +246,14 @@ func TestCmd_getScriptFile(t *testing.T) {
 				Script: "#!/bin/bash\necho 'Hello, World!'",
 			},
 			expected: "#!/bin/bash\nset -e\necho 'Hello, World!'\n",
+		},
+		{
+			name: "with non-default shell",
+			cmd: &Cmd{
+				Script:   "echo 'Hello, World!'",
+				SSHShell: "/bin/zsh",
+			},
+			expected: "#!/bin/zsh\nset -e\necho 'Hello, World!'\n",
 		},
 		{
 			name: "with one environment variable",
@@ -501,7 +537,7 @@ func TestCmd_GetWait(t *testing.T) {
 					Command: "echo Hello, World!",
 				},
 			},
-			expectedCmd: `sh -c 'echo Hello, World!'`,
+			expectedCmd: `/bin/sh -c 'echo Hello, World!'`,
 		},
 		{
 			name: "multi-line wait command",
@@ -551,13 +587,13 @@ func TestCmd_GetCondition(t *testing.T) {
 		{
 			name:           "single-line wait command",
 			cmd:            &Cmd{Condition: "echo Hello, World!"},
-			expectedCmd:    `sh -c 'echo Hello, World!'`,
+			expectedCmd:    `/bin/sh -c 'echo Hello, World!'`,
 			expectedInvert: false,
 		},
 		{
 			name:           "single-line wait command inverted",
 			cmd:            &Cmd{Condition: "! echo Hello, World!"},
-			expectedCmd:    `sh -c 'echo Hello, World!'`,
+			expectedCmd:    `/bin/sh -c 'echo Hello, World!'`,
 			expectedInvert: true,
 		},
 		{

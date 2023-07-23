@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -29,7 +30,8 @@ type Cmd struct {
 	Options     CmdOptions        `yaml:"options" toml:"options,omitempty"`
 	Condition   string            `yaml:"cond" toml:"cond,omitempty"`
 
-	Secrets map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
+	Secrets  map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
+	SSHShell string            `yaml:"-" toml:"-"` // shell to use for ssh commands, filled by playbook
 }
 
 // CmdOptions defines options for a command
@@ -136,7 +138,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 
 	// add environment variables
 	envs := cmd.genEnv()
-	res := "sh -c '"
+	res := cmd.shell() + " -c '"
 	if len(envs) > 0 {
 		res += strings.Join(envs, "; ") + "; "
 	}
@@ -169,8 +171,8 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	var buf bytes.Buffer
 
 	if !cmd.hasShebang(inp) {
-		buf.WriteString("#!/bin/sh\n") // add default shebang if not present
-		buf.WriteString("set -e\n")    // add 'set -e' to make the script exit on error
+		buf.WriteString("#!" + cmd.shell() + "\n") // add default shebang if not present
+		buf.WriteString("set -e\n")                // add 'set -e' to make the script exit on error
 	}
 
 	envs := cmd.genEnv()
@@ -389,4 +391,19 @@ func (cmd *Cmd) validate() error {
 		return fmt.Errorf("one of [%s] must be set", strings.Join(names, ", "))
 	}
 	return nil
+}
+
+func (cmd *Cmd) shell() string {
+	if cmd.SSHShell == "" {
+		return "/bin/sh"
+	}
+	if cmd.Options.Local {
+		envShell := os.Getenv("SHELL")
+		if envShell == "" {
+			return "/bin/sh"
+		}
+		return envShell
+	}
+
+	return cmd.SSHShell
 }
