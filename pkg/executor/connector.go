@@ -118,3 +118,7 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 
 	return sshConfig, nil
 }
+
+func (c *Connector) String() string {
+	return fmt.Sprintf("ssh connector with private key %s.., timeout %v, agent %v", c.privateKey[:8], c.timeout, c.enableAgent)
+}

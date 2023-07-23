@@ -32,10 +32,11 @@ func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []strin
 		if strings.HasPrefix(cmd, "sh -c") {
 			return "sh" // command has sh -c prefix, so use sh
 		}
-		if os.Getenv("SHELL") == "" {
+		envShell := os.Getenv("SHELL")
+		if envShell == "" {
 			return "/bin/sh" // default to /bin/sh
 		}
-		return os.Getenv("SHELL") // use SHELL env var
+		return envShell // use SHELL env var
 	}
 
 	if strings.HasPrefix(cmd, shell()+" -c ") {

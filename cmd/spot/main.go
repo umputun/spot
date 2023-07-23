@@ -326,6 +326,9 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Dry:         opts.Dry,
 		SSHShell:    opts.SSHShell,
 	}
+	log.Printf("[DEBUG] runner created: concurrency:%d, connector: %s, ssh_shell:%q, verbose:%v, dry:%v, only:%v, skip:%v",
+		r.Concurrency, r.Connector, r.SSHShell, r.Verbose, r.Dry, r.Only, r.Skip)
+
 	return &r, nil
 }
 
