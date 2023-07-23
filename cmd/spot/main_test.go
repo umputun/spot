@@ -26,9 +26,21 @@ func Test_main(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	args := []string{"simplotask", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test", "--key=testdata/test_ssh_key", "--target=" + hostAndPort}
-	os.Args = args
-	main()
+	t.Run("with system shell set", func(t *testing.T) {
+		args := []string{"simplotask", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort}
+		os.Args = args
+		main()
+	})
+
+	t.Run("with system shell not set", func(t *testing.T) {
+		args := []string{"simplotask", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort}
+		os.Args = args
+		err := os.Setenv("SHELL", "")
+		require.NoError(t, err)
+		main()
+	})
 }
 
 func Test_runCompleted(t *testing.T) {

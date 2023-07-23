@@ -33,6 +33,7 @@ type Process struct {
 	ColorWriter *executor.ColorizedWriter
 	Verbose     bool
 	Dry         bool
+	SSHShell    string
 
 	Skip []string
 	Only []string
@@ -191,7 +192,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 
 		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
-		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote, verbose: p.Verbose}
+		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
+			verbose: p.Verbose, sshShell: p.SSHShell}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		exResp, err := p.execCommand(ctx, ec)
@@ -313,9 +315,10 @@ func (p *Process) onError(ctx context.Context, err error) {
 	ec := execCmd{
 		tsk: execErr.cmd.tsk,
 		cmd: config.Cmd{
-			Name:    execErr.cmd.tsk.Name,
-			Script:  execErr.cmd.tsk.OnError,
-			Options: config.CmdOptions{Local: true}, // force local execution for on-error command
+			Name:     execErr.cmd.tsk.Name,
+			Script:   execErr.cmd.tsk.OnError,
+			Options:  config.CmdOptions{Local: true}, // force local execution for on-error command
+			SSHShell: "/bin/sh",                      // local run always with /bin/sh
 		},
 		hostAddr: execErr.cmd.hostAddr,
 		hostName: execErr.cmd.hostName,
