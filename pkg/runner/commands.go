@@ -511,6 +511,9 @@ func (ec *execCmd) shell() string {
 		return "/bin/sh"
 	}
 	if ec.cmd.Options.Local {
+		if os.Getenv("SHELL") == "" {
+			return "/bin/sh" // default to /bin/sh if SHELL env var is not set
+		}
 		return os.Getenv("SHELL") // local commands always use local sh
 	}
 	return ec.sshShell
