@@ -292,7 +292,7 @@ func Test_execCmd(t *testing.T) {
 			Script: "echo condition true", Name: "test"}}
 		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
-		assert.Equal(t, " {script: sh -c 'echo condition true'}", resp.details)
+		assert.Equal(t, " {script: /bin/sh -c 'echo condition true'}", resp.details)
 	})
 
 	t.Run("condition true inverted", func(t *testing.T) {
@@ -426,7 +426,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
 		// {script: sh -c /tmp/.spot-8420993611669644288/spot-script1149755050, sudo: true}
-		assert.Contains(t, resp.details, " {script: sh -c /tmp/.spot-")
+		assert.Contains(t, resp.details, " {script: /bin/sh -c /tmp/.spot-")
 		assert.Contains(t, resp.details, ", sudo: true}")
 
 		// [INFO] deleted recursively /tmp/.spot-8279767396215533568

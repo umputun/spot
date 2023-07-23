@@ -85,6 +85,7 @@ type Overrides struct {
 	Inventory    string
 	Environment  map[string]string
 	AdHocCommand string
+	SSHShell     string
 }
 
 // InventoryData defines inventory data format
@@ -150,8 +151,11 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 
 	// log loaded config info
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
-	for _, tsk := range res.Tasks {
-		for _, c := range tsk.Commands {
+	for i, tsk := range res.Tasks {
+		for j, c := range tsk.Commands {
+			if overrides != nil && overrides.SSHShell != "" {
+				res.Tasks[i].Commands[j].SSHShell = overrides.SSHShell // set ssh shell for all commands in task
+			}
 			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
 		}
 	}
@@ -267,7 +271,7 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		}
 		res.Targets = map[string]Target{"default": target}
 		return nil
-	} else { //nolint
+	} else { // nolint
 		errs = multierror.Append(errs, err)
 	}
 
@@ -296,7 +300,8 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	searchTask := func(tsk []Task, name string) (*Task, error) {
 		if name == "ad-hoc" && p.overrides.AdHocCommand != "" {
 			// special case for ad-hoc command, make a fake task with a single command from overrides.AdHocCommand
-			return &Task{Name: "ad-hoc", Commands: []Cmd{{Name: "ad-hoc", Script: p.overrides.AdHocCommand}}}, nil
+			return &Task{Name: "ad-hoc", Commands: []Cmd{
+				{Name: "ad-hoc", Script: p.overrides.AdHocCommand, SSHShell: p.overrides.SSHShell}}}, nil
 		}
 		for _, t := range tsk {
 			if strings.EqualFold(t.Name, name) {

@@ -347,6 +347,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 			Playbook:    conf,
 			ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 			Only:        []string{"root only single line with var"},
+			SSHShell:    "/bin/sh",
 		}
 
 		outWriter := &bytes.Buffer{}
@@ -355,7 +356,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
-		assert.Contains(t, outWriter.String(), " > sudo sh -c 'vvv=123 && echo var=$vvv'")
+		assert.Contains(t, outWriter.String(), " > sudo /bin/sh -c 'vvv=123 && echo var=$vvv'")
 		assert.Contains(t, outWriter.String(), " > var=123")
 	})
 

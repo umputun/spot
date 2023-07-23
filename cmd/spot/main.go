@@ -37,13 +37,14 @@ type options struct {
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout   time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
 	SSHAgent     bool          `long:"ssh-agent" env:"SPOT_SSH_AGENT" description:"use ssh-agent"`
+	SSHShell     string        `long:"shell" env:"SPOT_SHELL" description:"shell to use for ssh" default:"/bin/sh"`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
 	SSHUser   string            `short:"u" long:"user" description:"ssh user"`
 	SSHKey    string            `short:"k" long:"key" description:"ssh key"`
 	Env       map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
-	EnvFile   string            `short:"E" long:"env-file" description:"environment variables from file" default:"env.yml"`
+	EnvFile   string            `short:"E" long:"env-file" env:"SPOT_ENV_FILE" description:"environment variables from file" default:"env.yml"`
 
 	// commands filter
 	Skip []string `long:"skip" description:"skip commands"`
@@ -275,6 +276,7 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
 		Environment:  env,
 		User:         opts.SSHUser,
 		AdHocCommand: opts.PositionalArgs.AdHocCmd,
+		SSHShell:     opts.SSHShell,
 	}
 
 	exPlaybookFile, err := expandPath(opts.PlaybookFile)
@@ -322,6 +324,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
 		Verbose:     opts.Verbose,
 		Dry:         opts.Dry,
+		SSHShell:    opts.SSHShell,
 	}
 	return &r, nil
 }

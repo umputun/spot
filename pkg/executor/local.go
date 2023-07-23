@@ -28,14 +28,23 @@ func (l *Local) SetSecrets(secrets []string) {
 
 // Run executes command on local hostAddr, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
+	shell := func() string {
+		if strings.HasPrefix(cmd, "sh -c") {
+			return "sh" // command has sh -c prefix, so use sh
+		}
+		if os.Getenv("SHELL") == "" {
+			return "/bin/sh" // default to /bin/sh
+		}
+		return os.Getenv("SHELL") // use SHELL env var
+	}
 
-	if strings.HasPrefix(cmd, "sh -c ") {
+	if strings.HasPrefix(cmd, shell()+" -c ") {
 		// strip sh -c 'command' to just command to avoid double shell
-		cmd = strings.TrimPrefix(cmd, "sh -c ")
+		cmd = strings.TrimPrefix(cmd, shell()+" -c ")
 		cmd = strings.TrimPrefix(cmd, "'")
 		cmd = strings.TrimSuffix(cmd, "'")
 	}
-	command := exec.CommandContext(ctx, "sh", "-c", cmd)
+	command := exec.CommandContext(ctx, shell(), "-c", cmd) //nolint
 
 	outLog, errLog := MakeOutAndErrWriters("localhost", "", opts != nil && opts.Verbose, l.secrets)
 	outLog.Write([]byte(cmd)) // nolint
