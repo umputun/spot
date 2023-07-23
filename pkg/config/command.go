@@ -398,7 +398,11 @@ func (cmd *Cmd) shell() string {
 		return "/bin/sh"
 	}
 	if cmd.Options.Local {
-		return os.Getenv("SHELL")
+		envShell := os.Getenv("SHELL")
+		if envShell == "" {
+			return "/bin/sh"
+		}
+		return envShell
 	}
 
 	return cmd.SSHShell
