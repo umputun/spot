@@ -183,6 +183,7 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, 5, len(tsk.Commands))
 		assert.Equal(t, "docker", tsk.Commands[4].Name)
 		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
+		assert.Equal(t, []string{"VAL1", "VAL2"}, p.AllSecretValues())
 	})
 
 	t.Run("playbook prohibited all target", func(t *testing.T) {
@@ -518,6 +519,8 @@ hosts:
 	// create test HTTP server
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch filepath.Ext(r.URL.Path) {
+		case ".bad":
+			w.WriteHeader(http.StatusInternalServerError)
 		case ".toml":
 			http.ServeFile(w, r, tomlFile.Name())
 		default:
@@ -537,6 +540,7 @@ hosts:
 		{"load YAML from URL without extension", ts.URL + "/inventory", false},
 		{"load TOML from file", tomlFile.Name(), false},
 		{"load TOML from URL", ts.URL + "/inventory.toml", false},
+		{"load from URL with bad status", ts.URL + "/blah.bad", true},
 		{"invalid URL", "http://not-a-valid-url", true},
 		{"file not found", "nonexistent-file.yaml", true},
 	}
