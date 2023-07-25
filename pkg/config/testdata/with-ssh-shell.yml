@@ -1,0 +1,42 @@
+user: umputun
+ssh_shell: /bin/bash
+
+targets:
+    remark42:
+      hosts: [{name: "h1", host: "h1.example.com"}, {host: "h2.example.com"}]
+
+
+tasks:
+  - name: deploy-remark42
+    commands:
+      - name: wait
+        script: sleep 5
+
+      - name: copy configuration
+        copy: {"src": "/local/remark42.yml", "dst": "/srv/remark42.yml", "mkdir": true}
+
+      - name: some local command
+        options: {local: true}
+        script: |
+          ls -la /srv
+          du -hcs /srv
+
+      - name: git
+        before: "echo before git"
+        after: "echo after git"
+        onerror: "echo onerror git"
+        script: |
+          git clone https://example.com/remark42.git /srv || true # clone if doesn't exists, but don't fail if exists
+          cd /srv
+          git pull
+
+      - name: docker
+        options: {no_auto: true}
+        script: |
+          docker pull umputun/remark42:latest
+          docker stop remark42 || true
+          docker rm remark42 || true
+          docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest
+        env:
+          FOO: bar
+          BAR: qux

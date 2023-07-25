@@ -22,6 +22,7 @@ func TestPlaybook_New(t *testing.T) {
 		t.Logf("%+v", c)
 		assert.Equal(t, 1, len(c.Tasks), "single task")
 		assert.Equal(t, "umputun", c.User, "user")
+		assert.Equal(t, "/bin/sh", c.Tasks[0].Commands[0].SSHShell, "ssh shel")
 
 		tsk := c.Tasks[0]
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
@@ -188,6 +189,31 @@ func TestPlaybook_New(t *testing.T) {
 		_, err := New("testdata/playbook-with-all-group.yml", nil, nil)
 		require.ErrorContains(t, err, "config testdata/playbook-with-all-group.yml is invalid: target \"all\" is reserved for all hosts")
 	})
+
+	t.Run("playbook with custom ssh shell set", func(t *testing.T) {
+		c, err := New("testdata/with-ssh-shell.yml", nil, nil)
+		require.NoError(t, err)
+		t.Logf("%+v", c)
+		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Equal(t, "umputun", c.User, "user")
+		assert.Equal(t, "/bin/bash", c.Tasks[0].Commands[0].SSHShell, "ssh shel")
+
+		tsk := c.Tasks[0]
+		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
+	})
+	t.Run("playbook with custom ssh shell override", func(t *testing.T) {
+		c, err := New("testdata/with-ssh-shell.yml", &Overrides{SSHShell: "/bin/zsh"}, nil)
+		require.NoError(t, err)
+		t.Logf("%+v", c)
+		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Equal(t, "umputun", c.User, "user")
+		assert.Equal(t, "/bin/zsh", c.Tasks[0].Commands[0].SSHShell, "ssh shel")
+
+		tsk := c.Tasks[0]
+		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
+	})
 }
 
 func TestPlayBook_Task(t *testing.T) {
@@ -216,6 +242,18 @@ func TestPlayBook_Task(t *testing.T) {
 		assert.Equal(t, 1, len(tsk.Commands))
 		assert.Equal(t, "ad-hoc", tsk.Name)
 		assert.Equal(t, "echo 123", tsk.Commands[0].Script)
+		assert.Equal(t, "/bin/sh", tsk.Commands[0].SSHShell)
+	})
+
+	t.Run("adhoc with custom shell", func(t *testing.T) {
+		c, err := New("", &Overrides{AdHocCommand: "echo 123", User: "umputun", SSHShell: "/bin/zsh"}, nil)
+		require.NoError(t, err)
+		tsk, err := c.Task("ad-hoc")
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(tsk.Commands))
+		assert.Equal(t, "ad-hoc", tsk.Name)
+		assert.Equal(t, "echo 123", tsk.Commands[0].Script)
+		assert.Equal(t, "/bin/zsh", tsk.Commands[0].SSHShell)
 	})
 }
 

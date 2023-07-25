@@ -26,6 +26,7 @@ import (
 type PlayBook struct {
 	User      string            `yaml:"user" toml:"user"`           // ssh user
 	SSHKey    string            `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
+	SSHShell  string            `yaml:"ssh_shell" toml:"ssh_shell"` // ssh shell to use
 	Inventory string            `yaml:"inventory" toml:"inventory"` // inventory file or url
 	Targets   map[string]Target `yaml:"targets" toml:"targets"`     // list of targets/environments
 	Tasks     []Task            `yaml:"tasks" toml:"tasks"`         // list of tasks
@@ -153,9 +154,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
 	for i, tsk := range res.Tasks {
 		for j, c := range tsk.Commands {
-			if overrides != nil && overrides.SSHShell != "" {
-				res.Tasks[i].Commands[j].SSHShell = overrides.SSHShell // set ssh shell for all commands in task
-			}
+			res.Tasks[i].Commands[j].SSHShell = res.shell() // set secrets for all commands in task
 			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
 		}
 	}
@@ -301,7 +300,7 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 		if name == "ad-hoc" && p.overrides.AdHocCommand != "" {
 			// special case for ad-hoc command, make a fake task with a single command from overrides.AdHocCommand
 			return &Task{Name: "ad-hoc", Commands: []Cmd{
-				{Name: "ad-hoc", Script: p.overrides.AdHocCommand, SSHShell: p.overrides.SSHShell}}}, nil
+				{Name: "ad-hoc", Script: p.overrides.AdHocCommand, SSHShell: p.shell()}}}, nil
 		}
 		for _, t := range tsk {
 			if strings.EqualFold(t.Name, name) {
@@ -589,4 +588,14 @@ func (p *PlayBook) loadSecrets() error {
 		}
 	}
 	return nil
+}
+
+func (p *PlayBook) shell() string {
+	if p.overrides != nil && p.overrides.SSHShell != "" {
+		return p.overrides.SSHShell
+	}
+	if p.SSHShell != "" {
+		return p.SSHShell
+	}
+	return "/bin/sh"
 }

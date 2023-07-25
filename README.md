@@ -167,6 +167,7 @@ Spot supports the following command-line options:
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
+ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
 # list of targets, i.e. hosts, inventory files or inventory URLs
@@ -236,6 +237,7 @@ In some cases the rich syntax of the full playbook is not needed and can felt ov
 ```yaml
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
+ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
 targets: ["devbox1", "devbox2", "h1.example.com:2222", "h2.example.com"] # list of host names from inventory and direct host ips
