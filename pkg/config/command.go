@@ -188,25 +188,12 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	exports := []string{} // we collect them all here to pass as setenv to the next command
 	elems := strings.Split(inp, "\n")
 	for _, c := range elems {
-		if len(c) < 2 {
-			continue
-		}
-
 		if strings.HasPrefix(c, "#!") {
 			// if the line in the script is a shebang write it right away and add 'set -e' to make the script exit on error
 			buf.WriteString(c)
 			buf.WriteString("\n")
 			buf.WriteString("set -e\n")
 			continue
-		}
-
-		if strings.HasPrefix(c, "#") {
-			// skip comments
-			continue
-		}
-		if i := strings.Index(c, "#"); i > 0 {
-			// remove comments from the line
-			c = strings.TrimSpace(c[:i])
 		}
 		buf.WriteString(c)
 		buf.WriteString("\n")
