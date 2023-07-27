@@ -133,6 +133,7 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
 		tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
 		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
+		// not using filepath.Join because we want to keep the linux slash, see https://github.com/umputun/spot/issues/144
 		tmpDest := tmpRemoteDir + "/" + filepath.Base(dst)
 
 		// upload to a temporary directory with mkdir
