@@ -133,7 +133,8 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
 		tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
 		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
-		tmpDest := filepath.Join(tmpRemoteDir, filepath.Base(dst))
+		// not using filepath.Join because we want to keep the linux slash, see https://github.com/umputun/spot/issues/144
+		tmpDest := tmpRemoteDir + "/" + filepath.Base(dst)
 
 		// upload to a temporary directory with mkdir
 		err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
@@ -422,7 +423,9 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 
 	// get temp file name for remote hostAddr
 	tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
-	dst := filepath.Join(tmpRemoteDir, filepath.Base(tmp.Name())) // nolint
+	// the direct join with unix separator is intentional, we want to preserve the slash regardless of the host's OS
+	// see https://github.com/umputun/spot/issues/138
+	dst := tmpRemoteDir + "/" + filepath.Base(tmp.Name()) // nolint
 	scr = fmt.Sprintf("script: %s\n", dst) + scr
 
 	// upload the script to the remote hostAddr
