@@ -41,6 +41,20 @@ echo 'Goodbye, World!'`,
 			},
 		},
 		{
+			name: "multiline command without environment variables",
+			cmd: &Cmd{
+				Script: `echo 'Hello, World!'
+echo 'Goodbye, World!'`,
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/sh",
+				"set -e",
+				"echo 'Hello, World!'",
+				"echo 'Goodbye, World!'",
+			},
+		},
+		{
 			name: "multiline command with exports",
 			cmd: &Cmd{
 				Script: `echo 'Hello, World!'
@@ -74,6 +88,52 @@ export FOO='bar'`,
 			expectedScript: "",
 			expectedContents: []string{
 				"#!/bin/sh",
+				"set -e",
+				"echo 'Hello, World!'",
+				"export",
+				"echo 'Goodbye, World!'",
+				"export BAR",
+				"export FOO='bar'",
+				"echo setvar FOO=${FOO}",
+			},
+		},
+		{
+			name: "multiline command with shebang on non-first line",
+			cmd: &Cmd{
+				Script: `echo 'Hello, World!'
+#!/bin/bash
+export
+echo 'Goodbye, World!'
+export BAR
+export FOO='bar'`,
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/sh",
+				"set -e",
+				"echo 'Hello, World!'",
+				"#!/bin/bash",
+				"export",
+				"echo 'Goodbye, World!'",
+				"export BAR",
+				"export FOO='bar'",
+				"echo setvar FOO=${FOO}",
+			},
+		},
+		{
+			name: "multiline command with shebang on second line, but after initial empty line",
+			cmd: &Cmd{
+				Script: `
+#!/bin/bash
+echo 'Hello, World!'
+export
+echo 'Goodbye, World!'
+export BAR
+export FOO='bar'`,
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/bash",
 				"set -e",
 				"echo 'Hello, World!'",
 				"export",

@@ -169,7 +169,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 // set -e and environment variables.
 func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	var buf bytes.Buffer
-
+	inp = strings.TrimPrefix(inp, "\n") // trim leading newline if present; can be due to multiline yaml format
 	if !cmd.hasShebang(inp) {
 		buf.WriteString("#!" + cmd.shell() + "\n") // add default shebang if not present
 		buf.WriteString("set -e\n")                // add 'set -e' to make the script exit on error
@@ -186,23 +186,23 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 
 	// process all the exported variables in the script
 	exports := []string{} // we collect them all here to pass as setenv to the next command
-	elems := strings.Split(inp, "\n")
-	for _, c := range elems {
-		if strings.HasPrefix(c, "#!") {
+	lines := strings.Split(inp, "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "#!") && i == 0 {
 			// if the line in the script is a shebang write it right away and add 'set -e' to make the script exit on error
-			buf.WriteString(c)
+			buf.WriteString(line)
 			buf.WriteString("\n")
 			buf.WriteString("set -e\n")
 			continue
 		}
-		buf.WriteString(c)
+		buf.WriteString(line)
 		buf.WriteString("\n")
 
 		// if the line in the script is an export, add it to the list of exports
-		// this is done to be able to print the variables set by the script to the console after the script is executed
+		// this is done to be able to print the variables set by the script to the console after the script is executed.
 		// the caller can use those variables to set environment variables for the next commands
-		if strings.HasPrefix(c, "export") {
-			expKey := strings.TrimPrefix(c, "export")
+		if strings.HasPrefix(line, "export") {
+			expKey := strings.TrimPrefix(line, "export")
 			expElems := strings.Split(expKey, "=")
 			if len(expElems) != 2 {
 				continue
@@ -226,17 +226,12 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 }
 
 func (cmd *Cmd) hasShebang(inp string) bool {
-	elems := strings.Split(inp, "\n")
-	for _, el := range elems {
-		c := strings.TrimSpace(el)
-		if len(c) < 2 {
-			continue
-		}
-		if strings.HasPrefix(c, "#!") {
-			return true
-		}
+	lines := strings.Split(inp, "\n")
+	if len(lines) == 0 {
+		return false
 	}
-	return false
+	c := strings.TrimSpace(lines[0])
+	return strings.HasPrefix(c, "#!")
 }
 
 // genEnv returns a sorted list of environment variables from the Environment map (part of the command)
