@@ -32,7 +32,7 @@ type options struct {
 	} `positional-args:"yes" positional-optional:"yes"`
 
 	PlaybookFile string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
-	TaskNames    []string      `long:"task" description:"task name"`
+	TaskNames    []string      `short:"n" long:"task" description:"task name"`
 	Targets      []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout   time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
