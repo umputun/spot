@@ -47,8 +47,7 @@ echo 'Goodbye, World!'`,
 export FOO='bar'
 echo 'Goodbye, World!'
  echo "with space"
-export BAR='foo'
-`,
+export BAR='foo'`,
 			},
 			expectedScript: "",
 			expectedContents: []string{
@@ -70,8 +69,7 @@ export BAR='foo'
 export
 echo 'Goodbye, World!'
 export BAR
-export FOO='bar'
-`,
+export FOO='bar'`,
 			},
 			expectedScript: "",
 			expectedContents: []string{
@@ -128,7 +126,9 @@ echo 'Goodbye, World!'`,
 			expectedContents: []string{
 				"#!/bin/sh",
 				"set -e",
-				"echo 'Hello, World!'",
+				"# This is a comment",
+				"echo 'Hello, World!' # Inline comment",
+				"# Another comment",
 				"echo 'Goodbye, World!'",
 			},
 		},
