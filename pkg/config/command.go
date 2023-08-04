@@ -201,17 +201,7 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 		// if the line in the script is an export, add it to the list of exports.
 		// this is done to be able to print the variables set by the script to the console after the script is executed.
 		// the caller can use those variables to set environment variables for the next commands
-		trimmedLine := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmedLine, "export") {
-			expKey := strings.TrimPrefix(trimmedLine, "export")
-			expElems := strings.Split(expKey, "=")
-			if len(expElems) != 2 {
-				continue
-			}
-			expKey = strings.TrimSpace(expElems[0])
-			if expKey == "" {
-				continue // skip empty exports
-			}
+		if expKey := cmd.exportKey(line); expKey != "" {
 			exports = append(exports, expKey)
 		}
 	}
@@ -224,6 +214,20 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 	}
 
 	return &buf
+}
+
+func (cmd *Cmd) exportKey(line string) string {
+	trimmedLine := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmedLine, "export") {
+		return ""
+	}
+
+	expKey := strings.TrimPrefix(trimmedLine, "export")
+	expElems := strings.Split(expKey, "=")
+	if len(expElems) != 2 {
+		return ""
+	}
+	return strings.TrimSpace(expElems[0])
 }
 
 func (cmd *Cmd) hasShebang(inp string) bool {
