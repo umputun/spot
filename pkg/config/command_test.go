@@ -83,7 +83,8 @@ export BAR='foo'`,
 export
 echo 'Goodbye, World!'
 export BAR
-export FOO='bar'`,
+export FOO='bar'
+  export BAZ='qux'`,
 			},
 			expectedScript: "",
 			expectedContents: []string{
@@ -94,7 +95,9 @@ export FOO='bar'`,
 				"echo 'Goodbye, World!'",
 				"export BAR",
 				"export FOO='bar'",
+				"  export BAZ='qux'",
 				"echo setvar FOO=${FOO}",
+				"echo setvar BAZ=${BAZ}",
 			},
 		},
 		{

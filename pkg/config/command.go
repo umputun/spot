@@ -198,11 +198,12 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 		buf.WriteString(line)
 		buf.WriteString("\n")
 
-		// if the line in the script is an export, add it to the list of exports
+		// if the line in the script is an export, add it to the list of exports.
 		// this is done to be able to print the variables set by the script to the console after the script is executed.
 		// the caller can use those variables to set environment variables for the next commands
-		if strings.HasPrefix(line, "export") {
-			expKey := strings.TrimPrefix(line, "export")
+		trimmedLine := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmedLine, "export") {
+			expKey := strings.TrimPrefix(trimmedLine, "export")
 			expElems := strings.Split(expKey, "=")
 			if len(expElems) != 2 {
 				continue
