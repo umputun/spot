@@ -135,9 +135,9 @@ func Test_templaterApply(t *testing.T) {
 func Test_execCmd(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
-
+	logs := executor.MakeLogs(false, false, nil)
 	ctx := context.Background()
-	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
 	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
 	require.NoError(t, errSess)
@@ -399,7 +399,8 @@ func Test_execCmdWithTmp(t *testing.T) {
 	defer teardown()
 
 	ctx := context.Background()
-	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10)
+	logs := executor.MakeLogs(false, false, nil)
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
 	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
 	require.NoError(t, errSess)

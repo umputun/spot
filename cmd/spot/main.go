@@ -60,6 +60,7 @@ type options struct {
 
 	Version bool `long:"version" description:"show version"`
 
+	NoColor bool `long:"no-color" env:"SPOT_NO_COLOR" description:"disable color output"`
 	Dry     bool `long:"dry" description:"dry run"`
 	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
 	Dbg     bool `long:"dbg" description:"debug mode"`
@@ -260,8 +261,8 @@ func inventoryFile(inventory string) (string, error) {
 }
 
 func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
-	// makeSecretsProvider creates secrets provider based on options
-	makeSecretsProvider := func(sopts SecretsProvider) (config.SecretsProvider, error) {
+	// makeSecretProvider creates secret provider based on options
+	makeSecretProvider := func(sopts SecretsProvider) (config.SecretsProvider, error) {
 		switch sopts.Provider {
 		case "none":
 			return &secrets.NoOpProvider{}, nil
@@ -296,7 +297,7 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
 		return nil, fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
 	}
 
-	secretsProvider, err := makeSecretsProvider(opts.SecretsProvider)
+	secretsProvider, err := makeSecretProvider(opts.SecretsProvider)
 	if err != nil {
 		return nil, fmt.Errorf("can't make secrets provider: %w", err)
 	}
@@ -318,8 +319,8 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
-
-	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout)
+	logs := executor.MakeLogs(opts.Verbose, opts.NoColor, pbook.AllSecretValues())
+	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout, logs)
 	if err != nil {
 		return nil, fmt.Errorf("can't create connector: %w", err)
 	}
@@ -333,7 +334,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Playbook:    pbook,
 		Only:        opts.Only,
 		Skip:        opts.Skip,
-		ColorWriter: executor.NewColorizedWriter(os.Stdout, "", "", "", nil),
+		Logs:        logs,
 		Verbose:     opts.Verbose,
 		Dry:         opts.Dry,
 		SSHShell:    opts.SSHShell,
