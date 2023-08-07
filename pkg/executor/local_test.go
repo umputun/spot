@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -18,7 +17,7 @@ import (
 
 func TestRun(t *testing.T) {
 	ctx := context.Background()
-	l := &Local{}
+	l := NewLocal(MakeLogs(true, false, nil))
 
 	t.Run("single line out, success", func(t *testing.T) {
 		out, e := l.Run(ctx, "echo 'hello world'", &RunOpts{Verbose: true})
@@ -73,26 +72,17 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("with secrets", func(t *testing.T) {
-		originalStdout := os.Stdout
-		reader, writer, _ := os.Pipe()
-		os.Stdout = writer
+		stdout := captureStdOut(t, func() {
+			l := NewLocal(MakeLogs(true, false, []string{"data2"}))
+			out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
+			require.NoError(t, e)
+			sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+			assert.Equal(t, []string{"/tmp/st/data1.txt", "/tmp/st/data2.txt"}, out)
+		})
 
-		// Set up the test environment
-		l.SetSecrets([]string{"data2"})
-		defer l.SetSecrets(nil)
-		out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
-		writer.Close()
-		os.Stdout = originalStdout
-
-		capturedStdout, err := io.ReadAll(reader)
-		require.NoError(t, err)
-
-		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
-		assert.Equal(t, []string{"/tmp/st/data1.txt", "/tmp/st/data2.txt"}, out)
-		t.Logf("capturedStdout: %s", capturedStdout)
-		assert.NotContains(t, string(capturedStdout), "data2", "captured stdout should not contain secrets")
-		assert.Contains(t, string(capturedStdout), "****", "captured stdout should contain masked secrets")
+		t.Logf("capturedStdout:\n%s", stdout)
+		assert.NotContains(t, stdout, "data2", "captured stdout should not contain secrets")
+		assert.Contains(t, stdout, "****", "captured stdout should contain masked secrets")
 	})
 }
 

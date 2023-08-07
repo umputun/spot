@@ -473,6 +473,7 @@ func (tm *templater) apply(inp string) string {
 	res = apply(res, "SPOT_COMMAND", tm.command)
 	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
 	res = apply(res, "SPOT_TASK", tm.task.Name)
+
 	if tm.err != nil {
 		res = apply(res, "SPOT_ERROR", tm.err.Error())
 	} else {

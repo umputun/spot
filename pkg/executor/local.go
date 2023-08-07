@@ -18,16 +18,16 @@ import (
 
 // Local is a runner for local execution. Similar to remote, but without ssh, just exec on localhost and local copy/delete/sync
 type Local struct {
-	secrets []string
+	logs Logs
 }
 
-// SetSecrets sets the secrets for the remote executor.
-func (l *Local) SetSecrets(secrets []string) {
-	l.secrets = secrets
+// NewLocal creates new executor for local run
+func NewLocal(logs Logs) *Local {
+	return &Local{logs: logs}
 }
 
 // Run executes command on local hostAddr, inside the shell
-func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
+func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
 	shell := func() string {
 		if strings.HasPrefix(cmd, "sh -c") {
 			return "sh" // command has sh -c prefix, so use sh
@@ -45,9 +45,10 @@ func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []strin
 		cmd = strings.TrimPrefix(cmd, "'")
 		cmd = strings.TrimSuffix(cmd, "'")
 	}
-	command := exec.CommandContext(ctx, shell(), "-c", cmd) //nolint
+	command := exec.CommandContext(ctx, shell(), "-c", cmd) // nolint
 
-	outLog, errLog := MakeOutAndErrWriters("localhost", "", opts != nil && opts.Verbose, l.secrets)
+	outLog := l.logs.Out.WithHost("localhost", "")
+	errLog := l.logs.Err.WithHost("localhost", "")
 	outLog.Write([]byte(cmd)) // nolint
 
 	var stdoutBuf bytes.Buffer

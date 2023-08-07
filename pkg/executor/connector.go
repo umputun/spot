@@ -18,11 +18,12 @@ type Connector struct {
 	privateKey  string
 	timeout     time.Duration
 	enableAgent bool
+	logs        Logs
 }
 
 // NewConnector creates a new Connector for a given user and private key.
-func NewConnector(privateKey string, timeout time.Duration) (res *Connector, err error) {
-	res = &Connector{privateKey: privateKey, timeout: timeout}
+func NewConnector(privateKey string, timeout time.Duration, logs Logs) (res *Connector, err error) {
+	res = &Connector{privateKey: privateKey, timeout: timeout, logs: logs}
 	if privateKey == "" {
 		res.enableAgent = true
 		log.Printf("[DEBUG] no private key provided, use ssh agent only")
@@ -49,7 +50,7 @@ func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string
 	if err != nil {
 		return nil, err
 	}
-	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName}, nil
+	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName, logs: c.logs.WithHost(hostAddr, hostName)}, nil
 }
 
 // sshClient creates ssh client connected to remote server. Caller must close session.

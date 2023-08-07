@@ -23,7 +23,7 @@ type Remote struct {
 	client   *ssh.Client
 	hostAddr string
 	hostName string
-	secrets  []string // secrets to be masked in logs
+	logs     Logs
 }
 
 // Close connection to remote server.
@@ -34,19 +34,14 @@ func (ex *Remote) Close() error {
 	return nil
 }
 
-// SetSecrets sets the secrets for the remote executor.
-func (ex *Remote) SetSecrets(secrets []string) {
-	ex.secrets = secrets
-}
-
 // Run command on remote server.
-func (ex *Remote) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
+func (ex *Remote) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
 	log.Printf("[DEBUG] run %s", cmd)
 
-	return ex.sshRun(ctx, ex.client, cmd, opts != nil && opts.Verbose)
+	return ex.sshRun(ctx, ex.client, cmd)
 }
 
 // Upload file to remote server with scp
@@ -311,7 +306,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to the remote process.
-func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string, verbose bool) (out []string, err error) {
+func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
 	if err != nil {
@@ -319,12 +314,11 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 	defer session.Close()
 
-	outLog, errLog := MakeOutAndErrWriters(ex.hostAddr, ex.hostName, verbose, ex.secrets)
-	outLog.Write([]byte(command)) // nolint
+	ex.logs.Out.Write([]byte(command)) // nolint
 
 	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(outLog, &stdoutBuf)
-	session.Stdout, session.Stderr = mwr, errLog
+	mwr := io.MultiWriter(ex.logs.Out, &stdoutBuf)
+	session.Stdout, session.Stderr = mwr, ex.logs.Err
 
 	done := make(chan error)
 	go func() {

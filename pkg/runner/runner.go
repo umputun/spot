@@ -30,15 +30,13 @@ type Process struct {
 	Concurrency int
 	Connector   Connector
 	Playbook    Playbook
-	ColorWriter *executor.ColorizedWriter
+	Logs        executor.Logs
 	Verbose     bool
 	Dry         bool
 	SSHShell    string
 
 	Skip []string
 	Only []string
-
-	secrets []string
 }
 
 // Connector is an interface for connecting to a host, and returning remote executer.
@@ -81,7 +79,6 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
-	p.secrets = p.Playbook.AllSecretValues()
 	var commands int32
 	lock := sync.Mutex{}
 
@@ -96,7 +93,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 			lock.Lock()
 			if e != nil {
-				_, errLog := executor.MakeOutAndErrWriters(fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, p.Verbose, p.secrets)
+				errLog := p.Logs.WithHost(host.Host, host.Name).Err
 				errLog.Write([]byte(e.Error())) // nolint
 			}
 			for k, v := range vv {
@@ -155,7 +152,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 // returns number of executed commands, vars from all commands and error if any.
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, vars, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
-		fmt.Fprintf(p.ColorWriter.WithHost(hostAddr, hostName), f, vals...)
+		p.Logs.WithHost(hostAddr, hostName).Out.Printf(f, vals...)
 	}
 	since := func(st time.Time) time.Duration { return time.Since(st).Truncate(time.Millisecond) }
 
@@ -173,7 +170,6 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			return 0, nil, err
 		}
 		defer remote.Close()
-		remote.SetSecrets(p.secrets)
 		report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
 	} else {
 		report("localhost", "", "run task %q, commands: %d (local)\n", tsk.Name, len(tsk.Commands))
@@ -266,18 +262,13 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 	switch {
 	case cmd.Options.Local:
 		log.Printf("[DEBUG] run local command %q", cmd.Name)
-		ec.exec = &executor.Local{}
-		ec.exec.SetSecrets(p.secrets)
-		ec.hostAddr = "localhost"
-		ec.hostName = ""
+		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
 	case p.Dry:
 		log.Printf("[DEBUG] run dry command %q", cmd.Name)
-		ec.exec = executor.NewDry(hostAddr, hostName)
-		ec.exec.SetSecrets(p.secrets)
+		ec.exec = executor.NewDry(p.Logs.WithHost(hostAddr, hostName))
 		if cmd.Options.Local {
-			ec.hostAddr = "localhost"
-			ec.hostName = ""
+			ec.exec = executor.NewDry(p.Logs.WithHost("localhost", ""))
 		}
 		return ec
 	}

@@ -3,7 +3,6 @@ package executor
 import (
 	"bytes"
 	"context"
-	"io"
 	"log"
 	"os"
 	"testing"
@@ -14,7 +13,7 @@ import (
 
 func TestDry_Run(t *testing.T) {
 	ctx := context.Background()
-	dry := NewDry("hostAddr", "hostName")
+	dry := NewDry(MakeLogs(true, false, nil))
 	res, err := dry.Run(ctx, "ls -la /srv", &RunOpts{Verbose: true})
 	require.NoError(t, err)
 	require.Len(t, res, 1)
@@ -31,16 +30,13 @@ func TestDryUpload(t *testing.T) {
 	require.NoError(t, err)
 	tempFile.Close()
 
-	dry := &Dry{
-		hostAddr: "host1.example.com",
-		hostName: "host1",
-	}
-
-	stdout := captureOutput(func() {
+	stdout := captureStdOut(t, func() {
+		dry := NewDry(MakeLogs(true, false, nil).WithHost("host1.example.com", "host1"))
 		err = dry.Upload(context.Background(), tempFile.Name(), "remote/path/spot-script", &UpDownOpts{Mkdir: true})
+		require.NoError(t, err)
 	})
 
-	require.NoError(t, err)
+	t.Log(stdout)
 
 	// check for logs with the "command script" and file content in the output
 	assert.Contains(t, stdout, "command script remote/path/spot-script",
@@ -53,21 +49,14 @@ func TestDryUpload(t *testing.T) {
 func TestDryUpload_FileOpenError(t *testing.T) {
 	nonExistentFile := "non_existent_file"
 
-	dry := &Dry{
-		hostAddr: "host1.example.com",
-		hostName: "host1",
-	}
-
+	dry := NewDry(MakeLogs(true, false, nil).WithHost("host1.example.com", "host1"))
 	err := dry.Upload(context.Background(), nonExistentFile, "remote/path/spot-script", &UpDownOpts{Mkdir: true})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "open non_existent_file", "expected error message containing 'open non_existent_file' not found")
 }
 
 func TestDryOperations(t *testing.T) {
-	dry := &Dry{
-		hostAddr: "host1.example.com",
-		hostName: "host1",
-	}
+	dry := NewDry(MakeLogs(true, false, nil).WithHost("host1.example.com", "host1"))
 
 	testCases := []struct {
 		name        string
@@ -109,23 +98,4 @@ func TestDryOperations(t *testing.T) {
 			assert.Contains(t, stdout, tc.expectedLog, "expected log entry not found")
 		})
 	}
-}
-
-func captureOutput(f func()) (stdout string) {
-	// redirect stdout
-	oldStdout := os.Stdout
-	rout, wout, _ := os.Pipe()
-	os.Stdout = wout
-
-	// execute the function
-	f()
-
-	// stop capturing
-	wout.Close()
-	os.Stdout = oldStdout
-
-	// read the captured output
-	stdoutBuf, _ := io.ReadAll(rout)
-
-	return string(stdoutBuf)
 }
