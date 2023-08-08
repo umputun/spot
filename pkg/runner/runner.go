@@ -202,9 +202,15 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 
 		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
-		report(ec.hostAddr, ec.hostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
+		repHostAddr, repHostName := ec.hostAddr, ec.hostName
+		if cmd.Options.Local {
+			repHostAddr = "localhost"
+			repHostName = ""
+		}
+		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
+
 		if exResp.verbose != "" && ec.verbose {
-			report(ec.hostAddr, ec.hostName, exResp.verbose)
+			report(repHostAddr, repHostName, exResp.verbose)
 		}
 		count++
 		for k, v := range exResp.vars {
