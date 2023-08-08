@@ -371,11 +371,26 @@ func TestCmd_getScriptFile(t *testing.T) {
 			},
 			expected: "#!/bin/sh\nset -e\nexport SEC1=\"secret1\"\nexport SEC2=\"secret2\"\necho 'Hello, World!'\n",
 		},
+		{
+			name: "with exports",
+			cmd: &Cmd{
+				Script: "echo 'Hello, World!'\nexport var1=blah\n export var2=baz",
+			},
+			expected: "#!/bin/sh\nset -e\necho 'Hello, World!'\nexport var1=blah\n export var2=baz\necho setvar var1=${var1}\necho setvar var2=${var2}\n",
+		},
+		{
+			name: "with exports and register",
+			cmd: &Cmd{
+				Script:   "echo 'Hello, World!'\nexport var1=blah\n export var2=baz",
+				Register: []string{"var21", "var22", "var23"},
+			},
+			expected: "#!/bin/sh\nset -e\necho 'Hello, World!'\nexport var1=blah\n export var2=baz\necho setvar var1=${var1}\necho setvar var2=${var2}\necho setvar var21=${var21}\necho setvar var22=${var22}\necho setvar var23=${var23}\n",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader := tt.cmd.scriptFile(tt.cmd.Script)
+			reader := tt.cmd.scriptFile(tt.cmd.Script, tt.cmd.Register)
 			scriptContentBytes, err := io.ReadAll(reader)
 			assert.NoError(t, err)
 			scriptContent := string(scriptContentBytes)
@@ -571,6 +586,9 @@ func TestCmd_validate(t *testing.T) {
 		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
 			"only one of [script, copy] is allowed"},
 		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, echo] must be set"},
+		{"script with register", Cmd{Script: "example_script", Register: []string{"a", "b"}}, ""},
+		{"unexpected register", Cmd{Copy: CopyInternal{Source: "source", Dest: "dest"}, Register: []string{"a", "b"}},
+			"register is only allowed with script command"},
 	}
 
 	for _, tt := range tbl {
