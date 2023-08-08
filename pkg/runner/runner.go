@@ -188,9 +188,20 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 
 		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
+
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
 			verbose: p.Verbose, sshShell: p.SSHShell}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
+
+		repHostAddr, repHostName := ec.hostAddr, ec.hostName
+		if cmd.Options.Local {
+			repHostAddr = "localhost"
+			repHostName = ""
+		}
+
+		if ec.verbose {
+			report(repHostAddr, repHostName, "run command %q", cmd.Name)
+		}
 
 		exResp, err := p.execCommand(ctx, ec)
 		if err != nil {
@@ -202,11 +213,6 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 
 		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
-		repHostAddr, repHostName := ec.hostAddr, ec.hostName
-		if cmd.Options.Local {
-			repHostAddr = "localhost"
-			repHostName = ""
-		}
 
 		if exResp.verbose != "" && ec.verbose {
 			report(repHostAddr, repHostName, exResp.verbose)
