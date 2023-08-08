@@ -152,7 +152,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 // returns number of executed commands, vars from all commands and error if any.
 func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, vars, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
-		p.Logs.WithHost(hostAddr, hostName).Out.Printf(f, vals...)
+		p.Logs.WithHost(hostAddr, hostName).Info.Printf(f, vals...)
 	}
 	since := func(st time.Time) time.Duration { return time.Since(st).Truncate(time.Millisecond) }
 
