@@ -259,9 +259,35 @@ func TestProcess_Run(t *testing.T) {
 
 		outWriter := &bytes.Buffer{}
 		wr := io.MultiWriter(outWriter, os.Stderr)
+		lgs := executor.MakeLogs(false, false, conf.AllSecretValues())
+		lgs.Info = lgs.Info.WithWriter(wr)
+
+		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   conn,
+			Playbook:    conf,
+			Logs:        lgs,
+			Only:        []string{"copy configuration", "some command", "echo things"},
+		}
+		log.SetOutput(io.Discard)
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 3, res.Commands)
+		t.Log("out:\n", outWriter.String())
+		assert.Contains(t, outWriter.String(), `completed command "echo things" {echo: vars - 6, 9, zzzzz}`)
+	})
+
+	t.Run("echo with variables, verbose", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		outWriter := &bytes.Buffer{}
+		wr := io.MultiWriter(outWriter, os.Stderr)
 		lgs := executor.MakeLogs(true, false, conf.AllSecretValues())
-		lgs.Out = lgs.Out.WithWriter(wr)
-		lgs.Err = lgs.Err.WithWriter(wr)
+		lgs.Info = lgs.Info.WithWriter(wr)
 
 		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
 		require.NoError(t, err)
@@ -278,9 +304,9 @@ func TestProcess_Run(t *testing.T) {
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
 		assert.Equal(t, 3, res.Commands)
+		t.Log("out:\n", outWriter.String())
 		assert.Contains(t, outWriter.String(), `completed command "echo things" {echo: vars - 6, 9, zzzzz}`)
 	})
-
 	t.Run("delete multiple files", func(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
