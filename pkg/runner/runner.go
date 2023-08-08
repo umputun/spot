@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -217,7 +218,14 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		if exResp.verbose != "" && ec.verbose {
 			report(repHostAddr, repHostName, exResp.verbose)
 		}
-		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
+
+		// we don't want to print multiline script name in logs
+		// from: completed command "test" {script: /bin/sh -c /tmp/.spot-7113416067113199616/spot-script2358478823} (17ms)
+		// we make: completed command "test" {script: /bin/sh -c [multiline script]} (17ms)
+		pattern := `(\{script: .+ -c ).+/spot-script.+}`
+		re := regexp.MustCompile(pattern)
+		details := re.ReplaceAllString(exResp.details, "${1}[multiline script]}")
+		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
 
 		count++
 		for k, v := range exResp.vars {
