@@ -29,6 +29,7 @@ type Cmd struct {
 	Environment map[string]string `yaml:"env" toml:"env"`
 	Options     CmdOptions        `yaml:"options" toml:"options,omitempty"`
 	Condition   string            `yaml:"cond" toml:"cond,omitempty"`
+	Register    []string          `yaml:"register" toml:"register"` // register variables from command
 
 	Secrets  map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
 	SSHShell string            `yaml:"-" toml:"-"` // shell to use for ssh commands, filled by playbook
@@ -86,7 +87,7 @@ func (cmd *Cmd) GetScript() (command string, rdr io.Reader) {
 	// export should be treated as multiline for env vars to be set
 	if len(elems) > 1 || strings.Contains(cmd.Script, "export") {
 		log.Printf("[DEBUG] command %q is multiline, using script file", cmd.Name)
-		return "", cmd.scriptFile(cmd.Script)
+		return "", cmd.scriptFile(cmd.Script, cmd.Register)
 	}
 
 	log.Printf("[DEBUG] command %q is single line, using script string", cmd.Name)
@@ -102,7 +103,7 @@ func (cmd *Cmd) GetWait() (command string, rdr io.Reader) {
 	elems := strings.Split(cmd.Wait.Command, "\n")
 	if len(elems) > 1 {
 		log.Printf("[DEBUG] wait command %q is multiline, using script file", cmd.Name)
-		return "", cmd.scriptFile(cmd.Wait.Command)
+		return "", cmd.scriptFile(cmd.Wait.Command, nil)
 	}
 
 	log.Printf("[DEBUG] wait command %q is single line, using command string", cmd.Name)
@@ -122,7 +123,7 @@ func (cmd *Cmd) GetCondition() (command string, rdr io.Reader, inverted bool) {
 	elems := strings.Split(cond, "\n")
 	if len(elems) > 1 {
 		log.Printf("[DEBUG] condition %q is multiline, using script file", cmd.Name)
-		return "", cmd.scriptFile(cond), inverted
+		return "", cmd.scriptFile(cond, nil), inverted
 	}
 
 	log.Printf("[DEBUG] condition %q is single line, using condition string", cmd.Name)
@@ -167,7 +168,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 
 // scriptFile returns a reader for script file. All the lines in the command used as a script, with hashbang,
 // set -e and environment variables.
-func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
+func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	var buf bytes.Buffer
 	inp = strings.TrimPrefix(inp, "\n") // trim leading newline if present; can be due to multiline yaml format
 	if !cmd.hasShebang(inp) {
@@ -208,8 +209,15 @@ func (cmd *Cmd) scriptFile(inp string) (r io.Reader) {
 
 	// each exported variable is printed as a setvar command to be captured by the caller
 	if len(exports) > 0 {
-		for i := range exports {
-			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", exports[i], exports[i]))
+		for _, v := range exports {
+			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", v, v))
+		}
+	}
+
+	// each register variable is printed as a setvar command to be captured by the caller
+	if len(register) > 0 {
+		for _, v := range register {
+			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", v, v))
 		}
 	}
 

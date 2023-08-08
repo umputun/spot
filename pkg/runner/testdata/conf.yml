@@ -27,10 +27,13 @@ tasks:
           export foo=$((1 + 2 + 3))
           export bar=$((4 + 5))
           export baz=zzzzz
+          foo2=$((foo + 1))
+          bar2=$((bar + 1))
           ls -laR /tmp
           du -hcs /srv
           cat /tmp/conf.yml
           echo all good, 123
+        register: [foo2, bar2]
 
       - name: runtime variables
         script: echo host:"{SPOT_REMOTE_HOST}", name:"{SPOT_REMOTE_NAME}", cmd:"{SPOT_COMMAND}", user:"{SPOT_REMOTE_USER}", task:"{SPOT_TASK}"

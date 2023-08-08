@@ -524,6 +524,27 @@ commands:
     copy: {src: $FILE_NAME, dest: /tmp/file2}
 ```
 
+In some cases, exporting variables is not possible or not desired. For such cases, Spot allows to register variables explicitly using the `register` option.
+
+For example:
+
+```yaml
+commands:
+  - name: first command
+    script: |
+      FILE_NAME=/tmp/file1
+      touch $FILE_NAME
+      ANOTHER_VAR=foo
+    register: [FILE_NAME, ANOTHER_VAR]}
+      
+  - name: second command
+    script: |
+      echo "File name is $FILE_NAME, var is $ANOTHER_VAR"
+      
+  - name: third command
+    copy: {src: $FILE_NAME, dest: /tmp/file2}
+```
+
 ### Setting environment variables
 
 Environment variables can be set with `--env` / `-e` cli option. For example: `-e VAR1:VALUE1 -e VAR2:VALUE2`. Environment variables can also be set in the environment file (default `env.yml` can be changed with `--env-file` / `-E` cli flag). For example:
