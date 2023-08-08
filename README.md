@@ -524,7 +524,7 @@ commands:
     copy: {src: $FILE_NAME, dest: /tmp/file2}
 ```
 
-In some cases, exporting variables is not possible or not desired. For such cases, Spot allows to register variables explicitly using the `register` option.
+Sometimes, exporting variables is not possible or not desired. For such cases, Spot allows to register variables explicitly using the `register` option.
 
 For example:
 
