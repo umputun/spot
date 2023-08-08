@@ -207,11 +207,12 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			repHostAddr = "localhost"
 			repHostName = ""
 		}
-		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
 
 		if exResp.verbose != "" && ec.verbose {
 			report(repHostAddr, repHostName, exResp.verbose)
 		}
+		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
+
 		count++
 		for k, v := range exResp.vars {
 			tskVars[k] = v
