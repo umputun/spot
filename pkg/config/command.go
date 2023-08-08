@@ -385,6 +385,11 @@ func (cmd *Cmd) validate() error {
 	if len(setCmds) == 0 {
 		return fmt.Errorf("one of [%s] must be set", strings.Join(names, ", "))
 	}
+
+	// make sure what register used with script and not with other commands
+	if cmd.Script == "" && len(cmd.Register) > 0 {
+		return fmt.Errorf("register is only allowed with script command")
+	}
 	return nil
 }
 

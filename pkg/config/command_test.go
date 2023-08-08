@@ -586,6 +586,9 @@ func TestCmd_validate(t *testing.T) {
 		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
 			"only one of [script, copy] is allowed"},
 		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, echo] must be set"},
+		{"script with register", Cmd{Script: "example_script", Register: []string{"a", "b"}}, ""},
+		{"unexpected register", Cmd{Copy: CopyInternal{Source: "source", Dest: "dest"}, Register: []string{"a", "b"}},
+			"register is only allowed with script command"},
 	}
 
 	for _, tt := range tbl {
