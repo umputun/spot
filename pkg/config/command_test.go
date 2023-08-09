@@ -216,6 +216,22 @@ echo 'Goodbye, World!'`,
 				"echo setvar GREETING=${GREETING}",
 			},
 		},
+		{
+			name: "single line with register",
+			cmd: &Cmd{
+				Script: `echo 'Hello, World!'
+echo 'Goodbye, World!'`,
+				Register: []string{"foo"},
+			},
+			expectedScript: "",
+			expectedContents: []string{
+				"#!/bin/sh",
+				"set -e",
+				"echo 'Hello, World!'",
+				"echo 'Goodbye, World!'",
+				"echo setvar foo=${foo}",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
