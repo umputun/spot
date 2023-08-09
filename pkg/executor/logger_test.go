@@ -284,3 +284,27 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 
 	})
 }
+
+func TestMaskSecrets(t *testing.T) {
+	tests := []struct {
+		input    string
+		secrets  []string
+		expected string
+	}{
+		{"myPassword is password", []string{"password"}, "myPassword is ****"},
+		{"password password, password withpassword", []string{"password"}, "**** ****, **** withpassword"},
+		{"multiple secrets mySecret and myPassword", []string{"mySecret", "myPassword"}, "multiple secrets **** and ****"},
+		{"no secrets here", []string{"password"}, "no secrets here"},
+		{"edge case:secret", []string{"secret"}, "edge case:****"},
+		{"", []string{"password"}, ""},
+		{"only spaces ", []string{" "}, "only spaces "},
+		{"1234567890", []string{"1234567890"}, "****"},
+		{"secret@domain.com", []string{"secret@domain.com"}, "****"},
+		{"key=secret,val=secret", []string{"secret"}, "key=****,val=****"},
+	}
+
+	for _, tt := range tests {
+		output := maskSecrets(tt.input, tt.secrets)
+		assert.Equal(t, tt.expected, output)
+	}
+}

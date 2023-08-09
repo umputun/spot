@@ -198,7 +198,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 1, res.Commands)
 		assert.Contains(t, outWriter.String(), `FOO=****`)
 		assert.Contains(t, outWriter.String(), `BAR=****`)
-		assert.Contains(t, outWriter.String(), `secrets: ********`)
+		assert.Contains(t, outWriter.String(), `secrets: ****,****`)
 		assert.NotContains(t, outWriter.String(), "FOO_SECRET")
 		assert.NotContains(t, outWriter.String(), "BAR_SECRET")
 	})

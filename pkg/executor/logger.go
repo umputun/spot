@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -139,7 +140,8 @@ func maskSecrets(s string, secrets []string) string {
 		if secret == " " || secret == "" {
 			continue
 		}
-		s = strings.ReplaceAll(s, secret, "****")
+		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(secret) + `\b`) // matches the secret only if it appears as a whole word
+		s = re.ReplaceAllString(s, "****")
 	}
 	return s
 }

@@ -50,7 +50,7 @@ tasks:
       - name: secrets
         script: |
           env
-          echo "secrets: ${FOO}${BAR}"
+          echo "secrets: ${FOO},${BAR}"
         env: {baz: qux}
         options: {no_auto: true, secrets: ["FOO", "BAR"]}
 
