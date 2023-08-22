@@ -732,7 +732,7 @@ Variables can be used in the following places: `script`, `copy`, `sync`, `delete
 
 ```yaml
 tasks:
-  deploy-things:
+    name: deploy-things
     commands:
       - name: copy configuration
         copy: {"src": "{SPOT_REMOTE_HOST}/conf.yml", "dst": "/tmp/conf.yml", "mkdir": true}
