@@ -112,7 +112,7 @@ func (s *colorizedWriter) hostColorizer(host string) func(format string, a ...in
 		color.FgRed, color.FgGreen, color.FgYellow,
 		color.FgBlue, color.FgMagenta, color.FgCyan,
 	}
-	i := crc32.ChecksumIEEE([]byte(host)) % uint32(len(colors))
+	i := int(crc32.ChecksumIEEE([]byte(host))) % len(colors)
 	c := colors[i]
 	if s.monochrome {
 		c = color.Reset
