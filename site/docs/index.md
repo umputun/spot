@@ -28,7 +28,7 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 
 <div align="center">
 
-[![build](https://github.com/umputun/spot/actions/workflows/ci.yml/badge.svg)](https://github.com/umputun/spot/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/umputun/spot/badge.svg?branch=master)](https://coveralls.io/github/umputun/spot?branch=master)&nbsp;[![Go Report Card](https://goreportcard.com/badge/github.com/umputun/spot)](https://goreportcard.com/report/github.com/umputun/spot)&nbsp;[![Go Reference](https://pkg.go.dev/badge/github.com/umputun/spot.svg)](https://pkg.go.dev/github.com/umputun/spot)&nbsp;[![GitHub release](https://img.shields.io/github/release/umputun/spot.svg)](https://github.com/umputun/spot/releases)
+
 </div>
 
 <details markdown>

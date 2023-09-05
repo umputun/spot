@@ -31,6 +31,12 @@ version:
 	@echo "branch: $(BRANCH), hash: $(HASH), timestamp: $(TIMESTAMP)"
 	@echo "revision: $(REV)"
 
+prep-site:
+	cp -fv README.md site/docs/index.md
+	sed -i '' 's|https:\/\/github.com\/umputun\/simplotask\/raw\/master\/site\/spot-bg.png|logo.png|' site/docs/index.md
+	sed -i '' 's|^.*/workflows/ci.yml.*$$||' site/docs/index.md
+
+
 site:
 	@rm -f  site/public/*
 	@docker rm -f spot-site
