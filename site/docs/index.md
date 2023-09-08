@@ -3,7 +3,7 @@
 Spot is a powerful and easy-to-use tool for effortless deployment and configuration management. It allows users to define a playbook with a list of tasks and targets, where each task consists of a series of commands that can be executed on remote hosts concurrently. Spot supports running scripts, copying files, syncing directories, and deleting files or directories, as well as custom inventory files or inventory URLs.
 
 <div align="center">
-  <img class="logo" src="https://github.com/umputun/spot/raw/master/site/spot-bg.png" width="400px" alt="Spot | Effortless Deployment"/>
+  <img class="logo" src="logo.png" width="400px" alt="Spot | Effortless Deployment"/>
 </div>
 
 ## Features

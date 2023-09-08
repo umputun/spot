@@ -33,9 +33,8 @@ version:
 
 prep-site:
 	cp -fv README.md site/docs/index.md
-	sed -i '' 's|https:\/\/github.com\/umputun\/simplotask\/raw\/master\/site\/spot-bg.png|logo.png|' site/docs/index.md
+	sed -i '' 's|https:\/\/github.com\/umputun\/spot\/raw\/master\/site\/spot-bg.png|logo.png|' site/docs/index.md
 	sed -i '' 's|^.*/workflows/ci.yml.*$$||' site/docs/index.md
-
 
 site:
 	@rm -f  site/public/*
