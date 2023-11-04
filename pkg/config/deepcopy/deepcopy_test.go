@@ -9,6 +9,7 @@ import (
 )
 
 // just basic is this working stuff
+// nolint
 func TestSimple(t *testing.T) {
 	Strings := []string{"a", "b", "c"}
 	cpyS := Copy(Strings).([]string)
@@ -171,6 +172,7 @@ type Basics struct {
 
 // These tests test that all supported basic types are copied correctly.  This
 // is done by copying a struct with fields of most of the basic types as []T.
+// nolint
 func TestMostTypes(t *testing.T) {
 	test := Basics{
 		String:      "kimchi",
@@ -575,6 +577,7 @@ Interfaces:
 }
 
 // not meant to be exhaustive
+// nolint
 func TestComplexSlices(t *testing.T) {
 	orig3Int := [][][]int{[][]int{[]int{1, 2, 3}, []int{11, 22, 33}}, [][]int{[]int{7, 8, 9}, []int{66, 77, 88, 99}}}
 	cpyI := Copy(orig3Int).([][][]int)
@@ -666,6 +669,7 @@ var AStruct = A{
 	T: time.Now(),
 }
 
+// nolint
 func TestStructA(t *testing.T) {
 	cpy := Copy(AStruct).(A)
 	if &cpy == &AStruct {
@@ -908,6 +912,7 @@ func TestPointerToStruct(t *testing.T) {
 	}
 }
 
+// nolint
 func TestIssue9(t *testing.T) {
 	// simple pointer copy
 	x := 42
