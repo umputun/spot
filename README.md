@@ -372,7 +372,7 @@ Copy file and making it executable is also supported:
 ```yaml
 - name: copy file and make it executable
   copy:
-    - {"src": "testdata/script.sh", "dst": "/tmp/script.sh", "chmod_x": true}
+    - {"src": "testdata/script.sh", "dst": "/tmp/script.sh", "chmod+x": true}
 ```
 
 
