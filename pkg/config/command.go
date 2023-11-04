@@ -52,7 +52,7 @@ type CopyInternal struct {
 	Mkdir   bool     `yaml:"mkdir" toml:"mkdir"`     // create destination directory if it does not exist
 	Force   bool     `yaml:"force" toml:"force"`     // force copy even if source and destination are the same
 	Exclude []string `yaml:"exclude" toml:"exclude"` // exclude files matching these patterns
-	ChmodX  bool     `yaml:"chmod_x" toml:"chmod_x"` // chmod +x on destination file
+	ChmodX  bool     `yaml:"chmod+x" toml:"chmod+x"` // chmod +x on destination file
 }
 
 // SyncInternal defines sync command (recursive copy), implemented internally
