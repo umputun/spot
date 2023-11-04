@@ -341,7 +341,8 @@ Read more about YAML multiline string formatting on [yaml-multiline.info](https:
 Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, the same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
 
 Copy command performs a quick check to see if the file already exists on the remote host(s) with the same size and modification time,
-and skips the copy if it does. This option can be disabled by setting `force: true` flag. Another option is `exclude` which allows to specify a list of files to exclude to be copied.
+and skips the copy if it does. This option can be disabled by setting `force: true` flag. Another option is `exclude` which allows to specify a list of files to exclude to be copied. 
+
 
 ```yaml
 - name: copy file with mkdir
@@ -365,6 +366,15 @@ Copy also supports list format to copy multiple files at once:
     - {"src": "testdata/*.csv", "dst": "/tmp/things"}
     - {"src": "testdata/*.yml", "dst": "/tmp/things"}
 ```
+
+Copy file and making it executable is also supported:
+
+```yaml
+- name: copy file and make it executable
+  copy:
+    - {"src": "testdata/script.sh", "dst": "/tmp/script.sh", "chmod_x": true}
+```
+
 
 #### `sync`
 
