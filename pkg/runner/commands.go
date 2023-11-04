@@ -126,6 +126,12 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		if err := ec.exec.Upload(ctx, src, dst, opts); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
+		if ec.cmd.Copy.ChmodX {
+			if _, err := ec.exec.Run(ctx, fmt.Sprintf("chmod +x %s", dst), &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+				return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
+			}
+			resp.details = fmt.Sprintf(" {copy: %s -> %s, chmod: +x}", src, dst)
+		}
 		return resp, nil
 	}
 
@@ -164,6 +170,12 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 				return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
 			}
 		}
+		if ec.cmd.Copy.ChmodX {
+			if _, err := ec.exec.Run(ctx, fmt.Sprintf("sudo chmod +x %s", dst), &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+				return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
+			}
+			resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true, chmod: +x}", src, dst)
+		}
 	}
 
 	return resp, nil
@@ -178,7 +190,8 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
-		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force}
+		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force,
+			ChmodX: c.ChmodX, Exclude: c.Exclude}
 		if _, err := ecSingle.Copy(ctx); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}

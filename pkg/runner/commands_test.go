@@ -485,6 +485,41 @@ func Test_execCmdWithTmp(t *testing.T) {
 		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
 	})
 
+	t.Run("copy a single file with sudo and chmod+x", func(t *testing.T) {
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Copy:    config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", ChmodX: true}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt, sudo: true, chmod: +x}", resp.details)
+		tmpPath := extractTmpPath(wr.String())
+		assert.NotEmpty(t, tmpPath)
+		t.Logf("tmpPath: %s", tmpPath)
+
+		// check if dest contains file
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Script: "ls -la /tmp/inventory.txt"},
+		}
+		resp, err = ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, wr.String(), "/tmp/inventory.txt")
+		assert.Contains(t, wr.String(), "> -rwxr-xr-x ", "file should be executable")
+
+		// check if tmp dir removed
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Script:  "ls -la " + tmpPath},
+		}
+		resp, err = ec.Script(ctx)
+		require.Error(t, err)
+		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
+	})
+
 	t.Run("copy multiple files with sudo", func(t *testing.T) {
 		wr := bytes.NewBuffer(nil)
 		log.SetOutput(io.MultiWriter(wr, os.Stdout))
