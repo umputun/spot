@@ -74,6 +74,9 @@ func pc2origin(pc uintptr) string {
 
 // void *malloc(size_t size);
 func Xmalloc(t *TLS, size types.Size_t) uintptr {
+	if __ccgo_strace {
+		trc("t=%v size=%v, (%v:)", t, size, origin(2))
+	}
 	if size == 0 {
 		return 0
 	}
@@ -110,6 +113,9 @@ func Xmalloc(t *TLS, size types.Size_t) uintptr {
 
 // void *calloc(size_t nmemb, size_t size);
 func Xcalloc(t *TLS, n, size types.Size_t) uintptr {
+	if __ccgo_strace {
+		trc("t=%v size=%v, (%v:)", t, size, origin(2))
+	}
 	rq := int(n * size)
 	if rq == 0 {
 		return 0
@@ -147,6 +153,9 @@ func Xcalloc(t *TLS, n, size types.Size_t) uintptr {
 
 // void *realloc(void *ptr, size_t size);
 func Xrealloc(t *TLS, ptr uintptr, size types.Size_t) uintptr {
+	if __ccgo_strace {
+		trc("t=%v ptr=%v size=%v, (%v:)", t, ptr, size, origin(2))
+	}
 	allocMu.Lock()
 
 	defer allocMu.Unlock()
@@ -198,6 +207,9 @@ func Xrealloc(t *TLS, ptr uintptr, size types.Size_t) uintptr {
 
 // void free(void *ptr);
 func Xfree(t *TLS, p uintptr) {
+	if __ccgo_strace {
+		trc("t=%v p=%v, (%v:)", t, p, origin(2))
+	}
 	if p == 0 {
 		return
 	}

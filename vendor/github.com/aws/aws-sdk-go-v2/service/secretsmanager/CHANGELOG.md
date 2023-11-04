@@ -1,3 +1,41 @@
+# v1.23.0 (2023-11-01)
+
+* **Feature**: Adds support for configured endpoints via environment variables and the AWS shared configuration file.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.22.0 (2023-10-31)
+
+* **Feature**: **BREAKING CHANGE**: Bump minimum go version to 1.19 per the revised [go version support policy](https://aws.amazon.com/blogs/developer/aws-sdk-for-go-aligns-with-go-release-policy-on-supported-runtimes/).
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.6 (2023-10-19)
+
+* **Documentation**: Documentation updates for Secrets Manager
+
+# v1.21.5 (2023-10-12)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.4 (2023-10-06)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.3 (2023-08-21)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.2 (2023-08-18)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.1 (2023-08-17)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.21.0 (2023-08-10)
+
+* **Feature**: Add additional InvalidRequestException to list of possible exceptions for ListSecret.
+
 # v1.20.2 (2023-08-07)
 
 * **Dependency Update**: Updated to the latest SDK module versions
