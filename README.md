@@ -440,7 +440,6 @@ Each command type supports the following options:
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 - `sudo`: if set to `true` the command will be executed with `sudo` privileges. This option is not supported for `sync` command type but can be used with any other command type.
 - `only_on`: allows to set a list of host names or addresses where the command will be executed. For example, `only_on: [host1, host2]` will execute a command on `host1` and `host2` only. This option also supports reversed conditions, so if a user wants to execute a command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute a command on all hosts except `host1` and `host2`. 
-- `cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. The condition can be reversed by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if the file `/tmp/foo` doesn't exist. Please note that `cond` option is supported for `script` command type only.
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
 
@@ -449,6 +448,19 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
       - name: wait
         script: sleep 5s
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
+```
+
+### Command conditionals
+
+`cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. The condition can be reversed by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if the file `/tmp/foo` doesn't exist.
+
+example installing curl package if not installed already:
+
+```yaml
+  - name: "install curl"
+    script: "yum install curl -y"
+    options: {sudo: true}
+    cond: "! command -v curl"
 ```
 
 ### Script Execution
