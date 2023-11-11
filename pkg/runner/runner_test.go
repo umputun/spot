@@ -721,6 +721,58 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	require.NoError(t, err, "error ignored")
 }
 
+func TestProcess_RunWithOnExit(t *testing.T) {
+	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	logs := executor.MakeLogs(false, false, nil)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, err)
+	conf, err := config.New("testdata/conf.yml", nil, nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Playbook:    conf,
+		Logs:        logs,
+	}
+
+	t.Run("on_exit called on script completion", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		_, err = p.Run(ctx, "with_onexit", testingHostAndPort)
+		require.NoError(t, err)
+		t.Log(buf.String())
+		require.Contains(t, buf.String(), "> file content")
+		require.Contains(t, buf.String(), "> on exit called. task: with_onexit")
+		require.Contains(t, buf.String(), "> /bin/sh -c 'ls -la /tmp/file.txt'")
+	})
+
+	t.Run("on_exit called on script failed", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		_, err = p.Run(ctx, "with_onexit_failed", testingHostAndPort)
+		require.Error(t, err)
+		t.Log(buf.String())
+		require.Contains(t, buf.String(), "> on exit called on failed. task: with_onexit_failed")
+	})
+
+	t.Run("on_exit called on copy completion", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		_, err = p.Run(ctx, "with_onexit_copy", testingHostAndPort)
+		require.NoError(t, err)
+		t.Log(buf.String())
+		require.Contains(t, buf.String(), "> on exit called for copy. task: with_onexit_copy")
+		require.Contains(t, buf.String(), "> removed '/tmp/conf-blah.yml'")
+	})
+}
+
 func TestProcess_RunTaskWithWait(t *testing.T) {
 	ctx := context.Background()
 	testingHostAndPort, teardown := startTestContainer(t)

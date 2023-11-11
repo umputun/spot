@@ -29,12 +29,14 @@ type execCmd struct {
 	exec     executor.Interface
 	verbose  bool
 	sshShell string
+	onExit   string
 }
 
 type execCmdResp struct {
 	details string
 	verbose string
 	vars    map[string]string
+	onExit  execCmd
 }
 
 type execCmdErr struct {
