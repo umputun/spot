@@ -30,6 +30,7 @@ type Cmd struct {
 	Options     CmdOptions        `yaml:"options" toml:"options,omitempty"`
 	Condition   string            `yaml:"cond" toml:"cond,omitempty"`
 	Register    []string          `yaml:"register" toml:"register"` // register variables from command
+	OnExit      string            `yaml:"on_exit" toml:"on_exit"`   // script to run on exit
 
 	Secrets  map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
 	SSHShell string            `yaml:"-" toml:"-"` // shell to use for ssh commands, filled by playbook

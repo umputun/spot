@@ -182,6 +182,19 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	// copy task to prevent one task on hostA modifying task on hostB as it does updateVars
 	activeTask := deepcopy.Copy(*tsk).(config.Task)
 
+	onExitCmds := []execCmd{}
+	defer func() {
+		// run on-exit commands if any. it is executed after all commands of the task are done or on error
+		if len(onExitCmds) > 0 {
+			log.Printf("[DEBUG] run %d on-exit commands on %s", len(onExitCmds), hostAddr)
+			for _, ec := range onExitCmds {
+				if _, err := ec.Script(ctx); err != nil {
+					report(ec.hostAddr, ec.hostName, "failed on-exit command %q (%v)", ec.cmd.Name, err)
+				}
+			}
+		}
+	}()
+
 	for _, cmd := range activeTask.Commands {
 		if !p.shouldRunCmd(cmd, hostName, hostAddr) {
 			continue
@@ -191,7 +204,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		stCmd := time.Now()
 
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
-			verbose: p.Verbose, sshShell: p.SSHShell}
+			verbose: p.Verbose, sshShell: p.SSHShell, onExit: cmd.OnExit}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName
@@ -205,6 +218,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 
 		exResp, err := p.execCommand(ctx, ec)
+		if exResp.onExit.cmd.Name != "" { // we have on-exit command, save it for later execution
+			// this is intentionally before error check, we want to run on-exit command even if the main command failed
+			onExitCmds = append(onExitCmds, exResp.onExit)
+		}
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
 				return count, nil, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
@@ -238,6 +255,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	} else {
 		report("localhost", "", "completed task %q, commands: %d (%v)\n", activeTask.Name, count, since(stTask))
 	}
+
 	return count, tskVars, nil
 }
 
@@ -245,6 +263,20 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 // It detects the command type based on the fields what are set.
 // Even if multiple fields for multiple commands are set, only one will be executed.
 func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp, err error) {
+
+	if ec.cmd.OnExit != "" {
+		// register on-exit command if any set
+		defer func() {
+			// we need to defer it because it changes the command name and script
+			log.Printf("[DEBUG] defer execution on_exit script on %s for %s", ec.hostAddr, ec.cmd.Name)
+			// use the same executor as for the main command but with different script and name
+			ec.cmd.Name = "on exit for " + ec.cmd.Name
+			ec.cmd.Script = ec.cmd.OnExit
+			ec.cmd.OnExit = "" // prevent recursion
+			resp.onExit = ec
+		}()
+	}
+
 	switch {
 	case ec.cmd.Script != "":
 		log.Printf("[DEBUG] execute script %q on %s", ec.cmd.Name, ec.hostAddr)

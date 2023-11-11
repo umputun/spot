@@ -165,3 +165,34 @@ tasks:
           echo good command 2
       - name: good command
         script: echo good command 3
+
+  - name: with_onexit
+    commands:
+      - name: some command
+        script: |
+          echo good command 1
+          echo "file content" > /tmp/file.txt
+          echo good command 2
+        on_exit: |
+          echo "on exit called. task: ${SPOT_TASK}, host: ${SPOT_REMOTE_HOST}, error: ${SPOT_ERROR}"
+          cat /tmp/file.txt
+      - name: "print file info"
+        script: ls -la /tmp/file.txt
+
+  - name: with_onexit_failed
+    commands:
+      - name: some command
+        script: |
+          echo good command 1
+          ls /no-such-dir
+        on_exit: |
+          echo "on exit called on failed. task: ${SPOT_TASK}, host: ${SPOT_REMOTE_HOST}, error: ${SPOT_ERROR}"
+
+  - name: with_onexit_copy
+    commands:
+      - name: some command
+        copy: {"src": "testdata/conf.yml", "dst": "/tmp/conf-blah.yml", "mkdir": true, "force": true}
+        on_exit: |
+          echo "on exit called for copy. task: ${SPOT_TASK}, host: ${SPOT_REMOTE_HOST}, error: ${SPOT_ERROR}"
+          rm -fv /tmp/conf-blah.yml
+

@@ -463,6 +463,27 @@ example installing curl package if not installed already:
     cond: "! command -v curl"
 ```
 
+### Deferred actions (`on_exit`)
+
+Each command may have `on_exit` parameter defined. It allows executing a command on the remote host after the task with all commands is completed. The command is called regardless of the task's exit code.
+
+This is useful in several scenarios:
+
+- a temporary script copied to the remote host and executed and should be removed after execution with `on_exit: "rm -fv /tmp/script.sh"`
+- a service should be restarted after the new version is deployed with `on_exit: "systemctl restart myservice"`
+
+
+```yaml
+  - name: "copy script"
+    copy: {src: "testdata/script.sh", "dst": "/tmp/script.sh", "chmod+x": true}
+    on_exit: "rm -fv /tmp/script.sh" # register deferred action to remove script.sh after execution
+  - name: "run script"
+    script: "/tmp/script.sh"
+```
+
+In the example above, the `script.sh` is copied to the remote host, executed, and removed after completion of the task.
+
+
 ### Script Execution
 
 Spot allows executing scripts on remote hosts, or locally if `options.local` is set to true. Scripts can be executed in two different ways, depending on whether they are single-line or multi-line scripts.
