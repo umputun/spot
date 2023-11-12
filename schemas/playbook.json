@@ -216,6 +216,9 @@
         "name": {
           "type": "string"
         },
+        "on_exit": {
+          "type": "string"
+        },
         "options": {
           "type": "object",
           "additionalProperties": false,
@@ -279,6 +282,10 @@
               "default": false
             },
             "recur": {
+              "type": "boolean",
+              "default": false
+            },
+            "chmod+x": {
               "type": "boolean",
               "default": false
             },
