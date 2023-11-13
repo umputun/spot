@@ -578,7 +578,7 @@ commands:
       FILE_NAME=/tmp/file1
       touch $FILE_NAME
       ANOTHER_VAR=foo
-    register: [FILE_NAME, ANOTHER_VAR]}
+    register: [FILE_NAME, ANOTHER_VAR]
       
   - name: second command
     script: |
