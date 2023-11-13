@@ -186,7 +186,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	defer func() {
 		// run on-exit commands if any. it is executed after all commands of the task are done or on error
 		if len(onExitCmds) > 0 {
-			log.Printf("[DEBUG] run %d on-exit commands on %s", len(onExitCmds), hostAddr)
+			log.Printf("[INFO] run %d on-exit commands for %q on %s", len(onExitCmds), tsk.Name, hostAddr)
 			for _, ec := range onExitCmds {
 				if _, err := ec.Script(ctx); err != nil {
 					report(ec.hostAddr, ec.hostName, "failed on-exit command %q (%v)", ec.cmd.Name, err)
