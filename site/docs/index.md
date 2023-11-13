@@ -341,7 +341,8 @@ Read more about YAML multiline string formatting on [yaml-multiline.info](https:
 Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, the same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
 
 Copy command performs a quick check to see if the file already exists on the remote host(s) with the same size and modification time,
-and skips the copy if it does. This option can be disabled by setting `force: true` flag. Another option is `exclude` which allows to specify a list of files to exclude to be copied.
+and skips the copy if it does. This option can be disabled by setting `force: true` flag. Another option is `exclude` which allows to specify a list of files to exclude to be copied. 
+
 
 ```yaml
 - name: copy file with mkdir
@@ -365,6 +366,15 @@ Copy also supports list format to copy multiple files at once:
     - {"src": "testdata/*.csv", "dst": "/tmp/things"}
     - {"src": "testdata/*.yml", "dst": "/tmp/things"}
 ```
+
+Copy file and making it executable is also supported:
+
+```yaml
+- name: copy file and make it executable
+  copy:
+    - {"src": "testdata/script.sh", "dst": "/tmp/script.sh", "chmod+x": true}
+```
+
 
 #### `sync`
 
@@ -430,7 +440,6 @@ Each command type supports the following options:
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 - `sudo`: if set to `true` the command will be executed with `sudo` privileges. This option is not supported for `sync` command type but can be used with any other command type.
 - `only_on`: allows to set a list of host names or addresses where the command will be executed. For example, `only_on: [host1, host2]` will execute a command on `host1` and `host2` only. This option also supports reversed conditions, so if a user wants to execute a command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute a command on all hosts except `host1` and `host2`. 
-- `cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. The condition can be reversed by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if the file `/tmp/foo` doesn't exist. Please note that `cond` option is supported for `script` command type only.
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
 
@@ -440,6 +449,40 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
         script: sleep 5s
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
 ```
+
+### Command conditionals
+
+`cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. The condition can be reversed by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if the file `/tmp/foo` doesn't exist.
+
+example installing curl package if not installed already:
+
+```yaml
+  - name: "install curl"
+    script: "yum install curl -y"
+    options: {sudo: true}
+    cond: "! command -v curl"
+```
+
+### Deferred actions (`on_exit`)
+
+Each command may have `on_exit` parameter defined. It allows executing a command on the remote host after the task with all commands is completed. The command is called regardless of the task's exit code.
+
+This is useful in several scenarios:
+
+- a temporary script copied to the remote host and executed and should be removed after execution with `on_exit: "rm -fv /tmp/script.sh"`
+- a service should be restarted after the new version is deployed with `on_exit: "systemctl restart myservice"`
+
+
+```yaml
+  - name: "copy script"
+    copy: {src: "testdata/script.sh", "dst": "/tmp/script.sh", "chmod+x": true}
+    on_exit: "rm -fv /tmp/script.sh" # register deferred action to remove script.sh after execution
+  - name: "run script"
+    script: "/tmp/script.sh"
+```
+
+In the example above, the `script.sh` is copied to the remote host, executed, and removed after completion of the task.
+
 
 ### Script Execution
 
