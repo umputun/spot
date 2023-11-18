@@ -123,7 +123,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Equal(t, 1, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
 		assert.Contains(t, outWriter.String(), `name:"the host", cmd:"runtime variables", user:"test", task:"task1"`)
-		assert.Contains(t, outWriter.String(), `host:"localhost:`)
+		assert.Contains(t, outWriter.String(), fmt.Sprintf(`host:"%s:`, adr))
 	})
 
 	t.Run("copy multiple files", func(t *testing.T) {
@@ -248,8 +248,10 @@ func TestProcess_Run(t *testing.T) {
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
+		adr := strings.Split(testingHostAndPort, ":")[0]
 		// msg like "uploaded testdata/conf.yml to localhost:/tmp/.spot-1101281563531463808/conf.yml in"
-		assert.Contains(t, outWriter.String(), `uploaded testdata/conf.yml to localhost:/tmp/.spot-`)
+		// adr is localhost or container ip if DOCKER_HOST is set
+		assert.Contains(t, outWriter.String(), fmt.Sprintf(`uploaded testdata/conf.yml to %s:/tmp/.spot-`, adr))
 		assert.Contains(t, outWriter.String(), `/conf.yml in`)
 	})
 
