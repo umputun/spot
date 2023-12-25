@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -83,7 +84,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 
 		remoteFile := remote
 		if len(matches) > 1 { // if there are multiple files, treat remote as a directory
-			remoteFile = filepath.Join(remote, filepath.Base(match))
+			remoteFile = path.Join(remote, filepath.Base(match))
 		}
 		req := sftpReq{
 			client:     ex.client,
@@ -132,7 +133,7 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 		// if the remote basename does not equal the remoteFile basename,
 		// treat remote as a glob pattern and local as a directory
 		if filepath.Base(remote) != filepath.Base(remoteFile) {
-			localFile = filepath.Join(local, filepath.Base(remoteFile))
+			localFile = path.Join(local, filepath.Base(remoteFile))
 		}
 
 		req := sftpReq{
@@ -170,8 +171,8 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *Sy
 
 	unmatchedFiles, deletedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles, excl)
 	for _, file := range unmatchedFiles {
-		localPath := filepath.Join(localDir, file)
-		remotePath := filepath.Join(remoteDir, file)
+		localPath := path.Join(localDir, file)
+		remotePath := path.Join(remoteDir, file)
 		if err = ex.Upload(ctx, localPath, remotePath, &UpDownOpts{Mkdir: true}); err != nil {
 			return nil, fmt.Errorf("failed to upload %s to %s: %w", localPath, remotePath, err)
 		}
@@ -184,7 +185,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *Sy
 		// note: this may cause attempts to remove files from already deleted directories, but it's ok, Delete is idempotent.
 		for _, file := range deletedFiles {
 			deleteOpts := &DeleteOpts{Recursive: remoteFiles[file].IsDir}
-			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), deleteOpts); err != nil {
+			if err = ex.Delete(ctx, path.Join(remoteDir, file), deleteOpts); err != nil {
 				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
 			}
 		}
@@ -232,8 +233,8 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 				continue
 			}
 
-			path := walker.Path()
-			relPath, e := filepath.Rel(remoteFile, path)
+			p := walker.Path()
+			relPath, e := filepath.Rel(remoteFile, p)
 			if e != nil {
 				return e
 			}
@@ -268,20 +269,20 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			default:
 			}
 
-			path := pathsToDelete[i]
-			fi, stErr := sftpClient.Stat(path)
+			p := pathsToDelete[i]
+			fi, stErr := sftpClient.Stat(p)
 			if stErr != nil {
-				return fmt.Errorf("failed to stat %s: %w", path, stErr)
+				return fmt.Errorf("failed to stat %s: %w", p, stErr)
 			}
 
 			if fi.IsDir() {
-				err = sftpClient.RemoveDirectory(path)
+				err = sftpClient.RemoveDirectory(p)
 			} else {
-				err = sftpClient.Remove(path)
+				err = sftpClient.Remove(p)
 			}
 
 			if err != nil {
-				return fmt.Errorf("failed to delete %s: %w", path, err)
+				return fmt.Errorf("failed to delete %s: %w", p, err)
 			}
 		}
 
@@ -563,7 +564,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 		}
 
 		for _, entry := range entries {
-			fullPath := filepath.Join(dir, entry.Name())
+			fullPath := path.Join(dir, entry.Name())
 			relPath, err := filepath.Rel(root, fullPath)
 			if err != nil {
 				log.Printf("[WARN] failed to get relative path for %s: %v", fullPath, err)

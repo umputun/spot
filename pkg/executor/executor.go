@@ -4,7 +4,7 @@ package executor
 
 import (
 	"context"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 )
@@ -47,12 +47,12 @@ type DeleteOpts struct {
 	Exclude   []string // exclude files matching the given patterns
 }
 
-func isExcluded(path string, excl []string) bool {
-	pathSegments := strings.Split(path, string(filepath.Separator))
+func isExcluded(p string, excl []string) bool {
+	pathSegments := strings.Split(p, string("/"))
 	for i := range pathSegments {
-		subpath := filepath.Join(pathSegments[:i+1]...)
+		subpath := path.Join(pathSegments[:i+1]...)
 		for _, ex := range excl {
-			match, err := filepath.Match(ex, subpath)
+			match, err := path.Match(ex, subpath)
 			if err != nil {
 				continue
 			}
@@ -68,10 +68,10 @@ func isExcluded(path string, excl []string) bool {
 	return false
 }
 
-func isExcludedSubPath(path string, excl []string) bool {
-	subpath := filepath.Join(path, "*")
+func isExcludedSubPath(p string, excl []string) bool {
+	subpath := path.Join(p, "*")
 	for _, ex := range excl {
-		match, err := filepath.Match(subpath, strings.TrimSuffix(ex, "/*"))
+		match, err := path.Match(subpath, strings.TrimSuffix(ex, "/*"))
 		if err != nil {
 			continue
 		}
