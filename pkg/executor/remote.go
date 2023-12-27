@@ -74,7 +74,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 
 	// upload each file matching the glob pattern. If no glob pattern is found, the file is matched as is
 	for _, match := range matches {
-		relPath, e := filepath.Rel(filepath.Dir(local), match)
+		relPath, e := filepath.Rel(path.Dir(local), match)
 		if e != nil {
 			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
@@ -84,7 +84,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 
 		remoteFile := remote
 		if len(matches) > 1 { // if there are multiple files, treat remote as a directory
-			remoteFile = path.Join(remote, filepath.Base(match))
+			remoteFile = path.Join(remote, path.Base(match))
 		}
 		req := sftpReq{
 			client:     ex.client,
@@ -132,8 +132,8 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 
 		// if the remote basename does not equal the remoteFile basename,
 		// treat remote as a glob pattern and local as a directory
-		if filepath.Base(remote) != filepath.Base(remoteFile) {
-			localFile = path.Join(local, filepath.Base(remoteFile))
+		if path.Base(remote) != path.Base(remoteFile) {
+			localFile = path.Join(local, path.Base(remoteFile))
 		}
 
 		req := sftpReq{
@@ -392,7 +392,7 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	}
 
 	if req.mkdir {
-		if e := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); e != nil {
+		if e := sftpClient.MkdirAll(path.Dir(req.remoteFile)); e != nil {
 			return fmt.Errorf("failed to create remote directory: %v", e)
 		}
 	}
@@ -639,7 +639,7 @@ func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, erro
 
 	files := make([]string, 0, len(matches))
 	for _, match := range matches {
-		relPath, e := filepath.Rel(filepath.Dir(remote), match)
+		relPath, e := filepath.Rel(path.Dir(remote), match)
 		if e != nil {
 			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
