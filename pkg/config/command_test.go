@@ -775,7 +775,11 @@ func TestCmd_shell(t *testing.T) {
 
 	t.Run("shell is not set, local", func(t *testing.T) {
 		c := Cmd{Options: CmdOptions{Local: true}}
-		assert.Equal(t, os.Getenv("SHELL"), c.shell())
+		exp := "/bin/sh"
+		if os.Getenv("SHELL") != "" {
+			exp = os.Getenv("SHELL")
+		}
+		assert.Equal(t, exp, c.shell())
 	})
 
 	t.Run("shell is set, local", func(t *testing.T) {
