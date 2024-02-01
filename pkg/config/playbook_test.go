@@ -23,7 +23,11 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, 1, len(c.Tasks), "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 		assert.Equal(t, "/bin/sh", c.Tasks[0].Commands[0].SSHShell, "ssh shell")
-		assert.Equal(t, os.Getenv("SHELL"), c.Tasks[0].Commands[0].LocalShell, "local shell")
+		expShell := os.Getenv("SHELL")
+		if expShell == "" {
+			expShell = "/bin/sh"
+		}
+		assert.Equal(t, expShell, c.Tasks[0].Commands[0].LocalShell, "local shell")
 
 		tsk := c.Tasks[0]
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
