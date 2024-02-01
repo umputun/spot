@@ -24,12 +24,13 @@ import (
 
 // PlayBook defines the top-level config object
 type PlayBook struct {
-	User      string            `yaml:"user" toml:"user"`           // ssh user
-	SSHKey    string            `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
-	SSHShell  string            `yaml:"ssh_shell" toml:"ssh_shell"` // ssh shell to use
-	Inventory string            `yaml:"inventory" toml:"inventory"` // inventory file or url
-	Targets   map[string]Target `yaml:"targets" toml:"targets"`     // list of targets/environments
-	Tasks     []Task            `yaml:"tasks" toml:"tasks"`         // list of tasks
+	User       string            `yaml:"user" toml:"user"`               // ssh user
+	SSHKey     string            `yaml:"ssh_key" toml:"ssh_key"`         // ssh key
+	SSHShell   string            `yaml:"ssh_shell" toml:"ssh_shell"`     // ssh shell to use
+	LocalShell string            `yaml:"local_shell" toml:"local_shell"` // local shell to use
+	Inventory  string            `yaml:"inventory" toml:"inventory"`     // inventory file or url
+	Targets    map[string]Target `yaml:"targets" toml:"targets"`         // list of targets/environments
+	Tasks      []Task            `yaml:"tasks" toml:"tasks"`             // list of tasks
 
 	inventory       *InventoryData    // loaded inventory
 	overrides       *Overrides        // overrides passed from cli
@@ -45,12 +46,14 @@ type SecretsProvider interface {
 // SimplePlayBook defines simplified top-level config
 // It is used for unmarshalling only, and result used to make the usual PlayBook
 type SimplePlayBook struct {
-	User      string   `yaml:"user" toml:"user"`           // ssh user
-	SSHKey    string   `yaml:"ssh_key" toml:"ssh_key"`     // ssh key
-	Inventory string   `yaml:"inventory" toml:"inventory"` // inventory file or url
-	Targets   []string `yaml:"targets" toml:"targets"`     // list of names
-	Target    string   `yaml:"target" toml:"target"`       // a single target to run task on
-	Task      []Cmd    `yaml:"task" toml:"task"`           // single task is a list of commands
+	User       string   `yaml:"user" toml:"user"`               // ssh user
+	SSHKey     string   `yaml:"ssh_key" toml:"ssh_key"`         // ssh key
+	SSHShell   string   `yaml:"ssh_shell" toml:"ssh_shell"`     // ssh shell to uses
+	LocalShell string   `yaml:"local_shell" toml:"local_shell"` // local shell to use
+	Inventory  string   `yaml:"inventory" toml:"inventory"`     // inventory file or url
+	Targets    []string `yaml:"targets" toml:"targets"`         // list of names
+	Target     string   `yaml:"target" toml:"target"`           // a single target to run task on
+	Task       []Cmd    `yaml:"task" toml:"task"`               // single task is a list of commands
 }
 
 // Task defines multiple commands runs together
@@ -154,7 +157,9 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
 	for i, tsk := range res.Tasks {
 		for j, c := range tsk.Commands {
-			res.Tasks[i].Commands[j].SSHShell = res.shell() // set secrets for all commands in task
+			// set shell (remote and local) for all commands in task
+			res.Tasks[i].Commands[j].SSHShell = res.remoteShell()
+			res.Tasks[i].Commands[j].LocalShell = res.localShell()
 			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
 		}
 	}
@@ -300,7 +305,8 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 		if name == "ad-hoc" && p.overrides.AdHocCommand != "" {
 			// special case for ad-hoc command, make a fake task with a single command from overrides.AdHocCommand
 			return &Task{Name: "ad-hoc", Commands: []Cmd{
-				{Name: "ad-hoc", Script: p.overrides.AdHocCommand, SSHShell: p.shell()}}}, nil
+				{Name: "ad-hoc", Script: p.overrides.AdHocCommand,
+					SSHShell: p.remoteShell(), LocalShell: p.localShell()}}}, nil
 		}
 		for _, t := range tsk {
 			if strings.EqualFold(t.Name, name) {
@@ -590,12 +596,26 @@ func (p *PlayBook) loadSecrets() error {
 	return nil
 }
 
-func (p *PlayBook) shell() string {
+// remoteShell returns the remoteShell to use for SSH commands, using overrides if set, or playbook's remoteShell if not.
+func (p *PlayBook) remoteShell() string {
 	if p.overrides != nil && p.overrides.SSHShell != "" {
 		return p.overrides.SSHShell
 	}
 	if p.SSHShell != "" {
 		return p.SSHShell
+	}
+	return "/bin/sh"
+}
+
+// localShell returns the local shell to use for local commands, using playbook's localShell if set,
+// or default to env:SHELL if not. If SHELL is not set in envs, it defaults to /bin/sh.
+func (p *PlayBook) localShell() string {
+	if p.LocalShell != "" {
+		return p.LocalShell
+	}
+	res := os.Getenv("SHELL")
+	if res != "" {
+		return res
 	}
 	return "/bin/sh"
 }

@@ -1,5 +1,6 @@
 user: umputun
 ssh_shell: /bin/bash
+local_shell: /bin/xxx
 
 targets:
     remark42:
