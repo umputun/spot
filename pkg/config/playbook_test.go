@@ -23,6 +23,7 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, 1, len(c.Tasks), "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 		assert.Equal(t, "/bin/sh", c.Tasks[0].Commands[0].SSHShell, "ssh shell")
+		assert.Equal(t, os.Getenv("SHELL"), c.Tasks[0].Commands[0].LocalShell, "local shell")
 
 		tsk := c.Tasks[0]
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
@@ -197,19 +198,20 @@ func TestPlaybook_New(t *testing.T) {
 		t.Logf("%+v", c)
 		assert.Equal(t, 1, len(c.Tasks), "single task")
 		assert.Equal(t, "umputun", c.User, "user")
-		assert.Equal(t, "/bin/bash", c.Tasks[0].Commands[0].SSHShell, "ssh shell")
+		assert.Equal(t, "/bin/bash", c.Tasks[0].Commands[0].SSHShell, "remote ssh shell")
+		assert.Equal(t, "/bin/xxx", c.Tasks[0].Commands[0].LocalShell, "local local shell")
 
 		tsk := c.Tasks[0]
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
 		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
-	t.Run("playbook with custom ssh shell override", func(t *testing.T) {
+	t.Run("playbook with custom shell overrides", func(t *testing.T) {
 		c, err := New("testdata/with-ssh-shell.yml", &Overrides{SSHShell: "/bin/zsh"}, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
 		assert.Equal(t, 1, len(c.Tasks), "single task")
 		assert.Equal(t, "umputun", c.User, "user")
-		assert.Equal(t, "/bin/zsh", c.Tasks[0].Commands[0].SSHShell, "ssh shell")
+		assert.Equal(t, "/bin/zsh", c.Tasks[0].Commands[0].SSHShell, "remote ssh shell")
 
 		tsk := c.Tasks[0]
 		assert.Equal(t, 5, len(tsk.Commands), "5 commands")

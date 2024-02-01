@@ -32,8 +32,9 @@ type Cmd struct {
 	Register    []string          `yaml:"register" toml:"register"` // register variables from command
 	OnExit      string            `yaml:"on_exit" toml:"on_exit"`   // script to run on exit
 
-	Secrets  map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
-	SSHShell string            `yaml:"-" toml:"-"` // shell to use for ssh commands, filled by playbook
+	Secrets    map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
+	SSHShell   string            `yaml:"-" toml:"-"` // shell to use for ssh commands, filled by playbook
+	LocalShell string            `yaml:"-" toml:"-"` // shell to use for local commands, filled by playbooks
 }
 
 // CmdOptions defines options for a command
@@ -396,17 +397,24 @@ func (cmd *Cmd) validate() error {
 	return nil
 }
 
+// shell returns the shell to use for multi-line commands.
+// If Local is set, it returns LocalShell, otherwise SSHShell.
+// If LocalShell is not set, it returns OS default shell and if this one is not set, it returns /bin/sh.
+// For SSHShell, it returns /bin/sh if not sets.
 func (cmd *Cmd) shell() string {
+	if cmd.Options.Local {
+		if cmd.LocalShell != "" {
+			return cmd.LocalShell
+		}
+		res := os.Getenv("SHELL")
+		if res != "" {
+			return res
+		}
+		return "/bin/sh"
+	}
+
 	if cmd.SSHShell == "" {
 		return "/bin/sh"
 	}
-	if cmd.Options.Local {
-		envShell := os.Getenv("SHELL")
-		if envShell == "" {
-			return "/bin/sh"
-		}
-		return envShell
-	}
-
 	return cmd.SSHShell
 }

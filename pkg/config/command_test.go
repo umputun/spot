@@ -2,6 +2,7 @@ package config
 
 import (
 	"io"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -759,4 +760,26 @@ func TestHasShebang(t *testing.T) {
 			require.Equal(t, tc.exp, cmd.hasShebang(tc.inp))
 		})
 	}
+}
+
+func TestCmd_shell(t *testing.T) {
+	t.Run("shell is not set", func(t *testing.T) {
+		c := Cmd{}
+		assert.Equal(t, "/bin/sh", c.shell())
+	})
+
+	t.Run("shell is set", func(t *testing.T) {
+		c := Cmd{SSHShell: "/bin/bash"}
+		assert.Equal(t, "/bin/bash", c.shell())
+	})
+
+	t.Run("shell is not set, local", func(t *testing.T) {
+		c := Cmd{Options: CmdOptions{Local: true}}
+		assert.Equal(t, os.Getenv("SHELL"), c.shell())
+	})
+
+	t.Run("shell is set, local", func(t *testing.T) {
+		c := Cmd{LocalShell: "/bin/bash", Options: CmdOptions{Local: true}}
+		assert.Equal(t, "/bin/bash", c.shell())
+	})
 }
