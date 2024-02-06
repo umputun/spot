@@ -623,7 +623,12 @@ func Xmkfifo(t *TLS, pathname uintptr, mode types.Mode_t) int32 {
 	if __ccgo_strace {
 		trc("t=%v pathname=%v mode=%v, (%v:)", t, pathname, mode, origin(2))
 	}
-	panic(todo(""))
+	if err := unix.Mkfifo(GoString(pathname), uint32(mode)); err != nil {
+		t.setErrno(err)
+		return -1
+	}
+
+	return 0
 }
 
 // mode_t umask(mode_t mask);
@@ -1284,14 +1289,6 @@ func Xrealpath(t *TLS, path, resolved_path uintptr) uintptr {
 	copy((*RawMem)(unsafe.Pointer(resolved_path))[:len(s):len(s)], s)
 	(*RawMem)(unsafe.Pointer(resolved_path))[len(s)] = 0
 	return resolved_path
-}
-
-// struct tm *gmtime_r(const time_t *timep, struct tm *result);
-func Xgmtime_r(t *TLS, timep, result uintptr) uintptr {
-	if __ccgo_strace {
-		trc("t=%v result=%v, (%v:)", t, result, origin(2))
-	}
-	panic(todo(""))
 }
 
 // char *inet_ntoa(struct in_addr in);

@@ -281,13 +281,6 @@ func X__isdigit_l(tls *TLS, c int32, l locale_t) int32 { /* isdigit.c:9:5: */
 	return Xisdigit(tls, c)
 }
 
-func Xislower(tls *TLS, c int32) int32 { /* islower.c:4:5: */
-	if __ccgo_strace {
-		trc("tls=%v c=%v, (%v:)", tls, c, origin(2))
-	}
-	return Bool32(uint32(c)-uint32('a') < uint32(26))
-}
-
 func X__islower_l(tls *TLS, c int32, l locale_t) int32 { /* islower.c:9:5: */
 	if __ccgo_strace {
 		trc("tls=%v c=%v l=%v, (%v:)", tls, c, l, origin(2))

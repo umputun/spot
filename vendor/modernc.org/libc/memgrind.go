@@ -86,9 +86,9 @@ func Xmalloc(t *TLS, size types.Size_t) uintptr {
 	defer allocMu.Unlock()
 
 	p, err := allocator.UintptrCalloc(int(size))
-	if dmesgs {
-		dmesg("%v: %v -> %#x, %v", origin(1), size, p, err)
-	}
+	// 	if dmesgs {
+	// 		dmesg("%v: %v -> %#x, %v", origin(1), size, p, err)
+	// 	}
 	if err != nil {
 		t.setErrno(errno.ENOMEM)
 		return 0
@@ -126,9 +126,9 @@ func Xcalloc(t *TLS, n, size types.Size_t) uintptr {
 	defer allocMu.Unlock()
 
 	p, err := allocator.UintptrCalloc(int(n * size))
-	if dmesgs {
-		dmesg("%v: %v -> %#x, %v", origin(1), n*size, p, err)
-	}
+	// 	if dmesgs {
+	// 		dmesg("%v: %v -> %#x, %v", origin(1), n*size, p, err)
+	// 	}
 	if err != nil {
 		t.setErrno(errno.ENOMEM)
 		return 0
@@ -185,9 +185,9 @@ func Xrealloc(t *TLS, ptr uintptr, size types.Size_t) uintptr {
 	}
 
 	p, err := allocator.UintptrRealloc(ptr, int(size))
-	if dmesgs {
-		dmesg("%v: %#x, %v -> %#x, %v", origin(1), ptr, size, p, err)
-	}
+	// 	if dmesgs {
+	// 		dmesg("%v: %#x, %v -> %#x, %v", origin(1), ptr, size, p, err)
+	// 	}
 	if err != nil {
 		t.setErrno(errno.ENOMEM)
 		return 0
@@ -214,9 +214,9 @@ func Xfree(t *TLS, p uintptr) {
 		return
 	}
 
-	if dmesgs {
-		dmesg("%v: %#x", origin(1), p)
-	}
+	// 	if dmesgs {
+	// 		dmesg("%v: %#x", origin(1), p)
+	// 	}
 
 	allocMu.Lock()
 

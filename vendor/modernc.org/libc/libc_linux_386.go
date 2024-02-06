@@ -7,6 +7,7 @@ package libc // import "modernc.org/libc"
 import (
 	"os"
 	"strings"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -16,6 +17,11 @@ import (
 	"modernc.org/libc/stdio"
 	"modernc.org/libc/sys/stat"
 	"modernc.org/libc/sys/types"
+	ctime "modernc.org/libc/time"
+)
+
+var (
+	startTime = time.Now() // For clock(3)
 )
 
 // int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
@@ -712,4 +718,32 @@ func Xrewinddir(tls *TLS, f uintptr) {
 		trc("tls=%v f=%v, (%v:)", tls, f, origin(2))
 	}
 	Xfseek(tls, f, 0, stdio.SEEK_SET)
+}
+
+func AtomicLoadPInt8(addr uintptr) (val int8) {
+	return int8(a_load_8(addr))
+}
+
+func AtomicLoadPInt16(addr uintptr) (val int16) {
+	return int16(a_load_16(addr))
+}
+
+func AtomicLoadPUint8(addr uintptr) byte {
+	return byte(a_load_8(addr))
+}
+
+func AtomicLoadPUint16(addr uintptr) uint16 {
+	return uint16(a_load_16(addr))
+}
+
+func AtomicLoadNUint8(ptr uintptr, memorder int32) uint8 {
+	return byte(a_load_8(ptr))
+}
+
+// clock_t clock(void);
+func Xclock(t *TLS) ctime.Clock_t {
+	if __ccgo_strace {
+		trc("t=%v, (%v:)", t, origin(2))
+	}
+	return ctime.Clock_t(time.Since(startTime) * time.Duration(ctime.CLOCKS_PER_SEC) / time.Second)
 }

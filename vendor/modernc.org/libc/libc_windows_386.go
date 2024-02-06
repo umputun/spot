@@ -373,26 +373,6 @@ func Xunlink(t *TLS, pathname uintptr) int32 {
 
 }
 
-// int access(const char *pathname, int mode);
-func Xaccess(t *TLS, pathname uintptr, mode int32) int32 {
-	if __ccgo_strace {
-		trc("t=%v pathname=%v mode=%v, (%v:)", t, pathname, mode, origin(2))
-	}
-	panic(todo(""))
-	// 	if _, _, err := unix.Syscall(unix.SYS_ACCESS, pathname, uintptr(mode), 0); err != 0 {
-	// 		if dmesgs {
-	// 			dmesg("%v: %q: %v", origin(1), GoString(pathname), err)
-	// 		}
-	// 		t.setErrno(err)
-	// 		return -1
-	// 	}
-	//
-	// 	if dmesgs {
-	// 		dmesg("%v: %q %#o: ok", origin(1), GoString(pathname), mode)
-	// 	}
-	// 	return 0
-}
-
 // int rmdir(const char *pathname);
 func Xrmdir(t *TLS, pathname uintptr) int32 {
 	if __ccgo_strace {
@@ -703,4 +683,30 @@ func X_fstat(t *TLS, fd int32, buffer uintptr) int32 {
 	bStat32.Fst_mode = WindowsAttrbiutesToStat(d.FileAttributes)
 
 	return 0
+}
+
+func Xstrspn(tls *TLS, s uintptr, c uintptr) size_t { /* strspn.c:6:8: */
+	if __ccgo_strace {
+		trc("tls=%v s=%v c=%v, (%v:)", tls, s, c, origin(2))
+	}
+	bp := tls.Alloc(32)
+	defer tls.Free(32)
+
+	var a uintptr = s
+	*(*[8]size_t)(unsafe.Pointer(bp /* byteset */)) = [8]size_t{0: size_t(0)}
+
+	if !(int32(*(*int8)(unsafe.Pointer(c))) != 0) {
+		return size_t(0)
+	}
+	if !(int32(*(*int8)(unsafe.Pointer(c + 1))) != 0) {
+		for ; int32(*(*int8)(unsafe.Pointer(s))) == int32(*(*int8)(unsafe.Pointer(c))); s++ {
+		}
+		return size_t((int32(s) - int32(a)) / 1)
+	}
+
+	for ; *(*int8)(unsafe.Pointer(c)) != 0 && AssignOrPtrUint32(bp+uintptr(size_t(*(*uint8)(unsafe.Pointer(c)))/(uint32(8)*uint32(unsafe.Sizeof(size_t(0)))))*4, size_t(size_t(1))<<(size_t(*(*uint8)(unsafe.Pointer(c)))%(uint32(8)*uint32(unsafe.Sizeof(size_t(0)))))) != 0; c++ {
+	}
+	for ; *(*int8)(unsafe.Pointer(s)) != 0 && *(*size_t)(unsafe.Pointer(bp + uintptr(size_t(*(*uint8)(unsafe.Pointer(s)))/(uint32(8)*uint32(unsafe.Sizeof(size_t(0)))))*4))&(size_t(size_t(1))<<(size_t(*(*uint8)(unsafe.Pointer(s)))%(uint32(8)*uint32(unsafe.Sizeof(size_t(0)))))) != 0; s++ {
+	}
+	return size_t((int32(s) - int32(a)) / 1)
 }

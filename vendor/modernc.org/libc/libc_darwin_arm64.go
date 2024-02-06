@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 	"modernc.org/libc/fcntl"
 	"modernc.org/libc/signal"
+	"modernc.org/libc/stdio"
 	"modernc.org/libc/sys/types"
 	"modernc.org/libc/utime"
 )
@@ -520,4 +521,11 @@ func Xfopen64(t *TLS, pathname, mode uintptr) uintptr {
 	}
 
 	panic("OOM")
+}
+
+func Xrewinddir(tls *TLS, f uintptr) {
+	if __ccgo_strace {
+		trc("tls=%v f=%v, (%v:)", tls, f, origin(2))
+	}
+	Xfseek(tls, f, 0, stdio.SEEK_SET)
 }

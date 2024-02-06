@@ -2189,7 +2189,7 @@ type __libc = struct {
 	global_locale   struct{ cat [6]uintptr }
 } /* libc.h:20:1 */
 
-type time_t = int64 /* alltypes.h:78:16 */
+type time_t = int32 /* alltypes.h:78:16 */
 
 type clockid_t = int32 /* alltypes.h:207:13 */
 

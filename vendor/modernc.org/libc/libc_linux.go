@@ -5,13 +5,14 @@
 package libc // import "modernc.org/libc"
 
 import (
-	"encoding/hex"
+	// "encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"runtime/debug"
+	// "runtime/debug"
 	"syscall"
 	"time"
 	"unsafe"
@@ -1098,9 +1099,9 @@ func Xstrerror(t *TLS, errnum int32) uintptr {
 	if __ccgo_strace {
 		trc("t=%v errnum=%v, (%v:)", t, errnum, origin(2))
 	}
-	if dmesgs {
-		dmesg("%v: %v\n%s", origin(1), errnum, debug.Stack())
-	}
+	// 	if dmesgs {
+	// 		dmesg("%v: %v\n%s", origin(1), errnum, debug.Stack())
+	// 	}
 	copy(strerrorBuf[:], fmt.Sprintf("strerror(%d)\x00", errnum))
 	return uintptr(unsafe.Pointer(&strerrorBuf[0]))
 }
@@ -1270,14 +1271,6 @@ func Xrealpath(t *TLS, path, resolved_path uintptr) uintptr {
 	return resolved_path
 }
 
-// struct tm *gmtime_r(const time_t *timep, struct tm *result);
-func Xgmtime_r(t *TLS, timep, result uintptr) uintptr {
-	if __ccgo_strace {
-		trc("t=%v result=%v, (%v:)", t, result, origin(2))
-	}
-	panic(todo(""))
-}
-
 // char *inet_ntoa(struct in_addr in);
 func Xinet_ntoa(t *TLS, in1 in.In_addr) uintptr {
 	if __ccgo_strace {
@@ -1431,7 +1424,14 @@ func Xungetc(t *TLS, c int32, stream uintptr) int32 {
 	if __ccgo_strace {
 		trc("t=%v c=%v stream=%v, (%v:)", t, c, stream, origin(2))
 	}
-	panic(todo(""))
+	if c == stdio.EOF {
+		return c
+	}
+
+	ungetcMu.Lock()
+	ungetc[stream] = byte(c)
+	ungetcMu.Unlock()
+	return int32(byte(c))
 }
 
 // int fscanf(FILE *stream, const char *format, ...);
@@ -1439,7 +1439,7 @@ func Xfscanf(t *TLS, stream, format, va uintptr) int32 {
 	if __ccgo_strace {
 		trc("t=%v va=%v, (%v:)", t, va, origin(2))
 	}
-	panic(todo(""))
+	return scanf(&byteScanner{t: t, stream: stream}, format, va)
 }
 
 // int fputs(const char *s, FILE *stream);
@@ -1694,21 +1694,21 @@ func Xpwrite(t *TLS, fd int32, buf uintptr, count types.Size_t, offset types.Off
 		n, err = unix.Pwrite(int(fd), nil, int64(offset))
 	default:
 		n, err = unix.Pwrite(int(fd), (*RawMem)(unsafe.Pointer(buf))[:count:count], int64(offset))
-		if dmesgs {
-			dmesg("%v: fd %v, off %#x, count %#x\n%s", origin(1), fd, offset, count, hex.Dump((*RawMem)(unsafe.Pointer(buf))[:count:count]))
-		}
+		// 		if dmesgs {
+		// 			dmesg("%v: fd %v, off %#x, count %#x\n%s", origin(1), fd, offset, count, hex.Dump((*RawMem)(unsafe.Pointer(buf))[:count:count]))
+		// 		}
 	}
 	if err != nil {
-		if dmesgs {
-			dmesg("%v: %v FAIL", origin(1), err)
-		}
+		// 		if dmesgs {
+		// 			dmesg("%v: %v FAIL", origin(1), err)
+		// 		}
 		t.setErrno(err)
 		return -1
 	}
 
-	if dmesgs {
-		dmesg("%v: ok", origin(1))
-	}
+	// 	if dmesgs {
+	// 		dmesg("%v: ok", origin(1))
+	// 	}
 	return types.Ssize_t(n)
 }
 
@@ -1756,6 +1756,14 @@ func Xfgetc(t *TLS, stream uintptr) int32 {
 	if __ccgo_strace {
 		trc("t=%v stream=%v, (%v:)", t, stream, origin(2))
 	}
+	ungetcMu.Lock()
+	c, ok := ungetc[stream]
+	delete(ungetc, stream)
+	ungetcMu.Unlock()
+	if ok {
+		return int32(c)
+	}
+
 	fd := int((*stdio.FILE)(unsafe.Pointer(stream)).F_fileno)
 	var buf [1]byte
 	if n, _ := unix.Read(fd, buf[:]); n != 0 {
@@ -1976,4 +1984,26 @@ func Xfeof(t *TLS, f uintptr) (r int32) {
 	r = BoolInt32(!!((*stdio.FILE)(unsafe.Pointer(f)).F_flags&Int32FromInt32(m_F_EOF) != 0))
 	X__unlockfile(t, f)
 	return r
+}
+
+type byteScanner struct {
+	t      *TLS
+	stream uintptr
+
+	last byte
+}
+
+func (s *byteScanner) ReadByte() (byte, error) {
+	c := Xfgetc(s.t, s.stream)
+	if c < 0 {
+		return 0, io.EOF
+	}
+
+	s.last = byte(c)
+	return byte(c), nil
+}
+
+func (s *byteScanner) UnreadByte() error {
+	Xungetc(s.t, int32(s.last), s.stream)
+	return nil
 }

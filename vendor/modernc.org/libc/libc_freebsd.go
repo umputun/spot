@@ -589,7 +589,12 @@ func Xmkfifo(t *TLS, pathname uintptr, mode types.Mode_t) int32 {
 	if __ccgo_strace {
 		trc("t=%v pathname=%v mode=%v, (%v:)", t, pathname, mode, origin(2))
 	}
-	panic(todo(""))
+	if err := unix.Mkfifo(GoString(pathname), uint32(mode)); err != nil {
+		t.setErrno(err)
+		return -1
+	}
+
+	return 0
 }
 
 // mode_t umask(mode_t mask);
@@ -1249,14 +1254,6 @@ func Xrealpath(t *TLS, path, resolved_path uintptr) uintptr {
 	copy((*RawMem)(unsafe.Pointer(resolved_path))[:len(s):len(s)], s)
 	(*RawMem)(unsafe.Pointer(resolved_path))[len(s)] = 0
 	return resolved_path
-}
-
-// struct tm *gmtime_r(const time_t *timep, struct tm *result);
-func Xgmtime_r(t *TLS, timep, result uintptr) uintptr {
-	if __ccgo_strace {
-		trc("t=%v result=%v, (%v:)", t, result, origin(2))
-	}
-	panic(todo(""))
 }
 
 // char *inet_ntoa(struct in_addr in);
@@ -1931,4 +1928,44 @@ func Xbswap64(t *TLS, x uint64) uint64 {
 		trc("t=%v x=%v, (%v:)", t, x, origin(2))
 	}
 	return X__builtin_bswap64(t, x)
+}
+
+// int nanosleep(const struct timespec *req, struct timespec *rem);
+func Xnanosleep(t *TLS, req, rem uintptr) int32 {
+	if __ccgo_strace {
+		trc("t=%v rem=%v, (%v:)", t, rem, origin(2))
+	}
+	v := *(*time.Timespec)(unsafe.Pointer(req))
+	gotime.Sleep(gotime.Second*gotime.Duration(v.Ftv_sec) + gotime.Duration(v.Ftv_nsec))
+	return 0
+}
+
+// ssize_t pwrite(int fd, const void *buf, size_t count, off_t offset);
+func Xpwrite(t *TLS, fd int32, buf uintptr, count types.Size_t, offset types.Off_t) types.Ssize_t {
+	if __ccgo_strace {
+		trc("t=%v fd=%v buf=%v count=%v offset=%v, (%v:)", t, fd, buf, count, offset, origin(2))
+	}
+	var n int
+	var err error
+	switch {
+	case count == 0:
+		n, err = unix.Pwrite(int(fd), nil, int64(offset))
+	default:
+		n, err = unix.Pwrite(int(fd), (*RawMem)(unsafe.Pointer(buf))[:count:count], int64(offset))
+		// 		if dmesgs {
+		// 			dmesg("%v: fd %v, off %#x, count %#x\n%s", origin(1), fd, offset, count, hex.Dump((*RawMem)(unsafe.Pointer(buf))[:count:count]))
+		// 		}
+	}
+	if err != nil {
+		// 		if dmesgs {
+		// 			dmesg("%v: %v FAIL", origin(1), err)
+		// 		}
+		t.setErrno(err)
+		return -1
+	}
+
+	// 	if dmesgs {
+	// 		dmesg("%v: ok", origin(1))
+	// 	}
+	return types.Ssize_t(n)
 }
