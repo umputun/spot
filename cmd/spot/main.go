@@ -315,7 +315,7 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
 }
 
 func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
-	sshKey, err := sshKey(opts.SSHKey, pbook)
+	sshKey, err := sshKey(opts.SSHAgent, opts.SSHKey, pbook)
 	if err != nil {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
@@ -381,7 +381,7 @@ func targetsForTask(targets []string, taskName string, pbook runner.Playbook) []
 }
 
 // get ssh key from cli or playbook. if no key is provided, use default ~/.ssh/id_rsa
-func sshKey(sshKey string, pbook *config.PlayBook) (key string, err error) {
+func sshKey(sshAgent bool, sshKey string, pbook *config.PlayBook) (key string, err error) {
 	if sshKey == "" && (pbook == nil || pbook.SSHKey != "") { // no key provided in cli
 		sshKey = pbook.SSHKey // use playbook's ssh_key
 	}
@@ -394,7 +394,9 @@ func sshKey(sshKey string, pbook *config.PlayBook) (key string, err error) {
 		if err != nil {
 			return "", fmt.Errorf("can't get current user: %w", err)
 		}
-		sshKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
+		if !sshAgent {
+			sshKey = filepath.Join(u.HomeDir, ".ssh", "id_rsa")
+		}
 	}
 
 	log.Printf("[INFO] ssh key: %s", sshKey)
