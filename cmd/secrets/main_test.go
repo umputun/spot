@@ -184,7 +184,7 @@ func TestMainFunc(t *testing.T) {
 
 			// Replace the exit function with a custom one
 			exited := false
-			exitFunc = func(code int) {
+			exitFunc = func(int) {
 				exited = true
 			}
 

@@ -231,7 +231,7 @@ func (l *Local) syncSrcToDst(ctx context.Context, src, dst string, excl []string
 func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error {
 	var pathsToDelete []string
 
-	err := filepath.Walk(dst, func(dstPath string, info os.FileInfo, err error) error {
+	err := filepath.Walk(dst, func(dstPath string, _ os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

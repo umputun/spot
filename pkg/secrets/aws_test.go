@@ -17,7 +17,7 @@ func TestAWSSecretsProvider_Get(t *testing.T) {
 	require.NoError(t, err, "failed to create AWSSecretsProvider")
 
 	sm := &mocks.SectretsManagerClient{
-		GetSecretValueFunc: func(ctx context.Context, params *secretsmanager.GetSecretValueInput, optFns ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
+		GetSecretValueFunc: func(_ context.Context, params *secretsmanager.GetSecretValueInput, _ ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error) {
 			if *params.SecretId == "key1" {
 				res := "test-secret"
 				return &secretsmanager.GetSecretValueOutput{SecretString: &res}, nil
