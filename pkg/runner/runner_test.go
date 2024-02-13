@@ -949,7 +949,7 @@ func Test_shouldRunCmd(t *testing.T) {
 
 func TestGen(t *testing.T) {
 	mockPbook := &mocks.PlaybookMock{
-		TargetHostsFunc: func(name string) ([]config.Destination, error) {
+		TargetHostsFunc: func(string) ([]config.Destination, error) {
 			return []config.Destination{
 				{Name: "test1", Host: "host1", Port: 8080, User: "user1", Tags: []string{"tag1", "tag2"}},
 				{Name: "test2", Host: "host2", Port: 8081, User: "user2", Tags: []string{"tag3", "tag4"}},
