@@ -421,6 +421,21 @@ func Test_sshUserAndKey(t *testing.T) {
 			expectedKey:  filepath.Join(osUser.HomeDir, ".ssh", "id_rsa"),
 		},
 		{
+			name: "SSHAgent set no key in playbook and command line",
+			opts: options{
+				TaskNames: []string{"test_task"},
+				SSHUser:   "cmd_user",
+				SSHAgent:  true,
+			},
+			conf: config.PlayBook{
+				Tasks: []config.Task{
+					{Name: "test_task"},
+				},
+			},
+			expectedUser: "cmd_user",
+			expectedKey:  "",
+		},
+		{
 			name: "tilde expansion in key path",
 			opts: options{
 				TaskNames: []string{"test_task"},
@@ -441,7 +456,7 @@ func Test_sshUserAndKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			key, err := sshKey(tc.opts.SSHKey, &tc.conf)
+			key, err := sshKey(tc.opts.SSHAgent, tc.opts.SSHKey, &tc.conf)
 			require.NoError(t, err, "sshKey should not return an error")
 			assert.Equal(t, tc.expectedKey, key, "key should match expected key")
 			sshUser, err := sshUser(tc.opts.SSHUser, &tc.conf)
