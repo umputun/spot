@@ -421,6 +421,21 @@ func Test_sshUserAndKey(t *testing.T) {
 			expectedKey:  filepath.Join(osUser.HomeDir, ".ssh", "id_rsa"),
 		},
 		{
+			name: "SSHAgent set no key in playbook and command line",
+			opts: options{
+				TaskNames: []string{"test_task"},
+				SSHUser:   "cmd_user",
+				SSHAgent:  true,
+			},
+			conf: config.PlayBook{
+				Tasks: []config.Task{
+					{Name: "test_task"},
+				},
+			},
+			expectedUser: "cmd_user",
+			expectedKey:  "",
+		},
+		{
 			name: "tilde expansion in key path",
 			opts: options{
 				TaskNames: []string{"test_task"},
