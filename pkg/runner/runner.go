@@ -312,15 +312,16 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 
 // pickCmdExecutor returns executor for dry run or local command, otherwise returns the default executor.
 func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
-	switch {
-	case p.Dry:
+	if p.Dry {
 		log.Printf("[DEBUG] run dry command %q", cmd.Name)
-		ec.exec = executor.NewDry(p.Logs.WithHost(hostAddr, hostName))
 		if cmd.Options.Local {
 			ec.exec = executor.NewDry(p.Logs.WithHost("localhost", ""))
+		} else {
+			ec.exec = executor.NewDry(p.Logs.WithHost(hostAddr, hostName))
 		}
 		return ec
-	case cmd.Options.Local:
+	}
+	if cmd.Options.Local {
 		log.Printf("[DEBUG] run local command %q", cmd.Name)
 		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
