@@ -667,7 +667,9 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 	logs := executor.MakeLogs(false, false, nil)
 	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, err)
-	conf, err := config.New("testdata/conf.yml", nil, nil)
+	conf, err := config.New("testdata/conf-onerror.yml",
+		&config.Overrides{Environment: map[string]string{"var1": "value1", "var2": "value2"}},
+		secrets.NewMemoryProvider(map[string]string{"FOO": "FOO_SECRET", "BAR": "BAR_SECRET"}))
 	require.NoError(t, err)
 
 	p := Process{
@@ -677,15 +679,30 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 		Logs:        logs,
 	}
 
-	t.Run("onerror called", func(t *testing.T) {
+	t.Run("onerror called, single line", func(t *testing.T) {
 		var buf bytes.Buffer
 		log.SetOutput(&buf)
 
-		_, err = p.Run(ctx, "failed_task_with_onerror", testingHostAndPort)
+		_, err = p.Run(ctx, "failed_task_with_onerror_single", testingHostAndPort)
 		require.ErrorContains(t, err, `failed command "bad command" on host`)
 		t.Log(buf.String())
 		require.Contains(t, buf.String(), "> onerror called")
-		require.Contains(t, buf.String(), "task: failed_task_with_onerror,")
+		require.Contains(t, buf.String(), "var: value1", "onerror script has access to env vars")
+		require.Contains(t, buf.String(), "secret: BAR_SECRET", "onerror script has access to secrets")
+		require.Contains(t, buf.String(), "task: failed_task_with_onerror_single,")
+	})
+
+	t.Run("onerror called, multiline", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		_, err = p.Run(ctx, "failed_task_with_onerror_multiline", testingHostAndPort)
+		require.ErrorContains(t, err, `failed command "bad command" on host`)
+		t.Log(buf.String())
+		require.Contains(t, buf.String(), "> onerror called")
+		require.Contains(t, buf.String(), "var: value1", "onerror script has access to env vars")
+		require.Contains(t, buf.String(), "secret foo: FOO_SECRET", "onerror script has access to secrets")
+		require.Contains(t, buf.String(), "task: failed_task_with_onerror_multiline,")
 	})
 
 	t.Run("onerror failed", func(t *testing.T) {
