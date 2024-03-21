@@ -40,8 +40,8 @@ type execCmdResp struct {
 }
 
 type execCmdErr struct {
-	err error
-	cmd execCmd
+	err  error
+	exec execCmd
 }
 
 func (e execCmdErr) Error() string { return e.err.Error() }
@@ -65,7 +65,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
-		return resp, &execCmdErr{err: fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err), cmd: *ec}
+		return resp, &execCmdErr{err: fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err), exec: *ec}
 	}
 	defer func() {
 		if teardown == nil {
@@ -96,7 +96,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 
 	// collect setvar output to vars and latter it will be set to the environment. This is needed for the next commands.
 	// setenv output is in the format of "setenv foo=bar" and it is appended to the output by the script itself.
-	// this part done inside cmd.scriptFile function.
+	// this part done inside exec.scriptFile function.
 	resp.vars = make(map[string]string)
 	for _, line := range out {
 		if !strings.HasPrefix(line, "setvar ") {
@@ -472,7 +472,7 @@ type templater struct {
 }
 
 // apply applies templates to a string to replace predefined vars placeholders with actual values
-// it also applies the task environment variables to the string
+// it also applies the task environment variables to strings
 func (tm *templater) apply(inp string) string {
 	apply := func(inp, from, to string) string {
 		// replace either {SPOT_REMOTE_HOST} ${SPOT_REMOTE_HOST} or $SPOT_REMOTE_HOST format
@@ -518,11 +518,11 @@ func (ec *execCmd) uniqueTmp(prefix string) string {
 }
 
 func (ec *execCmd) error(err error) *execCmdErr {
-	return &execCmdErr{err: err, cmd: *ec}
+	return &execCmdErr{err: err, exec: *ec}
 }
 
 func (ec *execCmd) errorFmt(format string, a ...any) *execCmdErr {
-	return &execCmdErr{err: fmt.Errorf(format, a...), cmd: *ec}
+	return &execCmdErr{err: fmt.Errorf(format, a...), exec: *ec}
 }
 
 func (ec *execCmd) shell() string {

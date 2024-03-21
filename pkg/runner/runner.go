@@ -358,20 +358,26 @@ func (p *Process) onError(ctx context.Context, err error) {
 	}
 
 	ec := execCmd{
-		tsk: execErr.cmd.tsk,
+		tsk: execErr.exec.tsk,
 		cmd: config.Cmd{
-			Name:     execErr.cmd.tsk.Name,
-			Script:   execErr.cmd.tsk.OnError,
-			Options:  config.CmdOptions{Local: true}, // force local execution for on-error command
-			SSHShell: "/bin/sh",                      // local run always with /bin/sh
+			Name:   execErr.exec.tsk.Name,
+			Script: execErr.exec.tsk.OnError,
+			Options: config.CmdOptions{Local: true, // force local execution for on-error command
+				Secrets: execErr.exec.cmd.Options.Secrets},
+			SSHShell:    "/bin/sh", // local run always with /bin/sh
+			Environment: execErr.exec.cmd.Environment,
+			Secrets:     execErr.exec.cmd.Secrets,
 		},
-		hostAddr: execErr.cmd.hostAddr,
-		hostName: execErr.cmd.hostName,
+		hostAddr: execErr.exec.hostAddr,
+		hostName: execErr.exec.hostName,
 		verbose:  p.Verbose,
 	}
 
 	ec = p.pickCmdExecutor(ec.cmd, ec, "localhost", ec.hostName) // pick executor for local command
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, err: execErr}
+	tmpl := templater{
+		hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, err: execErr,
+		env: execErr.exec.cmd.Environment,
+	}
 	ec.cmd.Script = tmpl.apply(ec.cmd.Script)
 	if _, err = ec.Script(ctx); err != nil {
 		log.Printf("[WARN] can't run on-error command for %q, %q: %v", ec.cmd.Name, ec.cmd.Script, err)
