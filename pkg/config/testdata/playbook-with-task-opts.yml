@@ -9,6 +9,8 @@ tasks:
   - name: deploy-remark42
     options:
         secrets: ["SEC11", "SEC12"]
+        no_auto: true
+        ignore_errors: true
     commands:
       - name: wait
         script: sleep 5
@@ -23,6 +25,7 @@ tasks:
           du -hcs /srv
 
       - name: git
+        options: {no_auto: true, sudo: true}
         before: "echo before git"
         after: "echo after git"
         onerror: "echo onerror git"

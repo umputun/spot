@@ -46,23 +46,25 @@ type SecretsProvider interface {
 // SimplePlayBook defines simplified top-level config
 // It is used for unmarshalling only, and result used to make the usual PlayBook
 type SimplePlayBook struct {
-	User       string   `yaml:"user" toml:"user"`               // ssh user
-	SSHKey     string   `yaml:"ssh_key" toml:"ssh_key"`         // ssh key
-	SSHShell   string   `yaml:"ssh_shell" toml:"ssh_shell"`     // ssh shell to uses
-	LocalShell string   `yaml:"local_shell" toml:"local_shell"` // local shell to use
-	Inventory  string   `yaml:"inventory" toml:"inventory"`     // inventory file or url
-	Targets    []string `yaml:"targets" toml:"targets"`         // list of names
-	Target     string   `yaml:"target" toml:"target"`           // a single target to run task on
-	Task       []Cmd    `yaml:"task" toml:"task"`               // single task is a list of commands
+	User       string     `yaml:"user" toml:"user"`                 // ssh user
+	SSHKey     string     `yaml:"ssh_key" toml:"ssh_key"`           // ssh key
+	SSHShell   string     `yaml:"ssh_shell" toml:"ssh_shell"`       // ssh shell to uses
+	LocalShell string     `yaml:"local_shell" toml:"local_shell"`   // local shell to use
+	Inventory  string     `yaml:"inventory" toml:"inventory"`       // inventory file or url
+	Targets    []string   `yaml:"targets" toml:"targets"`           // list of names
+	Target     string     `yaml:"target" toml:"target"`             // a single target to run task on
+	Task       []Cmd      `yaml:"task" toml:"task"`                 // single task is a list of commands
+	Options    CmdOptions `yaml:"options" toml:"options,omitempty"` // options for all commands
 }
 
 // Task defines multiple commands runs together
 type Task struct {
-	Name     string   `yaml:"name" toml:"name"` // name of task, mandatory
-	User     string   `yaml:"user" toml:"user"`
-	Commands []Cmd    `yaml:"commands" toml:"commands"`
-	OnError  string   `yaml:"on_error" toml:"on_error"`
-	Targets  []string `yaml:"targets" toml:"targets"` // optional list of targets to run task on, names or groups
+	Name     string     `yaml:"name" toml:"name"` // name of task, mandatory
+	User     string     `yaml:"user" toml:"user"`
+	Commands []Cmd      `yaml:"commands" toml:"commands"`
+	OnError  string     `yaml:"on_error" toml:"on_error"`
+	Targets  []string   `yaml:"targets" toml:"targets"`           // optional list of targets to run task on, names or groups
+	Options  CmdOptions `yaml:"options" toml:"options,omitempty"` // options for all commands
 }
 
 // Target defines hosts to run commands on
@@ -148,20 +150,40 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 		return nil, fmt.Errorf("config %s is invalid: %w", fname, err)
 	}
 
+	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
+
+	for i, tsk := range res.Tasks {
+		for j, c := range tsk.Commands {
+			// set shell (remote and local) for all commands in the task
+			res.Tasks[i].Commands[j].SSHShell = res.remoteShell()
+			res.Tasks[i].Commands[j].LocalShell = res.localShell()
+
+			// append task's secret keys to all the commands
+			res.Tasks[i].Commands[j].Options.Secrets = append(res.Tasks[i].Commands[j].Options.Secrets, tsk.Options.Secrets...)
+			// append task's only_on to all the commands
+			res.Tasks[i].Commands[j].Options.OnlyOn = append(res.Tasks[i].Commands[j].Options.OnlyOn, tsk.Options.OnlyOn...)
+
+			// set bool options for all commands in the task, but only if they are set in the task to true to avoid overriding
+			if tsk.Options.Local {
+				res.Tasks[i].Commands[j].Options.Local = tsk.Options.Local
+			}
+			if tsk.Options.NoAuto {
+				res.Tasks[i].Commands[j].Options.NoAuto = tsk.Options.NoAuto
+			}
+			if tsk.Options.IgnoreErrors {
+				res.Tasks[i].Commands[j].Options.IgnoreErrors = tsk.Options.IgnoreErrors
+			}
+			if tsk.Options.Sudo {
+				res.Tasks[i].Commands[j].Options.Sudo = tsk.Options.Sudo
+			}
+
+			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
+		}
+	}
+
 	// load secrets from secrets provider
 	if secErr := res.loadSecrets(); secErr != nil {
 		return nil, secErr
-	}
-
-	// log loaded config info
-	log.Printf("[INFO] playbook loaded with %d tasks", len(res.Tasks))
-	for i, tsk := range res.Tasks {
-		for j, c := range tsk.Commands {
-			// set shell (remote and local) for all commands in task
-			res.Tasks[i].Commands[j].SSHShell = res.remoteShell()
-			res.Tasks[i].Commands[j].LocalShell = res.localShell()
-			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
-		}
 	}
 
 	// load inventory if set

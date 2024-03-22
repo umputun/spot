@@ -452,6 +452,17 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
 ```
 
+The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
+
+```yaml
+  - name: deploy-things
+    on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
+    options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
+    commands:
+      - name: wait
+        script: sleep 5s
+```
+
 ### Command conditionals
 
 `cond`: defines a condition for the command to be executed. The condition is a valid shell command that will be executed on the remote host(s) and if it returns 0, the primary command will be executed. For example, `cond: "test -f /tmp/foo"` will execute the primary script command only if the file `/tmp/foo` exists. The condition can be reversed by adding `!` prefix, i.e. `! test -f /tmp/foo` will pass only if the file `/tmp/foo` doesn't exist.
@@ -824,6 +835,22 @@ tasks:
 ```
 
 In this case secrets for keys `user`, `password` and `token` will be read from the secrets provider, decrypted at runtime, and passed to the command in the environment. Please note: if a user runs `spot` with the `--verbose` or `--dbg` flag, the secrets will be replaced with `****` in the output. This is done to prevent secrets from being displayed or logged.
+
+
+Sometimes, users may want to use the same set of secrets in multiple commands. To avoid repeating the secrets in each command, users can set `secrets` at the task level, as shown in the following example:
+
+```yaml
+tasks:
+  - name: access sensitive data
+    commands:
+      - name: read api response
+        script: |
+          curl -s -u ${user}:${password} https://api.example.com  
+          curl https://api.example.com -H "Authorization: Bearer ${token}"
+    options:
+      secrets: [user, password, token]
+```
+
 
 ### Built-in Secrets Provider
 

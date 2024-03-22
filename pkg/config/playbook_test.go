@@ -169,6 +169,10 @@ func TestPlaybook_New(t *testing.T) {
 					return "VAL1", nil
 				case "SEC2":
 					return "VAL2", nil
+				case "SEC11":
+					return "VAL11", nil
+				case "SEC12":
+					return "VAL12", nil
 				default:
 					return "", fmt.Errorf("unknown secret key %q", key)
 				}
@@ -181,14 +185,59 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, "deploy-remark42", p.Tasks[0].Name, "task name")
 		assert.Equal(t, 5, len(p.Tasks[0].Commands), "5 commands")
 
-		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC2": "VAL2"}, p.secrets, "Secrets map for all Secrets")
+		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"},
+			p.secrets, "Secrets map for all Secrets")
 
 		tsk, err := p.Task("deploy-remark42")
 		require.NoError(t, err)
 		assert.Equal(t, 5, len(tsk.Commands))
 		assert.Equal(t, "docker", tsk.Commands[4].Name)
-		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
-		assert.Equal(t, []string{"VAL1", "VAL2"}, p.AllSecretValues())
+		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
+		assert.Equal(t, []string{"VAL1", "VAL11", "VAL12", "VAL2"}, p.AllSecretValues())
+	})
+
+	t.Run("playbook with options", func(t *testing.T) {
+		secProvider := &mocks.SecretProvider{
+			GetFunc: func(key string) (string, error) {
+				switch key {
+				case "SEC1":
+					return "VAL1", nil
+				case "SEC2":
+					return "VAL2", nil
+				case "SEC11":
+					return "VAL11", nil
+				case "SEC12":
+					return "VAL12", nil
+				default:
+					return "", fmt.Errorf("unknown secret key %q", key)
+				}
+			},
+		}
+
+		p, err := New("testdata/playbook-with-task-opts.yml", nil, secProvider)
+		require.NoError(t, err)
+		assert.Equal(t, 1, len(p.Tasks), "1 task")
+		assert.Equal(t, "deploy-remark42", p.Tasks[0].Name, "task name")
+		assert.Equal(t, 5, len(p.Tasks[0].Commands), "5 commands")
+
+		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"},
+			p.secrets, "Secrets map for all Secrets")
+
+		tsk, err := p.Task("deploy-remark42")
+		require.NoError(t, err)
+		assert.Equal(t, 5, len(tsk.Commands))
+		assert.Equal(t, "docker", tsk.Commands[4].Name)
+		assert.EqualValues(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
+		assert.Equal(t, []string{"VAL1", "VAL11", "VAL12", "VAL2"}, p.AllSecretValues())
+
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[0].Options)
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[1].Options)
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: true,
+			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[2].Options)
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: true,
+			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[3].Options)
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: false,
+			Secrets: []string{"SEC1", "SEC2", "SEC11", "SEC12"}}, p.Tasks[0].Commands[4].Options)
 	})
 
 	t.Run("playbook prohibited all target", func(t *testing.T) {
