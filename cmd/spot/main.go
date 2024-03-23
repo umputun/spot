@@ -94,7 +94,6 @@ type SecretsProvider struct {
 var revision = "latest"
 
 func main() {
-
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
@@ -104,7 +103,7 @@ func main() {
 		fmt.Printf("spot %s\n", revision)
 		os.Exit(0) // already printed
 	}
-	setupLog(opts.Dbg)
+	setupLog(opts.Dbg) // set initial log, will be updated later with secrets
 
 	if !opts.GenEnable || opts.GenOutput != "stdout" {
 		fmt.Printf("spot %s\n", revision) // print version only if not generating inventory to stdout
@@ -137,7 +136,9 @@ func run(opts options) error {
 	if err != nil {
 		return fmt.Errorf("can't get playbook %q: %w", opts.PlaybookFile, err)
 	}
-	lgr.Setup(lgr.Secret(pbook.AllSecretValues()...)) // mask secrets in logs
+
+	// secrets are known only after playbook is loaded
+	setupLog(opts.Dbg, pbook.AllSecretValues()...) // mask secrets in logs
 
 	r, err := makeRunner(opts, pbook)
 	if err != nil {
@@ -500,7 +501,7 @@ func formatErrorString(input string) string {
 	return formattedString
 }
 
-func setupLog(dbg bool) {
+func setupLog(dbg bool, secs ...string) {
 	logOpts := []lgr.Option{lgr.Out(io.Discard), lgr.Err(io.Discard)} // default to discard
 	if dbg {
 		logOpts = []lgr.Option{lgr.Debug, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
@@ -515,7 +516,9 @@ func setupLog(dbg bool) {
 		TimeFunc:   func(s string) string { return color.New(color.FgCyan).Sprint(s) },
 	}
 	logOpts = append(logOpts, lgr.Map(colorizer))
-
+	if len(secs) > 0 {
+		logOpts = append(logOpts, lgr.Secret(secs...))
+	}
 	lgr.SetupStdLogger(logOpts...)
 	lgr.Setup(logOpts...)
 }

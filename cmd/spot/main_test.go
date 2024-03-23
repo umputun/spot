@@ -1,11 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"os/signal"
 	"os/user"
@@ -60,11 +59,14 @@ func Test_runCompleted(t *testing.T) {
 				Conn:     "testdata/test-secrets.db",
 				Key:      "1234567890",
 			},
+			Dbg: true,
 		}
-		setupLog(true)
 		st := time.Now()
-		err := run(opts)
-		require.NoError(t, err)
+		logOut := captureStdout(t, func() {
+			err := run(opts)
+			require.NoError(t, err)
+		})
+		t.Log("out\n", logOut)
 		assert.True(t, time.Since(st) >= 1*time.Second)
 	})
 
@@ -81,16 +83,16 @@ func Test_runCompleted(t *testing.T) {
 				Conn:     "testdata/test-secrets.db",
 				Key:      "1234567890",
 			},
+			Dbg: true,
 		}
-		setupLog(true)
-		outWriter := &bytes.Buffer{}
-		log.SetOutput(outWriter)
-		err := run(opts)
-		require.NoError(t, err)
-		t.Log("out\n", outWriter.String())
-		assert.Contains(t, outWriter.String(), "> secrets: **** ****")
-		assert.Contains(t, outWriter.String(), "> secrets md5: a7ae287dce96d9dad168f42fb87518b2")
-		assert.NotContains(t, outWriter.String(), "secval")
+		logOut := captureStdout(t, func() {
+			err := run(opts)
+			require.NoError(t, err)
+		})
+		t.Log("out\n", logOut)
+		assert.Contains(t, logOut, "> secrets: **** ****")
+		assert.Contains(t, logOut, "> secrets md5: a7ae287dce96d9dad168f42fb87518b2")
+		assert.NotContains(t, logOut, "secval")
 	})
 
 	t.Run("dry run", func(t *testing.T) {
@@ -107,12 +109,16 @@ func Test_runCompleted(t *testing.T) {
 				Conn:     "testdata/test-secrets.db",
 				Key:      "1234567890",
 			},
+			Dbg: true,
 		}
-		setupLog(true)
 		st := time.Now()
-		err := run(opts)
-		require.NoError(t, err)
+		logOut := captureStdout(t, func() {
+			err := run(opts)
+			require.NoError(t, err)
+		})
+		t.Log("out\n", logOut)
 		assert.True(t, time.Since(st) < 1*time.Second)
+		assert.NotContains(t, logOut, "secval")
 	})
 
 	t.Run("run with dynamic targets", func(t *testing.T) {
@@ -128,10 +134,13 @@ func Test_runCompleted(t *testing.T) {
 			Env: map[string]string{
 				"hostAndPort": hostAndPort,
 			},
+			Dbg: true,
 		}
-		setupLog(true)
-		err := run(opts)
-		require.NoError(t, err)
+		logOut := captureStdout(t, func() {
+			err := run(opts)
+			require.NoError(t, err)
+		})
+		t.Log("out\n", logOut)
 	})
 }
 
@@ -145,11 +154,14 @@ func Test_runCompletedSimplePlaybook(t *testing.T) {
 		PlaybookFile: "testdata/conf-simple.yml",
 		Targets:      []string{hostAndPort},
 		Only:         []string{"wait"},
+		Dbg:          true,
 	}
-	setupLog(true)
 	st := time.Now()
-	err := run(opts)
-	require.NoError(t, err)
+	logOut := captureStdout(t, func() {
+		err := run(opts)
+		require.NoError(t, err)
+	})
+	t.Log("out\n", logOut)
 	assert.True(t, time.Since(st) >= 1*time.Second)
 }
 
@@ -161,11 +173,14 @@ func Test_runAdhoc(t *testing.T) {
 		SSHUser: "test",
 		SSHKey:  "testdata/test_ssh_key",
 		Targets: []string{hostAndPort},
+		Dbg:     true,
 	}
 	opts.PositionalArgs.AdHocCmd = "echo hello"
-	setupLog(true)
-	err := run(opts)
-	require.NoError(t, err)
+	logOut := captureStdout(t, func() {
+		err := run(opts)
+		require.NoError(t, err)
+	})
+	t.Log("out\n", logOut)
 }
 
 func Test_runCompletedSeveralTasks(t *testing.T) {
@@ -180,19 +195,17 @@ func Test_runCompletedSeveralTasks(t *testing.T) {
 		Targets:      []string{hostAndPort},
 		Dbg:          true,
 	}
-	setupLog(true)
-
-	wr := &bytes.Buffer{}
-	log.SetOutput(wr)
 
 	st := time.Now()
-	err := run(opts)
-	t.Log("dbg: ", wr.String())
-	require.NoError(t, err)
+	logOut := captureStdout(t, func() {
+		err := run(opts)
+		require.NoError(t, err)
+	})
+	t.Log("out: ", logOut)
 	assert.True(t, time.Since(st) >= 1*time.Second)
-	assert.Contains(t, wr.String(), "task 1 command 1")
-	assert.Contains(t, wr.String(), "task 2 command 1")
-	assert.NotContains(t, wr.String(), "task 3 command 1")
+	assert.Contains(t, logOut, "task 1 command 1")
+	assert.Contains(t, logOut, "task 2 command 1")
+	assert.NotContains(t, logOut, "task 3 command 1")
 }
 
 func Test_runCompletedAllTasks(t *testing.T) {
@@ -206,21 +219,20 @@ func Test_runCompletedAllTasks(t *testing.T) {
 		Targets:      []string{hostAndPort},
 		Dbg:          true,
 	}
-	setupLog(true)
-
-	wr := &bytes.Buffer{}
-	log.SetOutput(wr)
 
 	st := time.Now()
-	err := run(opts)
-	t.Log("dbg: ", wr.String())
-	require.NoError(t, err)
+	logOut := captureStdout(t, func() {
+		err := run(opts)
+		require.NoError(t, err)
+	})
+	t.Log("out: ", logOut)
+
 	assert.True(t, time.Since(st) >= 1*time.Second)
-	assert.Contains(t, wr.String(), "task1")
-	assert.Contains(t, wr.String(), "task2")
-	assert.Contains(t, wr.String(), "all good, 123")
-	assert.Contains(t, wr.String(), "good command 2")
-	assert.Contains(t, wr.String(), "all good, 123 - foo-val bar-val")
+	assert.Contains(t, logOut, "task1")
+	assert.Contains(t, logOut, "task2")
+	assert.Contains(t, logOut, "all good, 123")
+	assert.Contains(t, logOut, "good command 2")
+	assert.Contains(t, logOut, "all good, 123 - foo-val bar-val")
 
 }
 
@@ -240,6 +252,7 @@ func Test_runCanceled(t *testing.T) {
 			Conn:     "testdata/test-secrets.db",
 			Key:      "1234567890",
 		},
+		Dbg: true,
 	}
 	setupLog(true)
 	go func() {
@@ -806,4 +819,21 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	host, err := container.Host(ctx)
 	require.NoError(t, err)
 	return fmt.Sprintf("%s:%s", host, port.Port()), func() { container.Terminate(ctx) }
+}
+
+// captureStdout captures everything written to stdout within the function fn
+func captureStdout(t *testing.T, fn func()) string {
+	// Keep backup of the real stdout
+	old := os.Stdout
+	defer func() { os.Stdout = old }()
+
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	fn()
+
+	w.Close()
+
+	out, _ := io.ReadAll(r)
+	return string(out)
 }
