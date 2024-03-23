@@ -308,3 +308,32 @@ func TestMaskSecrets(t *testing.T) {
 		assert.Equal(t, tt.expected, output)
 	}
 }
+
+func TestColorizedWriter_PrintfWithSecrets(t *testing.T) {
+	tests := []struct {
+		input    string
+		secrets  []string
+		expected string
+	}{
+		{"myPassword is password", []string{"password"}, "[my-host localhost] myPassword is ****\n"},
+		{"password password, password withpassword", []string{"password"}, "[my-host localhost] **** ****, **** withpassword\n"},
+		{"multiple secrets mySecret and myPassword", []string{"mySecret", "myPassword"},
+			"[my-host localhost] multiple secrets **** and ****\n"},
+		{"no secrets here", []string{"password"}, "[my-host localhost] no secrets here\n"},
+		{"edge case:secret", []string{"secret"}, "[my-host localhost] edge case:****\n"},
+		{"", []string{"password"}, ""},
+		{"only spaces ", []string{" "}, "[my-host localhost] only spaces \n"},
+		{"1234567890", []string{"1234567890"}, "[my-host localhost] ****\n"},
+		{"secret@domain.com", []string{"secret@domain.com"}, "[my-host localhost] ****\n"},
+		{"key=secret,val=secret", []string{"secret"}, "[my-host localhost] key=****,val=****\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			var buf bytes.Buffer
+			writer := &colorizedWriter{wr: &buf, secrets: tt.secrets, hostAddr: "localhost", hostName: "my-host"}
+			writer.Printf(tt.input)
+			assert.Equal(t, tt.expected, buf.String())
+		})
+	}
+}

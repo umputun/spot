@@ -71,7 +71,9 @@ func (s *colorizedWriter) WithWriter(wr io.Writer) LogWriter {
 
 // Printf writes the given text to io.Writer with the colorized hostAddr prefix.
 func (s *colorizedWriter) Printf(format string, v ...any) {
-	fmt.Fprintf(s, format, v...)
+	msg := fmt.Sprintf(format, v...)
+	msg = maskSecrets(msg, s.secrets)
+	_, _ = fmt.Fprint(s, msg)
 }
 
 // Write writes the given byte slice to stdout with the colorized hostAddr prefix for each line.

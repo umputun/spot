@@ -8,6 +8,7 @@ targets:
 tasks:
 
   - name: task1
+    options: {secrets: ["sec1"]}
     commands:
       - name: wait
         script: sleep 1s
@@ -31,7 +32,7 @@ tasks:
           echo all good, 123
           echo secrets: $sec1 $sec2
           echo secrets md5: `echo -n "$sec1 $sec2" | md5sum`
-        options: {secrets: ["sec1", "sec2"]}
+        options: {secrets: ["sec2"]}
 
       - name: delete things
         delete: {"path": "/tmp/things", "recur": true}
