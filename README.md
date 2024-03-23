@@ -134,6 +134,7 @@ Spot supports the following command-line options:
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
 - `--timeout`: Sets the SSH timeout. Defaults to `30s`. User can also set the environment variable `$SPOT_TIMEOUT` to define the SSH timeout.
 - `--ssh-agent`: Enables using the SSH agent for authentication. Defaults to `false`. Users can also set the environment variable `SPOT_SSH_AGENT` to define the value.
+- `--forward-ssh-agent`: Enables forwarding of connections from an authentication agent. Defaults to `false`. Users can also set the environment variable `SPOT_FORWARD_SSH_AGENT` to define the value.
 - `--shell` - shell for remote ssh execution, default is `/bin/sh`. Users can also set the environment variable `SPOT_SHELL` to define the value.  
 - `-i`, `--inventory=`: Specifies the inventory file or URL to use for the task execution. Overrides the inventory file defined in the
   playbook file. Users can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.

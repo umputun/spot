@@ -15,10 +15,11 @@ import (
 
 // Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH hostAddr.
 type Connector struct {
-	privateKey  string
-	timeout     time.Duration
-	enableAgent bool
-	logs        Logs
+	privateKey            string
+	timeout               time.Duration
+	enableAgent           bool
+	enableAgentForwarding bool
+	logs                  Logs
 }
 
 // NewConnector creates a new Connector for a given user and private key.
@@ -43,6 +44,13 @@ func (c *Connector) WithAgent() *Connector {
 	return c
 }
 
+// WithAgentForwarding enables ssh agent forwarding.
+func (c *Connector) WithAgentForwarding() *Connector {
+	log.Printf("[DEBUG] use ssh agent forwarding")
+	c.enableAgentForwarding = true
+	return c
+}
+
 // Connect connects to a remote hostAddr and returns a remote executer, caller must close.
 func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string) (*Remote, error) {
 	log.Printf("[DEBUG] connect to %q (%s), user %q", hostAddr, hostName, user)
@@ -53,7 +61,34 @@ func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string
 	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName, logs: c.logs.WithHost(hostAddr, hostName)}, nil
 }
 
-// sshClient creates ssh client connected to remote server. Caller must close session.
+func (c *Connector) forwardAgent(client *ssh.Client) error {
+	if !c.enableAgentForwarding {
+		return nil
+	}
+
+	aconn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+	if err != nil {
+		return fmt.Errorf("unable to connect to ssh agent: %w", err)
+	}
+
+	aclient := agent.NewClient(aconn)
+	if err = agent.ForwardToAgent(client, aclient); err != nil {
+		return fmt.Errorf("failed to forward agent: %w", err)
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create new session: %w", err)
+	}
+	defer session.Close()
+
+	if err := agent.RequestAgentForwarding(session); err != nil {
+		return fmt.Errorf("failed to requst agent forwarding: %w", err)
+	}
+
+	return nil
+}
+
 func (c *Connector) sshClient(ctx context.Context, host, user string) (session *ssh.Client, err error) {
 	log.Printf("[DEBUG] create ssh session to %s, user %s", host, user)
 	if !strings.Contains(host, ":") {
@@ -75,6 +110,11 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 		return nil, fmt.Errorf("failed to create client connection to %s: %v", host, err)
 	}
 	client := ssh.NewClient(ncc, chans, reqs)
+
+	if err := c.forwardAgent(client); err != nil {
+		return nil, fmt.Errorf("failed to forward agent to %s: %v", host, err)
+	}
+
 	log.Printf("[DEBUG] ssh session created to %s", host)
 	return client, nil
 }

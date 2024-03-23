@@ -31,13 +31,14 @@ type options struct {
 		AdHocCmd string `positional-arg-name:"command" description:"run ad-hoc command on target hosts"`
 	} `positional-args:"yes" positional-optional:"yes"`
 
-	PlaybookFile string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
-	TaskNames    []string      `short:"n" long:"task" description:"task name"`
-	Targets      []string      `short:"t" long:"target" description:"target name" default:"default"`
-	Concurrent   int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
-	SSHTimeout   time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
-	SSHAgent     bool          `long:"ssh-agent" env:"SPOT_SSH_AGENT" description:"use ssh-agent"`
-	SSHShell     string        `long:"shell" env:"SPOT_SHELL" description:"shell to use for ssh" default:"/bin/sh"`
+	PlaybookFile    string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
+	TaskNames       []string      `short:"n" long:"task" description:"task name"`
+	Targets         []string      `short:"t" long:"target" description:"target name" default:"default"`
+	Concurrent      int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
+	SSHTimeout      time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
+	SSHAgent        bool          `long:"ssh-agent" env:"SPOT_SSH_AGENT" description:"use ssh-agent"`
+	ForwardSSHAgent bool          `long:"forward-ssh-agent" env:"SPOT_FORWARD_SSH_AGENT" description:"use forward-ssh-agent"`
+	SSHShell        string        `long:"shell" env:"SPOT_SHELL" description:"shell to use for ssh" default:"/bin/sh"`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
@@ -327,6 +328,10 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 	}
 	if opts.SSHAgent {
 		connector = connector.WithAgent()
+	}
+
+	if opts.ForwardSSHAgent {
+		connector = connector.WithAgentForwarding()
 	}
 
 	r := runner.Process{

@@ -5,18 +5,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/signal"
 	"os/user"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/umputun/spot/pkg/config"
 )
@@ -378,6 +383,104 @@ func Test_connectFailed(t *testing.T) {
 	setupLog(true)
 	err := run(opts)
 	assert.ErrorContains(t, err, `ssh: unable to authenticate`)
+}
+
+func runSSHAgent(t *testing.T, keyPath string) (stop func()) {
+	t.Helper()
+
+	path := fmt.Sprintf("/tmp/%s.sock", uuid.New())
+	sock, err := net.Listen("unix", path)
+	require.NoError(t, err)
+
+	a := agent.NewKeyring()
+
+	stopCh := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			c, e := sock.Accept()
+			if e != nil {
+				return
+			}
+
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer wg.Done()
+				<-stopCh
+				c.Close()
+			}(c)
+
+			wg.Add(1)
+			go func(c net.Conn) {
+				defer wg.Done()
+				defer c.Close()
+				agent.ServeAgent(a, c)
+			}(c)
+		}
+	}()
+
+	prevAgent, resetAgent := os.LookupEnv("SSH_AUTH_SOCK")
+	os.Setenv("SSH_AUTH_SOCK", sock.Addr().String())
+
+	keyBytes, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+
+	signer, err := ssh.ParseRawPrivateKey(keyBytes)
+	require.NoError(t, err)
+
+	err = a.Add(agent.AddedKey{PrivateKey: signer})
+	require.NoError(t, err)
+
+	return func() {
+		if resetAgent {
+			os.Setenv("SSH_AUTH_SOCK", prevAgent)
+		} else {
+			os.Unsetenv("SSH_AUTH_SOCK")
+		}
+
+		sock.Close()
+		close(stopCh)
+		wg.Wait()
+	}
+}
+
+func getKeyFingerprint(t *testing.T, keyPath string) string {
+	t.Helper()
+
+	keyBytes, err := os.ReadFile(keyPath)
+	require.NoError(t, err)
+
+	k, err := ssh.ParsePrivateKey(keyBytes)
+	require.NoError(t, err)
+
+	return ssh.FingerprintSHA256(k.PublicKey())
+}
+
+func Test_sshAgentForwarding(t *testing.T) {
+	stop := runSSHAgent(t, "testdata/test_ssh_key")
+	defer stop()
+
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:         "test",
+		SSHKey:          "testdata/test_ssh_key",
+		ForwardSSHAgent: true,
+		Targets:         []string{hostAndPort},
+		Dbg:             true,
+	}
+
+	cmd := fmt.Sprintf("ssh-add -l | awk \"{ print \\$2 }\" > f1; echo \"%s\" > f2; diff f1 f2",
+		getKeyFingerprint(t, "testdata/test_ssh_key"))
+
+	opts.PositionalArgs.AdHocCmd = cmd
+
+	setupLog(true)
+	err := run(opts)
+	require.NoError(t, err)
 }
 
 func Test_sshUserAndKey(t *testing.T) {
