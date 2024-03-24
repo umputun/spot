@@ -450,9 +450,15 @@ func setAdHocSSH(opts options, pbook *config.PlayBook) (*config.PlayBook, error)
 	return pbook, nil
 }
 
-// envVars returns a map of environment variables from the cli and env file, cli vars override env file vars if duplicated
+// envVars returns a map of environment variables from the cli, env file, and system env.
+// cli vars override env file vars, which in turn override system env vars if duplicated.
 func envVars(vars map[string]string, envFile string) (map[string]string, error) {
 	res := make(map[string]string)
+
+	expandEnv := func(value string) string {
+		// expand environment variables denoted by $var or ${var}
+		return os.Expand(value, os.Getenv)
+	}
 
 	// load env file vars
 	envFileData := struct {
@@ -465,13 +471,13 @@ func envVars(vars map[string]string, envFile string) (map[string]string, error) 
 			log.Printf("[WARN] can't parse env file %q: %v", envFile, err)
 		}
 		for k, v := range envFileData.Vars {
-			res[k] = v
+			res[k] = expandEnv(v)
 		}
 	}
 
 	// cli vars override env file vars
 	for k, v := range vars {
-		res[k] = v
+		res[k] = expandEnv(v)
 	}
 
 	return res, nil
