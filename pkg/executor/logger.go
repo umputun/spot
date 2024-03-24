@@ -60,6 +60,11 @@ type colorizedWriter struct {
 
 // WithHost creates a new StdoutColorWriter with the given hostAddr name.
 func (s *colorizedWriter) WithHost(hostAddr, hostName string) LogWriter {
+	if strings.HasPrefix(hostAddr, hostName+":") {
+		// in case if we don't have hostName it was set to hostAddr without port
+		// we want to prevent log prefix duplication, i.e. [dev1.umputun.dev dev1.umputun.dev:22]
+		hostName = ""
+	}
 	return &colorizedWriter{wr: s.wr, hostAddr: hostAddr, hostName: hostName,
 		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome}
 }
