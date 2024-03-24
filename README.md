@@ -141,8 +141,8 @@ Spot supports the following command-line options:
 - `-k`, `--key=`: Specifies the SSH key for connecting to remote hosts. Overrides the key defined in the playbook file.
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
-- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`.
-- `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
+- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`. Values could be taken from the OS environment variables as well, e.g., `-e VAR1:$ENV_VAR1` or `-e VAR1:${ENV_VAR1}`.
+- `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The file can have values from the OS environment variables as well. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
 - `--no-color`: disable the colorized output. It can also be set with the environment variable `SPOT_NO_COLOR`.
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.

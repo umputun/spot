@@ -717,6 +717,9 @@ func Test_targetsForTask(t *testing.T) {
 }
 
 func TestEnvVars(t *testing.T) {
+	os.Setenv("ENV_VAR", "envValue")
+	defer os.Unsetenv("ENV_VAR")
+
 	tests := []struct {
 		name          string
 		cliVars       map[string]string
@@ -734,11 +737,17 @@ func TestEnvVars(t *testing.T) {
   key1: fileValue1
   key2: fileValue2
   key3: fileValue3
+  key4: "${ENV_VAR}"
+  key5: "${ENV_VAR_NOT_FOUND}"
+  key6: "$ENV_VAR"
 `,
 			expectedVars: map[string]string{
 				"key1": "cliValue1",
 				"key2": "cliValue2",
 				"key3": "fileValue3",
+				"key4": "envValue",
+				"key5": "",
+				"key6": "envValue",
 			},
 			expectedError: false,
 		},
@@ -755,34 +764,53 @@ func TestEnvVars(t *testing.T) {
 			},
 			expectedError: false,
 		},
+		{
+			name: "system env var replacement",
+			cliVars: map[string]string{
+				"key1": "$ENV_VAR",
+				"key2": "${ENV_VAR}",
+				"key3": "${ENV_VAR_NOT_FOUND}",
+			},
+			envFileData: "",
+			expectedVars: map[string]string{
+				"key1": "envValue",
+				"key2": "envValue",
+				"key3": "",
+			},
+			expectedError: false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			envFile := "/tmp/env-not-exist.yaml"
 			if tt.envFileData != "" {
-				// create a temp file
 				file, err := os.CreateTemp("", "*.yaml")
 				if err != nil {
 					t.Fatalf("could not create temp file: %v", err)
 				}
-				defer os.Remove(file.Name())
+				defer os.Remove(file.Name()) // Clean up
 
-				// write data to temp file
 				if _, err = file.WriteString(tt.envFileData); err != nil {
 					t.Fatalf("could not write to temp file: %v", err)
 				}
 
-				// close file
 				if err = file.Close(); err != nil {
 					t.Fatalf("could not close temp file: %v", err)
 				}
 				envFile = file.Name()
 			}
-			// get environment variables
+
 			actualVars, err := envVars(tt.cliVars, envFile)
-			assert.Equal(t, tt.expectedError, err != nil)
+			if err != nil && !tt.expectedError {
+				t.Errorf("envVars() error = %v, expectedError %v", err, tt.expectedError)
+				return
+			}
+			if err == nil && tt.expectedError {
+				t.Errorf("envVars() expected error, got none")
+				return
+			}
+
 			assert.Equal(t, tt.expectedVars, actualVars)
 		})
 	}
