@@ -137,7 +137,7 @@ func TestColorizedWriter(t *testing.T) {
 		expectedLines []string
 	}{
 		{
-			name:     "WithPrefix no host name",
+			name:     "INFO no host name",
 			prefix:   "INFO",
 			hostAddr: "localhost",
 			input:    "This is a test message\nThis is another test message",
@@ -147,7 +147,7 @@ func TestColorizedWriter(t *testing.T) {
 			},
 		},
 		{
-			name:     "WithPrefix with host name",
+			name:     "INFO with host name",
 			prefix:   "INFO",
 			hostAddr: "localhost",
 			hostName: "my-host",
@@ -158,7 +158,7 @@ func TestColorizedWriter(t *testing.T) {
 			},
 		},
 		{
-			name:     "WithPrefix with host name and secrets",
+			name:     "host name and secrets",
 			prefix:   "INFO",
 			hostAddr: "localhost",
 			hostName: "my-host",
@@ -170,7 +170,7 @@ func TestColorizedWriter(t *testing.T) {
 			},
 		},
 		{
-			name:     "WithoutPrefix no host name",
+			name:     "no host name, no prefix",
 			prefix:   "",
 			hostAddr: "localhost",
 			input:    "This is a test message\nThis is another test message",
@@ -180,7 +180,7 @@ func TestColorizedWriter(t *testing.T) {
 			},
 		},
 		{
-			name:         "WithoutPrefix, set host name",
+			name:         "set host name using WithHost",
 			prefix:       "",
 			hostAddr:     "localhost",
 			input:        "This is a test message\nThis is another test message",
@@ -192,7 +192,19 @@ func TestColorizedWriter(t *testing.T) {
 			},
 		},
 		{
-			name:     "WithoutPrefix with host name",
+			name:         "set host name and matching host addr using WithHost",
+			prefix:       "",
+			hostAddr:     "localhost",
+			input:        "This is a test message\nThis is another test message",
+			withHostName: "127.0.0.1",
+			withHostAddr: "127.0.0.1:80",
+			expectedLines: []string{
+				"[127.0.0.1:80] This is a test message",
+				"[127.0.0.1:80] This is another test message",
+			},
+		},
+		{
+			name:     "with host name, no prefix",
 			prefix:   "",
 			hostAddr: "localhost",
 			hostName: "my-host",
