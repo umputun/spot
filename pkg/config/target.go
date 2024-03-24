@@ -189,10 +189,10 @@ func (tg *targetExtractor) destinationsFromInventory(name string) ([]Destination
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
 		log.Printf("[DEBUG] target %q used as host:port %s:%d", name, elems[0], port)
-		return []Destination{{Host: elems[0], Port: port, User: user}}, nil
+		return []Destination{{Host: elems[0], Name: elems[0], Port: port, User: user}}, nil
 	}
 
 	// we have no idea what this is, use it as host:22
 	log.Printf("[DEBUG] target %q used as host:22 %s", name, name)
-	return []Destination{{Host: name, Port: 22, User: user}}, nil
+	return []Destination{{Host: name, Name: name, Port: 22, User: user}}, nil
 }

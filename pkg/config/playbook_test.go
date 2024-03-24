@@ -428,7 +428,7 @@ func TestTargetHosts(t *testing.T) {
 		},
 		{
 			"target as single host with port", "host4.example.com:2222", nil,
-			[]Destination{{Host: "host4.example.com", Port: 2222, User: "defaultuser"}},
+			[]Destination{{Host: "host4.example.com", Name: "host4.example.com", Port: 2222, User: "defaultuser"}},
 			false,
 		},
 		{
@@ -438,17 +438,17 @@ func TestTargetHosts(t *testing.T) {
 		},
 		{
 			"target as single host address with user", "user2@host5.example.com", nil,
-			[]Destination{{Host: "host5.example.com", Port: 22, User: "user2"}},
+			[]Destination{{Host: "host5.example.com", Name: "host5.example.com", Port: 22, User: "user2"}},
 			false,
 		},
 		{
 			"target as single host address, port and user", "user2@host5.example.com:2345", nil,
-			[]Destination{{Host: "host5.example.com", Port: 2345, User: "user2"}},
+			[]Destination{{Host: "host5.example.com", Name: "host5.example.com", Port: 2345, User: "user2"}},
 			false,
 		},
 		{"invalid host:port format", "host5.example.com:invalid", nil, nil, true},
 		{"random host without a port", "host5.example.com", nil,
-			[]Destination{{Host: "host5.example.com", Port: 22, User: "defaultuser"}},
+			[]Destination{{Host: "host5.example.com", Name: "host5.example.com", Port: 22, User: "defaultuser"}},
 			false,
 		},
 		{
