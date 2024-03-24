@@ -403,6 +403,31 @@
           "items": {
             "$ref": "#/definitions/command"
           }
+        },
+        "options": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ignore_errors": {
+              "type": "boolean",
+              "default": false
+            },
+            "no_auto": {
+              "type": "boolean",
+              "default": false
+            },
+            "local": {
+              "type": "boolean",
+              "default": false
+            },
+            "only_on": {
+              "type": "array",
+              "additionalItems": false,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     }
