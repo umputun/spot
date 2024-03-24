@@ -737,11 +737,17 @@ func TestEnvVars(t *testing.T) {
   key1: fileValue1
   key2: fileValue2
   key3: fileValue3
+  key4: "${ENV_VAR}"
+  key5: "${ENV_VAR_NOT_FOUND}"
+  key6: "$ENV_VAR"
 `,
 			expectedVars: map[string]string{
 				"key1": "cliValue1",
 				"key2": "cliValue2",
 				"key3": "fileValue3",
+				"key4": "envValue",
+				"key5": "",
+				"key6": "envValue",
 			},
 			expectedError: false,
 		},
