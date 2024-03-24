@@ -9,21 +9,21 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 ## Features
 
 - Define [tasks](#tasks-and-commands) with a list of [commands](#command-types) and the list of [target hosts](#targets).
-- Support for remote hosts specified directly or through [inventory](#inventory) files/URLs.
+- Support for remote hosts specified directly or through [inventory](#inventory) files or URLs.
 - Everything can be defined in a [simple YAML](#full-playbook-example) or TOML file.
 - Run [scripts](#script-execution) on remote hosts and the localhost.
 - Built-in [commands](#command-types): script, copy, sync, delete, echo, and wait.
-- [Concurrent](#rolling-updates) execution of task on multiple hosts.
+- [Concurrent](#rolling-updates) execution of a task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
-- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider) secrets storage, [Vault](#hashicorp-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider).
+- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider) secrets storage, [Vault](#hashicorp-vault-secrets-provider), [ansible vault](#ansible-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider).
 - Ability to [override](#command-options) list of destination hosts, ssh username and ssh key file.
 - Skip or execute only specific commands.
 - Catch errors and execute a command hook on the local host.
 - Debug mode to print out the commands to be executed, the output of the commands, and all the other details.
 - Dry-run mode to print out the commands to be executed without executing them.
 - [Ad-hoc mode](#ad-hoc-commands) to execute a single command on a list of hosts.
-- A [single binary](https://github.com/umputun/spot/releases) with no dependencies.
+- A [single binary](https://github.com/umputun/spot/releases) with no external dependencies.
 ----
 
 <div align="center">
