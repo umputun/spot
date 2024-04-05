@@ -777,7 +777,9 @@ _for more info see [go templates](https://pkg.go.dev/text/template)_
 
 Spot supports runtime variables that can be used in the playbook file. The following variables are supported:
 
-- `{SPOT_REMOTE_HOST}`: The remote hostname or IP address.
+- `{SPOT_REMOTE_HOST}`: The remote hostname or IP address with port.
+- `{SPOT_REMOTE_ADDR}`: The remote hostname or IP address.
+- `{SPOT_REMOTE_PORT}`: The remote port.
 - `{SPOT_REMOTE_NAME}`: The remote custom name, set in inventory or playbook as `name`.
 - `{SPOT_REMOTE_USER}`: The remote username.
 - `{SPOT_COMMAND}`: The command name.
