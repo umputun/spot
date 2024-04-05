@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	mr "math/rand"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -488,6 +489,16 @@ func (tm *templater) apply(inp string) string {
 	res = apply(res, "SPOT_COMMAND", tm.command)
 	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
 	res = apply(res, "SPOT_TASK", tm.task.Name)
+
+	// split hostAddr to SPOT_REMOTE_ADDR and SPOT_REMOTE_PORT
+	host, port, err := net.SplitHostPort(tm.hostAddr)
+	if err == nil {
+		res = apply(res, "SPOT_REMOTE_ADDR", host)
+		res = apply(res, "SPOT_REMOTE_PORT", port)
+	} else {
+		res = apply(res, "SPOT_REMOTE_ADDR", tm.hostAddr)
+		res = apply(res, "SPOT_REMOTE_PORT", "22") // set to default ssh port
+	}
 
 	if tm.err != nil {
 		res = apply(res, "SPOT_ERROR", tm.err.Error())

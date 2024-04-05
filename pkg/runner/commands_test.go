@@ -28,15 +28,40 @@ func Test_templaterApply(t *testing.T) {
 		expected string
 	}{
 		{
-			name: "all_variables",
-			inp:  "${SPOT_REMOTE_HOST}:${SPOT_REMOTE_USER}:${SPOT_COMMAND}:{SPOT_REMOTE_NAME}",
+			name: "all variables, hostAddr without port",
+			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
+				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "example.com",
 				hostName: "example",
 				command:  "ls",
 				task:     &config.Task{Name: "task1", User: "user"},
 			},
-			expected: "example.com:user:ls:example",
+			expected: "example.com user ls example example.com 22",
+		},
+		{
+			name: "all variables, hostAddr with port",
+			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
+				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+			tmpl: templater{
+				hostAddr: "example.com:22022",
+				hostName: "example",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
+			},
+			expected: "example.com:22022 user ls example example.com 22022",
+		},
+		{
+			name: "all variables, hostAddr ipv6 with port",
+			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
+				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+			tmpl: templater{
+				hostAddr: "[2001:db8::1]:22022",
+				hostName: "example",
+				command:  "ls",
+				task:     &config.Task{Name: "task1", User: "user"},
+			},
+			expected: "[2001:db8::1]:22022 user ls example 2001:db8::1 22022",
 		},
 		{
 			name: "no_variables",
