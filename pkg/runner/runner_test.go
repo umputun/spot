@@ -582,7 +582,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("multi-line script with verbose", func(t *testing.T) {
+	t.Run("multi-line script with verbose (1)", func(t *testing.T) {
 		log.SetOutput(io.Discard)
 		stdout := captureStdOut(t, func() {
 			logs := executor.MakeLogs(true, false, nil)
@@ -599,6 +599,37 @@ func TestProcess_RunVerbose(t *testing.T) {
 				Logs:        logs,
 				Only:        []string{"copy configuration", "some command"},
 				Verbose:     true,
+				Verbose2:    false,
+			}
+
+			_, err = p.Run(ctx, "task1", testingHostAndPort)
+			require.NoError(t, err)
+		})
+
+		t.Log(stdout)
+		assert.NotContains(t, stdout, `+ #!/bin/sh`)
+		assert.NotContains(t, stdout, `+ du -hcs /srv`)
+		assert.Contains(t, stdout, ">       - name: wait\n")
+	})
+
+	t.Run("multi-line script with verbose (2)", func(t *testing.T) {
+		log.SetOutput(io.Discard)
+		stdout := captureStdOut(t, func() {
+			logs := executor.MakeLogs(true, false, nil)
+			connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+			require.NoError(t, err)
+
+			conf, err := config.New("testdata/conf.yml", nil, nil)
+			require.NoError(t, err)
+
+			p := Process{
+				Concurrency: 1,
+				Connector:   connector,
+				Playbook:    conf,
+				Logs:        logs,
+				Only:        []string{"copy configuration", "some command"},
+				Verbose:     true,
+				Verbose2:    true,
 			}
 
 			_, err = p.Run(ctx, "task1", testingHostAndPort)
@@ -608,6 +639,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		t.Log(stdout)
 		assert.Contains(t, stdout, `+ #!/bin/sh`)
 		assert.Contains(t, stdout, `+ du -hcs /srv`)
+		assert.Contains(t, stdout, ">       - name: wait\n")
 	})
 }
 

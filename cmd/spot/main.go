@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -58,12 +59,12 @@ type options struct {
 	GenTemplate string `long:"gen.template" description:"template file" default:"json"`
 	GenOutput   string `long:"gen.output" description:"output file" default:"stdout"`
 
-	Version bool `long:"version" description:"show version"`
+	Version bool `short:"V" long:"version" description:"show version"`
 
-	NoColor bool `long:"no-color" env:"SPOT_NO_COLOR" description:"disable color output"`
-	Dry     bool `long:"dry" description:"dry run"`
-	Verbose bool `short:"v" long:"verbose" description:"verbose mode"`
-	Dbg     bool `long:"dbg" description:"debug mode"`
+	NoColor bool   `long:"no-color" env:"SPOT_NO_COLOR" description:"disable color output"`
+	Dry     bool   `long:"dry" description:"dry run"`
+	Verbose []bool `short:"v" long:"verbosity" description:"Verbosity level"`
+	Dbg     bool   `long:"dbg" description:"debug mode"`
 }
 
 // SecretsProvider defines secrets provider options, for all supported providers
@@ -97,12 +98,19 @@ func main() {
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
-		os.Exit(1)
+		if !errors.Is(err.(*flags.Error).Type, flags.ErrHelp) {
+			// cli error, not help
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+		os.Exit(0) // help printed
 	}
+
 	if opts.Version {
 		fmt.Printf("spot %s\n", revision)
-		os.Exit(0) // already printed
+		os.Exit(0)
 	}
+
 	setupLog(opts.Dbg) // set initial log, will be updated later with secrets
 
 	if !opts.GenEnable || opts.GenOutput != "stdout" {
@@ -320,7 +328,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
-	logs := executor.MakeLogs(opts.Verbose, opts.NoColor, pbook.AllSecretValues())
+	logs := executor.MakeLogs(len(opts.Verbose) > 0, opts.NoColor, pbook.AllSecretValues())
 	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout, logs)
 	if err != nil {
 		return nil, fmt.Errorf("can't create connector: %w", err)
@@ -336,7 +344,8 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Only:        opts.Only,
 		Skip:        opts.Skip,
 		Logs:        logs,
-		Verbose:     opts.Verbose,
+		Verbose:     len(opts.Verbose) > 0,
+		Verbose2:    len(opts.Verbose) > 1,
 		Dry:         opts.Dry,
 		SSHShell:    opts.SSHShell,
 	}
