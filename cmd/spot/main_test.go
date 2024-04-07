@@ -473,7 +473,7 @@ func Test_sshAgentForwarding(t *testing.T) {
 		Dbg:             true,
 	}
 
-	cmd := fmt.Sprintf("ssh-add -l | awk \"{ print \\$2 }\" > f1; echo \"%s\" > f2; diff f1 f2",
+	cmd := fmt.Sprintf("ssh-add -l | awk \"{ print \\$2 }\" > f1; echo %q > f2; diff f1 f2",
 		getKeyFingerprint(t, "testdata/test_ssh_key"))
 
 	opts.PositionalArgs.AdHocCmd = cmd
