@@ -9,21 +9,21 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 ## Features
 
 - Define [tasks](#tasks-and-commands) with a list of [commands](#command-types) and the list of [target hosts](#targets).
-- Support for remote hosts specified directly or through [inventory](#inventory) files/URLs.
+- Support for remote hosts specified directly or through [inventory](#inventory) files or URLs.
 - Everything can be defined in a [simple YAML](#full-playbook-example) or TOML file.
 - Run [scripts](#script-execution) on remote hosts and the localhost.
 - Built-in [commands](#command-types): script, copy, sync, delete, echo, and wait.
-- [Concurrent](#rolling-updates) execution of task on multiple hosts.
+- [Concurrent](#rolling-updates) execution of a task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
-- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider) secrets storage, [Vault](#hashicorp-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider).
+- Support for [secrets](#secrets) stored in the [built-in](#built-in-secrets-provider) secrets storage, [Vault](#hashicorp-vault-secrets-provider), [ansible vault](#ansible-vault-secrets-provider) or [AWS Secrets Manager](#aws-secrets-manager-secrets-provider).
 - Ability to [override](#command-options) list of destination hosts, ssh username and ssh key file.
 - Skip or execute only specific commands.
 - Catch errors and execute a command hook on the local host.
 - Debug mode to print out the commands to be executed, the output of the commands, and all the other details.
 - Dry-run mode to print out the commands to be executed without executing them.
 - [Ad-hoc mode](#ad-hoc-commands) to execute a single command on a list of hosts.
-- A [single binary](https://github.com/umputun/spot/releases) with no dependencies.
+- A [single binary](https://github.com/umputun/spot/releases) with no external dependencies.
 ----
 
 <div align="center">
@@ -142,8 +142,8 @@ Spot supports the following command-line options:
 - `-k`, `--key=`: Specifies the SSH key for connecting to remote hosts. Overrides the key defined in the playbook file.
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
-- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`.
-- `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
+- `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`. Values could be taken from the OS environment variables as well, e.g., `-e VAR1:$ENV_VAR1` or `-e VAR1:${ENV_VAR1}`.
+- `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The file can have values from the OS environment variables as well. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
 - `--no-color`: disable the colorized output. It can also be set with the environment variable `SPOT_NO_COLOR`.
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution.
@@ -451,6 +451,17 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
       - name: wait
         script: sleep 5s
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
+```
+
+The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
+
+```yaml
+  - name: deploy-things
+    on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
+    options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
+    commands:
+      - name: wait
+        script: sleep 5s
 ```
 
 ### Command conditionals
@@ -767,7 +778,9 @@ _for more info see [go templates](https://pkg.go.dev/text/template)_
 
 Spot supports runtime variables that can be used in the playbook file. The following variables are supported:
 
-- `{SPOT_REMOTE_HOST}`: The remote hostname or IP address.
+- `{SPOT_REMOTE_HOST}`: The remote hostname or IP address with port.
+- `{SPOT_REMOTE_ADDR}`: The remote hostname or IP address.
+- `{SPOT_REMOTE_PORT}`: The remote port.
 - `{SPOT_REMOTE_NAME}`: The remote custom name, set in inventory or playbook as `name`.
 - `{SPOT_REMOTE_USER}`: The remote username.
 - `{SPOT_COMMAND}`: The command name.
@@ -825,6 +838,22 @@ tasks:
 ```
 
 In this case secrets for keys `user`, `password` and `token` will be read from the secrets provider, decrypted at runtime, and passed to the command in the environment. Please note: if a user runs `spot` with the `--verbose` or `--dbg` flag, the secrets will be replaced with `****` in the output. This is done to prevent secrets from being displayed or logged.
+
+
+Sometimes, users may want to use the same set of secrets in multiple commands. To avoid repeating the secrets in each command, users can set `secrets` at the task level, as shown in the following example:
+
+```yaml
+tasks:
+  - name: access sensitive data
+    commands:
+      - name: read api response
+        script: |
+          curl -s -u ${user}:${password} https://api.example.com  
+          curl https://api.example.com -H "Authorization: Bearer ${token}"
+    options:
+      secrets: [user, password, token]
+```
+
 
 ### Built-in Secrets Provider
 
