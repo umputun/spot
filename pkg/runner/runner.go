@@ -33,6 +33,7 @@ type Process struct {
 	Playbook    Playbook
 	Logs        executor.Logs
 	Verbose     bool
+	Verbose2    bool
 	Dry         bool
 	SSHShell    string
 
@@ -204,7 +205,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		stCmd := time.Now()
 
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
-			verbose: p.Verbose, sshShell: p.SSHShell, onExit: cmd.OnExit}
+			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, onExit: cmd.OnExit}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName
@@ -232,7 +233,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 
 		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
 
-		if exResp.verbose != "" && ec.verbose {
+		if exResp.verbose != "" && ec.verbose2 {
 			report(repHostAddr, repHostName, exResp.verbose)
 		}
 
@@ -253,7 +254,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	if p.anyRemoteCommand(&activeTask) {
 		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, count, since(stTask))
 	} else {
-		report("localhost", "", "completed task %q, commands: %d (%v)\n", activeTask.Name, count, since(stTask))
+		report("localhost", "", "completed task %q, commands: %d (%v)\n",
+			activeTask.Name, count, since(stTask))
 	}
 
 	return count, tskVars, nil

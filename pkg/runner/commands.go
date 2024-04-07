@@ -29,6 +29,7 @@ type execCmd struct {
 	tsk      *config.Task
 	exec     executor.Interface
 	verbose  bool
+	verbose2 bool
 	sshShell string
 	onExit   string
 }

@@ -37,7 +37,6 @@ linters:
     - revive
     - govet
     - unconvert
-    - megacheck
     - gas
     - dupl
     - misspell
