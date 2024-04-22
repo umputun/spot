@@ -298,7 +298,8 @@ Here are the main differences between the two types of playbooks:
 - The full playbook supports multiple target sets, while the simplified playbook only supports a single target set. In other words, the full playbook can execute the same set of commands on multiple environments, with each environment defined as a separate target set. The simplified playbook can execute the same set of commands in just one environment.
 - The full playbook supports multiple tasks, while the simplified playbook only supports a single task. This means that the full playbook can execute multiple sets of commands, whereas the simplified playbook can only execute one set of commands.
 - The full playbook supports various target types, such as `hosts`, `groups`, and `names`, while the simplified playbook only supports a single type, which is a list of names or host addresses. See the [Targets](#targets) section for more details.
-- The simplified playbook does not support task-level `on_error`, `user`, and `ssh_key` fields, while the full playbook does. See the [Task details](#tasks-and-commands) section for more information.
+- The simplified playbook does not support task-level `on_error` field, while the full playbook does. See the [Task details](#tasks-and-commands) section for more information.
+- The full playbook also supports task-level `user` field, which allows setting the SSH user to use when connecting to remote hosts for the particular task.
 - The simplified playbook also has `target` field (in addition to `targets`) that allows setting a single host/name only. This is useful when users want to run the playbook on a single host only. The full playbook does not have this field.
 
 Both types of playbooks support the remaining fields and options.

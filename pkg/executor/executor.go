@@ -10,7 +10,7 @@ import (
 )
 
 // Interface is an interface for the executor.
-// Implemented by Remote and Local structs.
+// Implemented by Remote, Local and Dry structs.
 type Interface interface {
 	Run(ctx context.Context, c string, opts *RunOpts) (out []string, err error)
 	Upload(ctx context.Context, local, remote string, opts *UpDownOpts) (err error)

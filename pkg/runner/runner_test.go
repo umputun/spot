@@ -352,6 +352,29 @@ func TestProcess_Run(t *testing.T) {
 		assert.NotContains(t, outWriter.String(), ` > good command 2`)
 		assert.NotContains(t, outWriter.String(), ` > good command 3`)
 	})
+
+	t.Run("script with task-level user", func(t *testing.T) {
+		testingHostAndPort, teardown := startTestContainerWithCustomUser(t, "test2")
+		defer teardown()
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			Logs:        logs,
+		}
+
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		_, err = p.Run(ctx, "with_task_user", testingHostAndPort)
+		assert.NoError(t, err)
+		assert.Contains(t, outWriter.String(), ` > good command 1`)
+		assert.Contains(t, outWriter.String(), `(test2)`)
+		assert.Contains(t, outWriter.String(), ` > test2`)
+	})
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {
@@ -1056,6 +1079,10 @@ func TestGen(t *testing.T) {
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
+	return startTestContainerWithCustomUser(t, "test")
+}
+
+func startTestContainerWithCustomUser(t *testing.T, user string) (hostAndPort string, teardown func()) {
 	ctx := context.Background()
 	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
 	require.NoError(t, err)
@@ -1069,7 +1096,7 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 		},
 		Env: map[string]string{
 			"PUBLIC_KEY":  string(pubKey),
-			"USER_NAME":   "test",
+			"USER_NAME":   user,
 			"TZ":          "Etc/UTC",
 			"SUDO_ACCESS": "true",
 		},

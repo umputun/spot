@@ -88,7 +88,11 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	for i, host := range targetHosts {
 		i, host := i, host
 		wg.Go(func() error {
-			count, vv, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, host.User)
+			user := host.User // default user from target
+			if tsk.User != "" {
+				user = tsk.User // override user from task if any set
+			}
+			count, vv, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(count))
 			}
@@ -167,7 +171,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
 		if err != nil {
 			if hostName != "" {
-				return 0, nil, fmt.Errorf("can't connect to %s: %w", hostName, err)
+				return 0, nil, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
 			}
 			return 0, nil, err
 		}
@@ -182,6 +186,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 
 	// copy task to prevent one task on hostA modifying task on hostB as it does updateVars
 	activeTask := deepcopy.Copy(*tsk).(config.Task)
+	// set the active user to the task itself. this is done to match the passed user for any upstream handlers,
+	// for example, SPOT_REMOTE_USER env var is using task.User and expected to be set to the one used to connect to the host
+	activeTask.User = user
 
 	onExitCmds := []execCmd{}
 	defer func() {
