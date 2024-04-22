@@ -196,3 +196,11 @@ tasks:
           echo "on exit called for copy. task: ${SPOT_TASK}, host: ${SPOT_REMOTE_HOST}, error: ${SPOT_ERROR}"
           rm -fv /tmp/conf-blah.yml
 
+  - name: with_task_user
+    user: test2
+    commands:
+      - name: some command
+        script: |
+          echo good command 1
+          echo $(id -a)
+          echo $SPOT_REMOTE_USER
