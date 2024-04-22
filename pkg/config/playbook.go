@@ -350,9 +350,6 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	}
 
 	res.Name = name
-	if res.User == "" {
-		res.User = p.User // if user not set in task, use default from playbook
-	}
 
 	// apply overrides of user
 	if p.overrides != nil && p.overrides.User != "" {
