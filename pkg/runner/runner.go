@@ -57,12 +57,18 @@ type Playbook interface {
 
 // ProcResp holds the information about processed commands and hosts.
 type ProcResp struct {
-	Vars     map[string]string
-	Commands int
-	Hosts    int
+	Vars       map[string]string
+	Registered map[string]string
+	Commands   int
+	Hosts      int
 }
 
-type vars map[string]string
+// taskOnHostResp is the response from runTaskOnHost.
+type taskOnHostResp struct {
+	count      int
+	vars       map[string]string
+	registered map[string]string
+}
 
 // Run runs a task for a set of target hosts. Runs in parallel with limited concurrency,
 // each host is processed in separate goroutine. Returns ProcResp with the information about processed commands and hosts
@@ -75,6 +81,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
 
 	allVars := make(map[string]string)
+	allRegistered := make(map[string]string)
 	targetHosts, err := p.Playbook.TargetHosts(target)
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get target %s: %w", target, err)
@@ -92,9 +99,9 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 			if tsk.User != "" {
 				user = tsk.User // override user from task if any set
 			}
-			count, vv, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
+			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
 			if i == 0 {
-				atomic.AddInt32(&commands, int32(count))
+				atomic.AddInt32(&commands, int32(resp.count))
 			}
 
 			lock.Lock()
@@ -102,8 +109,11 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 				errLog := p.Logs.WithHost(host.Host, host.Name).Err
 				errLog.Write([]byte(e.Error())) // nolint
 			}
-			for k, v := range vv {
+			for k, v := range resp.vars {
 				allVars[k] = v
+			}
+			for k, v := range resp.registered {
+				allRegistered[k] = v
 			}
 			lock.Unlock()
 
@@ -117,7 +127,12 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 		p.onError(ctx, err)
 	}
 
-	return ProcResp{Hosts: len(targetHosts), Commands: int(atomic.LoadInt32(&commands)), Vars: allVars}, err
+	return ProcResp{
+		Hosts:      len(targetHosts),
+		Commands:   int(atomic.LoadInt32(&commands)),
+		Vars:       allVars,
+		Registered: allRegistered,
+	}, err
 }
 
 // Gen generates the list target hosts for a given target, applying templates.
@@ -156,7 +171,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
 // returns number of executed commands, vars from all commands and error if any.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (int, vars, error) {
+func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (taskOnHostResp, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
 		p.Logs.WithHost(hostAddr, hostName).Info.Printf(f, vals...)
 	}
@@ -171,9 +186,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
 		if err != nil {
 			if hostName != "" {
-				return 0, nil, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
+				return taskOnHostResp{}, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
 			}
-			return 0, nil, err
+			return taskOnHostResp{}, err
 		}
 		defer remote.Close()
 		report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
@@ -181,8 +196,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		report("localhost", "", "run task %q, commands: %d (local)\n", tsk.Name, len(tsk.Commands))
 	}
 
-	count := 0
-	tskVars := vars{}
+	resp := taskOnHostResp{vars: make(map[string]string), registered: make(map[string]string)}
 
 	// copy task to prevent one task on hostA modifying task on hostB as it does updateVars
 	activeTask := deepcopy.Copy(*tsk).(config.Task)
@@ -232,14 +246,16 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
-				return count, nil, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
+				return resp, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
 			}
 			report(ec.hostAddr, ec.hostName, "failed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
 			continue
 		}
 
 		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
-
+		for k, v := range exResp.registered {       // store registered variables from command output
+			resp.registered[k] = v
+		}
 		if exResp.verbose != "" && ec.verbose2 {
 			report(repHostAddr, repHostName, exResp.verbose)
 		}
@@ -252,20 +268,20 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		details := re.ReplaceAllString(exResp.details, "${1}[multiline script]}")
 		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
 
-		count++
+		resp.count++
 		for k, v := range exResp.vars {
-			tskVars[k] = v
+			resp.vars[k] = v
 		}
 	}
 
 	if p.anyRemoteCommand(&activeTask) {
-		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, count, since(stTask))
+		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, resp.count, since(stTask))
 	} else {
 		report("localhost", "", "completed task %q, commands: %d (%v)\n",
-			activeTask.Name, count, since(stTask))
+			activeTask.Name, resp.count, since(stTask))
 	}
 
-	return count, tskVars, nil
+	return resp, nil
 }
 
 // execCommand executes a single command on a target host.

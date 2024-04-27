@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-pkgz/stringutils"
+
 	"github.com/umputun/spot/pkg/config"
 	"github.com/umputun/spot/pkg/executor"
 )
@@ -35,10 +37,11 @@ type execCmd struct {
 }
 
 type execCmdResp struct {
-	details string
-	verbose string
-	vars    map[string]string
-	onExit  execCmd
+	details    string
+	verbose    string
+	vars       map[string]string
+	onExit     execCmd
+	registered map[string]string
 }
 
 type execCmdErr struct {
@@ -99,7 +102,8 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	// collect setvar output to vars and latter it will be set to the environment. This is needed for the next commands.
 	// setenv output is in the format of "setenv foo=bar" and it is appended to the output by the script itself.
 	// this part done inside exec.scriptFile function.
-	resp.vars = make(map[string]string)
+	resp.vars = make(map[string]string)       // all variables set by the script, used for the next commands in the same task
+	resp.registered = make(map[string]string) // only variables that are registered used for the next tasks too
 	for _, line := range out {
 		if !strings.HasPrefix(line, "setvar ") {
 			continue
@@ -108,7 +112,11 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		if len(parts) != 2 {
 			continue
 		}
-		resp.vars[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		resp.vars[key] = val
+		if stringutils.Contains(key, ec.cmd.Register) {
+			resp.registered[key] = val
+		}
 	}
 
 	return resp, nil

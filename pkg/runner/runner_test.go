@@ -171,6 +171,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `> var bar: 9`)
 		assert.Contains(t, outWriter.String(), `> var baz: qux`, "was not overwritten")
 		assert.EqualValues(t, map[string]string{"bar": "9", "bar2": "10", "baz": "zzzzz", "foo": "6", "foo2": "7"}, res.Vars)
+		assert.EqualValues(t, map[string]string{"bar2": "10", "foo2": "7"}, res.Registered)
 	})
 
 	t.Run("with secrets", func(t *testing.T) {
