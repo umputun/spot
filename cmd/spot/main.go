@@ -368,7 +368,8 @@ func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetNa
 	}
 	log.Printf("[INFO] completed: hosts:%d, commands:%d in %v\n",
 		res.Hosts, res.Commands, time.Since(st).Truncate(100*time.Millisecond))
-	r.Playbook.UpdateTasksTargets(res.Vars) // for dynamic targets
+	r.Playbook.UpdateTasksTargets(res.Vars)         // for dynamic targets
+	r.Playbook.UpdateRegisteredVars(res.Registered) // for registered vars, cross-task
 	return nil
 }
 

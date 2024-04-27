@@ -437,6 +437,30 @@ func (p *PlayBook) UpdateTasksTargets(vars map[string]string) {
 	}
 }
 
+// UpdateRegisteredVars takes the list of registered vars from the caller handling task execution
+// and updates the environment variables of all commands in the playbook with the values from the list.
+func (p *PlayBook) UpdateRegisteredVars(vars map[string]string) {
+	if len(vars) == 0 {
+		return
+	}
+	log.Printf("[DEBUG] update registered vars %+v", vars)
+	for k, v := range vars {
+		for _, tsk := range p.Tasks {
+			for i, c := range tsk.Commands {
+				env := c.Environment
+				if env == nil {
+					env = make(map[string]string)
+				}
+				if _, ok := env[k]; ok { // don't allow override already set vars. TODO: not sure if this is correct
+					continue
+				}
+				env[k] = v
+				tsk.Commands[i].Environment = env
+			}
+		}
+	}
+}
+
 // loadInventory loads the inventory data from the specified location (file or URL) and returns it as an InventoryData struct.
 // The inventory data is parsed as either YAML or TOML, depending on the file extension.
 // The method also performs some additional processing on the inventory data:
