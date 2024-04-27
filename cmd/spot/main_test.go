@@ -147,6 +147,30 @@ func Test_runCompleted(t *testing.T) {
 		})
 		t.Log("out\n", logOut)
 	})
+
+	t.Run("run with registered variables", func(t *testing.T) {
+		opts := options{
+			SSHUser:      "test",
+			SSHKey:       "testdata/test_ssh_key",
+			PlaybookFile: "testdata/conf.yml",
+			TaskNames:    []string{"set_register_var", "use_register_var"},
+			Targets:      []string{hostAndPort},
+			SecretsProvider: SecretsProvider{
+				Provider: "spot",
+				Conn:     "testdata/test-secrets.db",
+				Key:      "1234567890",
+			},
+			Dbg:     true,
+			Verbose: []bool{true},
+		}
+		logOut := captureStdout(t, func() {
+			err := run(opts)
+			require.NoError(t, err)
+		})
+		t.Log("out\n", logOut)
+		assert.Contains(t, logOut, " > setvar len=13")
+		assert.Contains(t, logOut, " > len: 13")
+	})
 }
 
 func Test_runCompletedSimplePlaybook(t *testing.T) {

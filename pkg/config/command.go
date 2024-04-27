@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-pkgz/stringutils"
 	"gopkg.in/yaml.v3"
 )
 
@@ -212,15 +213,21 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	}
 
 	// each exported variable is printed as a setvar command to be captured by the caller
+	exported := []string{} // collect all exported variables to avoid duplicates in setvar output
 	if len(exports) > 0 {
 		for _, v := range exports {
 			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", v, v))
+			exported = append(exported, v)
 		}
 	}
 
 	// each register variable is printed as a setvar command to be captured by the caller
 	if len(register) > 0 {
 		for _, v := range register {
+			if stringutils.Contains(v, exported) {
+				// if already exported, we don't need to print it again
+				continue
+			}
 			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", v, v))
 		}
 	}

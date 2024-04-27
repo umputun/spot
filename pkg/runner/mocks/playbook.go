@@ -27,6 +27,9 @@ import (
 //			TaskFunc: func(name string) (*config.Task, error) {
 //				panic("mock out the Task method")
 //			},
+//			UpdateRegisteredVarsFunc: func(vars map[string]string)  {
+//				panic("mock out the UpdateRegisteredVars method")
+//			},
 //			UpdateTasksTargetsFunc: func(vars map[string]string)  {
 //				panic("mock out the UpdateTasksTargets method")
 //			},
@@ -49,6 +52,9 @@ type PlaybookMock struct {
 	// TaskFunc mocks the Task method.
 	TaskFunc func(name string) (*config.Task, error)
 
+	// UpdateRegisteredVarsFunc mocks the UpdateRegisteredVars method.
+	UpdateRegisteredVarsFunc func(vars map[string]string)
+
 	// UpdateTasksTargetsFunc mocks the UpdateTasksTargets method.
 	UpdateTasksTargetsFunc func(vars map[string]string)
 
@@ -70,17 +76,23 @@ type PlaybookMock struct {
 			// Name is the name argument value.
 			Name string
 		}
+		// UpdateRegisteredVars holds details about calls to the UpdateRegisteredVars method.
+		UpdateRegisteredVars []struct {
+			// Vars is the vars argument value.
+			Vars map[string]string
+		}
 		// UpdateTasksTargets holds details about calls to the UpdateTasksTargets method.
 		UpdateTasksTargets []struct {
 			// Vars is the vars argument value.
 			Vars map[string]string
 		}
 	}
-	lockAllSecretValues    sync.RWMutex
-	lockAllTasks           sync.RWMutex
-	lockTargetHosts        sync.RWMutex
-	lockTask               sync.RWMutex
-	lockUpdateTasksTargets sync.RWMutex
+	lockAllSecretValues      sync.RWMutex
+	lockAllTasks             sync.RWMutex
+	lockTargetHosts          sync.RWMutex
+	lockTask                 sync.RWMutex
+	lockUpdateRegisteredVars sync.RWMutex
+	lockUpdateTasksTargets   sync.RWMutex
 }
 
 // AllSecretValues calls AllSecretValuesFunc.
@@ -198,6 +210,38 @@ func (mock *PlaybookMock) TaskCalls() []struct {
 	mock.lockTask.RLock()
 	calls = mock.calls.Task
 	mock.lockTask.RUnlock()
+	return calls
+}
+
+// UpdateRegisteredVars calls UpdateRegisteredVarsFunc.
+func (mock *PlaybookMock) UpdateRegisteredVars(vars map[string]string) {
+	if mock.UpdateRegisteredVarsFunc == nil {
+		panic("PlaybookMock.UpdateRegisteredVarsFunc: method is nil but Playbook.UpdateRegisteredVars was just called")
+	}
+	callInfo := struct {
+		Vars map[string]string
+	}{
+		Vars: vars,
+	}
+	mock.lockUpdateRegisteredVars.Lock()
+	mock.calls.UpdateRegisteredVars = append(mock.calls.UpdateRegisteredVars, callInfo)
+	mock.lockUpdateRegisteredVars.Unlock()
+	mock.UpdateRegisteredVarsFunc(vars)
+}
+
+// UpdateRegisteredVarsCalls gets all the calls that were made to UpdateRegisteredVars.
+// Check the length with:
+//
+//	len(mockedPlaybook.UpdateRegisteredVarsCalls())
+func (mock *PlaybookMock) UpdateRegisteredVarsCalls() []struct {
+	Vars map[string]string
+} {
+	var calls []struct {
+		Vars map[string]string
+	}
+	mock.lockUpdateRegisteredVars.RLock()
+	calls = mock.calls.UpdateRegisteredVars
+	mock.lockUpdateRegisteredVars.RUnlock()
 	return calls
 }
 
