@@ -70,3 +70,17 @@ tasks:
         script: echo good command 1
       - name: wait
         wait: {cmd: "echo wait done", timeout: 5s, interval: 1s}
+
+  - name: set_register_var
+    commands:
+      - name: some command
+        script: |
+          echo good command 1
+          len=$(echo "file content" | wc -c)
+        register: [len]
+
+  - name: use_register_var
+    commands:
+      - name: some command
+        script: |
+          echo "len: $len"
