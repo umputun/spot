@@ -603,6 +603,27 @@ commands:
     copy: {src: $FILE_NAME, dest: /tmp/file2}
 ```
 
+Another unique feature of the registered variables is that they can be used not only in the subsequent commands for the current task but also in the subsequent tasks. This allows users to pass variables between tasks. In other words, the registered variables are populated to the environment of all the tasks in the playbook, automatically.
+
+example:
+
+```yaml
+tasks:
+  - name: set_register_var
+    commands:
+      - name: some command
+        script: |
+          echo good command 1
+          len=$(echo "file content" | wc -c)
+        register: [len]
+
+  - name: use_register_var
+    commands:
+      - name: some command
+        script: |
+          echo "len: $len"
+```
+
 ### Setting environment variables
 
 Environment variables can be set with `--env` / `-e` cli option. For example: `-e VAR1:VALUE1 -e VAR2:VALUE2`. Environment variables can also be set in the environment file (default `env.yml` can be changed with `--env-file` / `-E` cli flag). For example:
