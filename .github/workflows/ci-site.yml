@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: build and deploy master image site to ghcr.io and dockerhub
         if: ${{ github.ref == 'refs/heads/master' }}
