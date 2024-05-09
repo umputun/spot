@@ -446,6 +446,7 @@ func (m *mutex) lock(id int32) int32 {
 
 			m.Unlock()
 			m.wait.Lock()
+			// intentional empty section - wake up other waiters
 			m.wait.Unlock()
 		}
 	default:

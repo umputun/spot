@@ -1,3 +1,11 @@
+# v1.16.1 (2024-03-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.16.0 (2024-03-21)
+
+* **Feature**: Add config switch `DisableDefaultTimeout` that allows you to disable the default operation timeout (5 seconds) for IMDS calls.
+
 # v1.15.4 (2024-03-18)
 
 * **Dependency Update**: Updated to the latest SDK module versions
