@@ -721,7 +721,7 @@ type tx struct {
 	c *conn
 }
 
-func newTx(c *conn, opts driver.TxOptions) (*tx, error) {
+func newTx(ctx context.Context, c *conn, opts driver.TxOptions) (*tx, error) {
 	r := &tx{c: c}
 
 	sql := "begin"
@@ -729,7 +729,7 @@ func newTx(c *conn, opts driver.TxOptions) (*tx, error) {
 		sql = "begin " + c.beginMode
 	}
 
-	if err := r.exec(context.Background(), sql); err != nil {
+	if err := r.exec(ctx, sql); err != nil {
 		return nil, err
 	}
 
@@ -1205,32 +1205,6 @@ func (c *conn) bindText(pstmt uintptr, idx1 int, value string) (uintptr, error) 
 
 // C documentation
 //
-//	int sqlite3_bind_blob(sqlite3_stmt*, int, const void*, int n, void(*)(void*));
-func (c *conn) bindBlob(pstmt uintptr, idx1 int, value []byte) (uintptr, error) {
-	if value != nil && len(value) == 0 {
-		if rc := sqlite3.Xsqlite3_bind_zeroblob(c.tls, pstmt, int32(idx1), 0); rc != sqlite3.SQLITE_OK {
-			return 0, c.errstr(rc)
-		}
-		return 0, nil
-	}
-
-	p, err := c.malloc(len(value))
-	if err != nil {
-		return 0, err
-	}
-	if len(value) != 0 {
-		copy((*libc.RawMem)(unsafe.Pointer(p))[:len(value):len(value)], value)
-	}
-	if rc := sqlite3.Xsqlite3_bind_blob(c.tls, pstmt, int32(idx1), p, int32(len(value)), 0); rc != sqlite3.SQLITE_OK {
-		c.free(p)
-		return 0, c.errstr(rc)
-	}
-
-	return p, nil
-}
-
-// C documentation
-//
 //	int sqlite3_bind_int(sqlite3_stmt*, int, int);
 func (c *conn) bindInt(pstmt uintptr, idx1, value int) (err error) {
 	if rc := sqlite3.Xsqlite3_bind_int(c.tls, pstmt, int32(idx1), int32(value)); rc != sqlite3.SQLITE_OK {
@@ -1445,7 +1419,7 @@ func (c *conn) Begin() (dt driver.Tx, err error) {
 }
 
 func (c *conn) begin(ctx context.Context, opts driver.TxOptions) (t driver.Tx, err error) {
-	return newTx(c, opts)
+	return newTx(ctx, c, opts)
 }
 
 // Close invalidates and potentially stops any current prepared statements and
@@ -1902,6 +1876,21 @@ func (b *Backup) Finish() error {
 type ExecQuerierContext interface {
 	driver.ExecerContext
 	driver.QueryerContext
+}
+
+// Commit releases all resources associated with the Backup object but does not
+// close the destination database connection.
+//
+// The destination database connection is returned to the caller or an error if raised.
+// It is the responsibility of the caller to handle the connection closure.
+func (b *Backup) Commit() (driver.Conn, error) {
+	rc := sqlite3.Xsqlite3_backup_finish(b.srcConn.tls, b.pBackup)
+
+	if rc == sqlite3.SQLITE_OK {
+		return b.dstConn, nil
+	} else {
+		return nil, b.srcConn.errstr(rc)
+	}
 }
 
 // ConnectionHookFn function type for a connection hook on the Driver. Connection
