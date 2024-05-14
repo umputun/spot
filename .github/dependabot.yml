@@ -20,5 +20,3 @@ updates:
     groups:
       "Go modules updates":
         dependency-type: "production"
-      "Go modules updates for tests":
-        dependency-type: "development"
