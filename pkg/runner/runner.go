@@ -181,7 +181,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	stTask := time.Now()
 
 	var remote executor.Interface
-	if p.anyRemoteCommand(tsk) {
+	if p.anyRemoteCommand(tsk) && !isLocalHost(hostAddr) {
 		// make remote executor only if there is a remote command in the taks
 		var err error
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
@@ -275,7 +275,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 	}
 
-	if p.anyRemoteCommand(&activeTask) {
+	if p.anyRemoteCommand(&activeTask) && !isLocalHost(hostAddr) {
 		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, resp.count, since(stTask))
 	} else {
 		report("localhost", "", "completed task %q, commands: %d (%v)\n",
@@ -347,7 +347,7 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 		}
 		return ec
 	}
-	if cmd.Options.Local || strings.Contains(hostAddr, "127.0.0.1") || strings.Contains(hostAddr, "localhost") {
+	if cmd.Options.Local || isLocalHost(hostAddr) {
 		log.Printf("[DEBUG] run local command %q", cmd.Name)
 		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
@@ -493,4 +493,7 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 
 	log.Printf("[DEBUG] skip command %q, not in only_on list", cmd.Name)
 	return false
+}
+func isLocalHost(hostAddr string) bool {
+  return strings.Contains(hostAddr, "127.0.0.1") || strings.Contains(hostAddr, "localhost")
 }
