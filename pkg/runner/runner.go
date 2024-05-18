@@ -347,7 +347,7 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 		}
 		return ec
 	}
-	if cmd.Options.Local {
+	if cmd.Options.Local || strings.Contains(hostAddr, "127.0.0.1") || strings.Contains(hostAddr, "localhost") {
 		log.Printf("[DEBUG] run local command %q", cmd.Name)
 		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
