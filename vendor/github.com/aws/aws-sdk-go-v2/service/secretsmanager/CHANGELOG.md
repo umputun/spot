@@ -1,3 +1,20 @@
+# v1.29.1 (2024-05-23)
+
+* No change notes available for this release.
+
+# v1.29.0 (2024-05-20)
+
+* **Feature**: add v2 smoke tests and smithy smokeTests trait for SDK testing
+
+# v1.28.9 (2024-05-16)
+
+* **Documentation**: Documentation updates for AWS Secrets Manager
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.28.8 (2024-05-15)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.28.7 (2024-05-08)
 
 * **Bug Fix**: GoDoc improvement
