@@ -22,6 +22,10 @@ tasks:
           ls -la /srv
           du -hcs /srv
 
+      - name: some single-line command
+        script: |
+          ls -la /srv
+
       - name: git
         before: "echo before git"
         after: "echo after git"

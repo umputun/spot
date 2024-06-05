@@ -39,7 +39,7 @@ type options struct {
 	SSHTimeout      time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
 	SSHAgent        bool          `long:"ssh-agent" env:"SPOT_SSH_AGENT" description:"use ssh-agent"`
 	ForwardSSHAgent bool          `long:"forward-ssh-agent" env:"SPOT_FORWARD_SSH_AGENT" description:"use forward-ssh-agent"`
-	SSHShell        string        `long:"shell" env:"SPOT_SHELL" description:"shell to use for ssh" default:"/bin/sh"`
+	SSHShell        string        `long:"shell" env:"SPOT_SHELL" description:"enforce non-default shell to use for ssh" default:""`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
