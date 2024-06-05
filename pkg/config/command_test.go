@@ -155,7 +155,7 @@ export FOO='bar'`,
 					"GREETING": "Hello, World!",
 				},
 			},
-			expectedScript:   `/bin/sh -c 'GREETING="Hello, World!"; echo $GREETING'`,
+			expectedScript:   `/bin/sh -c 'export GREETING="Hello, World!"; echo $GREETING'`,
 			expectedContents: nil,
 		},
 		{
@@ -275,7 +275,7 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		cmd := c.Tasks[0].Commands[4]
 		assert.Equal(t, "docker", cmd.Name)
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, `/bin/sh -c 'BAR="qux"; FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
+		assert.Equal(t, `/bin/sh -c 'export BAR="qux"; export FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
 	})
 }
 
@@ -303,7 +303,7 @@ func TestCmd_getScriptCommandCustomShell(t *testing.T) {
 		cmd := c.Tasks[0].Commands[4]
 		assert.Equal(t, "docker", cmd.Name)
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, `/bin/bash -c 'BAR="qux"; FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
+		assert.Equal(t, `/bin/bash -c 'export BAR="qux"; export FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
 	})
 }
 
