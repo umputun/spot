@@ -145,6 +145,10 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	// add environment variables
 	envs := cmd.genEnv()
 	res := cmd.shell() + " -c '"
+	// add export prefix to each environment variable
+	for i, env := range envs {
+		envs[i] = "export " + env
+	}
 	if len(envs) > 0 {
 		res += strings.Join(envs, "; ") + "; "
 	}
