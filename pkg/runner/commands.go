@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"math"
 	mr "math/rand"
 	"net"
@@ -70,7 +71,10 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
-		return resp, &execCmdErr{err: fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err), exec: *ec}
+		return resp, &execCmdErr{
+			err:  fmt.Errorf("can't prepare script on %s: %w", ec.hostAddr, err),
+			exec: *ec,
+		}
 	}
 	defer func() {
 		if teardown == nil {
@@ -102,8 +106,12 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	// collect setvar output to vars and latter it will be set to the environment. This is needed for the next commands.
 	// setenv output is in the format of "setenv foo=bar" and it is appended to the output by the script itself.
 	// this part done inside exec.scriptFile function.
-	resp.vars = make(map[string]string)       // all variables set by the script, used for the next commands in the same task
-	resp.registered = make(map[string]string) // only variables that are registered used for the next tasks too
+	resp.vars = make(
+		map[string]string,
+	) // all variables set by the script, used for the next commands in the same task
+	resp.registered = make(
+		map[string]string,
+	) // only variables that are registered used for the next tasks too
 	for _, line := range out {
 		if !strings.HasPrefix(line, "setvar ") {
 			continue
@@ -126,7 +134,13 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 // if sudo option is set, it will make a temporary directory and upload the files there,
 // then move it to the final destination with sudo script execution.
 func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 
 	src := tmpl.apply(ec.cmd.Copy.Source)
 	dst := tmpl.apply(ec.cmd.Copy.Dest)
@@ -134,7 +148,11 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can use the original destination and upload the file directly
 		resp.details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
-		opts := &executor.UpDownOpts{Mkdir: ec.cmd.Copy.Mkdir, Force: ec.cmd.Copy.Force, Exclude: ec.cmd.Copy.Exclude}
+		opts := &executor.UpDownOpts{
+			Mkdir:   ec.cmd.Copy.Mkdir,
+			Force:   ec.cmd.Copy.Force,
+			Exclude: ec.cmd.Copy.Exclude,
+		}
 		if err := ec.exec.Upload(ctx, src, dst, opts); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -155,24 +173,43 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		tmpDest := tmpRemoteDir + "/" + filepath.Base(dst)
 
 		// upload to a temporary directory with mkdir
-		err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
+		err := ec.exec.Upload(
+			ctx,
+			src,
+			tmpDest,
+			&executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude},
+		)
 		if err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 		defer func() {
 			// remove temporary directory we created under /tmp/.spot-<rand>
 			if e := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); e != nil {
-				log.Printf("[WARN] can't remove temporary directory %q on %s: %v", tmpRemoteDir, ec.hostAddr, e)
+				log.Printf(
+					"[WARN] can't remove temporary directory %q on %s: %v",
+					tmpRemoteDir,
+					ec.hostAddr,
+					e,
+				)
 			}
 		}()
 
 		mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
 		if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
-			mvCmd = fmt.Sprintf("mkdir -p %s\nmv -f %s/* %s", dst, tmpDest, dst) // move multiple files, if wildcard is used
+			mvCmd = fmt.Sprintf(
+				"mkdir -p %s\nmv -f %s/* %s",
+				dst,
+				tmpDest,
+				dst,
+			) // move multiple files, if wildcard is used
 		}
 		c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
 		if err != nil {
-			return resp, ec.errorFmt("can't prepare sudo moving command on %s: %w", ec.hostAddr, err)
+			return resp, ec.errorFmt(
+				"can't prepare sudo moving command on %s: %w",
+				ec.hostAddr,
+				err,
+			)
 		}
 
 		// run move command with sudo
@@ -196,14 +233,22 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 // Mcopy uploads multiple files to a target host. It calls copy function for each file.
 func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 	for _, c := range ec.cmd.MCopy {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
-		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force,
-			ChmodX: c.ChmodX, Exclude: c.Exclude}
+		ecSingle.cmd.Copy = config.CopyInternal{
+			Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force,
+			ChmodX: c.ChmodX, Exclude: c.Exclude,
+		}
 		if _, err := ecSingle.Copy(ctx); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -214,11 +259,21 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 
 // Sync synchronizes files from a source to a destination on a target host.
 func (ec *execCmd) Sync(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	resp.details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-	opts := &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude, Force: ec.cmd.Sync.Force}
+	opts := &executor.SyncOpts{
+		Delete:  ec.cmd.Sync.Delete,
+		Exclude: ec.cmd.Sync.Exclude,
+		Force:   ec.cmd.Sync.Force,
+	}
 	if _, err := ec.exec.Sync(ctx, src, dst, opts); err != nil {
 		return resp, ec.errorFmt("can't sync files on %s: %w", ec.hostAddr, err)
 	}
@@ -228,13 +283,25 @@ func (ec *execCmd) Sync(ctx context.Context) (resp execCmdResp, err error) {
 // Msync synchronizes multiple locations from a source to a destination on a target host.
 func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 	for _, c := range ec.cmd.MSync {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
-		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete, Force: c.Force}
+		ecSingle.cmd.Sync = config.SyncInternal{
+			Source:  src,
+			Dest:    dst,
+			Exclude: c.Exclude,
+			Delete:  c.Delete,
+			Force:   c.Force,
+		}
 		if _, err := ecSingle.Sync(ctx); err != nil {
 			return resp, ec.errorFmt("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
 		}
@@ -245,7 +312,13 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 
 // Delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
 func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 	loc := tmpl.apply(ec.cmd.Delete.Location)
 
 	if !ec.cmd.Options.Sudo {
@@ -265,7 +338,11 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 		if _, err := ec.exec.Run(ctx, cmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 			return resp, ec.errorFmt("can't delete file(s) on %s: %w", ec.hostAddr, err)
 		}
-		resp.details = fmt.Sprintf(" {delete: %s, recursive: %v, sudo: true}", loc, ec.cmd.Delete.Recursive)
+		resp.details = fmt.Sprintf(
+			" {delete: %s, recursive: %v, sudo: true}",
+			loc,
+			ec.cmd.Delete.Recursive,
+		)
 	}
 
 	return resp, nil
@@ -274,7 +351,13 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 // MDelete deletes multiple locations on a target host.
 func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 	for _, c := range ec.cmd.MDelete {
 		loc := tmpl.apply(c.Location)
 		ecSingle := ec
@@ -346,7 +429,13 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 // Echo prints a message. It enforces the echo command to start with "echo " and adds sudo if needed.
 // It returns the result of the echo command as details string.
 func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
 	echoCmd := tmpl.apply(ec.cmd.Echo)
 	if !strings.HasPrefix(echoCmd, "echo ") {
 		echoCmd = fmt.Sprintf("echo %q", echoCmd)
@@ -387,7 +476,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 
 	// run the condition command
 	if _, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-		log.Printf("[DEBUG] condition not passed on %s: %v", ec.hostAddr, err)
+		slog.Debug(fmt.Sprintf("condition not passed on %s: %v", ec.hostAddr, err))
 		if inverted {
 			return true, nil // inverted condition failed, so we return true
 		}
@@ -405,8 +494,17 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 // In case of a single command, it just applies templates to it. In case of a multiline script, it creates
 // a temporary file with the script chmod as +x and uploads to remote host to /tmp.
 // it also  returns a teardown function to remove the temporary file after the command execution.
-func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, scr string, teardown func() error, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
+func (ec *execCmd) prepScript(
+	ctx context.Context,
+	s string,
+	r io.Reader,
+) (cmd, scr string, teardown func() error, err error) {
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+	}
 
 	if s != "" { // single command, nothing to do just apply templates
 		return tmpl.apply(s), "", nil, nil
@@ -463,7 +561,12 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		// remove the temp dir with the script from the remote hostAddr,
 		// should be invoked by the caller after the command is executed
 		if err := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); err != nil {
-			return ec.errorFmt("can't remove temporary remote script %s (%s): %w", dst, ec.hostAddr, err)
+			return ec.errorFmt(
+				"can't remove temporary remote script %s (%s): %w",
+				dst,
+				ec.hostAddr,
+				err,
+			)
 		}
 		return nil
 	}

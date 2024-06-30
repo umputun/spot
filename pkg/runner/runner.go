@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync"
@@ -79,7 +79,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get task %s: %w", task, err)
 	}
-	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
+	slog.Debug(fmt.Sprintf("task %q has %d commands", task, len(tsk.Commands)))
 
 	allVars := make(map[string]string)
 	allRegistered := make(map[string]string)
@@ -87,7 +87,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get target %s: %w", target, err)
 	}
-	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
+	slog.Debug(fmt.Sprintf("target hosts (%d) %+v", len(targetHosts), targetHosts))
 
 	var commands int32
 	lock := sync.Mutex{}
@@ -100,7 +100,13 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 			if tsk.User != "" {
 				user = tsk.User // override user from task if any set
 			}
-			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
+			resp, e := p.runTaskOnHost(
+				ctx,
+				tsk,
+				fmt.Sprintf("%s:%d", host.Host, host.Port),
+				host.Name,
+				user,
+			)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(resp.count))
 			}
@@ -138,7 +144,6 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 // Gen generates the list target hosts for a given target, applying templates.
 func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) error {
-
 	targetHosts := []config.Destination{}
 	for _, target := range targets {
 		hosts, err := p.Playbook.TargetHosts(target)
@@ -147,7 +152,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 		}
 		targetHosts = append(targetHosts, hosts...)
 	}
-	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
+	slog.Debug(fmt.Sprintf("target hosts (%d) %+v", len(targetHosts), targetHosts))
 
 	// if no reader provided, just encode target hosts as json
 	if tmplRdr == nil {
@@ -172,7 +177,11 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
 // returns number of executed commands, vars from all commands and error if any.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (taskOnHostResp, error) {
+func (p *Process) runTaskOnHost(
+	ctx context.Context,
+	tsk *config.Task,
+	hostAddr, hostName, user string,
+) (taskOnHostResp, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
 		p.Logs.WithHost(hostAddr, hostName).Info.Printf(f, vals...)
 	}
@@ -187,7 +196,12 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
 		if err != nil {
 			if hostName != "" {
-				return taskOnHostResp{}, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
+				return taskOnHostResp{}, fmt.Errorf(
+					"can't connect to %s, user: %s: %w",
+					hostName,
+					user,
+					err,
+				)
 			}
 			return taskOnHostResp{}, err
 		}
@@ -209,10 +223,21 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	defer func() {
 		// run on-exit commands if any. it is executed after all commands of the task are done or on error
 		if len(onExitCmds) > 0 {
-			log.Printf("[INFO] run %d on-exit commands for %q on %s", len(onExitCmds), tsk.Name, hostAddr)
+			slog.Info(fmt.Sprintf(
+				"run %d on-exit commands for %q on %s",
+				len(onExitCmds),
+				tsk.Name,
+				hostAddr,
+			))
 			for _, ec := range onExitCmds {
 				if _, err := ec.Script(ctx); err != nil {
-					report(ec.hostAddr, ec.hostName, "failed on-exit command %q (%v)", ec.cmd.Name, err)
+					report(
+						ec.hostAddr,
+						ec.hostName,
+						"failed on-exit command %q (%v)",
+						ec.cmd.Name,
+						err,
+					)
 				}
 			}
 		}
@@ -223,12 +248,19 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			continue
 		}
 
-		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
+		slog.Info(p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
 
-		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
-			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, onExit: cmd.OnExit}
-		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
+		ec := execCmd{
+			cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
+			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, onExit: cmd.OnExit,
+		}
+		ec = p.pickCmdExecutor(
+			cmd,
+			ec,
+			hostAddr,
+			hostName,
+		) // pick executor on dry run or local command
 
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName
 		if cmd.Options.Local {
@@ -247,14 +279,31 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 		if err != nil {
 			if !cmd.Options.IgnoreErrors {
-				return resp, fmt.Errorf("failed command %q on host %s (%s): %w", cmd.Name, ec.hostAddr, ec.hostName, err)
+				return resp, fmt.Errorf(
+					"failed command %q on host %s (%s): %w",
+					cmd.Name,
+					ec.hostAddr,
+					ec.hostName,
+					err,
+				)
 			}
-			report(ec.hostAddr, ec.hostName, "failed command %q%s (%v)", cmd.Name, exResp.details, since(stCmd))
+			report(
+				ec.hostAddr,
+				ec.hostName,
+				"failed command %q%s (%v)",
+				cmd.Name,
+				exResp.details,
+				since(stCmd),
+			)
 			continue
 		}
 
-		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
-		for k, v := range exResp.registered {       // store registered variables from command output
+		p.updateVars(
+			exResp.vars,
+			cmd,
+			&activeTask,
+		) // set variables from command output to all commands env in task
+		for k, v := range exResp.registered { // store registered variables from command output
 			resp.registered[k] = v
 		}
 		if exResp.verbose != "" && ec.verbose2 {
@@ -267,7 +316,14 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		pattern := `(\{script: .+ -c ).+/spot-script.+}`
 		re := regexp.MustCompile(pattern)
 		details := re.ReplaceAllString(exResp.details, "${1}[multiline script]}")
-		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
+		report(
+			repHostAddr,
+			repHostName,
+			"completed command %q%s (%v)",
+			cmd.Name,
+			details,
+			since(stCmd),
+		)
 
 		resp.count++
 		for k, v := range exResp.vars {
@@ -276,7 +332,14 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	}
 
 	if p.anyRemoteCommand(&activeTask) {
-		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, resp.count, since(stTask))
+		report(
+			hostAddr,
+			hostName,
+			"completed task %q, commands: %d (%v)\n",
+			activeTask.Name,
+			resp.count,
+			since(stTask),
+		)
 	} else {
 		report("localhost", "", "completed task %q, commands: %d (%v)\n",
 			activeTask.Name, resp.count, since(stTask))
@@ -289,12 +352,15 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 // It detects the command type based on the fields what are set.
 // Even if multiple fields for multiple commands are set, only one will be executed.
 func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp, err error) {
-
 	if ec.cmd.OnExit != "" {
 		// register on-exit command if any set
 		defer func() {
 			// we need to defer it because it changes the command name and script
-			log.Printf("[DEBUG] defer execution on_exit script on %s for %s", ec.hostAddr, ec.cmd.Name)
+			slog.Debug(fmt.Sprintf(
+				"defer execution on_exit script on %s for %s",
+				ec.hostAddr,
+				ec.cmd.Name,
+			))
 			// use the same executor as for the main command but with different script and name
 			ec.cmd.Name = "on exit for " + ec.cmd.Name
 			ec.cmd.Script = ec.cmd.OnExit
@@ -305,31 +371,31 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 
 	switch {
 	case ec.cmd.Script != "":
-		log.Printf("[DEBUG] execute script %q on %s", ec.cmd.Name, ec.hostAddr)
+		slog.Debug(fmt.Sprintf("execute script %q on %s", ec.cmd.Name, ec.hostAddr))
 		return ec.Script(ctx)
 	case ec.cmd.Copy.Source != "" && ec.cmd.Copy.Dest != "":
-		log.Printf("[DEBUG] copy file to %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("copy file to %s", ec.hostAddr))
 		return ec.Copy(ctx)
 	case len(ec.cmd.MCopy) > 0:
-		log.Printf("[DEBUG] copy multiple files to %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("copy multiple files to %s", ec.hostAddr))
 		return ec.Mcopy(ctx)
 	case ec.cmd.Sync.Source != "" && ec.cmd.Sync.Dest != "":
-		log.Printf("[DEBUG] sync files to %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("sync files to %s", ec.hostAddr))
 		return ec.Sync(ctx)
 	case len(ec.cmd.MSync) > 0:
-		log.Printf("[DEBUG] sync multiple locations to %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("sync multiple locations to %s", ec.hostAddr))
 		return ec.Msync(ctx)
 	case ec.cmd.Delete.Location != "":
-		log.Printf("[DEBUG] delete files on %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("delete files on %s", ec.hostAddr))
 		return ec.Delete(ctx)
 	case len(ec.cmd.MDelete) > 0:
-		log.Printf("[DEBUG] delete multiple files on %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("delete multiple files on %s", ec.hostAddr))
 		return ec.MDelete(ctx)
 	case ec.cmd.Wait.Command != "":
-		log.Printf("[DEBUG] wait for command on %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("wait for command on %s", ec.hostAddr))
 		return ec.Wait(ctx)
 	case ec.cmd.Echo != "":
-		log.Printf("[DEBUG] echo on %s", ec.hostAddr)
+		slog.Debug(fmt.Sprintf("echo on %s", ec.hostAddr))
 		return ec.Echo(ctx)
 	default:
 		return execCmdResp{}, fmt.Errorf("unknown command %q", ec.cmd.Name)
@@ -339,7 +405,7 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 // pickCmdExecutor returns executor for dry run or local command, otherwise returns the default executor.
 func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
 	if p.Dry {
-		log.Printf("[DEBUG] run dry command %q", cmd.Name)
+		slog.Debug(fmt.Sprintf("run dry command %q", cmd.Name))
 		if cmd.Options.Local {
 			ec.exec = executor.NewDry(p.Logs.WithHost("localhost", ""))
 		} else {
@@ -348,7 +414,7 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 		return ec
 	}
 	if cmd.Options.Local {
-		log.Printf("[DEBUG] run local command %q", cmd.Name)
+		slog.Debug(fmt.Sprintf("run local command %q", cmd.Name))
 		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
 	}
@@ -357,7 +423,6 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 
 // onError executes on-error command locally if any error occurred during task execution and on-error command is defined
 func (p *Process) onError(ctx context.Context, err error) {
-
 	// unwrapError unwraps error to get execCmdErr with all details about command execution
 	unwrapError := func(err error) (execCmdErr, bool) {
 		execErr := &execCmdErr{}
@@ -379,7 +444,7 @@ func (p *Process) onError(ctx context.Context, err error) {
 
 	execErr, ok := unwrapError(err)
 	if !ok {
-		log.Printf("[WARN] can't unwrap error: %v", err)
+		slog.Warn("can't unwrap error", slog.Any("error", err))
 		return
 	}
 
@@ -406,7 +471,12 @@ func (p *Process) onError(ctx context.Context, err error) {
 	}
 	ec.cmd.Script = tmpl.apply(ec.cmd.Script)
 	if _, err = ec.Script(ctx); err != nil {
-		log.Printf("[WARN] can't run on-error command for %q, %q: %v", ec.cmd.Name, ec.cmd.Script, err)
+		slog.Warn(fmt.Sprintf(
+			"can't run on-error command for %q, %q: %v",
+			ec.cmd.Name,
+			ec.cmd.Script,
+			err,
+		))
 	}
 }
 
@@ -436,7 +506,7 @@ func (p *Process) updateVars(vars map[string]string, cmd config.Cmd, tsk *config
 		return
 	}
 
-	log.Printf("[DEBUG] set %d variables from command %q: %+v", len(vars), cmd.Name, vars)
+	slog.Debug(fmt.Sprintf("set %d variables from command %q: %+v", len(vars), cmd.Name, vars))
 	for k, v := range vars {
 		for i, c := range tsk.Commands {
 			env := c.Environment
@@ -460,17 +530,16 @@ func (p *Process) updateVars(vars map[string]string, cmd config.Cmd, tsk *config
 // of hosts. If the onlyOn field is empty, the command will be executed on all hosts.
 // It also checks if the command is in the 'only' or 'skip' list, and considers the 'NoAuto' option.
 func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
-
 	if len(p.Only) > 0 && !stringutils.Contains(cmd.Name, p.Only) {
-		log.Printf("[DEBUG] skip command %q, not in only list", cmd.Name)
+		slog.Debug(fmt.Sprintf("skip command %q, not in only list", cmd.Name))
 		return false
 	}
 	if len(p.Skip) > 0 && stringutils.Contains(cmd.Name, p.Skip) {
-		log.Printf("[DEBUG] skip command %q, in skip list", cmd.Name)
+		slog.Debug(fmt.Sprintf("skip command %q, in skip list", cmd.Name))
 		return false
 	}
 	if cmd.Options.NoAuto && (len(p.Only) == 0 || !stringutils.Contains(cmd.Name, p.Only)) {
-		log.Printf("[DEBUG] skip command %q, has noauto option", cmd.Name)
+		slog.Debug(fmt.Sprintf("skip command %q, has noauto option", cmd.Name))
 		return false
 	}
 
@@ -481,7 +550,7 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 	for _, host := range cmd.Options.OnlyOn {
 		if strings.HasPrefix(host, "!") { // exclude host
 			if hostName == host[1:] || hostAddr == host[1:] {
-				log.Printf("[DEBUG] skip command %q, excluded host %q", cmd.Name, host[1:])
+				slog.Debug(fmt.Sprintf("skip command %q, excluded host %q", cmd.Name, host[1:]))
 				return false
 			}
 			continue
@@ -490,7 +559,6 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 			return true
 		}
 	}
-
-	log.Printf("[DEBUG] skip command %q, not in only_on list", cmd.Name)
+	slog.Debug(fmt.Sprintf("skip command %q, not in only_on list", cmd.Name))
 	return false
 }
