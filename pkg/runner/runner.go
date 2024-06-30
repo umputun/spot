@@ -190,7 +190,7 @@ func (p *Process) runTaskOnHost(
 	stTask := time.Now()
 
 	var remote executor.Interface
-	if p.anyRemoteCommand(tsk) {
+	if p.anyRemoteCommand(tsk) && !isLocalHost(hostAddr) {
 		// make remote executor only if there is a remote command in the taks
 		var err error
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
@@ -261,7 +261,6 @@ func (p *Process) runTaskOnHost(
 			hostAddr,
 			hostName,
 		) // pick executor on dry run or local command
-
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName
 		if cmd.Options.Local {
 			repHostAddr = "localhost"
@@ -331,7 +330,7 @@ func (p *Process) runTaskOnHost(
 		}
 	}
 
-	if p.anyRemoteCommand(&activeTask) {
+	if p.anyRemoteCommand(&activeTask) && !isLocalHost(hostAddr) {
 		report(
 			hostAddr,
 			hostName,
@@ -413,7 +412,7 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 		}
 		return ec
 	}
-	if cmd.Options.Local {
+	if cmd.Options.Local || isLocalHost(hostAddr) {
 		slog.Debug(fmt.Sprintf("run local command %q", cmd.Name))
 		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
@@ -560,5 +559,16 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 		}
 	}
 	slog.Debug(fmt.Sprintf("skip command %q, not in only_on list", cmd.Name))
+	return false
+}
+
+func isLocalHost(hostAddr string) bool {
+	pt := strings.Split(hostAddr, ":")
+	if len(pt) == 1 {
+		return hostAddr == "127.0.0.1" || hostAddr == "localhost"
+	}
+	if len(pt) == 2 {
+		return pt[0] == "127.0.0.1" || pt[0] == "localhost"
+	}
 	return false
 }
