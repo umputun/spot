@@ -137,12 +137,20 @@ type UpdateSecretInput struct {
 	// Either SecretBinary or SecretString must have a value, but not both.
 	//
 	// You can't access this parameter in the Secrets Manager console.
+	//
+	// Sensitive: This field contains sensitive information, so the service does not
+	// include it in CloudTrail log entries. If you create your own log entries, you
+	// must also avoid logging the information in this field.
 	SecretBinary []byte
 
 	// The text data to encrypt and store in the new version of the secret. We
 	// recommend you use a JSON structure of key/value pairs for your secret value.
 	//
 	// Either SecretBinary or SecretString must have a value, but not both.
+	//
+	// Sensitive: This field contains sensitive information, so the service does not
+	// include it in CloudTrail log entries. If you create your own log entries, you
+	// must also avoid logging the information in this field.
 	SecretString *string
 
 	noSmithyDocumentSerde
@@ -219,6 +227,12 @@ func (c *Client) addOperationUpdateSecretMiddlewares(stack *middleware.Stack, op
 		return err
 	}
 	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addTimeOffsetBuild(stack, c); err != nil {
+		return err
+	}
+	if err = addUserAgentRetryMode(stack, options); err != nil {
 		return err
 	}
 	if err = addIdempotencyToken_opUpdateSecretMiddleware(stack, options); err != nil {

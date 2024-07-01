@@ -129,7 +129,8 @@ type DescribeSecretOutput struct {
 	//   - InSync , which indicates that the replica was created.
 	ReplicationStatus []types.ReplicationStatusType
 
-	// Specifies whether automatic rotation is turned on for this secret.
+	// Specifies whether automatic rotation is turned on for this secret. If the
+	// secret has never been configured for rotation, Secrets Manager returns null.
 	//
 	// To turn on rotation, use RotateSecret. To turn off rotation, use CancelRotateSecret.
 	RotationEnabled *bool
@@ -231,6 +232,12 @@ func (c *Client) addOperationDescribeSecretMiddlewares(stack *middleware.Stack, 
 		return err
 	}
 	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addTimeOffsetBuild(stack, c); err != nil {
+		return err
+	}
+	if err = addUserAgentRetryMode(stack, options); err != nil {
 		return err
 	}
 	if err = addOpDescribeSecretValidationMiddleware(stack); err != nil {
