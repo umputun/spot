@@ -150,6 +150,12 @@ func (c *Client) addOperationListSecretsMiddlewares(stack *middleware.Stack, opt
 	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
 		return err
 	}
+	if err = addTimeOffsetBuild(stack, c); err != nil {
+		return err
+	}
+	if err = addUserAgentRetryMode(stack, options); err != nil {
+		return err
+	}
 	if err = stack.Initialize.Add(newServiceMetadataMiddleware_opListSecrets(options.Region), middleware.Before); err != nil {
 		return err
 	}
@@ -170,13 +176,6 @@ func (c *Client) addOperationListSecretsMiddlewares(stack *middleware.Stack, opt
 	}
 	return nil
 }
-
-// ListSecretsAPIClient is a client that implements the ListSecrets operation.
-type ListSecretsAPIClient interface {
-	ListSecrets(context.Context, *ListSecretsInput, ...func(*Options)) (*ListSecretsOutput, error)
-}
-
-var _ ListSecretsAPIClient = (*Client)(nil)
 
 // ListSecretsPaginatorOptions is the paginator options for ListSecrets
 type ListSecretsPaginatorOptions struct {
@@ -245,6 +244,9 @@ func (p *ListSecretsPaginator) NextPage(ctx context.Context, optFns ...func(*Opt
 	}
 	params.MaxResults = limit
 
+	optFns = append([]func(*Options){
+		addIsPaginatorUserAgent,
+	}, optFns...)
 	result, err := p.client.ListSecrets(ctx, &params, optFns...)
 	if err != nil {
 		return nil, err
@@ -263,6 +265,13 @@ func (p *ListSecretsPaginator) NextPage(ctx context.Context, optFns ...func(*Opt
 
 	return result, nil
 }
+
+// ListSecretsAPIClient is a client that implements the ListSecrets operation.
+type ListSecretsAPIClient interface {
+	ListSecrets(context.Context, *ListSecretsInput, ...func(*Options)) (*ListSecretsOutput, error)
+}
+
+var _ ListSecretsAPIClient = (*Client)(nil)
 
 func newServiceMetadataMiddleware_opListSecrets(region string) *awsmiddleware.RegisterServiceMetadata {
 	return &awsmiddleware.RegisterServiceMetadata{

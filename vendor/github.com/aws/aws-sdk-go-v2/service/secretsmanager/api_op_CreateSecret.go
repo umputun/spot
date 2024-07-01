@@ -48,8 +48,9 @@ import (
 // SecretString because it might be logged. For more information, see [Logging Secrets Manager events with CloudTrail].
 //
 // Required permissions: secretsmanager:CreateSecret . If you include tags in the
-// secret, you also need secretsmanager:TagResource . For more information, see [IAM policy actions for Secrets Manager]
-// and [Authentication and access control in Secrets Manager].
+// secret, you also need secretsmanager:TagResource . To add replica Regions, you
+// must also have secretsmanager:ReplicateSecretToRegions . For more information,
+// see [IAM policy actions for Secrets Manager]and [Authentication and access control in Secrets Manager].
 //
 // To encrypt the secret with a KMS key other than aws/secretsmanager , you need
 // kms:GenerateDataKey and kms:Decrypt permission to the key.
@@ -158,6 +159,10 @@ type CreateSecretInput struct {
 	// Either SecretString or SecretBinary must have a value, but not both.
 	//
 	// This parameter is not available in the Secrets Manager console.
+	//
+	// Sensitive: This field contains sensitive information, so the service does not
+	// include it in CloudTrail log entries. If you create your own log entries, you
+	// must also avoid logging the information in this field.
 	SecretBinary []byte
 
 	// The text data to encrypt and store in this new version of the secret. We
@@ -169,6 +174,10 @@ type CreateSecretInput struct {
 	// Manager puts the protected secret text in only the SecretString parameter. The
 	// Secrets Manager console stores the information as a JSON structure of key/value
 	// pairs that a Lambda rotation function can parse.
+	//
+	// Sensitive: This field contains sensitive information, so the service does not
+	// include it in CloudTrail log entries. If you create your own log entries, you
+	// must also avoid logging the information in this field.
 	SecretString *string
 
 	// A list of tags to attach to the secret. Each tag is a key and value pair of
@@ -285,6 +294,12 @@ func (c *Client) addOperationCreateSecretMiddlewares(stack *middleware.Stack, op
 		return err
 	}
 	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addTimeOffsetBuild(stack, c); err != nil {
+		return err
+	}
+	if err = addUserAgentRetryMode(stack, options); err != nil {
 		return err
 	}
 	if err = addIdempotencyToken_opCreateSecretMiddleware(stack, options); err != nil {

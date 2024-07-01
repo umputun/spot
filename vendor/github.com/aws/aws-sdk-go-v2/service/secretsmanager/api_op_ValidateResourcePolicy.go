@@ -61,7 +61,8 @@ type ValidateResourcePolicyInput struct {
 	// This member is required.
 	ResourcePolicy *string
 
-	// This field is reserved for internal use.
+	// The ARN or name of the secret with the resource-based policy you want to
+	// validate.
 	SecretId *string
 
 	noSmithyDocumentSerde
@@ -134,6 +135,12 @@ func (c *Client) addOperationValidateResourcePolicyMiddlewares(stack *middleware
 		return err
 	}
 	if err = addSetLegacyContextSigningOptionsMiddleware(stack); err != nil {
+		return err
+	}
+	if err = addTimeOffsetBuild(stack, c); err != nil {
+		return err
+	}
+	if err = addUserAgentRetryMode(stack, options); err != nil {
 		return err
 	}
 	if err = addOpValidateResourcePolicyValidationMiddleware(stack); err != nil {
