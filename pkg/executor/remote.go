@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -39,7 +39,7 @@ func (ex *Remote) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
-	log.Printf("[DEBUG] run %s", cmd)
+	slog.Debug(fmt.Sprintf("run %s", cmd))
 
 	return ex.sshRun(ctx, ex.client, cmd)
 }
@@ -49,7 +49,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
-	log.Printf("[DEBUG] upload %s to %s", local, remote)
+	slog.Debug(fmt.Sprintf("upload %s to %s", local, remote))
 
 	host, port, err := net.SplitHostPort(ex.hostAddr)
 	if err != nil {
@@ -102,11 +102,15 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 }
 
 // Download file from remote server with scp
-func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDownOpts) (err error) {
+func (ex *Remote) Download(
+	ctx context.Context,
+	remote, local string,
+	opts *UpDownOpts,
+) (err error) {
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
-	log.Printf("[DEBUG] download %s to %s", local, remote)
+	slog.Debug(fmt.Sprintf("download %s to %s", local, remote))
 
 	host, port, err := net.SplitHostPort(ex.hostAddr)
 	if err != nil {
@@ -153,7 +157,11 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 }
 
 // Sync compares local and remote files and uploads unmatched files, recursively.
-func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *SyncOpts) ([]string, error) {
+func (ex *Remote) Sync(
+	ctx context.Context,
+	localDir, remoteDir string,
+	opts *SyncOpts,
+) ([]string, error) {
 	localFiles, err := ex.getLocalFilesProperties(localDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get local files properties for %s: %w", localDir, err)
@@ -175,7 +183,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *Sy
 		if err = ex.Upload(ctx, localPath, remotePath, &UpDownOpts{Mkdir: true}); err != nil {
 			return nil, fmt.Errorf("failed to upload %s to %s: %w", localPath, remotePath, err)
 		}
-		log.Printf("[INFO] synced %s to %s", localPath, remotePath)
+		slog.Info(fmt.Sprintf("synced %s to %s", localPath, remotePath))
 	}
 
 	if opts != nil && opts.Delete {
@@ -284,30 +292,33 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 				return fmt.Errorf("failed to delete %s: %w", path, err)
 			}
 		}
-
-		log.Printf("[INFO] deleted recursively %s", remoteFile)
+		slog.Info(fmt.Sprintf("deleted recursively %s", remoteFile))
 	}
 
 	if fileInfo.IsDir() && !recursive {
 		if err = sftpClient.RemoveDirectory(remoteFile); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
 		}
-		log.Printf("[INFO] deleted directory %s", remoteFile)
+		slog.Info(fmt.Sprintf("deleted directory %s", remoteFile))
 	}
 
 	if !fileInfo.IsDir() {
 		if err = sftpClient.Remove(remoteFile); err != nil {
 			return fmt.Errorf("failed to delete %s: %w", remoteFile, err)
 		}
-		log.Printf("[INFO] deleted %s", remoteFile)
+		slog.Info(fmt.Sprintf("deleted %s", remoteFile))
 	}
 
 	return nil
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to the remote process.
-func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
-	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
+func (ex *Remote) sshRun(
+	ctx context.Context,
+	client *ssh.Client,
+	command string,
+) (out []string, err error) {
+	slog.Debug(fmt.Sprintf("run ssh command %q on %s", command, client.RemoteAddr().String()))
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
@@ -356,9 +367,14 @@ type sftpReq struct {
 }
 
 func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
-	log.Printf("[DEBUG] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
+	slog.Debug(fmt.Sprintf("upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile))
 	defer func(st time.Time) {
-		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
+		slog.Info(fmt.Sprintf("uploaded %s to %s:%s in %s",
+			req.localFile,
+			req.remoteHost,
+			req.remoteFile,
+			time.Since(st),
+		))
 	}(time.Now())
 
 	sftpClient, err := sftp.NewClient(req.client, sftp.UseConcurrentWrites(true))
@@ -377,15 +393,25 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	if err != nil {
 		return fmt.Errorf("failed to stat local file %s: %v", req.localFile, err)
 	}
-	log.Printf("[DEBUG] file mode for %s: %s", req.localFile, fmt.Sprintf("%04o", inpFi.Mode().Perm()))
+
+	slog.Info(fmt.Sprintf("file mode for %s: %s",
+		req.localFile,
+		fmt.Sprintf("%04o", inpFi.Mode().Perm()),
+	))
 
 	remoteFi, err := sftpClient.Stat(req.remoteFile)
 	if err == nil {
 		// if remote file exists, and has the same size, mod time and mode, skip upload. Force flag overrides this.
 		isSame := !req.force && remoteFi.Size() == inpFi.Size() &&
-			isWithinOneSecond(remoteFi.ModTime(), inpFi.ModTime()) && remoteFi.Mode() == inpFi.Mode()
+			isWithinOneSecond(
+				remoteFi.ModTime(),
+				inpFi.ModTime(),
+			) && remoteFi.Mode() == inpFi.Mode()
 		if isSame {
-			log.Printf("[INFO] remote file %s identical to local file %s, skipping upload", req.remoteFile, req.localFile)
+			slog.Info(fmt.Sprintf("remote file %s identical to local file %s, skipping upload",
+				req.remoteFile,
+				req.localFile,
+			))
 			return nil
 		}
 	}
@@ -422,15 +448,23 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	}
 
 	if err = sftpClient.Chtimes(req.remoteFile, inpFi.ModTime(), inpFi.ModTime()); err != nil {
-		return fmt.Errorf("failed to set modification time of remote file %s: %v", req.remoteFile, err)
+		return fmt.Errorf(
+			"failed to set modification time of remote file %s: %v",
+			req.remoteFile,
+			err,
+		)
 	}
 
 	return nil
 }
 
 func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
-	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
-	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
+	slog.Info(fmt.Sprintf("download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile))
+	defer func(st time.Time) {
+		slog.Debug(fmt.Sprintf("download done for %q in %s", req.localFile, time.Since(st)))
+	}(
+		time.Now(),
+	)
 
 	sftpClient, err := sftp.NewClient(req.client)
 	if err != nil {
@@ -473,8 +507,9 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	}
 
 	// if the local file size and mod time are the same as the remote file, don't download. Force flag overrides this.
-	if !req.force && localFi.Size() == remoteFi.Size() && isWithinOneSecond(localFi.ModTime(), remoteFi.ModTime()) {
-		log.Printf("[INFO] local file %s is up-to-date.", req.localFile)
+	if !req.force && localFi.Size() == remoteFi.Size() &&
+		isWithinOneSecond(localFi.ModTime(), remoteFi.ModTime()) {
+		slog.Info(fmt.Sprintf("local file %s is up-to-date.", req.localFile))
 		return nil
 	}
 
@@ -519,10 +554,14 @@ func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties
 		if err != nil {
 			return fmt.Errorf("failed to get relative path: %w", err)
 		}
-		fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime(), FileName: info.Name(), IsDir: info.IsDir()}
+		fileProps[relPath] = fileProperties{
+			Size:     info.Size(),
+			Time:     info.ModTime(),
+			FileName: info.Name(),
+			IsDir:    info.IsDir(),
+		}
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to walk local directory %s: %w", dir, err)
 	}
@@ -534,7 +573,11 @@ func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties
 // sftpClient.ReadDir to get file properties for all files in the remote directory. This is because sftpClient.Walk
 // doesn't support excluding files/directories, and we can speed up the process by excluding files/directories that
 // are not needed.
-func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl []string) (map[string]fileProperties, error) {
+func (ex *Remote) getRemoteFilesProperties(
+	ctx context.Context,
+	dir string,
+	excl []string,
+) (map[string]fileProperties, error) {
 	sftpClient, e := sftp.NewClient(ex.client)
 	if e != nil {
 		return nil, fmt.Errorf("failed to create sftp client: %v", e)
@@ -547,7 +590,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 	var processEntry func(ctx context.Context, client *sftp.Client, root string, excl []string, dir string) error
 
 	processEntry = func(ctx context.Context, client *sftp.Client, root string, excl []string, dir string) error {
-		log.Printf("[DEBUG] processing remote directory %s", dir)
+		slog.Debug(fmt.Sprintf("processing remote directory %s", dir))
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -566,7 +609,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 			fullPath := filepath.Join(dir, entry.Name())
 			relPath, err := filepath.Rel(root, fullPath)
 			if err != nil {
-				log.Printf("[WARN] failed to get relative path for %s: %v", fullPath, err)
+				slog.Warn(fmt.Sprintf("failed to get relative path for %s: %v", fullPath, err))
 				continue
 			}
 
@@ -577,12 +620,17 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 			if entry.IsDir() {
 				err := processEntry(ctx, client, root, excl, fullPath)
 				if err != nil && err.Error() != "context canceled" {
-					log.Printf("[WARN] failed to process directory %s: %v", fullPath, err)
+					slog.Warn(fmt.Sprintf("failed to process directory %s: %v", fullPath, err))
 				}
 				continue
 			}
 
-			fileProps[relPath] = fileProperties{Size: entry.Size(), Time: entry.ModTime(), FileName: fullPath, IsDir: entry.IsDir()}
+			fileProps[relPath] = fileProperties{
+				Size:     entry.Size(),
+				Time:     entry.ModTime(),
+				FileName: fullPath,
+				IsDir:    entry.IsDir(),
+			}
 		}
 		return nil
 	}
@@ -594,7 +642,10 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 	return fileProps, nil
 }
 
-func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, excl []string) (updatedFiles, deletedFiles []string) {
+func (ex *Remote) findUnmatchedFiles(
+	local, remote map[string]fileProperties,
+	excl []string,
+) (updatedFiles, deletedFiles []string) {
 	updatedFiles = []string{}
 	deletedFiles = []string{}
 
@@ -606,7 +657,8 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, ex
 			continue // don't put excluded files to unmatched files, no need to upload them
 		}
 		remoteProps, exists := remote[localPath]
-		if !exists || localProps.Size != remoteProps.Size || !isWithinOneSecond(localProps.Time, remoteProps.Time) {
+		if !exists || localProps.Size != remoteProps.Size ||
+			!isWithinOneSecond(localProps.Time, remoteProps.Time) {
 			updatedFiles = append(updatedFiles, localPath)
 		}
 	}
