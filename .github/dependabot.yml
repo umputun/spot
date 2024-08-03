@@ -9,6 +9,8 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    ignore:
+      - dependency-name: "goreleaser/goreleaser-action"
     groups:
       "GitHub Actions updates":
         patterns:
