@@ -33,11 +33,10 @@ linters-settings:
 
 linters:
   enable:
-    - megacheck
     - revive
     - govet
     - unconvert
-    - gas
+    - gosec
     - dupl
     - misspell
     - unused
@@ -45,11 +44,11 @@ linters:
     - ineffassign
     - stylecheck
     - gochecknoinits
-    - exportloopref
     - gocritic
     - nakedret
     - gosimple
     - prealloc
+    - copyloopvar
   fast: false
   disable-all: true
 
@@ -64,6 +63,9 @@ issues:
     - text: "should have a package comment, unless it's in another file for this package"
       linters:
         - golint
+    - text: "integer overflow conversion"
+      linters:
+        - gosec
     - path: _test\.go
       linters:
         - gosec

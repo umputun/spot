@@ -64,7 +64,7 @@ type options struct {
 
 	NoColor bool   `long:"no-color" env:"SPOT_NO_COLOR" description:"disable color output"`
 	Dry     bool   `long:"dry" description:"dry run"`
-	Verbose []bool `short:"v" long:"verbosity" description:"Verbosity level"`
+	Verbose []bool `short:"v" long:"verbose" description:"verbosity level"`
 	Dbg     bool   `long:"dbg" description:"debug mode"`
 }
 

@@ -31,20 +31,28 @@ func Test_main(t *testing.T) {
 	defer teardown()
 
 	t.Run("with system shell set", func(*testing.T) {
-		args := []string{"simplotask", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
-			"--key=testdata/test_ssh_key", "--target=" + hostAndPort}
+		args := []string{"spot", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort, "-vv"}
 		os.Args = args
 		main()
 	})
 
 	t.Run("with system shell not set", func(t *testing.T) {
-		args := []string{"simplotask", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
-			"--key=testdata/test_ssh_key", "--target=" + hostAndPort}
+		args := []string{"spot", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort, "--verbose"}
 		os.Args = args
 		err := os.Setenv("SHELL", "")
 		require.NoError(t, err)
 		main()
 	})
+
+	t.Run("with system shell set, without verbose and debug", func(*testing.T) {
+		args := []string{"spot", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort}
+		os.Args = args
+		main()
+	})
+
 }
 
 func Test_runCompleted(t *testing.T) {

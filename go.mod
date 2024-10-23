@@ -1,6 +1,6 @@
 module github.com/umputun/spot
 
-go 1.22
+go 1.23
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.27.23

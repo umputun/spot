@@ -94,7 +94,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
 	for i, host := range targetHosts {
-		i, host := i, host
+		i, host := i, host //nolint:copyloopvar // copy loop variables in case we downgrade to pre 1.22 go version
 		wg.Go(func() error {
 			user := host.User // default user from target
 			if tsk.User != "" {
