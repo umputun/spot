@@ -742,3 +742,77 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	require.NoError(t, err)
 	return fmt.Sprintf("%s:%s", host, port.Port()), func() { container.Terminate(ctx) }
 }
+
+func startTestContainerAndProxy(t *testing.T) (hostAndPort1, hostAndPort2 string, teardown func()) {
+	t.Helper()
+	ctx := context.Background()
+	pubKey, err := os.ReadFile("testdata/test_ssh_key.pub")
+	require.NoError(t, err)
+
+	// Create a custom network
+	networkName := "test-network"
+
+	networkRequest := testcontainers.NetworkRequest{
+		Name:           networkName,
+		CheckDuplicate: true,
+	}
+	network, err := testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
+		NetworkRequest: networkRequest,
+	})
+	require.NoError(t, err)
+
+	// Define the container request
+	containerRequest := func(name string) testcontainers.ContainerRequest {
+		return testcontainers.ContainerRequest{
+			AlwaysPullImage: true,
+			Image:           "lscr.io/linuxserver/openssh-server:latest",
+			ExposedPorts:    []string{"2222/tcp"},
+			WaitingFor:      wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 60),
+			Networks:        []string{networkName},
+			NetworkAliases:  map[string][]string{networkName: {name}},
+			Hostname:        name,
+			Files: []testcontainers.ContainerFile{
+				{HostFilePath: "testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
+			},
+			Env: map[string]string{
+				"PUBLIC_KEY":  string(pubKey),
+				"USER_NAME":   "test",
+				"TZ":          "Etc/UTC",
+				"DOCKER_MODS": "linuxserver/mods:openssh-server-ssh-tunnel",
+			},
+		}
+	}
+
+	// Start the bastion container
+	container1, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: containerRequest("bastion-host"),
+		Started:          true,
+	})
+	require.NoError(t, err)
+
+	// Start the container with final ssh connection
+	container2, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: containerRequest("target-host"),
+		Started:          true,
+	})
+	require.NoError(t, err)
+
+	// Get the host and port for both containers
+	host1, err := container1.Host(ctx)
+	require.NoError(t, err)
+	port1, err := container1.MappedPort(ctx, "2222")
+	require.NoError(t, err)
+
+	host2, err := container2.Host(ctx)
+	require.NoError(t, err)
+	port2, err := container2.MappedPort(ctx, "2222")
+	require.NoError(t, err)
+
+	teardown = func() {
+		container1.Terminate(ctx)
+		container2.Terminate(ctx)
+		network.Remove(ctx)
+	}
+
+	return fmt.Sprintf("%s:%s", host1, port1.Port()), fmt.Sprintf("%s:%s", host2, port2.Port()), teardown
+}

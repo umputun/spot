@@ -44,11 +44,12 @@ type options struct {
 	SSHTempDir      string        `long:"temp" env:"SPOT_TEMP" description:"temporary directory for ssh" default:""`
 
 	// overrides
-	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
-	SSHUser   string            `short:"u" long:"user" description:"ssh user"`
-	SSHKey    string            `short:"k" long:"key" description:"ssh key"`
-	Env       map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
-	EnvFile   string            `short:"E" long:"env-file" env:"SPOT_ENV_FILE" description:"environment variables from file" default:"env.yml"`
+	Inventory    string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
+	SSHUser      string            `short:"u" long:"user" description:"ssh user"`
+	SSHKey       string            `short:"k" long:"key" description:"ssh key"`
+	Env          map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
+	EnvFile      string            `short:"E" long:"env-file" env:"SPOT_ENV_FILE" description:"environment variables from file" default:"env.yml"`
+	ProxyCommand string            `long:"proxy-command" description:"ssh ProxyCommand, valid only if Targets (-t) overriding hosts, i.e. passed as <hostname>[:port], in other cases ignored, in normal case that command should be in host Destination structure" default:""`
 
 	// commands filter
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
@@ -363,6 +364,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("can't create connector: %w", err)
 	}
+
 	if opts.SSHAgent {
 		connector = connector.WithAgent()
 	}
@@ -372,18 +374,19 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 	}
 
 	r := runner.Process{
-		Concurrency: opts.Concurrent,
-		Connector:   connector,
-		Playbook:    pbook,
-		Only:        opts.Only,
-		Skip:        opts.Skip,
-		Logs:        logs,
-		Verbose:     len(opts.Verbose) > 0,
-		Verbose2:    len(opts.Verbose) > 1,
-		Dry:         opts.Dry,
-		Local:       opts.Local,
-		SSHShell:    opts.SSHShell,
-		SSHTempDir:  opts.SSHTempDir,
+		Concurrency:       opts.Concurrent,
+		Connector:         connector,
+		Playbook:          pbook,
+		Only:              opts.Only,
+		Skip:              opts.Skip,
+		Logs:              logs,
+		Verbose:           len(opts.Verbose) > 0,
+		Verbose2:          len(opts.Verbose) > 1,
+		Dry:               opts.Dry,
+		Local:             opts.Local,
+		SSHShell:          opts.SSHShell,
+		SSHTempDir:        opts.SSHTempDir,
+		AdhocProxyCommand: opts.ProxyCommand,
 	}
 	log.Printf("[DEBUG] runner created: concurrency:%d, connector: %s, ssh_shell:%q, verbose:%v, dry:%v, only:%v, skip:%v",
 		r.Concurrency, r.Connector, r.SSHShell, r.Verbose, r.Dry, r.Only, r.Skip)

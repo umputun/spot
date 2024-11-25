@@ -344,9 +344,10 @@ func TestTargetHosts(t *testing.T) {
 			"target3": {Name: "target3", Groups: []string{"group1"},
 				Hosts: []Destination{{Host: "host4.example.com", Port: 22, Name: "host4", Tags: []string{"tag4"}, User: "user4"}},
 			},
-			"target4":      {Name: "target4", Groups: []string{"group1"}, Names: []string{"host3"}},
-			"target5":      {Name: "target5", Tags: []string{"tag1"}},
-			"target-empty": {Name: "target-empty", Groups: []string{"empty-group", "gpu-nodes"}},
+			"target4":         {Name: "target4", Groups: []string{"group1"}, Names: []string{"host3"}},
+			"target5":         {Name: "target5", Tags: []string{"tag1"}},
+			"target-empty":    {Name: "target-empty", Groups: []string{"empty-group", "gpu-nodes"}},
+			"targetwithproxy": {Name: "targetwithproxy", Hosts: []Destination{{Host: "host1.example.com", Port: 22, ProxyCommand: "ssh -W %h:%p gateway.example.com", ProxyCommandParsed: []string{"ssh", "-W", "%h:%p", "gateway.example.com"}}}, Tags: []string{"tagproxy"}},
 		},
 		inventory: &InventoryData{
 			Groups: map[string][]Destination{
@@ -404,6 +405,13 @@ func TestTargetHosts(t *testing.T) {
 			[]Destination{
 				{Name: "host2", Host: "host2.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1"}},
 				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}}},
+			false,
+		},
+		{
+			"target with proxy", "targetwithproxy", nil,
+			[]Destination{
+				{Host: "host1.example.com", Port: 22, User: "defaultuser", ProxyCommand: "ssh -W %h:%p gateway.example.com", ProxyCommandParsed: []string{"ssh", "-W", "%h:%p", "gateway.example.com"}},
+			},
 			false,
 		},
 		{
@@ -475,10 +483,20 @@ func TestTargetHosts(t *testing.T) {
 		},
 	}
 
+	// In the "normal" flow ProxyCommand is in configuration files, but in case cli argument `--target` passed that
+	// represent hostname which is not exists in configuration file TargetHosts() will create "in memory" Destination,
+	// and adhocProxyCommand is being used for that Destination.
+	// This test checking how TargetHosts() extracts data from playbook so adhocProxyCommand is not important here
+	// because the playbook structure will have original and parsed proxy command already in it.
+	// It will be loaded during parsing playbook file.
+	// One test case added with simulation that proxy command is configured.
+	var adhocProxyCommand = ""
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			p.overrides = tc.overrides
-			res, err := p.TargetHosts(tc.targetName)
+
+			res, err := p.TargetHosts(tc.targetName, adhocProxyCommand)
 			if tc.expectError {
 				require.Error(t, err)
 			} else {
@@ -859,4 +877,153 @@ func TestPlayBook_SSHTempDir(t *testing.T) {
 			}
 		})
 	}
+}
+func TestParseProxyCommand(t *testing.T) {
+	// Not all examples of proxy commands here are valid, do not use them without checking what they are doing.
+	// Many of them will not open pipe to listen on stdin. Mostly these commands here to test
+	// that parseProxyCommand() can handle tricky cases of parsing with quotes and other special characters.
+
+	t.Run("basic command", func(t *testing.T) {
+		result, err := parseProxyCommand("ssh -W %h:%p gateway.example.com")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-W", "%h:%p", "gateway.example.com"}, result)
+	})
+
+	t.Run("empty string", func(t *testing.T) {
+		result, err := parseProxyCommand("")
+		require.NoError(t, err)
+		assert.Equal(t, []string{}, result)
+	})
+
+	t.Run("whitespace only", func(t *testing.T) {
+		result, err := parseProxyCommand("   \t\n  ")
+		require.NoError(t, err)
+		assert.Equal(t, []string{}, result)
+	})
+
+	t.Run("single quotes", func(t *testing.T) {
+		result, err := parseProxyCommand("ssh -o 'ProxyCommand=nc %h %p' gateway")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "ProxyCommand=nc %h %p", "gateway"}, result)
+	})
+
+	t.Run("double quotes", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o "ProxyCommand=nc %h %p" gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "ProxyCommand=nc %h %p", "gateway"}, result)
+	})
+
+	t.Run("mixed quotes", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o 'User="test user"' gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", `User="test user"`, "gateway"}, result)
+	})
+
+	t.Run("escaped spaces", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o ProxyCommand=nc\ %h\ %p gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "ProxyCommand=nc %h %p", "gateway"}, result)
+	})
+
+	t.Run("escaped quotes in double quotes", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o "ProxyCommand=nc \"quoted\" %h %p" gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", `ProxyCommand=nc "quoted" %h %p`, "gateway"}, result)
+	})
+
+	t.Run("escaped quotes in single quotes", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o 'ProxyCommand=nc '\''quoted'\'' %h %p' gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "ProxyCommand=nc 'quoted' %h %p", "gateway"}, result)
+	})
+
+	t.Run("escaped backslash", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o ProxyCommand=nc\\server gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", `ProxyCommand=nc\server`, "gateway"}, result)
+	})
+
+	t.Run("complex real world example", func(t *testing.T) {
+		result, err := parseProxyCommand(`gcloud compute start-iap-tunnel myinstance 22 --local-host-port=localhost:2222 --zone=us-central1-a`)
+		require.NoError(t, err)
+		expected := []string{"gcloud", "compute", "start-iap-tunnel", "myinstance", "22", "--local-host-port=localhost:2222", "--zone=us-central1-a"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("command with special characters", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o "ProxyCommand=nc -X 5 -x proxy.example.com:1080 %h %p" gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "ProxyCommand=nc -X 5 -x proxy.example.com:1080 %h %p", "gateway"}, result)
+	})
+
+	t.Run("multiple spaces", func(t *testing.T) {
+		result, err := parseProxyCommand("ssh    -W     %h:%p   gateway")
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-W", "%h:%p", "gateway"}, result)
+	})
+
+	t.Run("unclosed single quote", func(t *testing.T) {
+		_, err := parseProxyCommand("ssh -o 'ProxyCommand=nc %h %p gateway")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unclosed quote")
+	})
+
+	t.Run("unclosed double quote", func(t *testing.T) {
+		_, err := parseProxyCommand(`ssh -o "ProxyCommand=nc %h %p gateway`)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "unclosed quote")
+	})
+
+	t.Run("empty argument in quotes", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o "" gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "", "gateway"}, result)
+	})
+
+	t.Run("only spaces in quotes", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o "   " gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", "   ", "gateway"}, result)
+	})
+
+	t.Run("nested quotes different types", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -o 'ProxyCommand="nc %h %p"' gateway`)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"ssh", "-o", `ProxyCommand="nc %h %p"`, "gateway"}, result)
+	})
+
+	t.Run("ssh proxy command with identity file", func(t *testing.T) {
+		result, err := parseProxyCommand(`ssh -i ~/.ssh/id_rsa -o "ProxyCommand=ssh -i ~/.ssh/gateway_key gateway nc %h %p" target`)
+		require.NoError(t, err)
+		expected := []string{"ssh", "-i", "~/.ssh/id_rsa", "-o", "ProxyCommand=ssh -i ~/.ssh/gateway_key gateway nc %h %p", "target"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("curl with http connect proxy - valid ssh proxycommand", func(t *testing.T) {
+		result, err := parseProxyCommand(`curl -s --proxy http://proxy.example.com:8080 --proxytunnel --connect-timeout 10 http://%h:%p`)
+		require.NoError(t, err)
+		expected := []string{"curl", "-s", "--proxy", "http://proxy.example.com:8080", "--proxytunnel", "--connect-timeout", "10", "http://%h:%p"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("curl with authenticated proxy - valid ssh proxycommand", func(t *testing.T) {
+		result, err := parseProxyCommand(`curl -s --proxy-user "user:pass" --proxy http://proxy.company.com:8080 --proxytunnel --connect-timeout 10 http://%h:%p`)
+		require.NoError(t, err)
+		expected := []string{"curl", "-s", "--proxy-user", "user:pass", "--proxy", "http://proxy.company.com:8080", "--proxytunnel", "--connect-timeout", "10", "http://%h:%p"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("curl with escaped colon in proxy auth", func(t *testing.T) {
+		result, err := parseProxyCommand(`curl -s --proxy-user user:pa\:ss --proxy http://proxy.com:8080 --proxytunnel http://%h:%p`)
+		require.NoError(t, err)
+		expected := []string{"curl", "-s", "--proxy-user", "user:pa:ss", "--proxy", "http://proxy.com:8080", "--proxytunnel", "http://%h:%p"}
+		assert.Equal(t, expected, result)
+	})
+
+	t.Run("curl with protocol and port placeholders", func(t *testing.T) {
+		result, err := parseProxyCommand(`curl -s --proxy "http://corporate-proxy.company.com:8080" --proxytunnel "http://%h:%p"`)
+		require.NoError(t, err)
+		expected := []string{"curl", "-s", "--proxy", "http://corporate-proxy.company.com:8080", "--proxytunnel", "http://%h:%p"}
+		assert.Equal(t, expected, result)
+	})
 }
