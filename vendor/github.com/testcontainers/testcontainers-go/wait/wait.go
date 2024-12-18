@@ -31,12 +31,13 @@ type StrategyTarget interface {
 	Logs(context.Context) (io.ReadCloser, error)
 	Exec(context.Context, []string, ...exec.ProcessOption) (int, io.Reader, error)
 	State(context.Context) (*types.ContainerState, error)
+	CopyFileFromContainer(ctx context.Context, filePath string) (io.ReadCloser, error)
 }
 
 func checkTarget(ctx context.Context, target StrategyTarget) error {
 	state, err := target.State(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get state: %w", err)
 	}
 
 	return checkState(state)

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/go-connections/nat"
@@ -31,7 +33,7 @@ type ContainerRequestHook func(ctx context.Context, req ContainerRequest) error
 // - Terminating
 // - Terminated
 // For that, it will receive a Container, modify it and return an error if needed.
-type ContainerHook func(ctx context.Context, container Container) error
+type ContainerHook func(ctx context.Context, ctr Container) error
 
 // ContainerLifecycleHooks is a struct that contains all the hooks that can be used
 // to modify the container lifecycle. All the container lifecycle hooks except the PreCreates hooks
@@ -113,7 +115,7 @@ var DefaultLoggingHook = func(logger Logging) ContainerLifecycleHooks {
 }
 
 // defaultPreCreateHook is a hook that will apply the default configuration to the container
-var defaultPreCreateHook = func(ctx context.Context, p *DockerProvider, req ContainerRequest, dockerInput *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig) ContainerLifecycleHooks {
+var defaultPreCreateHook = func(p *DockerProvider, dockerInput *container.Config, hostConfig *container.HostConfig, networkingConfig *network.NetworkingConfig) ContainerLifecycleHooks {
 	return ContainerLifecycleHooks{
 		PreCreates: []ContainerRequestHook{
 			func(ctx context.Context, req ContainerRequest) error {
@@ -163,43 +165,102 @@ var defaultCopyFileToContainerHook = func(files []ContainerFile) ContainerLifecy
 var defaultLogConsumersHook = func(cfg *LogConsumerConfig) ContainerLifecycleHooks {
 	return ContainerLifecycleHooks{
 		PostStarts: []ContainerHook{
-			// first post-start hook is to produce logs and start log consumers
-			func(ctx context.Context, c Container) error {
-				dockerContainer := c.(*DockerContainer)
-
-				if cfg == nil {
-					return nil
-				}
-
-				for _, consumer := range cfg.Consumers {
-					dockerContainer.followOutput(consumer)
-				}
-
-				if len(cfg.Consumers) > 0 {
-					return dockerContainer.startLogProduction(ctx, cfg.Opts...)
-				}
-				return nil
-			},
-		},
-		PreTerminates: []ContainerHook{
-			// first pre-terminate hook is to stop the log production
+			// Produce logs sending details to the log consumers.
+			// See combineContainerHooks for the order of execution.
 			func(ctx context.Context, c Container) error {
 				if cfg == nil || len(cfg.Consumers) == 0 {
 					return nil
 				}
 
 				dockerContainer := c.(*DockerContainer)
+				dockerContainer.consumers = dockerContainer.consumers[:0]
+				for _, consumer := range cfg.Consumers {
+					dockerContainer.followOutput(consumer)
+				}
 
+				return dockerContainer.startLogProduction(ctx, cfg.Opts...)
+			},
+		},
+		PostStops: []ContainerHook{
+			// Stop the log production.
+			// See combineContainerHooks for the order of execution.
+			func(ctx context.Context, c Container) error {
+				if cfg == nil || len(cfg.Consumers) == 0 {
+					return nil
+				}
+
+				dockerContainer := c.(*DockerContainer)
 				return dockerContainer.stopLogProduction()
 			},
 		},
 	}
 }
 
+func checkPortsMapped(exposedAndMappedPorts nat.PortMap, exposedPorts []string) error {
+	portMap, _, err := nat.ParsePortSpecs(exposedPorts)
+	if err != nil {
+		return fmt.Errorf("parse exposed ports: %w", err)
+	}
+
+	for exposedPort := range portMap {
+		// having entries in exposedAndMappedPorts, where the key is the exposed port,
+		// and the value is the mapped port, means that the port has been already mapped.
+		if _, ok := exposedAndMappedPorts[exposedPort]; ok {
+			continue
+		}
+
+		// check if the port is mapped with the protocol (default is TCP)
+		if strings.Contains(string(exposedPort), "/") {
+			return fmt.Errorf("port %s is not mapped yet", exposedPort)
+		}
+
+		// Port didn't have a type, default to tcp and retry.
+		exposedPort += "/tcp"
+		if _, ok := exposedAndMappedPorts[exposedPort]; !ok {
+			return fmt.Errorf("port %s is not mapped yet", exposedPort)
+		}
+	}
+
+	return nil
+}
+
 // defaultReadinessHook is a hook that will wait for the container to be ready
 var defaultReadinessHook = func() ContainerLifecycleHooks {
 	return ContainerLifecycleHooks{
 		PostStarts: []ContainerHook{
+			func(ctx context.Context, c Container) error {
+				// wait until all the exposed ports are mapped:
+				// it will be ready when all the exposed ports are mapped,
+				// checking every 50ms, up to 1s, and failing if all the
+				// exposed ports are not mapped in 5s.
+				dockerContainer := c.(*DockerContainer)
+
+				b := backoff.NewExponentialBackOff()
+
+				b.InitialInterval = 50 * time.Millisecond
+				b.MaxElapsedTime = 5 * time.Second
+				b.MaxInterval = time.Duration(float64(time.Second) * backoff.DefaultRandomizationFactor)
+
+				err := backoff.RetryNotify(
+					func() error {
+						jsonRaw, err := dockerContainer.inspectRawContainer(ctx)
+						if err != nil {
+							return err
+						}
+
+						return checkPortsMapped(jsonRaw.NetworkSettings.Ports, dockerContainer.exposedPorts)
+					},
+					b,
+					func(err error, duration time.Duration) {
+						dockerContainer.logger.Printf("All requested ports were not exposed: %v", err)
+					},
+				)
+				if err != nil {
+					return fmt.Errorf("all exposed ports, %s, were not mapped in 5s: %w", dockerContainer.exposedPorts, err)
+				}
+
+				return nil
+			},
 			// wait for the container to be ready
 			func(ctx context.Context, c Container) error {
 				dockerContainer := c.(*DockerContainer)
@@ -207,11 +268,11 @@ var defaultReadinessHook = func() ContainerLifecycleHooks {
 				// if a Wait Strategy has been specified, wait before returning
 				if dockerContainer.WaitingFor != nil {
 					dockerContainer.logger.Printf(
-						"🚧 Waiting for container id %s image: %s. Waiting for: %+v",
+						"⏳ Waiting for container id %s image: %s. Waiting for: %+v",
 						dockerContainer.ID[:12], dockerContainer.Image, dockerContainer.WaitingFor,
 					)
 					if err := dockerContainer.WaitingFor.WaitUntilReady(ctx, c); err != nil {
-						return err
+						return fmt.Errorf("wait until ready: %w", err)
 					}
 				}
 
@@ -316,7 +377,15 @@ func (c *DockerContainer) applyLifecycleHooks(ctx context.Context, logError bool
 
 	if err := errors.Join(errs...); err != nil {
 		if logError {
-			c.printLogs(ctx, err)
+			select {
+			case <-ctx.Done():
+				// Context has timed out so need a new context to get logs.
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+				defer cancel()
+				c.printLogs(ctx, err)
+			default:
+				c.printLogs(ctx, err)
+			}
 		}
 
 		return err
@@ -341,10 +410,10 @@ func (c ContainerLifecycleHooks) Creating(ctx context.Context) func(req Containe
 // containerHookFn is a helper function that will create a function to be returned by all the different
 // container lifecycle hooks. The created function will iterate over all the hooks and call them one by one.
 func containerHookFn(ctx context.Context, containerHook []ContainerHook) func(container Container) error {
-	return func(container Container) error {
+	return func(ctr Container) error {
 		errs := make([]error, len(containerHook))
 		for i, hook := range containerHook {
-			errs[i] = hook(ctx, container)
+			errs[i] = hook(ctx, ctr)
 		}
 
 		return errors.Join(errs...)

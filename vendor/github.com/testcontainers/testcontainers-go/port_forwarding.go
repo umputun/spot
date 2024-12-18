@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -12,17 +13,19 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/testcontainers/testcontainers-go/internal/core/network"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 const (
 	// hubSshdImage {
-	image string = "testcontainers/sshd:1.2.0"
+	sshdImage string = "testcontainers/sshd:1.2.0"
 	// }
+
 	// HostInternal is the internal hostname used to reach the host from the container,
 	// using the SSHD container as a bridge.
 	HostInternal string = "host.testcontainers.internal"
 	user         string = "root"
-	sshPort             = "22"
+	sshPort             = "22/tcp"
 )
 
 // sshPassword is a random password generated for the SSHD container.
@@ -35,10 +38,8 @@ var sshPassword = uuid.NewString()
 // 1. Create a new SSHD container.
 // 2. Expose the host ports to the container after the container is ready.
 // 3. Close the SSH sessions before killing the container.
-func exposeHostPorts(ctx context.Context, req *ContainerRequest, p ...int) (ContainerLifecycleHooks, error) {
-	var sshdConnectHook ContainerLifecycleHooks
-
-	if len(p) == 0 {
+func exposeHostPorts(ctx context.Context, req *ContainerRequest, ports ...int) (sshdConnectHook ContainerLifecycleHooks, err error) { //nolint:nonamedreturns // Required for error check.
+	if len(ports) == 0 {
 		return sshdConnectHook, fmt.Errorf("no ports to expose")
 	}
 
@@ -55,9 +56,9 @@ func exposeHostPorts(ctx context.Context, req *ContainerRequest, p ...int) (Cont
 	opts := []ContainerCustomizer{}
 	if len(req.Networks) > 0 {
 		// get the first network of the container to connect the SSHD container to it.
-		nw, err := network.Get(ctx, sshdFirstNetwork)
+		nw, err := network.GetByName(ctx, sshdFirstNetwork)
 		if err != nil {
-			return sshdConnectHook, fmt.Errorf("failed to get the network: %w", err)
+			return sshdConnectHook, fmt.Errorf("get network %q: %w", sshdFirstNetwork, err)
 		}
 
 		dockerNw := DockerNetwork{
@@ -88,14 +89,20 @@ func exposeHostPorts(ctx context.Context, req *ContainerRequest, p ...int) (Cont
 
 	// start the SSHD container with the provided options
 	sshdContainer, err := newSshdContainer(ctx, opts...)
+	// Ensure the SSHD container is stopped and removed in case of error.
+	defer func() {
+		if err != nil {
+			err = errors.Join(err, TerminateContainer(sshdContainer))
+		}
+	}()
 	if err != nil {
-		return sshdConnectHook, fmt.Errorf("failed to create the SSH server: %w", err)
+		return sshdConnectHook, fmt.Errorf("new sshd container: %w", err)
 	}
 
 	// IP in the first network of the container
 	sshdIP, err := sshdContainer.ContainerIP(context.Background())
 	if err != nil {
-		return sshdConnectHook, fmt.Errorf("failed to get IP for the SSHD container: %w", err)
+		return sshdConnectHook, fmt.Errorf("get sshd container IP: %w", err)
 	}
 
 	if req.HostConfigModifier == nil {
@@ -126,6 +133,20 @@ func exposeHostPorts(ctx context.Context, req *ContainerRequest, p ...int) (Cont
 		originalHCM(hostConfig)
 	}
 
+	stopHooks := []ContainerHook{
+		func(ctx context.Context, _ Container) error {
+			if ctx.Err() != nil {
+				// Context already canceled, need to create a new one to ensure
+				// the SSH session is closed.
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+			}
+
+			return TerminateContainer(sshdContainer, StopContext(ctx))
+		},
+	}
+
 	// after the container is ready, create the SSH tunnel
 	// for each exposed port from the host.
 	sshdConnectHook = ContainerLifecycleHooks{
@@ -134,12 +155,8 @@ func exposeHostPorts(ctx context.Context, req *ContainerRequest, p ...int) (Cont
 				return sshdContainer.exposeHostPort(ctx, req.HostAccessPorts...)
 			},
 		},
-		PreTerminates: []ContainerHook{
-			func(ctx context.Context, _ Container) error {
-				// before killing the container, close the SSH sessions
-				return sshdContainer.Terminate(ctx)
-			},
-		},
+		PreStops:      stopHooks,
+		PreTerminates: stopHooks,
 	}
 
 	return sshdConnectHook, nil
@@ -149,10 +166,11 @@ func exposeHostPorts(ctx context.Context, req *ContainerRequest, p ...int) (Cont
 func newSshdContainer(ctx context.Context, opts ...ContainerCustomizer) (*sshdContainer, error) {
 	req := GenericContainerRequest{
 		ContainerRequest: ContainerRequest{
-			Image:           image,
+			Image:           sshdImage,
 			HostAccessPorts: []int{}, // empty list because it does not need any port
 			ExposedPorts:    []string{sshPort},
 			Env:             map[string]string{"PASSWORD": sshPassword},
+			WaitingFor:      wait.ForListeningPort(sshPort),
 		},
 		Started: true,
 	}
@@ -164,17 +182,13 @@ func newSshdContainer(ctx context.Context, opts ...ContainerCustomizer) (*sshdCo
 	}
 
 	c, err := GenericContainer(ctx, req)
-	if err != nil {
-		return nil, err
+	var sshd *sshdContainer
+	if c != nil {
+		sshd = &sshdContainer{Container: c}
 	}
 
-	// force a type assertion to return a concrete type,
-	// because GenericContainer returns a Container interface.
-	dc := c.(*DockerContainer)
-
-	sshd := &sshdContainer{
-		DockerContainer: dc,
-		portForwarders:  []PortForwarder{},
+	if err != nil {
+		return sshd, fmt.Errorf("generic container: %w", err)
 	}
 
 	sshClientConfig, err := configureSSHConfig(ctx, sshd)
@@ -191,7 +205,7 @@ func newSshdContainer(ctx context.Context, opts ...ContainerCustomizer) (*sshdCo
 // sshdContainer represents the SSHD container type used for the port forwarding container.
 // It's an internal type that extends the DockerContainer type, to add the SSH tunneling capabilities.
 type sshdContainer struct {
-	*DockerContainer
+	Container
 	port           string
 	sshConfig      *ssh.ClientConfig
 	portForwarders []PortForwarder
@@ -199,17 +213,30 @@ type sshdContainer struct {
 
 // Terminate stops the container and closes the SSH session
 func (sshdC *sshdContainer) Terminate(ctx context.Context) error {
+	sshdC.closePorts(ctx)
+
+	return sshdC.Container.Terminate(ctx)
+}
+
+// Stop stops the container and closes the SSH session
+func (sshdC *sshdContainer) Stop(ctx context.Context, timeout *time.Duration) error {
+	sshdC.closePorts(ctx)
+
+	return sshdC.Container.Stop(ctx, timeout)
+}
+
+// closePorts closes all port forwarders.
+func (sshdC *sshdContainer) closePorts(ctx context.Context) {
 	for _, pfw := range sshdC.portForwarders {
 		pfw.Close(ctx)
 	}
-
-	return sshdC.DockerContainer.Terminate(ctx)
+	sshdC.portForwarders = nil // Ensure the port forwarders are not used after closing.
 }
 
 func configureSSHConfig(ctx context.Context, sshdC *sshdContainer) (*ssh.ClientConfig, error) {
 	mappedPort, err := sshdC.MappedPort(ctx, sshPort)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("mapped port: %w", err)
 	}
 	sshdC.port = mappedPort.Port()
 
@@ -228,15 +255,17 @@ func (sshdC *sshdContainer) exposeHostPort(ctx context.Context, ports ...int) er
 		pw := NewPortForwarder(fmt.Sprintf("localhost:%s", sshdC.port), sshdC.sshConfig, port, port)
 		sshdC.portForwarders = append(sshdC.portForwarders, *pw)
 
-		go pw.Forward(ctx)
+		go pw.Forward(ctx) //nolint:errcheck // Nothing we can usefully do with the error
 	}
+
+	var err error
 
 	// continue when all port forwarders have created the connection
 	for _, pfw := range sshdC.portForwarders {
-		<-pfw.connectionCreated
+		err = errors.Join(err, <-pfw.connectionCreated)
 	}
 
-	return nil
+	return err
 }
 
 type PortForwarder struct {
@@ -244,7 +273,7 @@ type PortForwarder struct {
 	sshConfig         *ssh.ClientConfig
 	remotePort        int
 	localPort         int
-	connectionCreated chan struct{} // used to signal that the connection has been created, so the caller can proceed
+	connectionCreated chan error    // used to signal that the connection has been created, so the caller can proceed
 	terminateChan     chan struct{} // used to signal that the connection has been terminated
 }
 
@@ -254,7 +283,7 @@ func NewPortForwarder(sshDAddr string, sshConfig *ssh.ClientConfig, remotePort, 
 		sshConfig:         sshConfig,
 		remotePort:        remotePort,
 		localPort:         localPort,
-		connectionCreated: make(chan struct{}),
+		connectionCreated: make(chan error),
 		terminateChan:     make(chan struct{}),
 	}
 }
@@ -267,18 +296,22 @@ func (pf *PortForwarder) Close(ctx context.Context) {
 func (pf *PortForwarder) Forward(ctx context.Context) error {
 	client, err := ssh.Dial("tcp", pf.sshDAddr, pf.sshConfig)
 	if err != nil {
-		return fmt.Errorf("error dialing ssh server: %w", err)
+		err = fmt.Errorf("error dialing ssh server: %w", err)
+		pf.connectionCreated <- err
+		return err
 	}
 	defer client.Close()
 
 	listener, err := client.Listen("tcp", fmt.Sprintf("localhost:%d", pf.remotePort))
 	if err != nil {
-		return fmt.Errorf("error listening on remote port: %w", err)
+		err = fmt.Errorf("error listening on remote port: %w", err)
+		pf.connectionCreated <- err
+		return err
 	}
 	defer listener.Close()
 
 	// signal that the connection has been created
-	pf.connectionCreated <- struct{}{}
+	pf.connectionCreated <- nil
 
 	// check if the context or the terminateChan has been closed
 	select {
