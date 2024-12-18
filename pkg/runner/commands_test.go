@@ -30,7 +30,7 @@ func Test_templaterApply(t *testing.T) {
 		{
 			name: "all variables, hostAddr without port",
 			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
-			  "{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "example.com",
 				hostName: "example",
@@ -42,7 +42,7 @@ func Test_templaterApply(t *testing.T) {
 		{
 			name: "all variables, hostAddr with port",
 			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
-			  "{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "example.com:22022",
 				hostName: "example",
@@ -54,7 +54,7 @@ func Test_templaterApply(t *testing.T) {
 		{
 			name: "all variables, hostAddr ipv6 with port",
 			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
-			  "{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "[2001:db8::1]:22022",
 				hostName: "example",
