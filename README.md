@@ -478,6 +478,8 @@ example installing curl package if not installed already:
     cond: "! command -v curl"
 ```
 
+currently conditions can be used with `script` and `echo` command types only.
+
 ### Deferred actions (`on_exit`)
 
 Each command may have `on_exit` parameter defined. It allows executing a command on the remote host after the task with all commands is completed. The command is called regardless of the task's exit code.

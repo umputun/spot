@@ -347,6 +347,72 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, " {echo: foo welcome back}", resp.details)
 	})
 
+	t.Run("echo command with condition true", func(t *testing.T) {
+		defer os.Remove("/tmp/test.condition")
+		_, err := sess.Run(ctx, "touch /tmp/test.condition", nil)
+		require.NoError(t, err)
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "test -f /tmp/test.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition false", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+	})
+
+	t.Run("echo command with condition true inverted", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "! test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition false inverted", func(t *testing.T) {
+		defer os.Remove("/tmp/test2.condition")
+		_, err := sess.Run(ctx, "touch /tmp/test2.condition", nil)
+		require.NoError(t, err)
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "! test -f /tmp/test2.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+	})
+
 	t.Run("sync command", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Sync: config.SyncInternal{
 			Source: "testdata", Dest: "/tmp/sync.testdata", Exclude: []string{"conf2.yml"}}, Name: "test"}}

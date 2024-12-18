@@ -346,6 +346,17 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 // Echo prints a message. It enforces the echo command to start with "echo " and adds sudo if needed.
 // It returns the result of the echo command as details string.
 func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
+	// check the condition if it exists
+	cond, err := ec.checkCondition(ctx)
+	if err != nil {
+		return resp, err
+	}
+	if !cond {
+		resp.details = fmt.Sprintf(" {skip: %s}", ec.cmd.Name)
+		return resp, nil
+	}
+
+	// only proceed with echo if there was no condition or condition passed
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	echoCmd := tmpl.apply(ec.cmd.Echo)
 	if !strings.HasPrefix(echoCmd, "echo ") {
