@@ -30,7 +30,7 @@ func Test_templaterApply(t *testing.T) {
 		{
 			name: "all variables, hostAddr without port",
 			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
-				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+			  "{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "example.com",
 				hostName: "example",
@@ -42,7 +42,7 @@ func Test_templaterApply(t *testing.T) {
 		{
 			name: "all variables, hostAddr with port",
 			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
-				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+			  "{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "example.com:22022",
 				hostName: "example",
@@ -54,7 +54,7 @@ func Test_templaterApply(t *testing.T) {
 		{
 			name: "all variables, hostAddr ipv6 with port",
 			inp: "${SPOT_REMOTE_HOST} ${SPOT_REMOTE_USER} ${SPOT_COMMAND} {SPOT_REMOTE_NAME} " +
-				"{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
+			  "{SPOT_REMOTE_ADDR} {SPOT_REMOTE_PORT}",
 			tmpl: templater{
 				hostAddr: "[2001:db8::1]:22022",
 				hostName: "example",
@@ -345,6 +345,72 @@ func Test_execCmd(t *testing.T) {
 		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {echo: foo welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition true", func(t *testing.T) {
+		defer os.Remove("/tmp/test.condition")
+		_, err := sess.Run(ctx, "touch /tmp/test.condition", nil)
+		require.NoError(t, err)
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "test -f /tmp/test.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition false", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+	})
+
+	t.Run("echo command with condition true inverted", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "! test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition false inverted", func(t *testing.T) {
+		defer os.Remove("/tmp/test2.condition")
+		_, err := sess.Run(ctx, "touch /tmp/test2.condition", nil)
+		require.NoError(t, err)
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "! test -f /tmp/test2.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
 	})
 
 	t.Run("sync command", func(t *testing.T) {
