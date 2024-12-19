@@ -680,3 +680,68 @@ func Test_execCmdWithTmp(t *testing.T) {
 		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
 	})
 }
+
+func Test_execCmd_prepScript(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	ctx := context.Background()
+	logs := executor.MakeLogs(false, false, nil)
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-host", "test")
+	require.NoError(t, errSess)
+
+	t.Run("single line command, no temp files", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}}
+		cmd, script, teardown, err := ec.prepScript(ctx, "echo hello", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "echo hello", cmd)
+		assert.Empty(t, script)
+		assert.Nil(t, teardown)
+	})
+
+	t.Run("multiline script with temp files", func(t *testing.T) {
+		input := "#!/bin/sh\necho 'line 1'\necho 'line 2'\n"
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}}
+
+		// capture log output
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+		defer log.SetOutput(os.Stdout)
+
+		cmd, _, teardown, err := ec.prepScript(ctx, "", bytes.NewBufferString(input))
+		require.NoError(t, err)
+		require.NotNil(t, teardown)
+		defer teardown()
+
+		// verify command format
+		assert.Contains(t, cmd, "/bin/sh -c /tmp/.spot-")
+
+		// verify script content matches input
+		remotePath := strings.Split(cmd, " ")[2]
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", remotePath), nil)
+		require.NoError(t, err)
+		assert.Equal(t, input, strings.Join(out, "\n")+"\n")
+
+		// verify local temp file was removed (check logs)
+		assert.Contains(t, buf.String(), "[DEBUG] removed local temp script")
+	})
+
+	t.Run("failed upload cleanup", func(t *testing.T) {
+		// create invalid executor that will fail on upload
+		invalidSess := &executor.Remote{} // This will fail on upload
+
+		// capture log output
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+		defer log.SetOutput(os.Stdout)
+
+		ec := execCmd{exec: invalidSess, tsk: &config.Task{Name: "test"}}
+		_, _, _, err := ec.prepScript(ctx, "", bytes.NewBufferString("echo test"))
+		require.Error(t, err)
+
+		// verify local temp file was removed even on error (check logs)
+		assert.Contains(t, buf.String(), "[DEBUG] removed local temp script")
+	})
+}

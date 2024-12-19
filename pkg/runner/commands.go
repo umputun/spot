@@ -455,6 +455,8 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		// remove local copy of the script after upload or in case of error
 		if err := os.Remove(tmp.Name()); err != nil {
 			log.Printf("[WARN] can't remove local temp script %s: %v", tmp.Name(), err)
+		} else {
+			log.Printf("[DEBUG] removed local temp script %s", tmp.Name())
 		}
 	}()
 	// make the script executable locally, upload preserves the permissions
