@@ -285,7 +285,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			}
 		}
 
-		log.Printf("[INFO] deleted recursively %s", remoteFile)
+		log.Printf("[INFO] deleted recursively %s from %s", remoteFile, ex.hostName)
 	}
 
 	if fileInfo.IsDir() && !recursive {
