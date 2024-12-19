@@ -483,6 +483,37 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
 	})
 
+	t.Run("script temp files cleanup", func(t *testing.T) {
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+		// run a multi-line script that will create temp files
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Script: "echo 'line1'\necho 'line2'\necho 'line3'",
+		}}
+		resp, err := ec.Script(ctx)
+		require.NoError(t, err)
+		t.Logf("resp: %+v", resp)
+
+		// check that the temp file was cleaned up
+		_, err = sess.Run(ctx, "ls -la /tmp/spot*", nil)
+		require.Error(t, err, "temp script file should be cleaned up")
+		_, err = sess.Run(ctx, "ls -la /tmp/.spot-*", nil)
+		require.Error(t, err, "temp dir should be cleaned up")
+
+		// also test cleanup on failure
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Script: "echo 'line1'\nexit 1\necho 'line3'",
+		}}
+		_, err = ec.Script(ctx)
+		require.Error(t, err)
+
+		// check cleanup after failure
+		_, err = sess.Run(ctx, "ls -la /tmp/spot*", nil)
+		require.Error(t, err, "temp script file should be cleaned up even after failure")
+		_, err = sess.Run(ctx, "ls -la /tmp/.spot-*", nil)
+		require.Error(t, err, "temp dir should be cleaned up even after failure")
+	})
 }
 
 func Test_execCmdWithTmp(t *testing.T) {
@@ -501,7 +532,6 @@ func Test_execCmdWithTmp(t *testing.T) {
 		re := regexp.MustCompile(pattern)
 		match := re.FindStringSubmatch(log)
 		if len(match) > 1 {
-
 			return strings.ReplaceAll(match[1], "localhost:", "")
 		}
 		return ""

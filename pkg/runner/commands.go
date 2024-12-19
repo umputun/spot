@@ -451,7 +451,12 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	if err = tmp.Close(); err != nil {
 		return "", "", nil, ec.errorFmt("can't close temporary file: %w", err)
 	}
-
+	defer func() {
+		// remove local copy of the script after upload or in case of error
+		if err := os.Remove(tmp.Name()); err != nil {
+			log.Printf("[WARN] can't remove local temp script %s: %v", tmp.Name(), err)
+		}
+	}()
 	// make the script executable locally, upload preserves the permissions
 	if err = os.Chmod(tmp.Name(), 0o700); err != nil { // nolint
 		return "", "", nil, ec.errorFmt("can't chmod temporary file: %w", err)
@@ -471,6 +476,8 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	cmd = fmt.Sprintf("%s -c %s", ec.shell(), dst)
 
 	teardown = func() error {
+		log.Printf("[DEBUG] removed local temp script %s", tmp.Name())
+
 		// remove the temp dir with the script from the remote hostAddr,
 		// should be invoked by the caller after the command is executed
 		if err := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); err != nil {
