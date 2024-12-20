@@ -320,6 +320,22 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, " {script: /bin/sh -c 'echo condition true'}", resp.details)
 	})
 
+	t.Run("condition true, sudo only", func(t *testing.T) {
+		// check without sudo condition on root-only file
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "cat /etc/shadow",
+			Script: "echo condition true", Name: "test"}}
+		resp, err := ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+
+		// check with sudo condition on root-only file
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "cat /etc/shadow",
+			Script: "echo condition true", Name: "test", Options: config.CmdOptions{Sudo: true}}}
+		resp, err = ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {script: /bin/sh -c 'echo condition true', sudo: true}", resp.details)
+	})
+
 	t.Run("condition true inverted", func(t *testing.T) {
 		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", &executor.RunOpts{Verbose: true})
 		require.NoError(t, err)
