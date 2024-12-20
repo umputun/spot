@@ -330,89 +330,6 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, " {skip: test}", resp.details)
 	})
 
-	t.Run("echo command", func(t *testing.T) {
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "welcome back", Name: "test"}}
-		resp, err := ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {echo: welcome back}", resp.details)
-
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "echo welcome back", Name: "test"}}
-		resp, err = ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {echo: welcome back}", resp.details)
-
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$var1 welcome back", Name: "test", Environment: map[string]string{"var1": "foo"}}}
-		resp, err = ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {echo: foo welcome back}", resp.details)
-	})
-
-	t.Run("echo command with condition true", func(t *testing.T) {
-		defer os.Remove("/tmp/test.condition")
-		_, err := sess.Run(ctx, "touch /tmp/test.condition", nil)
-		require.NoError(t, err)
-		ec := execCmd{
-			exec: sess,
-			tsk:  &config.Task{Name: "test"},
-			cmd: config.Cmd{
-				Echo:      "welcome back",
-				Name:      "test",
-				Condition: "test -f /tmp/test.condition",
-			},
-		}
-		resp, err := ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {echo: welcome back}", resp.details)
-	})
-
-	t.Run("echo command with condition false", func(t *testing.T) {
-		ec := execCmd{
-			exec: sess,
-			tsk:  &config.Task{Name: "test"},
-			cmd: config.Cmd{
-				Echo:      "welcome back",
-				Name:      "test",
-				Condition: "test -f /tmp/nonexistent.condition",
-			},
-		}
-		resp, err := ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {skip: test}", resp.details)
-	})
-
-	t.Run("echo command with condition true inverted", func(t *testing.T) {
-		ec := execCmd{
-			exec: sess,
-			tsk:  &config.Task{Name: "test"},
-			cmd: config.Cmd{
-				Echo:      "welcome back",
-				Name:      "test",
-				Condition: "! test -f /tmp/nonexistent.condition",
-			},
-		}
-		resp, err := ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {echo: welcome back}", resp.details)
-	})
-
-	t.Run("echo command with condition false inverted", func(t *testing.T) {
-		defer os.Remove("/tmp/test2.condition")
-		_, err := sess.Run(ctx, "touch /tmp/test2.condition", nil)
-		require.NoError(t, err)
-		ec := execCmd{
-			exec: sess,
-			tsk:  &config.Task{Name: "test"},
-			cmd: config.Cmd{
-				Echo:      "welcome back",
-				Name:      "test",
-				Condition: "! test -f /tmp/test2.condition",
-			},
-		}
-		resp, err := ec.Echo(ctx)
-		require.NoError(t, err)
-		assert.Equal(t, " {skip: test}", resp.details)
-	})
-
 	t.Run("sync command", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Sync: config.SyncInternal{
 			Source: "testdata", Dest: "/tmp/sync.testdata", Exclude: []string{"conf2.yml"}}, Name: "test"}}
@@ -513,6 +430,134 @@ func Test_execCmd(t *testing.T) {
 		require.Error(t, err, "temp script file should be cleaned up even after failure")
 		_, err = sess.Run(ctx, "ls -la /tmp/.spot-*", nil)
 		require.Error(t, err, "temp dir should be cleaned up even after failure")
+	})
+}
+
+func Test_execEcho(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+	logs := executor.MakeLogs(false, false, nil)
+	ctx := context.Background()
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, errSess)
+
+	t.Run("echo command", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "welcome back", Name: "test"}}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "echo welcome back", Name: "test"}}
+		resp, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$var1 welcome back", Name: "test", Environment: map[string]string{"var1": "foo"}}}
+		resp, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: foo welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition true", func(t *testing.T) {
+		defer os.Remove("/tmp/test.condition")
+		_, err := sess.Run(ctx, "touch /tmp/test.condition", nil)
+		require.NoError(t, err)
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "test -f /tmp/test.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition false", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+	})
+
+	t.Run("echo command with condition true inverted", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "! test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: welcome back}", resp.details)
+	})
+
+	t.Run("echo command with condition false inverted", func(t *testing.T) {
+		defer os.Remove("/tmp/test2.condition")
+		_, err := sess.Run(ctx, "touch /tmp/test2.condition", nil)
+		require.NoError(t, err)
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo:      "welcome back",
+				Name:      "test",
+				Condition: "! test -f /tmp/test2.condition",
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+	})
+
+	t.Run("echo command with sudo", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo: "hello from sudo",
+				Name: "test",
+				Options: config.CmdOptions{
+					Sudo: true,
+				},
+			},
+		}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: hello from sudo}", resp.details)
+
+		ec = execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Echo: "$(id)",
+				Name: "test",
+			},
+		}
+		resp, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "uid=911(test)")
+
+		ec.cmd.Options.Sudo = true
+		resp, err = ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "uid=0(root)")
 	})
 }
 

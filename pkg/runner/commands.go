@@ -363,7 +363,7 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 		echoCmd = fmt.Sprintf("echo %q", echoCmd)
 	}
 	if ec.cmd.Options.Sudo {
-		echoCmd = fmt.Sprintf("sudo %q", echoCmd)
+		echoCmd = fmt.Sprintf("sudo %s -c '%s'", ec.shell(), echoCmd)
 	}
 	out, err := ec.exec.Run(ctx, echoCmd, nil)
 	if err != nil {
