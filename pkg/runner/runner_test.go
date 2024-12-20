@@ -256,7 +256,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `/conf.yml in`)
 	})
 
-	t.Run("echo with variables", func(t *testing.T) {
+	t.Run("script with echo, with variables", func(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
 
@@ -283,7 +283,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `completed command "echo things" {echo: vars - 6, 9, zzzzz}`)
 	})
 
-	t.Run("echo with variables, verbose", func(t *testing.T) {
+	t.Run("script with echo and with variables, verbose", func(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
 
@@ -310,6 +310,36 @@ func TestProcess_Run(t *testing.T) {
 		t.Log("out:\n", outWriter.String())
 		assert.Contains(t, outWriter.String(), `completed command "echo things" {echo: vars - 6, 9, zzzzz}`)
 	})
+
+	t.Run("echo with variables and sudo, verbose", func(t *testing.T) {
+		conf, err := config.New("testdata/conf.yml", nil, nil)
+		require.NoError(t, err)
+
+		outWriter := &bytes.Buffer{}
+		wr := io.MultiWriter(outWriter, os.Stderr)
+		lgs := executor.MakeLogs(true, false, conf.AllSecretValues())
+		lgs.Info = lgs.Info.WithWriter(wr)
+
+		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   conn,
+			Playbook:    conf,
+			Logs:        lgs,
+			Only:        []string{"copy configuration", "some command", "echo things sudo"},
+			Verbose:     true,
+		}
+		log.SetOutput(io.Discard)
+		res, err := p.Run(ctx, "task1", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 3, res.Commands)
+		t.Log("out:\n", outWriter.String())
+		assert.Contains(t, outWriter.String(), `completed command "echo things sudo" {echo: vars - 6, 9, zzzzz`)
+		assert.Contains(t, outWriter.String(), `uid=0(root) gid=0(root)`)
+	})
+
 	t.Run("delete multiple files", func(t *testing.T) {
 		conf, err := config.New("testdata/conf.yml", nil, nil)
 		require.NoError(t, err)
