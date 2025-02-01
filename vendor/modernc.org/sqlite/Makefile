@@ -69,7 +69,10 @@ test:
 	go test -v -timeout 24h 2>&1 | tee log-test
 	
 vendor:
-	go run vendor_libsqlite3.go && make build_all_targets
+	cd vendor_libsqlite3 && go build -o ../vendor main.go
+	./vendor
+	rm -f vendor
+	make build_all_targets
 	make build_all_targets
 
 work:
