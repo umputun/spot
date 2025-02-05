@@ -398,49 +398,53 @@ func Test_runGen_goTmplFile(t *testing.T) {
 
 func TestMakeRunnerTempDir(t *testing.T) {
 	tests := []struct {
-		name           string
-		opts           options
-		playbook       *config.PlayBook
-		wantTmpDir     string
-		wantLogMessage string
+		name       string
+		opts       options
+		playbook   *config.PlayBook
+		wantTmpDir string
 	}{
 		{
 			name: "command line temp dir",
 			opts: options{
-				SSHTempDir: "/tmp/cmd",
+				SSHTempDir: "/tmp/custom/cmd",
+				SSHKey:     "testdata/test_ssh_key", // Add test SSH key
 			},
 			playbook:   &config.PlayBook{},
-			wantTmpDir: "/tmp/cmd",
+			wantTmpDir: "/tmp/custom/cmd",
 		},
 		{
 			name: "playbook temp dir",
-			opts: options{},
-			playbook: &config.PlayBook{
-				SSHTempDir: "/tmp/playbook",
+			opts: options{
+				SSHKey: "testdata/test_ssh_key", // Add test SSH key
 			},
-			wantTmpDir: "/tmp/playbook",
+			playbook: &config.PlayBook{
+				SSHTempDir: "/tmp/custom/playbook",
+			},
+			wantTmpDir: "/tmp/custom/playbook",
 		},
 		{
-			name:       "no temp dir",
-			opts:       options{},
+			name: "no temp dir",
+			opts: options{
+				SSHKey: "testdata/test_ssh_key", // Add test SSH key
+			},
 			playbook:   &config.PlayBook{},
 			wantTmpDir: "",
 		},
 		{
 			name: "command line overrides playbook",
 			opts: options{
-				SSHTempDir: "/tmp/cmd",
+				SSHTempDir: "/tmp/custom/cmd",
+				SSHKey:     "testdata/test_ssh_key", // Add test SSH key
 			},
 			playbook: &config.PlayBook{
-				SSHTempDir: "/tmp/playbook",
+				SSHTempDir: "/tmp/custom/playbook",
 			},
-			wantTmpDir: "/tmp/cmd",
+			wantTmpDir: "/tmp/custom/cmd",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// if command line temp dir is empty, use playbook's temp dir
 			if tt.opts.SSHTempDir == "" && tt.playbook.SSHTempDir != "" {
 				tt.opts.SSHTempDir = tt.playbook.SSHTempDir
 			}
@@ -458,7 +462,7 @@ func TestRunWithCustomTempDir(t *testing.T) {
 	opts := options{
 		SSHUser:      "test",
 		SSHKey:       "testdata/test_ssh_key",
-		SSHTempDir:   "/tmp/custom-spot",
+		SSHTempDir:   "/tmp/custom/spot", // Updated path
 		PlaybookFile: "testdata/conf2.yml",
 		TaskNames:    []string{"task1"},
 		Targets:      []string{hostAndPort},
@@ -472,10 +476,8 @@ func TestRunWithCustomTempDir(t *testing.T) {
 	})
 	t.Log("out\n", logOut)
 
-	// verify the temp dir was used in the commands
-	assert.Contains(t, logOut, "/tmp/custom-spot/.spot-")
-	// verify temp dir was properly cleaned up
-	assert.Contains(t, logOut, "deleted recursively /tmp/custom-spot/.spot-")
+	assert.Contains(t, logOut, "/tmp/custom/spot/.spot-")
+	assert.Contains(t, logOut, "deleted recursively /tmp/custom/spot/.spot-")
 }
 
 func Test_connectFailed(t *testing.T) {
