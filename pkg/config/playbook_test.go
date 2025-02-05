@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/umputun/spot/pkg/config/mocks"
+	"github.com/umputun/spot/pkg/secrets"
 )
 
 func TestPlaybook_New(t *testing.T) {
@@ -797,4 +798,50 @@ func TestPlayBook_AllTasks(t *testing.T) {
 	assert.Equal(t, "task2", p.AllTasks()[1].Name)
 	assert.Equal(t, []string{"target1"}, p.AllTasks()[0].Targets)
 	assert.Equal(t, []string{"target2", "target3"}, p.AllTasks()[1].Targets)
+}
+
+func TestPlayBook_SSHTempDir(t *testing.T) {
+	tests := []struct {
+		name        string
+		playbookFn  string
+		overrideDir string
+		want        string
+	}{
+		{
+			name:        "default temp dir",
+			playbookFn:  "testdata/f1.yml",
+			overrideDir: "",
+			want:        "/tmp",
+		},
+		{
+			name:        "temp dir from playbook",
+			playbookFn:  "testdata/with-ssh-config.yml",
+			overrideDir: "",
+			want:        "/tmp/spot",
+		},
+		{
+			name:        "temp dir from override",
+			playbookFn:  "testdata/with-ssh-config.yml",
+			overrideDir: "/custom/temp",
+			want:        "/custom/temp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides := &Overrides{SSHTempDir: tt.overrideDir}
+			pbook, err := New(tt.playbookFn, overrides, &secrets.NoOpProvider{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, pbook.sshTempDir())
+
+			// verify each command gets correct temp dir set
+			if pbook.Tasks != nil {
+				for _, tsk := range pbook.Tasks {
+					for _, cmd := range tsk.Commands {
+						assert.Equal(t, tt.want, cmd.SSHTempDir, "task %q command %q", tsk.Name, cmd.Name)
+					}
+				}
+			}
+		})
+	}
 }

@@ -136,6 +136,8 @@ Spot supports the following command-line options:
 - `--ssh-agent`: Enables using the SSH agent for authentication. Defaults to `false`. Users can also set the environment variable `SPOT_SSH_AGENT` to define the value.
 - `--forward-ssh-agent`: Enables forwarding of connections from an authentication agent. Defaults to `false`. Users can also set the environment variable `SPOT_FORWARD_SSH_AGENT` to define the value.
 - `--shell` - shell for remote ssh execution, default is `/bin/sh`. Users can also set the environment variable `SPOT_SHELL` to define the value.  
+- `--local-shell` - shell for local execution, default is os shell. Users can also set the environment variable `SPOT_LOCAL_SHELL` to define the value.
+- `--temp` - temporary directory for remote execution, default is `/tmp`. Users can also set the environment variable `SPOT_TEMP_DIR` to define the value.
 - `-i`, `--inventory=`: Specifies the inventory file or URL to use for the task execution. Overrides the inventory file defined in the
   playbook file. Users can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
@@ -170,6 +172,7 @@ Spot supports the following command-line options:
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
 ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
+ssh_temp_dir: /tmp                  # temporary directory for remote execution, default is /tmp
 local_shell: /bin/bash              # shell to use for local execution, default is os shell
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
@@ -241,6 +244,7 @@ In some cases, the rich syntax of the full playbook is not needed and can feel o
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
 ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
+ssh_temp_dir: /tmp                  # temporary directory for remote execution, default is /tmp
 local_shell: /bin/bash              # shell to use for local execution, default is os shell
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 

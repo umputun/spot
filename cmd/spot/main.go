@@ -40,6 +40,7 @@ type options struct {
 	SSHAgent        bool          `long:"ssh-agent" env:"SPOT_SSH_AGENT" description:"use ssh-agent"`
 	ForwardSSHAgent bool          `long:"forward-ssh-agent" env:"SPOT_FORWARD_SSH_AGENT" description:"use forward-ssh-agent"`
 	SSHShell        string        `long:"shell" env:"SPOT_SHELL" description:"enforce non-default shell to use for ssh" default:""`
+	SSHTempDir      string        `long:"temp" env:"SPOT_TEMP" description:"temporary directory for ssh" default:""`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
@@ -353,6 +354,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Verbose2:    len(opts.Verbose) > 1,
 		Dry:         opts.Dry,
 		SSHShell:    opts.SSHShell,
+		SSHTempDir:  opts.SSHTempDir,
 	}
 	log.Printf("[DEBUG] runner created: concurrency:%d, connector: %s, ssh_shell:%q, verbose:%v, dry:%v, only:%v, skip:%v",
 		r.Concurrency, r.Connector, r.SSHShell, r.Verbose, r.Dry, r.Only, r.Skip)
