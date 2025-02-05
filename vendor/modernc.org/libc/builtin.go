@@ -290,7 +290,12 @@ func X__builtin___memset_chk(t *TLS, s uintptr, c int32, n, os Tsize_t) uintptr 
 
 // size_t __builtin_object_size (const void * ptr, int type)
 func X__builtin_object_size(t *TLS, p uintptr, typ int32) Tsize_t {
-	return ^Tsize_t(0) //TODO frontend magic
+	switch typ {
+	case 0, 1:
+		return ^Tsize_t(0)
+	default:
+		return 0
+	}
 }
 
 // int __builtin___sprintf_chk (char *s, int flag, size_t os, const char *fmt, ...);

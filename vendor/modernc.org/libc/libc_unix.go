@@ -139,7 +139,11 @@ func Xremove(t *TLS, pathname uintptr) int32 {
 	if __ccgo_strace {
 		trc("t=%v pathname=%v, (%v:)", t, pathname, origin(2))
 	}
-	panic(todo(""))
+	if err := os.Remove(GoString(pathname)); err != nil {
+		t.setErrno(err)
+		return -1
+	}
+	return 0
 }
 
 // long pathconf(const char *path, int name);
