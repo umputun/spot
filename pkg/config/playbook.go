@@ -24,13 +24,14 @@ import (
 
 // PlayBook defines the top-level config object
 type PlayBook struct {
-	User       string            `yaml:"user" toml:"user"`               // ssh user
-	SSHKey     string            `yaml:"ssh_key" toml:"ssh_key"`         // ssh key
-	SSHShell   string            `yaml:"ssh_shell" toml:"ssh_shell"`     // ssh shell to use
-	LocalShell string            `yaml:"local_shell" toml:"local_shell"` // local shell to use
-	Inventory  string            `yaml:"inventory" toml:"inventory"`     // inventory file or url
-	Targets    map[string]Target `yaml:"targets" toml:"targets"`         // list of targets/environments
-	Tasks      []Task            `yaml:"tasks" toml:"tasks"`             // list of tasks
+	User       string            `yaml:"user" toml:"user"`                 // ssh user
+	SSHKey     string            `yaml:"ssh_key" toml:"ssh_key"`           // ssh key
+	SSHShell   string            `yaml:"ssh_shell" toml:"ssh_shell"`       // ssh shell to use
+	SSHTempDir string            `yaml:"ssh_temp_dir" toml:"ssh_temp_dir"` // ssh temp dir to use
+	LocalShell string            `yaml:"local_shell" toml:"local_shell"`   // local shell to use
+	Inventory  string            `yaml:"inventory" toml:"inventory"`       // inventory file or url
+	Targets    map[string]Target `yaml:"targets" toml:"targets"`           // list of targets/environments
+	Tasks      []Task            `yaml:"tasks" toml:"tasks"`               // list of tasks
 
 	inventory       *InventoryData    // loaded inventory
 	overrides       *Overrides        // overrides passed from cli
@@ -49,6 +50,7 @@ type SimplePlayBook struct {
 	User       string     `yaml:"user" toml:"user"`                 // ssh user
 	SSHKey     string     `yaml:"ssh_key" toml:"ssh_key"`           // ssh key
 	SSHShell   string     `yaml:"ssh_shell" toml:"ssh_shell"`       // ssh shell to uses
+	SSHTempDir string     `yaml:"ssh_temp_dir" toml:"ssh_temp_dir"` // ssh temp dir to use
 	LocalShell string     `yaml:"local_shell" toml:"local_shell"`   // local shell to use
 	Inventory  string     `yaml:"inventory" toml:"inventory"`       // inventory file or url
 	Targets    []string   `yaml:"targets" toml:"targets"`           // list of names
@@ -92,6 +94,7 @@ type Overrides struct {
 	Environment  map[string]string
 	AdHocCommand string
 	SSHShell     string
+	SSHTempDir   string
 }
 
 // InventoryData defines inventory data format
@@ -156,6 +159,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 		for j, c := range tsk.Commands {
 			// set shell (remote and local) for all commands in the task
 			res.Tasks[i].Commands[j].SSHShell = res.remoteShell()
+			res.Tasks[i].Commands[j].SSHTempDir = res.sshTempDir()
 			res.Tasks[i].Commands[j].LocalShell = res.localShell()
 
 			// append task's secret keys to all the commands
@@ -328,7 +332,7 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 			// special case for ad-hoc command, make a fake task with a single command from overrides.AdHocCommand
 			return &Task{Name: "ad-hoc", Commands: []Cmd{
 				{Name: "ad-hoc", Script: p.overrides.AdHocCommand,
-					SSHShell: p.remoteShell(), LocalShell: p.localShell()}}}, nil
+					SSHShell: p.remoteShell(), SSHTempDir: p.sshTempDir(), LocalShell: p.localShell()}}}, nil
 		}
 		for _, t := range tsk {
 			if strings.EqualFold(t.Name, name) {
@@ -648,6 +652,16 @@ func (p *PlayBook) remoteShell() string {
 		return p.SSHShell
 	}
 	return "/bin/sh"
+}
+
+func (p *PlayBook) sshTempDir() string {
+	if p.overrides != nil && p.overrides.SSHTempDir != "" {
+		return p.overrides.SSHTempDir
+	}
+	if p.SSHTempDir != "" {
+		return p.SSHTempDir
+	}
+	return "/tmp"
 }
 
 // localShell returns the local shell to use for local commands, using playbook's localShell if set,

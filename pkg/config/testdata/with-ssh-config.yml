@@ -1,0 +1,14 @@
+user: umputun
+ssh_shell: /bin/bash
+ssh_temp_dir: /tmp/spot
+local_shell: /bin/fish
+
+targets:
+  remark42:
+    hosts: [{name: "h1", host: "h1.example.com"}, {host: "h2.example.com"}]
+
+tasks:
+  - name: test-task
+    commands:
+      - name: test
+        script: echo "test"

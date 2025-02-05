@@ -35,6 +35,7 @@ type Cmd struct {
 
 	Secrets    map[string]string `yaml:"-" toml:"-"` // loaded secrets, filled by playbook
 	SSHShell   string            `yaml:"-" toml:"-"` // shell to use for ssh commands, filled by playbook
+	SSHTempDir string            `yaml:"-" toml:"-"` // temporary directory for ssh commands, filled by playbook
 	LocalShell string            `yaml:"-" toml:"-"` // shell to use for local commands, filled by playbooks
 }
 

@@ -36,6 +36,7 @@ type Process struct {
 	Verbose2    bool
 	Dry         bool
 	SSHShell    string
+	SSHTempDir  string
 
 	Skip []string
 	Only []string
@@ -227,7 +228,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		stCmd := time.Now()
 
 		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
-			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, onExit: cmd.OnExit}
+			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, sshTmpDir: p.SSHTempDir, onExit: cmd.OnExit}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName

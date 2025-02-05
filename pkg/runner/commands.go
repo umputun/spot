@@ -25,15 +25,16 @@ import (
 // execCmd is a single command execution on a target host. It prepares the command, executes it and returns details.
 // All commands directly correspond to the config.Cmd commands.
 type execCmd struct {
-	cmd      config.Cmd
-	hostAddr string
-	hostName string
-	tsk      *config.Task
-	exec     executor.Interface
-	verbose  bool
-	verbose2 bool
-	sshShell string
-	onExit   string
+	cmd       config.Cmd
+	hostAddr  string
+	hostName  string
+	tsk       *config.Task
+	exec      executor.Interface
+	verbose   bool
+	verbose2  bool
+	sshShell  string
+	sshTmpDir string
+	onExit    string
 }
 
 type execCmdResp struct {
@@ -169,6 +170,9 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
 		if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
 			mvCmd = fmt.Sprintf("mkdir -p %s\nmv -f %s/* %s", dst, tmpDest, dst) // move multiple files, if wildcard is used
+		}
+		if ec.cmd.Copy.Mkdir {
+			mvCmd = fmt.Sprintf("mkdir -p %s\n%s", filepath.Dir(dst), mvCmd) // create directory before moving
 		}
 		c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
 		if err != nil {
@@ -542,7 +546,12 @@ func (tm *templater) apply(inp string) string {
 	return res
 }
 
-func (ec *execCmd) uniqueTmp(prefix string) string {
+func (ec *execCmd) uniqueTmp(defaultPrefix string) string {
+	prefix := defaultPrefix
+	if ec.sshTmpDir != "" {
+		_, last := filepath.Split(defaultPrefix) // get the last part of the path from default
+		prefix = filepath.Join(ec.sshTmpDir, last)
+	}
 	rndInt := func() int64 {
 		var randomInt int64
 		// try using the cryptographic random number generator

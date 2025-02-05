@@ -806,3 +806,24 @@ func Test_execCmd_prepScript(t *testing.T) {
 		assert.Contains(t, buf.String(), "[DEBUG] removed local temp script")
 	})
 }
+
+func Test_execCmd_uniqueTmp(t *testing.T) {
+	t.Run("default tmp location", func(t *testing.T) {
+		ec := &execCmd{}
+		tmp1 := ec.uniqueTmp("/tmp/.spot-")
+		tmp2 := ec.uniqueTmp("/tmp/.spot-")
+		t.Logf("tmp1: %s, tmp2: %s", tmp1, tmp2)
+
+		require.NotEqual(t, tmp1, tmp2, "uniqueTmp should generate unique temporary directory names")
+		require.True(t, strings.HasPrefix(tmp1, "/tmp/.spot-"), "uniqueTmp should use the provided prefix")
+		require.True(t, strings.HasPrefix(tmp2, "/tmp/.spot-"), "uniqueTmp should use the provided prefix")
+	})
+
+	t.Run("custom tmp location", func(t *testing.T) {
+		ec := &execCmd{sshTmpDir: "/custom/tmp"}
+		tmp := ec.uniqueTmp("/tmp/.spot-")
+		t.Logf("tmp: %s", tmp)
+
+		require.True(t, strings.HasPrefix(tmp, "/custom/tmp/.spot-"), "uniqueTmp should use the custom temporary directory")
+	})
+}

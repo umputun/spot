@@ -396,6 +396,90 @@ func Test_runGen_goTmplFile(t *testing.T) {
 	}
 }
 
+func TestMakeRunnerTempDir(t *testing.T) {
+	tests := []struct {
+		name       string
+		opts       options
+		playbook   *config.PlayBook
+		wantTmpDir string
+	}{
+		{
+			name: "command line temp dir",
+			opts: options{
+				SSHTempDir: "/tmp/custom/cmd",
+				SSHKey:     "testdata/test_ssh_key", // Add test SSH key
+			},
+			playbook:   &config.PlayBook{},
+			wantTmpDir: "/tmp/custom/cmd",
+		},
+		{
+			name: "playbook temp dir",
+			opts: options{
+				SSHKey: "testdata/test_ssh_key", // Add test SSH key
+			},
+			playbook: &config.PlayBook{
+				SSHTempDir: "/tmp/custom/playbook",
+			},
+			wantTmpDir: "/tmp/custom/playbook",
+		},
+		{
+			name: "no temp dir",
+			opts: options{
+				SSHKey: "testdata/test_ssh_key", // Add test SSH key
+			},
+			playbook:   &config.PlayBook{},
+			wantTmpDir: "",
+		},
+		{
+			name: "command line overrides playbook",
+			opts: options{
+				SSHTempDir: "/tmp/custom/cmd",
+				SSHKey:     "testdata/test_ssh_key", // Add test SSH key
+			},
+			playbook: &config.PlayBook{
+				SSHTempDir: "/tmp/custom/playbook",
+			},
+			wantTmpDir: "/tmp/custom/cmd",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.opts.SSHTempDir == "" && tt.playbook.SSHTempDir != "" {
+				tt.opts.SSHTempDir = tt.playbook.SSHTempDir
+			}
+			r, err := makeRunner(tt.opts, tt.playbook)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantTmpDir, r.SSHTempDir)
+		})
+	}
+}
+
+func TestRunWithCustomTempDir(t *testing.T) {
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	opts := options{
+		SSHUser:      "test",
+		SSHKey:       "testdata/test_ssh_key",
+		SSHTempDir:   "/tmp/custom/spot", // Updated path
+		PlaybookFile: "testdata/conf2.yml",
+		TaskNames:    []string{"task1"},
+		Targets:      []string{hostAndPort},
+		Only:         []string{"some command"},
+		Dbg:          true,
+	}
+
+	logOut := captureStdout(t, func() {
+		err := run(opts)
+		require.NoError(t, err)
+	})
+	t.Log("out\n", logOut)
+
+	assert.Contains(t, logOut, "/tmp/custom/spot/.spot-")
+	assert.Contains(t, logOut, "deleted recursively /tmp/custom/spot/.spot-")
+}
+
 func Test_connectFailed(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
