@@ -134,7 +134,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	defer sess.Close()
 
 	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", nil)
-	require.EqualError(t, err, "failed to create remote file: file does not exist")
+	require.EqualError(t, err, `failed to create remote file "/tmp/blah/data1.txt": file does not exist`)
 }
 
 func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
@@ -150,7 +150,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	defer sess.Close()
 
 	err = sess.Upload(ctx, "testdata/data1.txt", "/dev/blah/data1.txt", &UpDownOpts{Mkdir: true})
-	require.EqualError(t, err, "failed to create remote directory: permission denied")
+	require.EqualError(t, err, `failed to create remote directory "/dev/blah": permission denied`)
 }
 
 func TestExecuter_Upload_Canceled(t *testing.T) {
@@ -167,7 +167,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 
 	cancel()
 	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/blah/data1.txt", &UpDownOpts{Mkdir: true})
-	require.EqualError(t, err, "failed to copy file: context canceled")
+	require.EqualError(t, err, `failed to copy file "/tmp/blah/data1.txt": context canceled`)
 }
 
 func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
@@ -185,7 +185,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 	cancel()
 
 	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/data1.txt", nil)
-	require.EqualError(t, err, "failed to copy file: context canceled")
+	require.EqualError(t, err, "failed to copy file \"/tmp/data1.txt\": context canceled")
 }
 
 func TestUpload_UploadOverwriteWithAndWithoutForce(t *testing.T) {

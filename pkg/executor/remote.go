@@ -391,14 +391,15 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	}
 
 	if req.mkdir {
-		if e := sftpClient.MkdirAll(filepath.Dir(req.remoteFile)); e != nil {
-			return fmt.Errorf("failed to create remote directory: %v", e)
+		rdir := filepath.Dir(req.remoteFile)
+		if e := sftpClient.MkdirAll(rdir); e != nil {
+			return fmt.Errorf("failed to create remote directory %q: %v", rdir, e)
 		}
 	}
 
 	remoteFh, err := sftpClient.Create(req.remoteFile)
 	if err != nil {
-		return fmt.Errorf("failed to create remote file: %v", err)
+		return fmt.Errorf("failed to create remote file %q: %v", req.remoteFile, err)
 	}
 	defer remoteFh.Close()
 
@@ -410,19 +411,19 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("failed to copy file: %v", ctx.Err())
+		return fmt.Errorf("failed to copy file %q: %v", req.remoteFile, ctx.Err())
 	case err = <-errCh:
 		if err != nil {
-			return fmt.Errorf("failed to copy file: %v", err)
+			return fmt.Errorf("failed to copy file %q: %v", req.remoteFile, err)
 		}
 	}
 
 	if err = remoteFh.Chmod(inpFi.Mode().Perm()); err != nil {
-		return fmt.Errorf("failed to set permissions on remote file: %v", err)
+		return fmt.Errorf("failed to set permissions on remote file %q: %v", req.remoteFile, err)
 	}
 
 	if err = sftpClient.Chtimes(req.remoteFile, inpFi.ModTime(), inpFi.ModTime()); err != nil {
-		return fmt.Errorf("failed to set modification time of remote file %s: %v", req.remoteFile, err)
+		return fmt.Errorf("failed to set modification time of remote file %q: %v", req.remoteFile, err)
 	}
 
 	return nil
