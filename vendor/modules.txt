@@ -247,8 +247,6 @@ github.com/hashicorp/go-secure-stdlib/strutil
 # github.com/hashicorp/go-sockaddr v1.0.7
 ## explicit; go 1.19
 github.com/hashicorp/go-sockaddr
-# github.com/hashicorp/golang-lru/v2 v2.0.7
-## explicit; go 1.18
 # github.com/hashicorp/hcl v1.0.0
 ## explicit
 github.com/hashicorp/hcl
@@ -381,7 +379,7 @@ github.com/sosedoff/ansible-vault-go
 github.com/stretchr/testify/assert
 github.com/stretchr/testify/assert/yaml
 github.com/stretchr/testify/require
-# github.com/testcontainers/testcontainers-go v0.34.0
+# github.com/testcontainers/testcontainers-go v0.35.0
 ## explicit; go 1.22
 github.com/testcontainers/testcontainers-go
 github.com/testcontainers/testcontainers-go/exec
@@ -468,8 +466,6 @@ golang.org/x/time/rate
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# modernc.org/gc/v3 v3.0.0-20250121204235-2db1fde51ea4
-## explicit; go 1.22.0
 # modernc.org/libc v1.61.11
 ## explicit; go 1.21
 modernc.org/libc
@@ -508,7 +504,3 @@ modernc.org/memory
 ## explicit; go 1.21
 modernc.org/sqlite
 modernc.org/sqlite/lib
-# modernc.org/strutil v1.2.1
-## explicit; go 1.21
-# modernc.org/token v1.1.0
-## explicit
