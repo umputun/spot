@@ -1,6 +1,6 @@
 user: umputun
 ssh_shell: /bin/bash
-ssh_temp_dir: /tmp/spot
+ssh_temp: /tmp/spot
 local_shell: /bin/fish
 
 targets:

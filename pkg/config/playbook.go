@@ -24,19 +24,19 @@ import (
 
 // PlayBook defines the top-level config object
 type PlayBook struct {
-	User       string            `yaml:"user" toml:"user"`                 // ssh user
-	SSHKey     string            `yaml:"ssh_key" toml:"ssh_key"`           // ssh key
-	SSHShell   string            `yaml:"ssh_shell" toml:"ssh_shell"`       // ssh shell to use
-	SSHTempDir string            `yaml:"ssh_temp_dir" toml:"ssh_temp_dir"` // ssh temp dir to use
-	LocalShell string            `yaml:"local_shell" toml:"local_shell"`   // local shell to use
-	Inventory  string            `yaml:"inventory" toml:"inventory"`       // inventory file or url
-	Targets    map[string]Target `yaml:"targets" toml:"targets"`           // list of targets/environments
-	Tasks      []Task            `yaml:"tasks" toml:"tasks"`               // list of tasks
+	User       string            `yaml:"user" toml:"user"`               // ssh user
+	SSHKey     string            `yaml:"ssh_key" toml:"ssh_key"`         // ssh key
+	SSHShell   string            `yaml:"ssh_shell" toml:"ssh_shell"`     // ssh shell to use
+	SSHTempDir string            `yaml:"ssh_temp" toml:"ssh_temp"`       // ssh temp dir to use
+	LocalShell string            `yaml:"local_shell" toml:"local_shell"` // local shell to use
+	Inventory  string            `yaml:"inventory" toml:"inventory"`     // inventory file or url
+	Targets    map[string]Target `yaml:"targets" toml:"targets"`         // list of targets/environments
+	Tasks      []Task            `yaml:"tasks" toml:"tasks"`             // list of tasks
 
 	inventory       *InventoryData    // loaded inventory
 	overrides       *Overrides        // overrides passed from cli
 	secrets         map[string]string // list of all discovered secrets
-	secretsProvider SecretsProvider   // secrets provider to use
+	secretsProvider SecretsProvider   // secret's provider to use
 }
 
 // SecretsProvider defines interface for secrets providers
@@ -50,7 +50,7 @@ type SimplePlayBook struct {
 	User       string     `yaml:"user" toml:"user"`                 // ssh user
 	SSHKey     string     `yaml:"ssh_key" toml:"ssh_key"`           // ssh key
 	SSHShell   string     `yaml:"ssh_shell" toml:"ssh_shell"`       // ssh shell to uses
-	SSHTempDir string     `yaml:"ssh_temp_dir" toml:"ssh_temp_dir"` // ssh temp dir to use
+	SSHTempDir string     `yaml:"ssh_temp" toml:"ssh_temp"`         // ssh temp dir to use
 	LocalShell string     `yaml:"local_shell" toml:"local_shell"`   // local shell to use
 	Inventory  string     `yaml:"inventory" toml:"inventory"`       // inventory file or url
 	Targets    []string   `yaml:"targets" toml:"targets"`           // list of names

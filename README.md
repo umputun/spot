@@ -172,7 +172,7 @@ Spot supports the following command-line options:
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
 ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
-ssh_temp_dir: /tmp                  # temporary directory for remote execution, default is /tmp
+ssh_temp: /tmp                      # temporary directory for remote execution, default is /tmp
 local_shell: /bin/bash              # shell to use for local execution, default is os shell
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
@@ -244,7 +244,7 @@ In some cases, the rich syntax of the full playbook is not needed and can feel o
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
 ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
-ssh_temp_dir: /tmp                  # temporary directory for remote execution, default is /tmp
+ssh_temp: /tmp                      # temporary directory for remote execution, default is /tmp
 local_shell: /bin/bash              # shell to use for local execution, default is os shell
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
