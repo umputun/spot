@@ -2,8 +2,7 @@ run:
   timeout: 5m
 
 linters-settings:
-  govet:
-    # shadow setting removed as it's no longer supported
+  # govet section removed as shadow setting is no longer supported
   goconst:
     min-len: 2
     min-occurrences: 2
