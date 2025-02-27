@@ -1,13 +1,9 @@
 run:
   timeout: 5m
-  output:
-    format: tab
 
 linters-settings:
   govet:
-    shadow: true
-  maligned:
-    suggest-new: true
+    # shadow setting removed as it's no longer supported
   goconst:
     min-len: 2
     min-occurrences: 2
