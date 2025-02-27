@@ -18,6 +18,20 @@ golangci-lint run
 
 **Note:** Always run tests and lint before submitting changes.
 
+## Git Workflow
+
+### After merging a PR
+```bash
+# Switch back to the master branch
+git checkout master
+
+# Pull latest changes including the merged PR
+git pull
+
+# Delete the temporary branch (might need -D for force delete if squash merged)
+git branch -D feature-branch-name
+```
+
 ## Code Style Guidelines
 
 ### Imports
