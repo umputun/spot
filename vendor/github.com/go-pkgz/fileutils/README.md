@@ -4,12 +4,14 @@ Package `fileutils` provides useful, high-level file operations.
 
 ## Details
 
-- `IsFile` & `IsDir` checks if file/directory exits
-- `CopyFile` copies a file from source to destination
+- `IsFile` & `IsDir` checks if file/directory exists
+- `CopyFile` copies a file from source to destination, preserving mode
 - `CopyDir` copies all files recursively from the source to destination directory
+- `MoveFile` moves a file, using atomic rename when possible with copy+delete fallback
 - `ListFiles` returns sorted slice of file paths in directory
-- `TempFileName` returns a new temporary file name
+- `TempFileName` returns a new temporary file name using secure random generation
 - `SanitizePath` cleans file path
+- `TouchFile` creates an empty file or updates timestamps of existing one
 
 ## Install and update
 
