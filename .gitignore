@@ -26,4 +26,4 @@ identifier.sqlite
 test_secrets.db
 spot.sqlite
 spot.db
-dist/
+pr_236_notes.md
