@@ -32,6 +32,21 @@ git pull
 git branch -D feature-branch-name
 ```
 
+### Working with PRs
+```bash
+# View PR details
+gh pr view <PR_NUMBER>
+
+# Get PR review comments
+gh api repos/umputun/spot/pulls/<PR_NUMBER>/comments --paginate | jq -r '.[] | {id: .id, path: .path, line: .line, body: .body, in_reply_to_id: .in_reply_to_id}'
+
+# Check reviews
+gh api repos/umputun/spot/pulls/<PR_NUMBER>/reviews --paginate | jq -r '.[] | select(.user.login == "umputun") | { id: .id, body: .body}'
+
+# Checkout a PR branch to test locally
+gh pr checkout <PR_NUMBER>
+```
+
 ## Code Style Guidelines
 
 ### Imports
