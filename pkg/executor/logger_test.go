@@ -344,7 +344,7 @@ func TestColorizedWriter_PrintfWithSecrets(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			var buf bytes.Buffer
 			writer := &colorizedWriter{wr: &buf, secrets: tt.secrets, hostAddr: "localhost", hostName: "my-host"}
-			writer.Printf(tt.input) //nolint
+			writer.Printf("%s", tt.input) //nolint
 			assert.Equal(t, tt.expected, buf.String())
 		})
 	}

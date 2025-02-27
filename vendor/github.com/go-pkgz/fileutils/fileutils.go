@@ -2,20 +2,18 @@
 package fileutils
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 )
-
-var once sync.Once
 
 // IsFile returns true if filename exists
 func IsFile(filename string) bool {
@@ -38,10 +36,9 @@ func exists(name string, dir bool) bool {
 	return !info.IsDir()
 }
 
-// CopyFile copies a file from source to dest. Any existing file will be overwritten
-// and attributes will not be copied
+// CopyFile copies a file from source to dest, preserving mode.
+// Any existing file will be overwritten.
 func CopyFile(src string, dst string) error {
-
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return fmt.Errorf("can't stat %s: %w", src, err)
@@ -51,22 +48,22 @@ func CopyFile(src string, dst string) error {
 		return fmt.Errorf("can't copy non-regular source file %s (%s)", src, srcInfo.Mode().String())
 	}
 
-	srcFh, err := os.Open(src) //nolint
+	srcFh, err := os.Open(src) //nolint:gosec
 	if err != nil {
 		return fmt.Errorf("can't open source file %s: %w", src, err)
 	}
-	defer srcFh.Close() //nolint
+	defer srcFh.Close()
 
 	err = os.MkdirAll(filepath.Dir(dst), 0750)
 	if err != nil {
 		return fmt.Errorf("can't make destination directory %s: %w", filepath.Dir(dst), err)
 	}
 
-	dstFh, err := os.Create(dst) //nolint
+	dstFh, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode()) //nolint:gosec
 	if err != nil {
 		return fmt.Errorf("can't create destination file %s: %w", dst, err)
 	}
-	defer dstFh.Close() //nolint
+	defer dstFh.Close()
 
 	size, err := io.Copy(dstFh, srcFh)
 	if err != nil {
@@ -75,6 +72,7 @@ func CopyFile(src string, dst string) error {
 	if size != srcInfo.Size() {
 		return fmt.Errorf("incomplete copy, %d of %d", size, srcInfo.Size())
 	}
+
 	return dstFh.Sync()
 }
 
@@ -120,42 +118,143 @@ func ListFiles(directory string) (list []string, err error) {
 // for temporary files (see os.TempDir).
 // Multiple programs calling TempFileName simultaneously
 // will not choose the same file name.
-// some code borrowed from stdlib https://golang.org/src/io/ioutil/tempfile.go
 func TempFileName(dir, pattern string) (string, error) {
-	once.Do(func() {
-		rand.Seed(time.Now().UnixNano())
-	})
-	// prefixAndSuffix splits pattern by the last wildcard "*", if applicable,
-	// returning prefix as the part before "*" and suffix as the part after "*".
-	prefixAndSuffix := func(pattern string) (prefix, suffix string) {
-		if pos := strings.LastIndex(pattern, "*"); pos != -1 {
-			prefix, suffix = pattern[:pos], pattern[pos+1:]
-		} else {
-			prefix = pattern
-		}
-		return
-	}
-
 	if dir == "" {
 		dir = os.TempDir()
 	}
 
-	prefix, suffix := prefixAndSuffix(pattern)
+	// prefixAndSuffix splits pattern by the last wildcard "*", if applicable
+	prefix, suffix := pattern, ""
+	if pos := strings.LastIndex(pattern, "*"); pos != -1 {
+		prefix, suffix = pattern[:pos], pattern[pos+1:]
+	}
 
-	for i := 0; i < 10000; i++ {
-		name := filepath.Join(dir, prefix+fmt.Sprintf("%x", rand.Int())+suffix) //nolint
-		_, err := os.Stat(name)
-		if os.IsNotExist(err) {
+	// try to generate unique name
+	const maxTries = 10000
+	const randomBytes = 16 // 32 hex chars
+
+	for i := 0; i < maxTries; i++ {
+		// generate random bytes
+		b := make([]byte, randomBytes)
+		if _, err := rand.Read(b); err != nil {
+			return "", fmt.Errorf("failed to generate random name: %w", err)
+		}
+
+		// create file name and check if it exists
+		name := filepath.Join(dir, prefix+hex.EncodeToString(b)+suffix)
+		if _, err := os.Stat(name); os.IsNotExist(err) {
 			return name, nil
 		}
 	}
-	return "", errors.New("can't generate temp file name")
+
+	return "", errors.New("failed to create temporary file name after multiple attempts")
 }
 
-// reInvalidPathChars is used to remove invalid path characters
-var reInvalidPathChars = regexp.MustCompile(`[<>:"|?*]+`)
+var reInvalidPathChars = regexp.MustCompile(`[<>:"|?*]+`) // invalid path characters
+const maxPathLength = 1024                                // maximum length for path
 
-// SanitizePath removes invalid characters from path
+// SanitizePath returns a sanitized version of the given path.
 func SanitizePath(s string) string {
-	return reInvalidPathChars.ReplaceAllString(filepath.Clean(s), "_")
+	s = strings.TrimSpace(s)
+	s = reInvalidPathChars.ReplaceAllString(filepath.Clean(s), "_")
+
+	// Normalize path separators to '/'
+	s = strings.ReplaceAll(s, `\`, "/")
+
+	if len(s) > maxPathLength {
+		s = s[:maxPathLength]
+	}
+
+	return s
+}
+
+// MoveFile moves a file from src to dst.
+// If rename fails (e.g., cross-device move), it will fall back to copy+delete.
+// It will create destination directories if they don't exist.
+func MoveFile(src, dst string) error {
+	if src == "" {
+		return errors.New("empty source path")
+	}
+	if dst == "" {
+		return errors.New("empty destination path")
+	}
+
+	// check if source exists
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("source file not found: %s", src)
+		}
+		return fmt.Errorf("failed to stat source file: %w", err)
+	}
+
+	// ensure source is a regular file
+	if !srcInfo.Mode().IsRegular() {
+		return fmt.Errorf("source is not a regular file: %s", src)
+	}
+
+	// try atomic rename first
+	if err = os.Rename(src, dst); err == nil {
+		return nil
+	}
+
+	// create destination directory if needed
+	if err = os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	// try rename again after creating directory
+	if err = os.Rename(src, dst); err == nil {
+		return nil
+	}
+
+	// fallback to copy+delete if rename fails
+	if err = CopyFile(src, dst); err != nil {
+		return fmt.Errorf("failed to copy file: %w", err)
+	}
+
+	// verify the copy succeeded and sizes match
+	dstInfo, err := os.Stat(dst)
+	if err != nil {
+		return fmt.Errorf("failed to stat destination file: %w", err)
+	}
+	if srcInfo.Size() != dstInfo.Size() {
+		return fmt.Errorf("size mismatch after copy: source %d, destination %d", srcInfo.Size(), dstInfo.Size())
+	}
+
+	// remove the source file
+	if err := os.Remove(src); err != nil {
+		return fmt.Errorf("failed to remove source file: %w", err)
+	}
+
+	return nil
+}
+
+// TouchFile creates an empty file if it doesn't exist,
+// or updates access and modification times if it does.
+func TouchFile(path string) error {
+	if path == "" {
+		return errors.New("empty path")
+	}
+
+	// try to get file info
+	_, err := os.Stat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to stat file: %w", err)
+		}
+		// create empty file with default mode
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644) //nolint:gosec // intentionally permissive
+		if err != nil {
+			return fmt.Errorf("failed to create file: %w", err)
+		}
+		return f.Close()
+	}
+
+	// file exists, update timestamps
+	now := time.Now()
+	return os.Chtimes(path, now, now)
 }
