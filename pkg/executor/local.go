@@ -257,7 +257,7 @@ func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error 
 		return err
 	}
 
-	// Remove files and directories in reverse order
+	// remove files and directories in reverse order
 	for i := len(pathsToDelete) - 1; i >= 0; i-- {
 		dstPath := pathsToDelete[i]
 		if e := os.RemoveAll(dstPath); e != nil {

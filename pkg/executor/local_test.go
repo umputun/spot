@@ -43,7 +43,7 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("multi line out success", func(t *testing.T) {
-		// Prepare the test environment
+		// prepare the test environment
 		_, err := l.Run(ctx, "mkdir -p /tmp/st", &RunOpts{Verbose: true})
 		require.NoError(t, err)
 		_, err = l.Run(ctx, "cp testdata/data1.txt /tmp/st/data1.txt", &RunOpts{Verbose: true})
@@ -584,11 +584,11 @@ func TestLocal_Sync(t *testing.T) {
 
 			for name, content := range tc.dstStructure {
 				if content == "" {
-					// Create a directory if the content is an empty string
+					// create a directory if the content is an empty string
 					err = os.MkdirAll(filepath.Join(dstDir, name), 0o700)
 					require.NoError(t, err)
 				} else {
-					// Create a file with the specified content
+					// create a file with the specified content
 					os.MkdirAll(filepath.Join(dstDir, filepath.Dir(name)), 0o700)
 					err = os.WriteFile(filepath.Join(dstDir, name), []byte(content), 0o644)
 					require.NoError(t, err)

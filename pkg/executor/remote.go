@@ -260,7 +260,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			pathsToDelete = append([]string{remoteFile}, pathsToDelete...)
 		}
 
-		// Delete files and directories in reverse order
+		// delete files and directories in reverse order
 		for i := len(pathsToDelete) - 1; i >= 0; i-- {
 			select {
 			case <-ctx.Done():
@@ -383,7 +383,7 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	if err == nil {
 		// if remote file exists, and has the same size, mod time and mode, skip upload. Force flag overrides this.
 		isSame := !req.force && remoteFi.Size() == inpFi.Size() &&
-			isWithinOneSecond(remoteFi.ModTime(), inpFi.ModTime()) && remoteFi.Mode() == inpFi.Mode()
+		  isWithinOneSecond(remoteFi.ModTime(), inpFi.ModTime()) && remoteFi.Mode() == inpFi.Mode()
 		if isSame {
 			log.Printf("[INFO] remote file %s identical to local file %s, skipping upload", req.remoteFile, req.localFile)
 			return nil
@@ -450,7 +450,7 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		return fmt.Errorf("failed to stat remote file: %v", err)
 	}
 
-	// Check if local file exists, if not create it.
+	// check if local file exists, if not create it.
 	if _, stErr := os.Stat(req.localFile); stErr != nil {
 		if !os.IsNotExist(stErr) {
 			return fmt.Errorf("failed to stat local file: %v", stErr)
@@ -612,7 +612,7 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, ex
 		}
 	}
 
-	// Check for deleted files
+	// check for deleted files
 	for remotePath := range remote {
 		if _, exists := local[remotePath]; !exists {
 			deletedFiles = append(deletedFiles, remotePath)
