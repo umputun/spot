@@ -630,6 +630,33 @@ tasks:
           echo "len: $len"
 ```
 
+Register variable names also support template substitution, which allows dynamic variable names. Both predefined Spot variables and environment variables can be used in the templates:
+
+```yaml
+tasks:
+  - name: register_with_template_vars
+    commands:
+      - name: register with host template
+        script: |
+          # Create a variable with the host address in the name
+          export VAR_192.168.1.10="host-specific-value"
+        register: ["VAR_{SPOT_REMOTE_ADDR}"]  # Expands to VAR_192.168.1.10
+      
+      - name: register with env var template
+        script: |
+          # Create a dynamic variable based on the ENV_TYPE value
+          export CONFIG_production="prod-config-value"
+        environment: { ENV_TYPE: "production" }
+        register: ["CONFIG_{ENV_TYPE}"]  # Expands to CONFIG_production
+      
+      - name: check registered variables
+        script: |
+          echo "Host-specific var: ${VAR_192.168.1.10}"
+          echo "Environment-specific var: ${CONFIG_production}"
+```
+
+This allows creating dynamic variable names that adapt to the current host, environment, or other context-specific values.
+
 ### Setting environment variables
 
 Environment variables can be set with `--env` / `-e` cli option. For example: `-e VAR1:VALUE1 -e VAR2:VALUE2`. Environment variables can also be set in the environment file (default `env.yml` can be changed with `--env-file` / `-E` cli flag). For example:
