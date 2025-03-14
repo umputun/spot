@@ -1,0 +1,102 @@
+user: test
+
+targets:
+  localhost:
+    hosts: [{host: "localhost", name: "local"}]
+
+tasks:
+  - name: register_with_template_vars
+    commands:
+      - name: register with static name
+        script: |
+          export STATIC_VAR="static-test"
+          export DYNAMIC_VAR="mydynamic"
+          echo "Setting STATIC_VAR=$STATIC_VAR"
+        register: ["STATIC_VAR", "DYNAMIC_VAR"]
+
+      - name: register with env var
+        script: |
+          # Just directly register a variable with the expected name after template expansion
+          export DYNAMIC_mydynamic="dynamic-test-value"
+          # Echo the variable for registration
+          echo "setvar DYNAMIC_mydynamic=dynamic-test-value"
+        # This DYNAMIC_{DYNAMIC_VAR} will be expanded to DYNAMIC_mydynamic
+        register: ["DYNAMIC_{DYNAMIC_VAR}"]
+
+      - name: register with SPOT_REMOTE_ADDR
+        script: |
+          # This will create a variable with the host address in the name
+          export VAR_localhost="host-specific-value"
+          echo "Setting VAR_localhost=$VAR_localhost"
+        register: ["VAR_{SPOT_REMOTE_ADDR}"]
+      
+      - name: register with SPOT_REMOTE_NAME
+        script: |
+          # This will create a variable with the host name in the name
+          export HOST_localhost="hostname-specific-value"
+          echo "Setting HOST_localhost=$HOST_localhost"
+        register: ["HOST_{SPOT_REMOTE_NAME}"]
+        
+      - name: register with SPOT_REMOTE_USER
+        script: |
+          # This will create a variable with the command prefix
+          export CMD_test="command-template-value"
+          echo "Setting CMD_test=$CMD_test"
+        register: ["CMD_{SPOT_REMOTE_USER}"]
+
+      - name: check all registered variables
+        script: |
+          # Dump all env variables to see what's available
+          echo "=== Dumping all environment variables ==="
+          env
+          
+          echo "=== End of environment dump ==="
+          
+          echo "STATIC_VAR='${STATIC_VAR}'"
+          echo "DYNAMIC_VAR='${DYNAMIC_VAR}'"
+          echo "DYNAMIC_mydynamic='${DYNAMIC_mydynamic}'"
+          echo "VAR_localhost='${VAR_localhost}'"
+          echo "HOST_localhost='${HOST_localhost}'"
+          echo "CMD_test='${CMD_test}'"
+          
+          # Verify all variables are set correctly
+          [ "$STATIC_VAR" = "static-test" ] || { echo "ERROR: STATIC_VAR is wrong"; exit 1; }
+          [ "$DYNAMIC_mydynamic" = "dynamic-test-value" ] || { echo "ERROR: DYNAMIC_mydynamic is wrong"; exit 2; }
+          [ "$VAR_localhost" = "host-specific-value" ] || { echo "ERROR: VAR_localhost is wrong"; exit 3; }
+          [ "$HOST_localhost" = "hostname-specific-value" ] || { echo "ERROR: HOST_localhost is wrong"; exit 4; }
+          
+          echo "SUCCESS: All variables are correctly registered and accessible"
+
+  - name: verify_variable_propagation
+    commands:
+      - name: check propagated variables
+        script: |
+          # Dump all environment variables to see what's coming through
+          echo "=== SECOND TASK - Dumping all environment variables ==="
+          env | sort
+          echo "=== End of environment dump ==="
+          
+          # Display current variable values
+          echo "STATIC_VAR='${STATIC_VAR}'"
+          echo "DYNAMIC_VAR='${DYNAMIC_VAR}'"
+          echo "DYNAMIC_mydynamic='${DYNAMIC_mydynamic}'"
+          echo "VAR_localhost='${VAR_localhost}'"
+          echo "HOST_localhost='${HOST_localhost}'"
+          echo "CMD_test='${CMD_test}'"
+          
+          # Verify registered variables with simple checks
+          # Print actual vs expected values for debugging
+          echo "Expected STATIC_VAR='static-test', actual='${STATIC_VAR}'"
+          echo "Expected DYNAMIC_mydynamic='dynamic-test-value', actual='${DYNAMIC_mydynamic}'"
+          echo "Expected VAR_localhost='host-specific-value', actual='${VAR_localhost}'"
+          echo "Expected HOST_localhost='hostname-specific-value', actual='${HOST_localhost}'"
+          echo "Expected CMD_test='command-template-value', actual='${CMD_test}'"
+          
+          # Check that all variables are propagated correctly
+          [ "$STATIC_VAR" = "static-test" ] || { echo "ERROR: STATIC_VAR is wrong"; exit 1; }
+          [ "$DYNAMIC_mydynamic" = "dynamic-test-value" ] || { echo "ERROR: DYNAMIC_mydynamic is wrong"; exit 2; }
+          [ "$VAR_localhost" = "host-specific-value" ] || { echo "ERROR: VAR_localhost is wrong"; exit 3; }
+          [ "$HOST_localhost" = "hostname-specific-value" ] || { echo "ERROR: HOST_localhost is wrong"; exit 4; }
+          [ "$CMD_test" = "command-template-value" ] || { echo "ERROR: CMD_test is wrong"; exit 5; }
+          
+          echo "SUCCESS: All variables are correctly propagated between tasks"

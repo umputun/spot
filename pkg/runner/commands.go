@@ -16,8 +16,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-pkgz/stringutils"
-
 	"github.com/umputun/spot/pkg/config"
 	"github.com/umputun/spot/pkg/executor"
 )
@@ -68,6 +66,27 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, nil
 	}
 
+	// pre-process register variable names with template substitution
+	// this enables dynamic register variable names in the script
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
+
+	// create a copy of the command with processed register variable names
+	cmdCopy := ec.cmd
+	processedRegister := make([]string, 0, len(ec.cmd.Register))
+	for _, regVar := range ec.cmd.Register {
+		processed := tmpl.apply(regVar)
+		processedRegister = append(processedRegister, processed)
+	}
+	cmdCopy.Register = processedRegister
+	ecCopy := *ec
+	ecCopy.cmd = cmdCopy
+
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
 	if err != nil {
@@ -115,8 +134,14 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		}
 		key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 		resp.vars[key] = val
-		if stringutils.Contains(key, ec.cmd.Register) {
-			resp.registered[key] = val
+
+		// use both original and processed register variables for matching
+		for i, regVar := range ec.cmd.Register {
+			processed := processedRegister[i]
+			if key == regVar || key == processed {
+				resp.registered[key] = val
+				break
+			}
 		}
 	}
 
@@ -409,7 +434,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 		return false, nil
 	}
 
-	// If condition passed
+	// if condition passed
 	if inverted {
 		return false, nil // inverted condition passed, so we return false
 	}
@@ -421,7 +446,13 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 // a temporary file with the script chmod as +x and uploads to remote host to /tmp.
 // it also  returns a teardown function to remove the temporary file after the command execution.
 func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, scr string, teardown func() error, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name}
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment, // include environment variables for variable expansion
+	}
 
 	if s != "" { // single command, nothing to do just apply templates
 		return tmpl.apply(s), "", nil, nil
