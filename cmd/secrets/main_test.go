@@ -135,7 +135,7 @@ func TestSpotSecrets_ListWithAndWithoutPrefix(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			os.Args = append([]string{"spot"}, tc.args...)
 
-			// Capture the standard output
+			// capture the standard output
 			oldStdout := os.Stdout
 			r, w, _ := os.Pipe()
 			os.Stdout = w
@@ -143,7 +143,7 @@ func TestSpotSecrets_ListWithAndWithoutPrefix(t *testing.T) {
 			err = runCommand()
 			require.NoError(t, err)
 
-			// Restore the original standard output
+			// restore the original standard output
 			_ = w.Close()
 			os.Stdout = oldStdout
 
@@ -174,15 +174,15 @@ func TestMainFunc(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Set the command-line arguments
+			// set the command-line arguments
 			os.Args = append([]string{"spot"}, tc.args...)
 
-			// Capture the standard output
+			// capture the standard output
 			oldStdout := os.Stdout
 			r, w, _ := os.Pipe()
 			os.Stdout = w
 
-			// Replace the exit function with a custom one
+			// replace the exit function with a custom one
 			exited := false
 			exitFunc = func(int) {
 				exited = true
@@ -190,15 +190,15 @@ func TestMainFunc(t *testing.T) {
 
 			main()
 
-			// Restore the original exit function and standard output
+			// restore the original exit function and standard output
 			exitFunc = os.Exit
 			_ = w.Close()
 			os.Stdout = oldStdout
 
-			// Check if the custom exit function was called
+			// check if the custom exit function was called
 			assert.True(t, exited)
 
-			// Check the captured standard output
+			// check the captured standard output
 			var buf bytes.Buffer
 			_, _ = io.Copy(&buf, r)
 			output := buf.String()

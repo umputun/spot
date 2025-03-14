@@ -756,7 +756,7 @@ func TestHasShebang(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cmd := &Cmd{} // Assuming Cmd is your type with hasShebang method
+			cmd := &Cmd{} // assuming Cmd is your type with hasShebang method
 			require.Equal(t, tc.exp, cmd.hasShebang(tc.inp))
 		})
 	}

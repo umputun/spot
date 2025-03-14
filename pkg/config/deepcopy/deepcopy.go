@@ -29,16 +29,16 @@ func Copy(src interface{}) interface{} {
 		return nil
 	}
 
-	// Make the interface a reflect.Value
+	// make the interface a reflect.Value
 	original := reflect.ValueOf(src)
 
-	// Make a copy of the same type as the original.
+	// make a copy of the same type as the original.
 	cpy := reflect.New(original.Type()).Elem()
 
-	// Recursively copy the original.
+	// recursively copy the original.
 	copyRecursive(original, cpy)
 
-	// Return the copy as an interface.
+	// return the copy as an interface.
 	return cpy.Interface()
 }
 
@@ -56,7 +56,7 @@ func copyRecursive(original, cpy reflect.Value) {
 	// handle according to original's Kind
 	switch original.Kind() {
 	case reflect.Ptr:
-		// Get the actual value being pointed to.
+		// get the actual value being pointed to.
 		originalValue := original.Elem()
 
 		// if  it isn't valid, return.
@@ -67,14 +67,14 @@ func copyRecursive(original, cpy reflect.Value) {
 		copyRecursive(originalValue, cpy.Elem())
 
 	case reflect.Interface:
-		// If this is a nil, don't do anything
+		// if this is a nil, don't do anything
 		if original.IsNil() {
 			return
 		}
-		// Get the value for the interface, not the pointer.
+		// get the value for the interface, not the pointer.
 		originalValue := original.Elem()
 
-		// Get the value by calling Elem().
+		// get the value by calling Elem().
 		copyValue := reflect.New(originalValue.Type()).Elem()
 		copyRecursive(originalValue, copyValue)
 		cpy.Set(copyValue)
@@ -85,9 +85,9 @@ func copyRecursive(original, cpy reflect.Value) {
 			cpy.Set(reflect.ValueOf(t))
 			return
 		}
-		// Go through each field of the struct and copy it.
+		// go through each field of the struct and copy it.
 		for i := 0; i < original.NumField(); i++ {
-			// The Type's StructField for a given field is checked to see if StructField.PkgPath
+			// the Type's StructField for a given field is checked to see if StructField.PkgPath
 			// is set to determine if the field is exported or not because CanSet() returns false
 			// for settable fields.  I'm not sure why.  -mohae
 			if original.Type().Field(i).PkgPath != "" {
@@ -100,7 +100,7 @@ func copyRecursive(original, cpy reflect.Value) {
 		if original.IsNil() {
 			return
 		}
-		// Make a new slice and copy each element.
+		// make a new slice and copy each element.
 		cpy.Set(reflect.MakeSlice(original.Type(), original.Len(), original.Cap()))
 		for i := 0; i < original.Len(); i++ {
 			copyRecursive(original.Index(i), cpy.Index(i))

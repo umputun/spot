@@ -89,8 +89,8 @@ func (cmd *Cmd) GetScript() (command string, rdr io.Reader) {
 	}
 
 	elems := strings.Split(cmd.Script, "\n")
-	// If there are multiple lines, we need to use a script file.
-	// Export presence should be treated as multiline for env vars to be set. The same thing for register variables.
+	// if there are multiple lines, we need to use a script file.
+	// export presence should be treated as multiline for env vars to be set. The same thing for register variables.
 	if len(elems) > 1 || strings.Contains(cmd.Script, "export") || len(cmd.Register) > 0 {
 		log.Printf("[DEBUG] command %q is multiline, using script file", cmd.Name)
 		return "", cmd.scriptFile(cmd.Script, cmd.Register)

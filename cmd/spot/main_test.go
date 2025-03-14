@@ -407,7 +407,7 @@ func TestMakeRunnerTempDir(t *testing.T) {
 			name: "command line temp dir",
 			opts: options{
 				SSHTempDir: "/tmp/custom/cmd",
-				SSHKey:     "testdata/test_ssh_key", // Add test SSH key
+				SSHKey:     "testdata/test_ssh_key", // add test SSH key
 			},
 			playbook:   &config.PlayBook{},
 			wantTmpDir: "/tmp/custom/cmd",
@@ -415,7 +415,7 @@ func TestMakeRunnerTempDir(t *testing.T) {
 		{
 			name: "playbook temp dir",
 			opts: options{
-				SSHKey: "testdata/test_ssh_key", // Add test SSH key
+				SSHKey: "testdata/test_ssh_key", // add test SSH key
 			},
 			playbook: &config.PlayBook{
 				SSHTempDir: "/tmp/custom/playbook",
@@ -425,7 +425,7 @@ func TestMakeRunnerTempDir(t *testing.T) {
 		{
 			name: "no temp dir",
 			opts: options{
-				SSHKey: "testdata/test_ssh_key", // Add test SSH key
+				SSHKey: "testdata/test_ssh_key", // add test SSH key
 			},
 			playbook:   &config.PlayBook{},
 			wantTmpDir: "",
@@ -434,7 +434,7 @@ func TestMakeRunnerTempDir(t *testing.T) {
 			name: "command line overrides playbook",
 			opts: options{
 				SSHTempDir: "/tmp/custom/cmd",
-				SSHKey:     "testdata/test_ssh_key", // Add test SSH key
+				SSHKey:     "testdata/test_ssh_key", // add test SSH key
 			},
 			playbook: &config.PlayBook{
 				SSHTempDir: "/tmp/custom/playbook",
@@ -462,7 +462,7 @@ func TestRunWithCustomTempDir(t *testing.T) {
 	opts := options{
 		SSHUser:      "test",
 		SSHKey:       "testdata/test_ssh_key",
-		SSHTempDir:   "/tmp/custom/spot", // Updated path
+		SSHTempDir:   "/tmp/custom/spot", // updated path
 		PlaybookFile: "testdata/conf2.yml",
 		TaskNames:    []string{"task1"},
 		Targets:      []string{hostAndPort},
@@ -1008,7 +1008,7 @@ func TestEnvVars(t *testing.T) {
 				if err != nil {
 					t.Fatalf("could not create temp file: %v", err)
 				}
-				defer os.Remove(file.Name()) // Clean up
+				defer os.Remove(file.Name()) // clean up
 
 				if _, err = file.WriteString(tt.envFileData); err != nil {
 					t.Fatalf("could not write to temp file: %v", err)
@@ -1070,7 +1070,7 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 
 // captureStdout captures everything written to stdout within the function fn
 func captureStdout(t *testing.T, fn func()) string {
-	// Keep backup of the real stdout
+	// keep backup of the real stdout
 	old := os.Stdout
 	defer func() { os.Stdout = old }()
 

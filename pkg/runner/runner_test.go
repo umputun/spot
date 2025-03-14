@@ -1109,6 +1109,107 @@ func TestGen(t *testing.T) {
 	}
 }
 
+// TestRegisteredVarTemplateSubstitution tests the template substitution in register variables
+func TestRegisteredVarTemplateSubstitution(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	// capture log output to verify test results
+	var buf bytes.Buffer
+	log.SetOutput(io.MultiWriter(&buf, os.Stdout))
+	defer log.SetOutput(os.Stdout)
+
+	// initialize test components
+	logs := executor.MakeLogs(false, false, nil)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, err)
+
+	conf, err := config.New("testdata/register_templates.yml", nil, nil)
+	require.NoError(t, err)
+
+	// run the task with template variables in register
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Playbook:    conf,
+		Logs:        logs,
+		Verbose:     true,
+	}
+
+	// create a custom Playbook mock to verify UpdateRegisteredVars is called
+	var calledWithVars map[string]string
+	playMock := &mocks.PlaybookMock{
+		AllTasksFunc: conf.AllTasks,
+		TaskFunc: func(name string) (*config.Task, error) {
+			return conf.Task(name)
+		},
+		TargetHostsFunc: func(name string) ([]config.Destination, error) {
+			return conf.TargetHosts(name)
+		},
+		AllSecretValuesFunc:    conf.AllSecretValues,
+		UpdateTasksTargetsFunc: conf.UpdateTasksTargets,
+		UpdateRegisteredVarsFunc: func(vars map[string]string) {
+			calledWithVars = vars
+			conf.UpdateRegisteredVars(vars)
+		},
+	}
+
+	// use testingHostAndPort as target to match docker test container
+	p.Playbook = playMock
+	res, err := p.Run(ctx, "register_with_template_vars", testingHostAndPort)
+	require.NoError(t, err)
+
+	// print out what's in the registered variables
+	t.Logf("Registered variables: %+v", res.Registered)
+	t.Logf("UpdateRegisteredVars called with: %+v", calledWithVars)
+
+	// manually update registered variables on the playbook (mimicking what cmd/spot/main.go does)
+	playMock.UpdateRegisteredVars(res.Registered)
+
+	// verify the regular variable registration works
+	assert.Contains(t, res.Registered, "STATIC_VAR")
+	assert.Equal(t, "static-test", res.Registered["STATIC_VAR"])
+
+	// check VAR_{SPOT_REMOTE_ADDR} -> VAR_[actual IP address]
+	host := "localhost" // we know this is the hostname from our test config
+	varHostKey := "VAR_" + host
+	assert.Contains(t, res.Registered, varHostKey, "Host-specific variable not found")
+	assert.Equal(t, "host-specific-value", res.Registered[varHostKey])
+
+	// check second template substitution HOST_{SPOT_REMOTE_NAME} -> HOST_localhost
+	assert.Contains(t, res.Registered, "HOST_localhost", "Host name template variable not found")
+	assert.Equal(t, "hostname-specific-value", res.Registered["HOST_localhost"])
+
+	// check template substitution with user CMD_{SPOT_REMOTE_USER} -> CMD_test
+	assert.Contains(t, res.Registered, "CMD_test", "User template variable not found")
+	assert.Equal(t, "command-template-value", res.Registered["CMD_test"])
+
+	// check dynamic variable substitution DYNAMIC_{DYNAMIC_VAR} -> DYNAMIC_mydynamic
+	assert.Contains(t, res.Registered, "DYNAMIC_mydynamic", "Dynamic variable not found")
+	assert.Equal(t, "dynamic-test-value", res.Registered["DYNAMIC_mydynamic"])
+
+	// verify we have logs showing successful execution
+	logContent := buf.String()
+	assert.Contains(t, logContent, "SUCCESS: All variables are correctly registered and accessible")
+
+	// now run the second task to verify propagation of variables between tasks
+	buf.Reset() // clear the log buffer
+
+	// run the second task to verify variable propagation
+	_, err = p.Run(ctx, "verify_variable_propagation", testingHostAndPort)
+	require.NoError(t, err, "Second task should pass as variables are propagated")
+
+	// verify the expected success message
+	logContent = buf.String()
+	assert.Contains(t, logContent, "SUCCESS: All variables are correctly propagated between tasks",
+		"Variables should propagate between tasks")
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	return startTestContainerWithCustomUser(t, "test")
 }

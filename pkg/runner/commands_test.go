@@ -791,7 +791,7 @@ func Test_execCmd_prepScript(t *testing.T) {
 
 	t.Run("failed upload cleanup", func(t *testing.T) {
 		// create invalid executor that will fail on upload
-		invalidSess := &executor.Remote{} // This will fail on upload
+		invalidSess := &executor.Remote{} // this will fail on upload
 
 		// capture log output
 		var buf bytes.Buffer
@@ -825,5 +825,177 @@ func Test_execCmd_uniqueTmp(t *testing.T) {
 		t.Logf("tmp: %s", tmp)
 
 		require.True(t, strings.HasPrefix(tmp, "/custom/tmp/.spot-"), "uniqueTmp should use the custom temporary directory")
+	})
+}
+
+func TestProcessRegisterWithTemplateVars(t *testing.T) {
+	task := &config.Task{Name: "test_task"}
+
+	// test normal registration without templates
+	t.Run("regular register", func(t *testing.T) {
+		cmd := execCmd{
+			cmd: config.Cmd{
+				Script:   "export MY_VAR=test",
+				Register: []string{"MY_VAR"},
+			},
+			hostAddr: "192.168.1.10:22",
+			hostName: "hostA",
+			tsk:      task,
+		}
+
+		out := []string{"setvar MY_VAR=test"}
+		resp := execCmdResp{
+			vars:       make(map[string]string),
+			registered: make(map[string]string),
+		}
+
+		// process the setvar line like in Script method
+		for _, line := range out {
+			if !strings.HasPrefix(line, "setvar ") {
+				continue
+			}
+			parts := strings.SplitN(strings.TrimPrefix(line, "setvar"), "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			resp.vars[key] = val
+
+			// process register values with templating
+			for _, registerVar := range cmd.cmd.Register {
+				// apply template substitution for register variables
+				tmpl := templater{
+					hostAddr: cmd.hostAddr,
+					hostName: cmd.hostName,
+					task:     cmd.tsk,
+					command:  cmd.cmd.Name,
+					env:      cmd.cmd.Environment,
+				}
+
+				processedRegister := tmpl.apply(registerVar)
+
+				// if the key matches (either original or templated), register it
+				if key == registerVar || key == processedRegister {
+					resp.registered[key] = val
+					break
+				}
+			}
+		}
+
+		assert.Equal(t, "test", resp.vars["MY_VAR"])
+		assert.Equal(t, "test", resp.registered["MY_VAR"])
+	})
+
+	// test with template variable in register
+	t.Run("register with template var", func(t *testing.T) {
+		cmd := execCmd{
+			cmd: config.Cmd{
+				Script:   "export MY_VAR_192.168.1.10=test",
+				Register: []string{"MY_VAR_{SPOT_REMOTE_ADDR}"},
+			},
+			hostAddr: "192.168.1.10:22",
+			hostName: "hostA",
+			tsk:      task,
+		}
+
+		out := []string{"setvar MY_VAR_192.168.1.10=test"}
+		resp := execCmdResp{
+			vars:       make(map[string]string),
+			registered: make(map[string]string),
+		}
+
+		// process the setvar line like in Script method
+		for _, line := range out {
+			if !strings.HasPrefix(line, "setvar ") {
+				continue
+			}
+			parts := strings.SplitN(strings.TrimPrefix(line, "setvar"), "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			resp.vars[key] = val
+
+			// process register values with templating
+			for _, registerVar := range cmd.cmd.Register {
+				// apply template substitution for register variables
+				tmpl := templater{
+					hostAddr: cmd.hostAddr,
+					hostName: cmd.hostName,
+					task:     cmd.tsk,
+					command:  cmd.cmd.Name,
+					env:      cmd.cmd.Environment,
+				}
+
+				processedRegister := tmpl.apply(registerVar)
+				t.Logf("Original register var: %s, Processed: %s, Key: %s", registerVar, processedRegister, key)
+
+				// if the key matches (either original or templated), register it
+				if key == registerVar || key == processedRegister {
+					resp.registered[key] = val
+					break
+				}
+			}
+		}
+
+		assert.Equal(t, "test", resp.vars["MY_VAR_192.168.1.10"])
+		assert.Equal(t, "test", resp.registered["MY_VAR_192.168.1.10"], "Should match processed register var")
+	})
+
+	// test with environment variable in register
+	t.Run("register with env var", func(t *testing.T) {
+		cmd := execCmd{
+			cmd: config.Cmd{
+				Script:      "export VAR_production=env-value",
+				Register:    []string{"VAR_{ENV_TYPE}"},
+				Environment: map[string]string{"ENV_TYPE": "production"},
+			},
+			hostAddr: "192.168.1.10:22",
+			hostName: "hostA",
+			tsk:      task,
+		}
+
+		out := []string{"setvar VAR_production=env-value"}
+		resp := execCmdResp{
+			vars:       make(map[string]string),
+			registered: make(map[string]string),
+		}
+
+		// process the setvar line like in Script method
+		for _, line := range out {
+			if !strings.HasPrefix(line, "setvar ") {
+				continue
+			}
+			parts := strings.SplitN(strings.TrimPrefix(line, "setvar"), "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+			resp.vars[key] = val
+
+			// process register values with templating
+			for _, registerVar := range cmd.cmd.Register {
+				// apply template substitution for register variables
+				tmpl := templater{
+					hostAddr: cmd.hostAddr,
+					hostName: cmd.hostName,
+					task:     cmd.tsk,
+					command:  cmd.cmd.Name,
+					env:      cmd.cmd.Environment,
+				}
+
+				processedRegister := tmpl.apply(registerVar)
+				t.Logf("Original register var: %s, Processed: %s, Key: %s", registerVar, processedRegister, key)
+
+				// if the key matches (either original or templated), register it
+				if key == registerVar || key == processedRegister {
+					resp.registered[key] = val
+					break
+				}
+			}
+		}
+
+		assert.Equal(t, "env-value", resp.vars["VAR_production"])
+		assert.Equal(t, "env-value", resp.registered["VAR_production"], "Should match processed register var with ENV substitution")
 	})
 }
