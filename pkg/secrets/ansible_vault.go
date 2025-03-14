@@ -24,14 +24,14 @@ func NewAnsibleVaultProvider(vaultPath, secret string) (*AnsibleVaultProvider, e
 		return nil, fmt.Errorf("%s is not a regular file", vaultPath)
 	}
 
-	// Decrypt ansible-vault
+	// decrypt ansible-vault
 	decryptedVault, err := vault.DecryptFile(vaultPath, secret)
 	if err != nil {
 		return nil, fmt.Errorf("error decrypting file: %s", vaultPath)
 	}
 	log.Printf("[INFO] ansible vault file decrypted")
 
-	// Unmarshal decrypted data
+	// unmarshal decrypted data
 	m := make(map[string]interface{})
 	err = yaml.Unmarshal([]byte(decryptedVault), &m)
 	if err != nil {

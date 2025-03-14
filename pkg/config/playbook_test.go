@@ -751,7 +751,7 @@ func TestPlayBook_checkConfig(t *testing.T) {
 }
 
 func TestPlayBook_loadSecrets(t *testing.T) {
-	// Mock secret provider
+	// mock secret provider
 	secProvider := mocks.SecretProvider{
 		GetFunc: func(key string) (string, error) {
 			if key == "secret1" {

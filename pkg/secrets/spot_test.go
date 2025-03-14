@@ -106,7 +106,7 @@ func TestInternalProvider(t *testing.T) {
 			_, err = provider.Get("test_key")
 			require.Error(t, err)
 
-			// Test List function
+			// test List function
 			keys, err := provider.List("")
 			require.NoError(t, err)
 			assert.Contains(t, keys, "test_key2")
@@ -149,7 +149,7 @@ func setupTestContainers(t *testing.T) (pc testcontainers.Container, ps string, 
 	require.NoError(t, err)
 	pgConnString := fmt.Sprintf("postgres://postgres:password@%s:%d/postgres?sslmode=disable", pgHost, pgPort.Int())
 
-	// MySQL container
+	// mySQL container
 	mysqlReq := testcontainers.ContainerRequest{
 		Image:        "mysql:8",
 		ExposedPorts: []string{"3306/tcp"},
