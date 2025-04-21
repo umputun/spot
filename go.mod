@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.60
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.19
 	github.com/fatih/color v1.18.0
-	github.com/go-pkgz/fileutils v0.3.0
+	github.com/go-pkgz/fileutils v0.4.0
 	github.com/go-pkgz/lgr v0.12.0
 	github.com/go-pkgz/stringutils v1.1.0
 	github.com/go-pkgz/syncs v1.3.2
@@ -55,6 +55,7 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.8.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.5 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect

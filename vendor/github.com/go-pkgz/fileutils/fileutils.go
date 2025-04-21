@@ -2,10 +2,17 @@
 package fileutils
 
 import (
+	//nolint:gosec // Needed for compatibility
+	"crypto/md5"
 	"crypto/rand"
+	//nolint:gosec // Needed for compatibility
+	"crypto/sha1"
+	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,6 +20,26 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/go-pkgz/fileutils/enum"
+)
+
+//go:generate enum -type=hashAlg -path=enum
+//nolint:unused // This type is used by the enum generator
+type hashAlg int
+
+// These constants are used by the enum generator
+//
+//nolint:unused // These constants are used by the enum generator
+const (
+	hashAlgMD5 hashAlg = iota + 1
+	hashAlgSHA1
+	hashAlgSHA256
+	hashAlgSHA224
+	hashAlgSHA384
+	hashAlgSHA512
+	hashAlgSHA512_224
+	hashAlgSHA512_256
 )
 
 // IsFile returns true if filename exists
@@ -38,7 +65,7 @@ func exists(name string, dir bool) bool {
 
 // CopyFile copies a file from source to dest, preserving mode.
 // Any existing file will be overwritten.
-func CopyFile(src string, dst string) error {
+func CopyFile(src, dst string) error {
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return fmt.Errorf("can't stat %s: %w", src, err)
@@ -48,22 +75,22 @@ func CopyFile(src string, dst string) error {
 		return fmt.Errorf("can't copy non-regular source file %s (%s)", src, srcInfo.Mode().String())
 	}
 
-	srcFh, err := os.Open(src) //nolint:gosec
+	srcFh, err := os.Open(src) //nolint:gosec // file path is provided by the caller
 	if err != nil {
 		return fmt.Errorf("can't open source file %s: %w", src, err)
 	}
-	defer srcFh.Close()
+	defer func() { _ = srcFh.Close() }()
 
-	err = os.MkdirAll(filepath.Dir(dst), 0750)
+	err = os.MkdirAll(filepath.Dir(dst), 0o750)
 	if err != nil {
 		return fmt.Errorf("can't make destination directory %s: %w", filepath.Dir(dst), err)
 	}
 
-	dstFh, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode()) //nolint:gosec
+	dstFh, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode()) //nolint:gosec // file path is provided by the caller
 	if err != nil {
 		return fmt.Errorf("can't create destination file %s: %w", dst, err)
 	}
-	defer dstFh.Close()
+	defer func() { _ = dstFh.Close() }()
 
 	size, err := io.Copy(dstFh, srcFh)
 	if err != nil {
@@ -77,7 +104,7 @@ func CopyFile(src string, dst string) error {
 }
 
 // CopyDir copies all files from src to dst, recursively
-func CopyDir(src string, dst string) error {
+func CopyDir(src, dst string) error {
 	list, err := ListFiles(src)
 	if err != nil {
 		return fmt.Errorf("can't list source files in %s: %w", src, err)
@@ -158,7 +185,7 @@ func SanitizePath(s string) string {
 	s = strings.TrimSpace(s)
 	s = reInvalidPathChars.ReplaceAllString(filepath.Clean(s), "_")
 
-	// Normalize path separators to '/'
+	// normalize path separators to '/'
 	s = strings.ReplaceAll(s, `\`, "/")
 
 	if len(s) > maxPathLength {
@@ -251,10 +278,58 @@ func TouchFile(path string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create file: %w", err)
 		}
-		return f.Close()
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("failed to close file: %w", err)
+		}
+		return nil
 	}
 
 	// file exists, update timestamps
 	now := time.Now()
 	return os.Chtimes(path, now, now)
+}
+
+// Checksum calculates the checksum of a file using the specified hash algorithm.
+// Supported algorithms are MD5, SHA1, SHA224, SHA256, SHA384, SHA512, SHA512_224, and SHA512_256.
+func Checksum(path string, algo enum.HashAlg) (string, error) {
+	if path == "" {
+		return "", errors.New("empty path")
+	}
+
+	var h hash.Hash
+	switch algo {
+	case enum.HashAlgMD5:
+		h = md5.New() //nolint:gosec // needed for compatibility
+	case enum.HashAlgSHA1:
+		h = sha1.New() //nolint:gosec // needed for compatibility
+	case enum.HashAlgSHA256:
+		h = sha256.New()
+	case enum.HashAlgSHA224:
+		h = sha256.New224()
+	case enum.HashAlgSHA384:
+		h = sha512.New384()
+	case enum.HashAlgSHA512:
+		h = sha512.New()
+	case enum.HashAlgSHA512_224:
+		h = sha512.New512_224()
+	case enum.HashAlgSHA512_256:
+		h = sha512.New512_256()
+	default:
+		return "", fmt.Errorf("unsupported hash algorithm: %v", algo)
+	}
+
+	f, err := os.Open(path) //nolint:gosec // path is provided by the caller
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("file not found: %s", path)
+		}
+		return "", fmt.Errorf("failed to open file %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := io.Copy(h, f); err != nil {
+		return "", fmt.Errorf("failed to read file %s for hashing: %w", path, err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

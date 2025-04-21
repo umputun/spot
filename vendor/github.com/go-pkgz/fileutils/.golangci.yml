@@ -1,64 +1,71 @@
-linters-settings:
-  govet:
-    check-shadowing: true
-  golint:
-    min-confidence: 0.8
-  gocyclo:
-    min-complexity: 15
-  maligned:
-    suggest-new: true
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 2
-    min-occurrences: 2
-  misspell:
-    locale: US
-  lll:
-    line-length: 140
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
-    disabled-checks:
-      - wrapperFunc
-      - hugeParam
-      - rangeValCopy
-
-linters:
-  disable-all: true
-  enable:
-    - megacheck
-    - revive
-    - govet
-    - unconvert
-    - megacheck
-    - unused
-    - gas
-    - gocyclo
-    - misspell
-    - unparam
-    - typecheck
-    - ineffassign
-    - stylecheck
-    - gochecknoinits
-    - nakedret
-    - gosimple
-    - prealloc
-
-  fast: false
-
-
+version: "2"
 run:
-  # modules-download-mode: vendor
-  skip-dirs:
-    - vendor
-  concurrency: 4
-
-issues:
-  exclude-rules:
-    - text: "weak cryptographic primitive"
-      linters:
-        - gosec
-  exclude-use-default: false
+  tests: false
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - dupl
+    - gochecknoinits
+    - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - prealloc
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+  settings:
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocritic:
+      disabled-checks:
+        - wrapperFunc
+        - hugeParam
+        - rangeValCopy
+        - singleCaseSwitch
+        - ifElseChain
+      enabled-tags:
+        - performance
+        - style
+        - experimental
+    govet:
+      enable:
+        - shadow
+    lll:
+      line-length: 140
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - staticcheck
+        text: at least one file in a package should have a package comment
+      - linters:
+          - revive
+        text: should have a package comment
+      - linters:
+          - dupl
+          - gosec
+        path: _test\.go
+    paths:
+      - vendor
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax
+    paths:
+      - vendor
+      - third_party$
+      - builtin$
+      - examples$
