@@ -69,7 +69,7 @@ func run(p *flags.Parser, opts options) error {
 	}
 
 	// set secret
-	if p.Active != nil && p.Command.Find("set") == p.Active {
+	if p.Active != nil && p.Find("set") == p.Active {
 		log.Printf("[INFO] set command, key=%s", opts.SetCmd.PositionalArgs.Key)
 		if opts.SetCmd.PositionalArgs.Value == "" {
 			return fmt.Errorf("can't set empty secret for key %q", opts.SetCmd.PositionalArgs.Key)
@@ -80,7 +80,7 @@ func run(p *flags.Parser, opts options) error {
 	}
 
 	// get secret
-	if p.Active != nil && p.Command.Find("get") == p.Active {
+	if p.Active != nil && p.Find("get") == p.Active {
 		log.Printf("[INFO] get command, key=%s", opts.GetCmd.PositionalArgs.Key)
 		val, getErr := sp.Get(opts.GetCmd.PositionalArgs.Key)
 		if getErr != nil {
@@ -90,7 +90,7 @@ func run(p *flags.Parser, opts options) error {
 	}
 
 	// delete secret
-	if p.Active != nil && p.Command.Find("del") == p.Active {
+	if p.Active != nil && p.Find("del") == p.Active {
 		log.Printf("[INFO] del command, key=%s", opts.DeleteCmd.PositionalArgs.Key)
 		if delErr := sp.Delete(opts.DeleteCmd.PositionalArgs.Key); delErr != nil {
 			return fmt.Errorf("can't delete secret: %w", delErr)
@@ -99,7 +99,7 @@ func run(p *flags.Parser, opts options) error {
 	}
 
 	// list secrets
-	if p.Active != nil && p.Command.Find("list") == p.Active {
+	if p.Active != nil && p.Find("list") == p.Active {
 		log.Printf("[INFO] list command, key-prefix=%q", opts.ListCmd.PositionalArgs.KeyPrefix)
 		keys, listErr := sp.List(opts.ListCmd.PositionalArgs.KeyPrefix)
 		if listErr != nil {
