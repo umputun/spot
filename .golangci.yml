@@ -1,72 +1,74 @@
-run:
-  timeout: 5m
-
-linters-settings:
-  # govet section removed as shadow setting is no longer supported
-  goconst:
-    min-len: 2
-    min-occurrences: 2
-  misspell:
-    locale: US
-  lll:
-    line-length: 140
-  gocritic:
-    enabled-tags:
-      - performance
-      - style
-      - experimental
-    disabled-checks:
-      - wrapperFunc
-      - hugeParam
-      - rangeValCopy
-      - singleCaseSwitch
-      - ifElseChain
-
+version: "2"
 linters:
+  default: none
   enable:
-    - revive
-    - govet
-    - unconvert
-    - gosec
+    - copyloopvar
     - dupl
-    - misspell
-    - unused
-    - typecheck
-    - ineffassign
-    - stylecheck
     - gochecknoinits
     - gocritic
+    - gosec
+    - govet
+    - ineffassign
+    - misspell
     - nakedret
-    - gosimple
     - prealloc
-    - copyloopvar
-  fast: false
-  disable-all: true
-
-issues:
-  exclude-dirs:
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+  settings:
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    gocritic:
+      disabled-checks:
+        - wrapperFunc
+        - hugeParam
+        - rangeValCopy
+        - singleCaseSwitch
+        - ifElseChain
+      enabled-tags:
+        - performance
+        - style
+        - experimental
+    lll:
+      line-length: 140
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - revive
+        text: 'package-comments: should have a package comment'
+      - linters:
+          - staticcheck
+        text: at least one file in a package should have a package comment
+      - linters:
+          - golint
+        text: should have a package comment, unless it's in another file for this package
+      - linters:
+          - gosec
+        text: integer overflow conversion
+      - linters:
+          - dupl
+          - gosec
+        path: _test\.go
+      - linters:
+          - revive
+          - unparam
+          - unused
+        path: _test\.go$
+        text: unused-parameter
+    paths:
       - vendor
-  exclude-rules:
-    - text: "package-comments: should have a package comment"
-      linters:
-        - revive
-    - text: "at least one file in a package should have a package comment"
-      linters:
-        - stylecheck
-    - text: "should have a package comment, unless it's in another file for this package"
-      linters:
-        - golint
-    - text: "integer overflow conversion"
-      linters:
-        - gosec
-    - path: _test\.go
-      linters:
-        - gosec
-        - dupl
-    - linters:
-        - unparam
-        - unused
-        - revive
-      path: _test\.go$
-      text: "unused-parameter"
-  exclude-use-default: false
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

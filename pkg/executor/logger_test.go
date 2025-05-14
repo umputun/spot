@@ -310,14 +310,24 @@ func TestMaskSecrets(t *testing.T) {
 		{"edge case:secret", []string{"secret"}, "edge case:****"},
 		{"", []string{"password"}, ""},
 		{"only spaces ", []string{" "}, "only spaces "},
-		{"1234567890", []string{"1234567890"}, "****"},
+		{"1234567890 xyz $%^&", []string{"1234567890"}, "**** xyz $%^&"},
 		{"secret@domain.com", []string{"secret@domain.com"}, "****"},
 		{"key=secret,val=secret", []string{"secret"}, "key=****,val=****"},
+		// New test cases for special characters and periods
+		{"password123#", []string{"password123#"}, "****"},
+		{"password. with period", []string{"password."}, "**** with period"},
+		{"special!characters@in#password", []string{"special!characters@in#password"}, "****"},
+		{"token321.", []string{"token321."}, "****"},
+		// Test case from the issue where the script is shown with secrets
+		{"secret=\"token321.\"; secret_special=\"password123#\"; echo \"${secret} ${secret_special}\"",
+			[]string{"token321.", "password123#"}, "secret=\"****\"; secret_special=\"****\"; echo \"${secret} ${secret_special}\""},
 	}
 
 	for _, tt := range tests {
-		output := maskSecrets(tt.input, tt.secrets)
-		assert.Equal(t, tt.expected, output)
+		t.Run(tt.input, func(t *testing.T) {
+			output := maskSecrets(tt.input, tt.secrets)
+			assert.Equal(t, tt.expected, output)
+		})
 	}
 }
 
@@ -346,6 +356,30 @@ func TestColorizedWriter_PrintfWithSecrets(t *testing.T) {
 			writer := &colorizedWriter{wr: &buf, secrets: tt.secrets, hostAddr: "localhost", hostName: "my-host"}
 			writer.Printf("%s", tt.input) //nolint
 			assert.Equal(t, tt.expected, buf.String())
+		})
+	}
+}
+
+func TestIsAlphanumeric(t *testing.T) {
+	tests := []struct {
+		input  string
+		result bool
+	}{
+		{"password", true},
+		{"Password123", true},
+		{"user_name", true},
+		{"password.", false},
+		{"password123#", false},
+		{"token!", false},
+		{"secret@domain.com", false},
+		{"", true},
+		{"123", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := isAlphanumeric(tt.input)
+			assert.Equal(t, tt.result, result)
 		})
 	}
 }

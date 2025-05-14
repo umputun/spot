@@ -147,10 +147,34 @@ func maskSecrets(s string, secrets []string) string {
 		if secret == " " || secret == "" {
 			continue
 		}
-		re := regexp.MustCompile(`\b` + regexp.QuoteMeta(secret) + `\b`) // matches the secret only if it appears as a whole word
-		s = re.ReplaceAllString(s, "****")
+		// for secrets with special characters (like '#', '.', etc.), we need to use QuoteMeta and avoid word boundaries
+		// if the secret contains alphanumeric characters only, use word boundaries for better precision
+		pattern := regexp.QuoteMeta(secret)
+		if isAlphanumeric(secret) {
+			re := regexp.MustCompile(`\b` + pattern + `\b`)
+			s = re.ReplaceAllString(s, "****")
+		} else {
+			re := regexp.MustCompile(pattern)
+			s = re.ReplaceAllString(s, "****")
+		}
 	}
 	return s
+}
+
+// isAlphanumeric checks if a string contains only alphanumeric characters and underscores
+func isAlphanumeric(s string) bool {
+	for _, r := range s {
+		isLowercase := r >= 'a' && r <= 'z'
+		isUppercase := r >= 'A' && r <= 'Z'
+		isDigit := r >= '0' && r <= '9'
+		isUnderscore := r == '_'
+		
+		// If character is not alphanumeric or underscore, return false
+		if !isLowercase && !isUppercase && !isDigit && !isUnderscore {
+			return false
+		}
+	}
+	return true
 }
 
 // stdOutLogWriter is a writer that writes to log with a prefix and a log level.
