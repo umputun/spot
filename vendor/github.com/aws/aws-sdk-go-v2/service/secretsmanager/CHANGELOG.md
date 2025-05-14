@@ -1,3 +1,24 @@
+# v1.35.4 (2025-04-16)
+
+* No change notes available for this release.
+
+# v1.35.3 (2025-04-03)
+
+* No change notes available for this release.
+
+# v1.35.2 (2025-03-06)
+
+* No change notes available for this release.
+
+# v1.35.1 (2025-03-04.2)
+
+* **Bug Fix**: Add assurance test for operation order.
+
+# v1.35.0 (2025-02-27)
+
+* **Feature**: Track credential providers via User-Agent Feature ids
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.34.19 (2025-02-18)
 
 * **Bug Fix**: Bump go version to 1.22
