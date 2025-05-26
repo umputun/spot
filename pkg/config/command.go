@@ -267,10 +267,42 @@ func (cmd *Cmd) hasShebang(inp string) bool {
 func (cmd *Cmd) genEnv() []string {
 	envs := make([]string, 0, len(cmd.Environment))
 	for k, v := range cmd.Environment {
-		envs = append(envs, fmt.Sprintf("%s=%q", k, v))
+		envs = append(envs, cmd.formatEnvVar(k, v))
 	}
 	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
 	return envs
+}
+
+// formatEnvVar formats a single environment variable for shell execution.
+// it handles special cases to prevent unwanted shell expansion:
+// - \$ is preserved as literal $ (no expansion)
+// - positional parameters ($0-$9) are protected using single quotes
+// - other values use double quotes to allow normal variable expansion
+func (cmd *Cmd) formatEnvVar(key, value string) string {
+	hasPositionalParams := func(value string) bool {
+		// checks if a string contains positional parameters $0-$9
+		for i := 0; i <= 9; i++ {
+			if strings.Contains(value, fmt.Sprintf("$%d", i)) {
+				return true
+			}
+		}
+		return false
+	}
+	// check if value contains escaped dollar signs
+	hasEscapedDollar := strings.Contains(value, `\$`)
+
+	// check if value contains positional parameters
+	if hasPositionalParams(value) || hasEscapedDollar {
+		// use single quotes to prevent all expansions
+		// escape existing single quotes using the shell idiom: ' -> '"'"'
+		value = strings.ReplaceAll(value, "'", "'\"'\"'")
+		// remove backslashes from \$ since single quotes will protect the $
+		value = strings.ReplaceAll(value, `\$`, "$")
+		return fmt.Sprintf("%s='%s'", key, value)
+	}
+
+	// use double quotes for normal values, allowing variable expansion
+	return fmt.Sprintf("%s=%q", key, value)
 }
 
 // getSecrets returns a sorted list of secrets keys from the secrets slice (part of the command)

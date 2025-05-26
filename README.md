@@ -557,6 +557,31 @@ echo "All done! $FOO $BAR"
 
 By using this approach, Spot enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
 
+**Environment Variable Escaping**
+
+Spot handles special characters in environment variable values to prevent unwanted shell expansion:
+
+- **Positional parameters** (`$0` through `$9`): Automatically protected from expansion using single quotes
+- **Escaped dollar** (`\$`): Treated as literal `$` (no expansion)
+- **Regular variables** (`$HOME`, `${USER}`, etc.): Allowed to expand normally
+
+Examples:
+
+```yaml
+commands:
+  - name: bcrypt password example
+    script: echo "Password hash: $BCRYPT_HASH"
+    env: 
+      # The $2 won't be expanded as a positional parameter
+      BCRYPT_HASH: "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"
+
+  - name: literal dollar example
+    script: echo "Literal: $LITERAL"
+    env:
+      # \$HOME will be treated as literal text "$HOME"
+      LITERAL: "\$HOME"
+```
+
 Users can also set any custom shebang for the script by adding `#!` at the beginning of the script. For example:
 
 ```yaml

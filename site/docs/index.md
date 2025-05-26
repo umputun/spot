@@ -136,6 +136,8 @@ Spot supports the following command-line options:
 - `--ssh-agent`: Enables using the SSH agent for authentication. Defaults to `false`. Users can also set the environment variable `SPOT_SSH_AGENT` to define the value.
 - `--forward-ssh-agent`: Enables forwarding of connections from an authentication agent. Defaults to `false`. Users can also set the environment variable `SPOT_FORWARD_SSH_AGENT` to define the value.
 - `--shell` - shell for remote ssh execution, default is `/bin/sh`. Users can also set the environment variable `SPOT_SHELL` to define the value.  
+- `--local-shell` - shell for local execution, default is os shell. Users can also set the environment variable `SPOT_LOCAL_SHELL` to define the value.
+- `--temp` - temporary directory for remote execution, default is `/tmp`. Users can also set the environment variable `SPOT_TEMP_DIR` to define the value.
 - `-i`, `--inventory=`: Specifies the inventory file or URL to use for the task execution. Overrides the inventory file defined in the
   playbook file. Users can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
@@ -170,6 +172,7 @@ Spot supports the following command-line options:
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
 ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
+ssh_temp: /tmp                      # temporary directory for remote execution, default is /tmp
 local_shell: /bin/bash              # shell to use for local execution, default is os shell
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
@@ -241,6 +244,7 @@ In some cases, the rich syntax of the full playbook is not needed and can feel o
 user: umputun                       # default ssh user. Can be overridden by -u flag or by inventory or host definition
 ssh_key: keys/id_rsa                # ssh key
 ssh_shell: /bin/bash                # shell to use for remote ssh execution, default is /bin/sh
+ssh_temp: /tmp                      # temporary directory for remote execution, default is /tmp
 local_shell: /bin/bash              # shell to use for local execution, default is os shell
 inventory: /etc/spot/inventory.yml  # default inventory file. Can be overridden by --inventory flag
 
@@ -478,6 +482,8 @@ example installing curl package if not installed already:
     cond: "! command -v curl"
 ```
 
+currently conditions can be used with `script` and `echo` command types only.
+
 ### Deferred actions (`on_exit`)
 
 Each command may have `on_exit` parameter defined. It allows executing a command on the remote host after the task with all commands is completed. The command is called regardless of the task's exit code.
@@ -551,6 +557,31 @@ echo "All done! $FOO $BAR"
 
 By using this approach, Spot enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
 
+**Environment Variable Escaping**
+
+Spot handles special characters in environment variable values to prevent unwanted shell expansion:
+
+- **Positional parameters** (`$0` through `$9`): Automatically protected from expansion using single quotes
+- **Escaped dollar** (`\$`): Treated as literal `$` (no expansion)
+- **Regular variables** (`$HOME`, `${USER}`, etc.): Allowed to expand normally
+
+Examples:
+
+```yaml
+commands:
+  - name: bcrypt password example
+    script: echo "Password hash: $BCRYPT_HASH"
+    env: 
+      # The $2 won't be expanded as a positional parameter
+      BCRYPT_HASH: "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"
+
+  - name: literal dollar example
+    script: echo "Literal: $LITERAL"
+    env:
+      # \$HOME will be treated as literal text "$HOME"
+      LITERAL: "\$HOME"
+```
+
 Users can also set any custom shebang for the script by adding `#!` at the beginning of the script. For example:
 
 ```yaml
@@ -623,6 +654,33 @@ tasks:
         script: |
           echo "len: $len"
 ```
+
+Register variable names also support template substitution, which allows dynamic variable names. Both predefined Spot variables and environment variables can be used in the templates:
+
+```yaml
+tasks:
+  - name: register_with_template_vars
+    commands:
+      - name: register with host template
+        script: |
+          # Create a variable with the host address in the name
+          export VAR_192.168.1.10="host-specific-value"
+        register: ["VAR_{SPOT_REMOTE_ADDR}"]  # Expands to VAR_192.168.1.10
+      
+      - name: register with env var template
+        script: |
+          # Create a dynamic variable based on the ENV_TYPE value
+          export CONFIG_production="prod-config-value"
+        environment: { ENV_TYPE: "production" }
+        register: ["CONFIG_{ENV_TYPE}"]  # Expands to CONFIG_production
+      
+      - name: check registered variables
+        script: |
+          echo "Host-specific var: ${VAR_192.168.1.10}"
+          echo "Environment-specific var: ${CONFIG_production}"
+```
+
+This allows creating dynamic variable names that adapt to the current host, environment, or other context-specific values.
 
 ### Setting environment variables
 
