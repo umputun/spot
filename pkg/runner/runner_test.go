@@ -1210,6 +1210,103 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 		"Variables should propagate between tasks")
 }
 
+func TestProcess_RunBcryptPassword(t *testing.T) {
+	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	logs := executor.MakeLogs(false, false, nil)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, err)
+
+	conf, err := config.New("testdata/conf-bcrypt.yml", nil, nil)
+	require.NoError(t, err)
+
+	t.Run("auto export case", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			Logs:        logs,
+			Skip:        []string{"export variable register", "read variable register", "read variable env"},
+		}
+
+		_, err := p.Run(ctx, "bcrypt_password_test", testingHostAndPort)
+		logContent := buf.String()
+		
+		expectedBcrypt := "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"
+		
+		// check that export shows the correct value
+		assert.Contains(t, logContent, "---- EXPORTED AUTO: "+expectedBcrypt, "Export should show correct bcrypt")
+		
+		// check that propagation preserves the value
+		assert.Contains(t, logContent, "---- PROPAGATED AUTO: "+expectedBcrypt, "Propagation should preserve bcrypt")
+		
+		// the password should be preserved correctly
+		assert.NoError(t, err, "Command should succeed with preserved password")
+		assert.Contains(t, logContent, "AUTO: Password preserved correctly", "Password should be preserved")
+		assert.NotContains(t, logContent, "AUTO: Password corrupted!", "Password should not be corrupted")
+	})
+
+	t.Run("register case", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			Logs:        logs,
+			Skip:        []string{"export variable auto", "read variable auto", "read variable env"},
+		}
+
+		_, err := p.Run(ctx, "bcrypt_password_test", testingHostAndPort)
+		logContent := buf.String()
+		
+		expectedBcrypt := "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"
+		
+		// check that export shows the correct value
+		assert.Contains(t, logContent, "---- EXPORTED REGISTER: "+expectedBcrypt, "Export should show correct bcrypt")
+		
+		// check that propagation preserves the value
+		assert.Contains(t, logContent, "---- PROPAGATED REGISTER: "+expectedBcrypt, "Propagation should preserve bcrypt")
+		
+		// the password should be preserved correctly
+		assert.NoError(t, err, "Command should succeed with preserved password")
+		assert.Contains(t, logContent, "REGISTER: Password preserved correctly", "Password should be preserved")
+		assert.NotContains(t, logContent, "REGISTER: Password corrupted!", "Password should not be corrupted")
+	})
+
+	t.Run("env case", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			Logs:        logs,
+			Only:        []string{"read variable env"},
+		}
+
+		_, err := p.Run(ctx, "bcrypt_password_test", testingHostAndPort)
+		logContent := buf.String()
+		
+		expectedBcrypt := "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"
+		
+		// check that propagation preserves the value
+		assert.Contains(t, logContent, "---- PROPAGATED ENV: "+expectedBcrypt, "Env variable should preserve bcrypt")
+		
+		// the password should be preserved correctly
+		assert.NoError(t, err, "Command should succeed with preserved password")
+		assert.Contains(t, logContent, "ENV: Password preserved correctly", "Password should be preserved")
+		assert.NotContains(t, logContent, "ENV: Password corrupted!", "Password should not be corrupted")
+	})
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	return startTestContainerWithCustomUser(t, "test")
 }
