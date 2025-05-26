@@ -196,7 +196,11 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	}
 
 	// process all the exported variables in the script
-	exports := []string{} // we collect them all here to pass as setenv to the next command
+	type exportInfo struct {
+		key          string
+		singleQuoted bool
+	}
+	exports := []exportInfo{} // we collect them all here to pass as setenv to the next command
 	lines := strings.Split(inp, "\n")
 	for i, line := range lines {
 		if strings.HasPrefix(line, "#!") && i == 0 {
@@ -212,17 +216,22 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 		// if the line in the script is an export, add it to the list of exports.
 		// this is done to be able to print the variables set by the script to the console after the script is executed.
 		// the caller can use those variables to set environment variables for the next commands
-		if expKey := cmd.exportKey(line); expKey != "" {
-			exports = append(exports, expKey)
+		if expKey, singleQuoted := cmd.exportKeyWithQuote(line); expKey != "" {
+			exports = append(exports, exportInfo{key: expKey, singleQuoted: singleQuoted})
 		}
 	}
 
 	// each exported variable is printed as a setvar command to be captured by the caller
 	exported := []string{} // collect all exported variables to avoid duplicates in setvar output
 	if len(exports) > 0 {
-		for _, v := range exports {
-			buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", v, v))
-			exported = append(exported, v)
+		for _, expInfo := range exports {
+			// include SQ marker for single-quoted variables
+			if expInfo.singleQuoted {
+				buf.WriteString(fmt.Sprintf("echo \"setvar %s:SQ=${%s}\"\n", expInfo.key, expInfo.key))
+			} else {
+				buf.WriteString(fmt.Sprintf("echo setvar %s=${%s}\n", expInfo.key, expInfo.key))
+			}
+			exported = append(exported, expInfo.key)
 		}
 	}
 
@@ -240,18 +249,25 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	return &buf
 }
 
-func (cmd *Cmd) exportKey(line string) string {
+// exportKeyWithQuote returns the export key and whether it was single-quoted
+func (cmd *Cmd) exportKeyWithQuote(line string) (key string, singleQuoted bool) {
 	trimmedLine := strings.TrimSpace(line)
 	if !strings.HasPrefix(trimmedLine, "export") {
-		return ""
+		return "", false
 	}
 
 	expKey := strings.TrimPrefix(trimmedLine, "export")
-	expElems := strings.Split(expKey, "=")
+	expElems := strings.SplitN(expKey, "=", 2)
 	if len(expElems) != 2 {
-		return ""
+		return "", false
 	}
-	return strings.TrimSpace(expElems[0])
+
+	key = strings.TrimSpace(expElems[0])
+	value := strings.TrimSpace(expElems[1])
+
+	// check if value was single-quoted (literal value preserved)
+	singleQuoted = strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")
+	return key, singleQuoted
 }
 
 func (cmd *Cmd) hasShebang(inp string) bool {
