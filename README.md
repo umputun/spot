@@ -557,30 +557,31 @@ echo "All done! $FOO $BAR"
 
 By using this approach, Spot enables users to write and execute more complex scripts, providing greater flexibility and power in managing remote hosts or local environments.
 
-**Environment Variable Escaping**
+**Special Characters in Variables**
 
-Spot handles special characters in environment variable values to prevent unwanted shell expansion:
-
-- **Positional parameters** (`$0` through `$9`): Automatically protected from expansion using single quotes
-- **Escaped dollar** (`\$`): Treated as literal `$` (no expansion)
-- **Regular variables** (`$HOME`, `${USER}`, etc.): Allowed to expand normally
+When using variables that contain dollar signs (`$`), be aware that the shell will interpret them during execution. To use literal dollar signs (common in passwords, hashes, etc.), escape them with backslashes (`\$`).
 
 Examples:
 
 ```yaml
 commands:
-  - name: bcrypt password example
-    script: echo "Password hash: $BCRYPT_HASH"
-    env: 
-      # The $2 won't be expanded as a positional parameter
-      BCRYPT_HASH: "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"
+  - name: set bcrypt password
+    script: |
+      # Escape dollar signs to prevent shell expansion
+      export BCRYPT_HASH='\$2a\$14\$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
+      echo "Hash: $BCRYPT_HASH"  # Will print the correct hash
 
-  - name: literal dollar example
-    script: echo "Literal: $LITERAL"
+  - name: use password in env section
+    script: echo "Password: $PASSWORD"
     env:
-      # \$HOME will be treated as literal text "$HOME"
-      LITERAL: "\$HOME"
+      # Escape dollars in bcrypt passwords or similar values
+      PASSWORD: '\$2a\$14\$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
+      
+  - name: normal variables work as expected
+    script: echo "Home is $HOME"  # $HOME expands normally
 ```
+
+This applies to all places where variables are used: scripts, environment sections, and when passing variables between commands.
 
 Users can also set any custom shebang for the script by adding `#!` at the beginning of the script. For example:
 
