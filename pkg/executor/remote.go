@@ -383,7 +383,7 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	if err == nil {
 		// if remote file exists, and has the same size, mod time and mode, skip upload. Force flag overrides this.
 		isSame := !req.force && remoteFi.Size() == inpFi.Size() &&
-		  isWithinOneSecond(remoteFi.ModTime(), inpFi.ModTime()) && remoteFi.Mode() == inpFi.Mode()
+			isWithinOneSecond(remoteFi.ModTime(), inpFi.ModTime()) && remoteFi.Mode() == inpFi.Mode()
 		if isSame {
 			log.Printf("[INFO] remote file %s identical to local file %s, skipping upload", req.remoteFile, req.localFile)
 			return nil

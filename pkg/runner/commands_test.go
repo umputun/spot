@@ -126,6 +126,28 @@ func Test_templaterApply(t *testing.T) {
 			expected: "foo_val blah bar_val user2:ls",
 		},
 		{
+			name: "single quoted env variable with dollar signs",
+			inp:  "Password: ${BCRYPT_PASSWORD}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "echo",
+				task:     &config.Task{Name: "task1", User: "user"},
+				env:      map[string]string{"BCRYPT_PASSWORD": "__SQ__:$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC"},
+			},
+			expected: "Password: \\$2a\\$14\\$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC",
+		},
+		{
+			name: "mixed env variables with and without SQ prefix",
+			inp:  "${NORMAL} and ${QUOTED}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "echo",
+				task:     &config.Task{Name: "task1", User: "user"},
+				env:      map[string]string{"NORMAL": "normal value", "QUOTED": "__SQ__:$special$value"},
+			},
+			expected: "normal value and \\$special\\$value",
+		},
+		{
 			name: "with error msg",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR} and $SPOT_ERROR",
 			tmpl: templater{

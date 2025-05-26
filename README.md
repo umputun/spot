@@ -559,7 +559,7 @@ By using this approach, Spot enables users to write and execute more complex scr
 
 **Special Characters in Variables**
 
-When using variables that contain dollar signs (`$`), be aware that the shell will interpret them during execution. To use literal dollar signs (common in passwords, hashes, etc.), escape them with backslashes (`\$`).
+When using variables that contain dollar signs (`$`), be aware that the shell will interpret them during execution. To preserve literal dollar signs (common in passwords, hashes, etc.), use single quotes when setting variables.
 
 Examples:
 
@@ -567,15 +567,15 @@ Examples:
 commands:
   - name: set bcrypt password
     script: |
-      # Escape dollar signs to prevent shell expansion
-      export BCRYPT_HASH='\$2a\$14\$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
+      # Use single quotes to preserve literal dollar signs
+      export BCRYPT_HASH='$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
       echo "Hash: $BCRYPT_HASH"  # Will print the correct hash
 
   - name: use password in env section
     script: echo "Password: $PASSWORD"
     env:
-      # Escape dollars in bcrypt passwords or similar values
-      PASSWORD: '\$2a\$14\$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
+      # Single quotes preserve the literal value
+      PASSWORD: '$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
       
   - name: normal variables work as expected
     script: echo "Home is $HOME"  # $HOME expands normally

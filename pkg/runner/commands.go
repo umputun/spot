@@ -128,11 +128,31 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		if !strings.HasPrefix(line, "setvar ") {
 			continue
 		}
-		parts := strings.SplitN(strings.TrimPrefix(line, "setvar"), "=", 2)
+		// parse format: key=value or key:SQ=value for single-quoted values
+		trimmed := strings.TrimPrefix(line, "setvar ")
+		parts := strings.SplitN(trimmed, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		key, val := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+
+		keyPart := strings.TrimSpace(parts[0])
+		val := strings.TrimSpace(parts[1])
+
+		// check if this was a single-quoted variable
+		var key string
+		var singleQuoted bool
+		if strings.HasSuffix(keyPart, ":SQ") {
+			key = keyPart[:len(keyPart)-3]
+			singleQuoted = true
+		} else {
+			key = keyPart
+			singleQuoted = false
+		}
+
+		// for single-quoted values, add a marker prefix
+		if singleQuoted {
+			val = "__SQ__:" + val
+		}
 		resp.vars[key] = val
 
 		// use both original and processed register variables for matching
@@ -571,7 +591,15 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	for k, v := range tm.env {
-		res = apply(res, k, v)
+		actualValue := v
+		// check if this value was originally single-quoted
+		if strings.HasPrefix(v, "__SQ__:") {
+			// remove the marker and escape dollar signs
+			actualValue = v[7:] // skip "__SQ__:"
+			// single quotes prevented expansion, so we need to escape $ to preserve literal values
+			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
+		}
+		res = apply(res, k, actualValue)
 	}
 
 	return res

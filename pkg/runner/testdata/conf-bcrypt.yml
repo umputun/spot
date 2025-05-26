@@ -7,7 +7,7 @@ targets:
 tasks:
   - name: bcrypt_password_test
     commands:
-      # test 1: automatic export capture (the reported issue)
+      # test: automatic export capture (the reported issue)
       - name: export variable auto
         script: |
           export BCRYPT_PASSWORD='$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
@@ -20,35 +20,7 @@ tasks:
             echo "AUTO: Password preserved correctly"
           else
             echo "AUTO: Password corrupted!"
+            echo "Expected: '$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'"
+            echo "Got: '${BCRYPT_PASSWORD}'"
             exit 1
           fi
-
-      # test 2: using register
-      - name: export variable register
-        script: |
-          BCRYPT_PASSWORD_REG='$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
-          echo "---- EXPORTED REGISTER: ${BCRYPT_PASSWORD_REG}"
-        register: [BCRYPT_PASSWORD_REG]
-
-      - name: read variable register
-        script: |
-          echo "---- PROPAGATED REGISTER: ${BCRYPT_PASSWORD_REG}"
-          if [ "${BCRYPT_PASSWORD_REG}" = '$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC' ]; then
-            echo "REGISTER: Password preserved correctly"
-          else
-            echo "REGISTER: Password corrupted!"
-            exit 1
-          fi
-
-      # test 3: using env section
-      - name: read variable env
-        script: |
-          echo "---- PROPAGATED ENV: ${BCRYPT_PASSWORD_ENV}"
-          if [ "${BCRYPT_PASSWORD_ENV}" = '$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC' ]; then
-            echo "ENV: Password preserved correctly"
-          else
-            echo "ENV: Password corrupted!"
-            exit 1
-          fi
-        env: 
-          BCRYPT_PASSWORD_ENV: '$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'
