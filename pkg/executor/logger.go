@@ -168,8 +168,8 @@ func isAlphanumeric(s string) bool {
 		isUppercase := r >= 'A' && r <= 'Z'
 		isDigit := r >= '0' && r <= '9'
 		isUnderscore := r == '_'
-		
-		// If character is not alphanumeric or underscore, return false
+
+		// if character is not alphanumeric or underscore, return false
 		if !isLowercase && !isUppercase && !isDigit && !isUnderscore {
 			return false
 		}

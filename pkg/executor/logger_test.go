@@ -313,12 +313,12 @@ func TestMaskSecrets(t *testing.T) {
 		{"1234567890 xyz $%^&", []string{"1234567890"}, "**** xyz $%^&"},
 		{"secret@domain.com", []string{"secret@domain.com"}, "****"},
 		{"key=secret,val=secret", []string{"secret"}, "key=****,val=****"},
-		// New test cases for special characters and periods
+		// new test cases for special characters and periods
 		{"password123#", []string{"password123#"}, "****"},
 		{"password. with period", []string{"password."}, "**** with period"},
 		{"special!characters@in#password", []string{"special!characters@in#password"}, "****"},
 		{"token321.", []string{"token321."}, "****"},
-		// Test case from the issue where the script is shown with secrets
+		// test case from the issue where the script is shown with secrets
 		{"secret=\"token321.\"; secret_special=\"password123#\"; echo \"${secret} ${secret_special}\"",
 			[]string{"token321.", "password123#"}, "secret=\"****\"; secret_special=\"****\"; echo \"${secret} ${secret_special}\""},
 	}
