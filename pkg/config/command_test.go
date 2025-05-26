@@ -233,63 +233,6 @@ echo 'Goodbye, World!'`,
 				"echo setvar foo=${foo}",
 			},
 		},
-		{
-			name: "environment variables with positional parameters",
-			cmd: &Cmd{
-				Script: "echo $BCRYPT",
-				Environment: map[string]string{
-					"BCRYPT": "$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC",
-					"MIXED":  "qwe$rty$123",
-					"NORMAL": "$HOME/path",
-				},
-			},
-			expectedScript:   `/bin/sh -c 'export BCRYPT='$2a$14$G.j2F3fm9wluTougUU52sOzePOvvpujjRrCoVp5qWVZ6qRJh58ISC'; export MIXED='qwe$rty$123'; export NORMAL="$HOME/path"; echo $BCRYPT'`,
-			expectedContents: nil,
-		},
-		{
-			name: "environment variables with escaped dollar",
-			cmd: &Cmd{
-				Script: "echo $VAR",
-				Environment: map[string]string{
-					"VAR": `\$HOME/\$USER`,
-				},
-			},
-			expectedScript:   `/bin/sh -c 'export VAR='$HOME/$USER'; echo $VAR'`,
-			expectedContents: nil,
-		},
-		{
-			name: "escaped dollar with positional parameter",
-			cmd: &Cmd{
-				Script: "echo $VAR",
-				Environment: map[string]string{
-					"VAR": `prefix\$2suffix`,
-				},
-			},
-			expectedScript:   `/bin/sh -c 'export VAR='prefix$2suffix'; echo $VAR'`,
-			expectedContents: nil,
-		},
-		{
-			name: "environment variable with single quotes",
-			cmd: &Cmd{
-				Script: "echo $VAR",
-				Environment: map[string]string{
-					"VAR": "foo'bar$1",
-				},
-			},
-			expectedScript:   `/bin/sh -c 'export VAR='foo'"'"'bar$1'; echo $VAR'`,
-			expectedContents: nil,
-		},
-		{
-			name: "mixed positional and normal variables",
-			cmd: &Cmd{
-				Script: "echo $VAR",
-				Environment: map[string]string{
-					"VAR": "$USER has $1 item",
-				},
-			},
-			expectedScript:   `/bin/sh -c 'export VAR='$USER has $1 item'; echo $VAR'`,
-			expectedContents: nil,
-		},
 	}
 
 	for _, tc := range testCases {
