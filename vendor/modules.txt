@@ -222,7 +222,7 @@ github.com/go-pkgz/stringutils
 # github.com/go-pkgz/syncs v1.3.2
 ## explicit; go 1.20
 github.com/go-pkgz/syncs
-# github.com/go-sql-driver/mysql v1.9.2
+# github.com/go-sql-driver/mysql v1.9.3
 ## explicit; go 1.21.0
 github.com/go-sql-driver/mysql
 # github.com/gogo/protobuf v1.3.2

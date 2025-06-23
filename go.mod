@@ -11,7 +11,7 @@ require (
 	github.com/go-pkgz/lgr v0.12.0
 	github.com/go-pkgz/stringutils v1.1.0
 	github.com/go-pkgz/syncs v1.3.2
-	github.com/go-sql-driver/mysql v1.9.2
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/google/uuid v1.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/vault/api v1.20.0
