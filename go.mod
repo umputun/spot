@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.6
 	github.com/fatih/color v1.18.0
 	github.com/go-pkgz/fileutils v0.4.0
-	github.com/go-pkgz/lgr v0.12.0
+	github.com/go-pkgz/lgr v0.12.1
 	github.com/go-pkgz/stringutils v1.1.0
 	github.com/go-pkgz/syncs v1.3.2
 	github.com/go-sql-driver/mysql v1.9.2
