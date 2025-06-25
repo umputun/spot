@@ -342,8 +342,9 @@ func TestTargetHosts(t *testing.T) {
 			"target3": {Name: "target3", Groups: []string{"group1"},
 				Hosts: []Destination{{Host: "host4.example.com", Port: 22, Name: "host4", Tags: []string{"tag4"}, User: "user4"}},
 			},
-			"target4": {Name: "target4", Groups: []string{"group1"}, Names: []string{"host3"}},
-			"target5": {Name: "target5", Tags: []string{"tag1"}},
+			"target4":      {Name: "target4", Groups: []string{"group1"}, Names: []string{"host3"}},
+			"target5":      {Name: "target5", Tags: []string{"tag1"}},
+			"target-empty": {Name: "target-empty", Groups: []string{"empty-group", "gpu-nodes"}},
 		},
 		inventory: &InventoryData{
 			Groups: map[string][]Destination{
@@ -356,6 +357,8 @@ func TestTargetHosts(t *testing.T) {
 				"group1": {
 					{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}},
 				},
+				"empty-group": {}, // empty group
+				"gpu-nodes":   {}, // empty group
 			},
 			Hosts: []Destination{
 				{Host: "host3.example.com", Port: 22, Name: "host3", Tags: []string{"tag1", "tag2"}},
@@ -457,6 +460,16 @@ func TestTargetHosts(t *testing.T) {
 			"user override", "host3", &Overrides{User: "overriddenuser"},
 			[]Destination{{Host: "host3.example.com", Port: 22, User: "overriddenuser", Name: "host3", Tags: []string{"tag1", "tag2"}}},
 			false,
+		},
+		{
+			"empty group direct targeting", "empty-group", nil,
+			nil, // returns nil, no error
+			false,
+		},
+		{
+			"target with only empty groups", "target-empty", nil,
+			nil,
+			true, // should error when no hosts found
 		},
 	}
 
