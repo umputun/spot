@@ -115,6 +115,89 @@ func TestDestinations(t *testing.T) {
 		},
 
 		{
+			name: "empty groups only",
+			targets: map[string]Target{
+				"test": {Groups: []string{"web-servers", "gpu-nodes"}},
+			},
+			user: "user",
+			inventory: &InventoryData{
+				Groups: map[string][]Destination{
+					allHostsGrp: {
+						{Name: "server1", Host: "192.168.1.1", Tags: []string{"db"}},
+						{Name: "server2", Host: "192.168.1.2", Tags: []string{"db"}},
+					},
+					"web-servers": {}, // empty group
+					"gpu-nodes":   {}, // empty group
+					"db-servers": {
+						{Name: "server1", Host: "192.168.1.1", Tags: []string{"db"}},
+					},
+				},
+			},
+			expected: nil,
+			err:      true, // should error when no hosts found
+		},
+
+		{
+			name: "mixed empty and populated groups",
+			targets: map[string]Target{
+				"test": {Groups: []string{"gpu-nodes", "queue-schedulers"}},
+			},
+			user: "user",
+			inventory: &InventoryData{
+				Groups: map[string][]Destination{
+					allHostsGrp: {
+						{Name: "pbs0", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+						{Name: "pbs1", Host: "5.6.7.8", Port: 22, Tags: []string{}},
+						{Name: "db1", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+					},
+					"gpu-nodes": {}, // empty group
+					"queue-schedulers": {
+						{Name: "pbs0", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+						{Name: "pbs1", Host: "5.6.7.8", Port: 22, Tags: []string{}},
+					},
+					"db-servers": {
+						{Name: "db1", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+					},
+				},
+			},
+			expected: []Destination{
+				{Name: "pbs0", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+				{Name: "pbs1", Host: "5.6.7.8", Port: 22, Tags: []string{}},
+			},
+			err: false,
+		},
+
+		{
+			name: "all hosts with empty groups present",
+			targets: map[string]Target{
+				"test": {Groups: []string{allHostsGrp}},
+			},
+			user: "user",
+			inventory: &InventoryData{
+				Groups: map[string][]Destination{
+					allHostsGrp: {
+						{Name: "db1", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+						{Name: "pbs1", Host: "5.6.7.8", Port: 22, Tags: []string{}},
+					},
+					"web-servers": {}, // empty group
+					"gpu-nodes":   {}, // empty group
+					"db-servers": {
+						{Name: "db1", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+					},
+					"queue-schedulers": {
+						{Name: "pbs0", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+						{Name: "pbs1", Host: "5.6.7.8", Port: 22, Tags: []string{}},
+					},
+				},
+			},
+			expected: []Destination{
+				{Name: "db1", Host: "1.2.3.4", Port: 22, Tags: []string{}},
+				{Name: "pbs1", Host: "5.6.7.8", Port: 22, Tags: []string{}},
+			},
+			err: false,
+		},
+
+		{
 			name: "matching names",
 			targets: map[string]Target{
 				"test": {Names: []string{"server1"}},
