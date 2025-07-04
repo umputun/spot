@@ -400,7 +400,7 @@ func targetsForTask(targets []string, taskName string, pbook runner.Playbook) []
 
 // get ssh key from cli or playbook. if no key is provided, use default ~/.ssh/id_rsa
 func sshKey(sshAgent bool, sshKey string, pbook *config.PlayBook) (key string, err error) {
-	if sshKey == "" && (pbook == nil || pbook.SSHKey != "") { // no key provided in cli
+	if sshKey == "" && !sshAgent && pbook != nil && pbook.SSHKey != "" { // no key provided in cli and not using agent
 		sshKey = pbook.SSHKey // use playbook's ssh_key
 	}
 	if p, err := expandPath(sshKey); err == nil {
