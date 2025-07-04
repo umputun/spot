@@ -668,6 +668,39 @@ func Test_sshUserAndKey(t *testing.T) {
 			expectedKey:  "",
 		},
 		{
+			name: "SSHAgent should override playbook SSH key",
+			opts: options{
+				TaskNames: []string{"test_task"},
+				SSHUser:   "cmd_user",
+				SSHAgent:  true, // SSH agent is enabled
+			},
+			conf: config.PlayBook{
+				User:   "default_user",
+				SSHKey: "/path/to/playbook/key", // playbook has SSH key defined
+				Tasks: []config.Task{
+					{Name: "test_task"},
+				},
+			},
+			expectedUser: "cmd_user",
+			expectedKey:  "", // should be empty when using SSH agent, not playbook's key
+		},
+		{
+			name: "SSHAgent with no playbook key should not set default key",
+			opts: options{
+				TaskNames: []string{"test_task"},
+				SSHUser:   "root",
+				SSHAgent:  true, // SSH agent is enabled
+			},
+			conf: config.PlayBook{
+				// No SSHKey defined in playbook - this is the reported issue case
+				Tasks: []config.Task{
+					{Name: "test_task"},
+				},
+			},
+			expectedUser: "root",
+			expectedKey:  "", // should be empty, not /root/.ssh/id_rsa
+		},
+		{
 			name: "tilde expansion in key path",
 			opts: options{
 				TaskNames: []string{"test_task"},
