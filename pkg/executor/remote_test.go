@@ -89,9 +89,7 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 		assert.Equal(t, string(exp), string(act))
 	}
 	{
-		tmpDir, err := os.MkdirTemp("", "test")
-		require.NoError(t, err)
-		defer os.RemoveAll(tmpDir)
+		tmpDir := t.TempDir()
 		err = sess.Download(ctx, "/tmp/blah/data*.txt", tmpDir, &UpDownOpts{Mkdir: true, Exclude: []string{"data2.txt"}})
 		require.NoError(t, err)
 		assert.FileExists(t, filepath.Join(tmpDir, "data1.txt"))

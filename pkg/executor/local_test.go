@@ -173,9 +173,7 @@ func TestUploadAndDownload(t *testing.T) {
 				require.NoError(t, err)
 				srcFile.Close()
 
-				baseDstDir, err := os.MkdirTemp("", "dst")
-				require.NoError(t, err)
-				defer os.RemoveAll(baseDstDir)
+				baseDstDir := t.TempDir()
 
 				dstDir := baseDstDir
 				if tc.dstDir != "" {
@@ -228,13 +226,10 @@ func TestUploadAndDownload(t *testing.T) {
 }
 
 func TestUploadDownloadWithGlob(t *testing.T) {
-	// create some temporary test files with content
-	tmpDir, err := os.MkdirTemp("", "test")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+	tmpDir := t.TempDir()
 
 	data1File := filepath.Join(tmpDir, "data1.txt")
-	err = os.WriteFile(data1File, []byte("data1 content"), 0o644)
+	err := os.WriteFile(data1File, []byte("data1 content"), 0o644)
 	require.NoError(t, err)
 
 	data2File := filepath.Join(tmpDir, "data2.txt")
@@ -242,9 +237,7 @@ func TestUploadDownloadWithGlob(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a temporary destination directory
-	dstDir, err := os.MkdirTemp("", "dst")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
+	dstDir := t.TempDir()
 
 	type fn func(ctx context.Context, src, dst string, opts *UpDownOpts) (err error)
 
@@ -354,13 +347,10 @@ func TestUploadDownloadWithExclude(t *testing.T) {
 	} {
 
 		t.Run(fmt.Sprintf("%s#%s", tc.name, tc.name), func(t *testing.T) {
-			// create some temporary test files with content
-			tmpDir, err := os.MkdirTemp("", "test")
-			require.NoError(t, err)
-			defer os.RemoveAll(tmpDir)
+			tmpDir := t.TempDir()
 
 			data1File := filepath.Join(tmpDir, "data1.txt")
-			err = os.WriteFile(data1File, []byte("data1 content"), 0o644)
+			err := os.WriteFile(data1File, []byte("data1 content"), 0o644)
 			require.NoError(t, err)
 
 			data2File := filepath.Join(tmpDir, "data2.txt")
@@ -368,9 +358,7 @@ func TestUploadDownloadWithExclude(t *testing.T) {
 			require.NoError(t, err)
 
 			// create a temporary destination directory
-			dstDir, err := os.MkdirTemp("", "dst")
-			require.NoError(t, err)
-			defer os.RemoveAll(dstDir)
+			dstDir := t.TempDir()
 
 			if tc.src != "" {
 				dstDir = filepath.Join(dstDir, tc.dst)
@@ -568,14 +556,10 @@ func TestLocal_Sync(t *testing.T) {
 	svc := Local{}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			srcDir, err := os.MkdirTemp("", "src")
-			require.NoError(t, err)
-			defer os.RemoveAll(srcDir)
+			srcDir := t.TempDir()
+			dstDir := t.TempDir()
 
-			dstDir, err := os.MkdirTemp("", "dst")
-			require.NoError(t, err)
-			defer os.RemoveAll(dstDir)
-
+			var err error
 			for name, content := range tc.srcStructure {
 				os.MkdirAll(filepath.Join(srcDir, filepath.Dir(name)), 0o700)
 				err = os.WriteFile(filepath.Join(srcDir, name), []byte(content), 0o644)
@@ -677,8 +661,7 @@ func TestDelete(t *testing.T) {
 			var remoteFile string
 			var err error
 			if tc.isDir {
-				remoteFile, err = os.MkdirTemp("", "test")
-				require.NoError(t, err)
+				remoteFile = t.TempDir()
 
 				subFile, e := os.CreateTemp(remoteFile, "subfile")
 				require.NoError(t, e)
@@ -842,23 +825,19 @@ func TestClose(t *testing.T) {
 func TestLocal_syncSrcToDst_InvalidSrcPath(t *testing.T) {
 	l := &Local{}
 	src := "non_existent_path"
-	dst, err := os.MkdirTemp("", "dst")
-	require.NoError(t, err)
-	defer os.RemoveAll(dst)
+	dst := t.TempDir()
 
-	_, err = l.syncSrcToDst(context.Background(), src, dst, nil)
+	_, err := l.syncSrcToDst(context.Background(), src, dst, nil)
 	assert.Error(t, err, "expected an error")
 }
 
 func TestLocal_removeExtraDstFiles_InvalidDstPath(t *testing.T) {
 	l := &Local{}
-	src, err := os.MkdirTemp("", "src")
-	require.NoError(t, err)
-	defer os.RemoveAll(src)
+	src := t.TempDir()
 
 	dst := "non_existent_path"
 
-	err = l.removeExtraDstFiles(context.Background(), src, dst)
+	err := l.removeExtraDstFiles(context.Background(), src, dst)
 	assert.Error(t, err, "expected an error")
 }
 
@@ -868,9 +847,7 @@ func TestUpload_SpecialCharacterInPath(t *testing.T) {
 	require.NoError(t, err)
 	defer os.Remove(srcFile.Name())
 
-	dstDir, err := os.MkdirTemp("", "dst")
-	require.NoError(t, err)
-	defer os.RemoveAll(dstDir)
+	dstDir := t.TempDir()
 
 	dstFile := filepath.Join(dstDir, "file_with_special_#_character.txt")
 
@@ -887,15 +864,13 @@ func TestLocal_copyFile(t *testing.T) {
 
 	t.Run("happy path", func(t *testing.T) {
 		// create a temporary directory
-		tmpDir, err := os.MkdirTemp("", "copy_file_test")
-		assert.NoError(t, err, "creating a temporary directory should not return an error")
-		defer os.RemoveAll(tmpDir)
+		tmpDir := t.TempDir()
 
 		src := filepath.Join(tmpDir, "source_file.txt")
 		dst := filepath.Join(tmpDir, "destination_file.txt")
 
 		// create a source file
-		err = os.WriteFile(src, []byte("content"), 0o644)
+		err := os.WriteFile(src, []byte("content"), 0o644)
 		assert.NoError(t, err, "creating a source file should not return an error")
 
 		// call copyFile
@@ -919,30 +894,26 @@ func TestLocal_copyFile(t *testing.T) {
 
 	t.Run("nonexistent source file", func(t *testing.T) {
 		// create a temporary directory
-		tmpDir, err := os.MkdirTemp("", "copy_file_test")
-		assert.NoError(t, err, "creating a temporary directory should not return an error")
-		defer os.RemoveAll(tmpDir)
+		tmpDir := t.TempDir()
 
 		src := filepath.Join(tmpDir, "nonexistent_file.txt")
 		dst := filepath.Join(tmpDir, "destination_file.txt")
 
 		// call copyFile
-		err = l.copyFile(src, dst)
+		err := l.copyFile(src, dst)
 		assert.ErrorContains(t, err, "nonexistent_file.txt: no such file or directory",
 			"copying a nonexistent source file should return an error")
 	})
 
 	t.Run("cannot create destination file", func(t *testing.T) {
 		// create a temporary directory
-		tmpDir, err := os.MkdirTemp("", "copy_file_test")
-		assert.NoError(t, err, "creating a temporary directory should not return an error")
-		defer os.RemoveAll(tmpDir)
+		tmpDir := t.TempDir()
 
 		src := filepath.Join(tmpDir, "source_file.txt")
 		dst := filepath.Join(tmpDir, "destination_dir", "destination_file.txt")
 
 		// create a source file
-		err = os.WriteFile(src, []byte("content"), 0o644)
+		err := os.WriteFile(src, []byte("content"), 0o644)
 		assert.NoError(t, err, "creating a source file should not return an error")
 
 		err = l.copyFile(src, dst)
@@ -952,15 +923,13 @@ func TestLocal_copyFile(t *testing.T) {
 
 	t.Run("error during chmod", func(t *testing.T) {
 		// create a temporary directory
-		tmpDir, err := os.MkdirTemp("", "copy_file_test")
-		assert.NoError(t, err, "creating a temporary directory should not return an error")
-		defer os.RemoveAll(tmpDir)
+		tmpDir := t.TempDir()
 
 		src := filepath.Join(tmpDir, "source_file.txt")
 		dst := filepath.Join(tmpDir, "destination_file.txt")
 
 		// create a source file
-		err = os.WriteFile(src, []byte("content"), 0o644)
+		err := os.WriteFile(src, []byte("content"), 0o644)
 		assert.NoError(t, err, "creating a source file should not return an error")
 
 		// call copyFile
@@ -982,28 +951,22 @@ func TestSyncSrcToDst_UnhappyPath(t *testing.T) {
 	l := &Local{}
 
 	t.Run("context canceled", func(t *testing.T) {
-		tmpSrcDir, err := os.MkdirTemp("", "src")
-		assert.NoError(t, err, "creating a temporary source directory should not return an error")
-		defer os.RemoveAll(tmpSrcDir)
+		tmpSrcDir := t.TempDir()
 
-		tmpDstDir, err := os.MkdirTemp("", "dst")
-		assert.NoError(t, err, "creating a temporary destination directory should not return an error")
-		defer os.RemoveAll(tmpDstDir)
+		tmpDstDir := t.TempDir()
 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err = l.syncSrcToDst(ctx, tmpSrcDir, tmpDstDir, nil)
+		_, err := l.syncSrcToDst(ctx, tmpSrcDir, tmpDstDir, nil)
 		assert.Error(t, err, "syncSrcToDst should return an error when the context is canceled")
 	})
 
 	t.Run("error while walking source directory", func(t *testing.T) {
 		invalidSrcPath := "invalid-src-path"
-		tmpDstDir, err := os.MkdirTemp("", "dst")
-		assert.NoError(t, err, "creating a temporary destination directory should not return an error")
-		defer os.RemoveAll(tmpDstDir)
+		tmpDstDir := t.TempDir()
 
-		_, err = l.syncSrcToDst(context.Background(), invalidSrcPath, tmpDstDir, nil)
+		_, err := l.syncSrcToDst(context.Background(), invalidSrcPath, tmpDstDir, nil)
 		assert.Error(t, err, "syncSrcToDst should return an error when there's an error while walking the source directory")
 	})
 }
