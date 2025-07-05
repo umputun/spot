@@ -20,7 +20,7 @@ import (
 	"github.com/umputun/spot/pkg/config/deepcopy"
 )
 
-//go:generate moq -out mocks/secrets.go -pkg mocks -skip-ensure -fmt goimports . secretsProvider:SecretProvider
+//go:generate moq -out mocks/secrets.go -pkg mocks -skip-ensure -fmt goimports . SecretsProvider
 
 // PlayBook defines the top-level config object
 type PlayBook struct {

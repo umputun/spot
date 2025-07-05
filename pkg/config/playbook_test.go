@@ -163,7 +163,7 @@ func TestPlaybook_New(t *testing.T) {
 	})
 
 	t.Run("playbook with secrets", func(t *testing.T) {
-		secProvider := &mocks.SecretProvider{
+		secProvider := &mocks.SecretsProviderMock{
 			GetFunc: func(key string) (string, error) {
 				switch key {
 				case "SEC1":
@@ -198,7 +198,7 @@ func TestPlaybook_New(t *testing.T) {
 	})
 
 	t.Run("playbook with options", func(t *testing.T) {
-		secProvider := &mocks.SecretProvider{
+		secProvider := &mocks.SecretsProviderMock{
 			GetFunc: func(key string) (string, error) {
 				switch key {
 				case "SEC1":
@@ -765,7 +765,7 @@ func TestPlayBook_checkConfig(t *testing.T) {
 
 func TestPlayBook_loadSecrets(t *testing.T) {
 	// mock secret provider
-	secProvider := mocks.SecretProvider{
+	secProvider := mocks.SecretsProviderMock{
 		GetFunc: func(key string) (string, error) {
 			if key == "secret1" {
 				return "value1", nil

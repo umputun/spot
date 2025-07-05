@@ -7,22 +7,22 @@ import (
 	"sync"
 )
 
-// SecretProvider is a mock implementation of config.secretsProvider.
+// SecretsProviderMock is a mock implementation of config.SecretsProvider.
 //
-//	func TestSomethingThatUsessecretsProvider(t *testing.T) {
+//	func TestSomethingThatUsesSecretsProvider(t *testing.T) {
 //
-//		// make and configure a mocked config.secretsProvider
-//		mockedsecretsProvider := &SecretProvider{
+//		// make and configure a mocked config.SecretsProvider
+//		mockedSecretsProvider := &SecretsProviderMock{
 //			GetFunc: func(key string) (string, error) {
 //				panic("mock out the Get method")
 //			},
 //		}
 //
-//		// use mockedsecretsProvider in code that requires config.secretsProvider
+//		// use mockedSecretsProvider in code that requires config.SecretsProvider
 //		// and then make assertions.
 //
 //	}
-type SecretProvider struct {
+type SecretsProviderMock struct {
 	// GetFunc mocks the Get method.
 	GetFunc func(key string) (string, error)
 
@@ -38,9 +38,9 @@ type SecretProvider struct {
 }
 
 // Get calls GetFunc.
-func (mock *SecretProvider) Get(key string) (string, error) {
+func (mock *SecretsProviderMock) Get(key string) (string, error) {
 	if mock.GetFunc == nil {
-		panic("SecretProvider.GetFunc: method is nil but secretsProvider.Get was just called")
+		panic("SecretsProviderMock.GetFunc: method is nil but SecretsProvider.Get was just called")
 	}
 	callInfo := struct {
 		Key string
@@ -56,8 +56,8 @@ func (mock *SecretProvider) Get(key string) (string, error) {
 // GetCalls gets all the calls that were made to Get.
 // Check the length with:
 //
-//	len(mockedsecretsProvider.GetCalls())
-func (mock *SecretProvider) GetCalls() []struct {
+//	len(mockedSecretsProvider.GetCalls())
+func (mock *SecretsProviderMock) GetCalls() []struct {
 	Key string
 } {
 	var calls []struct {

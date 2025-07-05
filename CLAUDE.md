@@ -11,6 +11,110 @@
 - Dry-run mode for testing
 - Simple design with minimal dependencies
 
+## Architecture Overview
+
+### Core Components
+
+1. **Entry Points** (`cmd/`)
+   - `spot/main.go` - Main CLI application for running playbooks and ad-hoc commands
+   - `secrets/main.go` - Separate tool for managing secrets (spot-secrets)
+
+2. **Core Packages** (`pkg/`)
+   - **config/** - Handles playbook parsing, inventory management, and configuration structures
+   - **executor/** - Provides execution interfaces with implementations for:
+     - Remote execution over SSH (`remote.go`)
+     - Local execution (`local.go`)
+     - Dry-run mode (`dry.go`)
+   - **runner/** - Orchestrates task execution across multiple hosts with concurrency control
+   - **secrets/** - Implements multiple secrets providers (Spot DB, AWS Secrets Manager, HashiCorp Vault, Ansible Vault)
+
+### Key Interfaces and Abstractions
+
+1. **executor.Interface** - Core abstraction for command execution:
+   ```go
+   type Interface interface {
+       Run(ctx context.Context, c string, opts *RunOpts) (out []string, err error)
+       Upload(ctx context.Context, local, remote string, opts *UpDownOpts) (err error)
+       Download(ctx context.Context, remote, local string, opts *UpDownOpts) (err error)
+       Sync(ctx context.Context, localDir, remoteDir string, opts *SyncOpts) ([]string, error)
+       Delete(ctx context.Context, remoteFile string, opts *DeleteOpts) (err error)
+       Close() error
+   }
+   ```
+
+2. **runner.Connector** - Abstraction for SSH connections
+3. **runner.Playbook** - Interface for playbook operations
+4. **config.SecretsProvider** - Interface for secrets management
+
+### Execution Flow
+
+1. **CLI Entry Point** (`cmd/spot/main.go`)
+   - Parses command-line options and loads playbook configuration
+   - Creates a `runner.Process` with configured concurrency, connector, and options
+   - Calls `runTaskForTarget()` for each task/target combination
+
+2. **Task Orchestration** (`pkg/runner/runner.go`)
+   - Uses `syncs.NewErrSizedGroup` for concurrent execution with configurable parallelism
+   - Each host runs in a separate goroutine, limited by `Concurrency` setting
+   - Executes commands sequentially within each host's goroutine
+   - Manages task-level variables and registered variables across commands
+   - Handles on-error and on-exit command execution
+
+3. **Command Execution** (`pkg/runner/commands.go`)
+   - Supports multiple command types: script, copy, sync, delete, wait, echo
+   - Template variable substitution (SPOT_REMOTE_HOST, etc.)
+   - Sudo handling via temporary directories
+   - Register variable extraction from script output
+   - On-exit command deferral
+
+4. **Connection Management**
+   - No persistent connection pool - each task execution creates new SSH connections
+   - Connections are created per-host, per-task execution
+   - SSH agent support with optional forwarding
+   - Clean separation: each executor instance owns its connection
+
+### Configuration Capabilities
+
+1. **Playbook Format**
+   - Supports both YAML and TOML formats
+   - Two playbook types: full (complex) and simplified
+   - Key components: user, ssh_key, inventory, targets, tasks
+
+2. **Inventory Management**
+   - YAML/TOML format with groups and hosts
+   - Can be file-based or URL-based (HTTP)
+   - Supports host groups, names, and tags for targeting
+   - Special "all" group automatically created containing all hosts
+
+3. **Variable System**
+   - Template variables: `$SPOT_REMOTE_HOST`, `${SPOT_REMOTE_HOST}`, `{SPOT_REMOTE_HOST}`
+   - Environment variables passed through `env` field
+   - Register variables to capture command output
+   - Dynamic targets using `$variable` syntax
+
+4. **Secrets Management**
+   - Multiple providers with consistent interface
+   - Secrets encrypted using NaCl Secretbox with Argon2 key derivation
+   - Secrets referenced in playbooks and loaded at runtime
+
+### Testing Patterns
+
+1. **Container-Based Integration Tests**
+   - Uses `testcontainers-go` for real SSH testing
+   - SSH container setup using `lscr.io/linuxserver/openssh-server`
+   - Helper function `startTestContainer` returns host:port and teardown func
+
+2. **Mock Generation**
+   - Uses moq with `//go:generate` directives
+   - Mocks stored in `mocks` subdirectory
+   - Example: `//go:generate moq -out mocks/connector.go -pkg mocks -skip-ensure -fmt goimports . Connector`
+
+3. **Test Structure**
+   - Table-driven tests with subtests using testify
+   - Compact test formatting (single line struct fields)
+   - `testdata` directories for test fixtures
+   - Real SSH connection tests against containers
+
 ## Primary Guidelines
 
 - Provide brutally honest and realistic assessments of requests, feasibility, and potential issues. No sugar-coating. No vague possibilities where concrete answers are needed.
