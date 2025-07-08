@@ -5,21 +5,8 @@
 
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "monthly"
-    ignore:
-      - dependency-name: "goreleaser/goreleaser-action"
-    groups:
-      "GitHub Actions updates":
-        patterns:
-          - "*"
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
       interval: "weekly"
-    groups:
-      "Go modules updates":
-        dependency-type: "production"
-        applies-to: "security-updates"
+    open-pull-requests-limit: 0
