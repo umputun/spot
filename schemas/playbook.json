@@ -210,6 +210,11 @@
           "required": [
             "wait"
           ]
+        },
+        {
+          "required": [
+            "line"
+          ]
         }
       ],
       "properties": {
@@ -361,6 +366,32 @@
               "type": "string"
             },
             "interval": {
+              "type": "string"
+            }
+          }
+        },
+        "line": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "file",
+            "match"
+          ],
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "match": {
+              "type": "string"
+            },
+            "delete": {
+              "type": "boolean",
+              "default": false
+            },
+            "replace": {
+              "type": "string"
+            },
+            "append": {
               "type": "string"
             }
           }

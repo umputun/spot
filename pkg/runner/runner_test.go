@@ -406,6 +406,43 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `(test2)`)
 		assert.Contains(t, outWriter.String(), ` > test2`)
 	})
+
+	t.Run("line command operations", func(t *testing.T) {
+		conf, err := config.New("testdata/conf-line.yml", nil, nil)
+		require.NoError(t, err)
+
+		p := Process{
+			Concurrency: 1,
+			Connector:   connector,
+			Playbook:    conf,
+			Logs:        logs,
+			Verbose:     true,
+		}
+
+		// capture log output to verify test results
+		outWriter := &bytes.Buffer{}
+		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
+
+		res, err := p.Run(ctx, "test line operations", testingHostAndPort)
+		require.NoError(t, err)
+		assert.Equal(t, 18, res.Commands) // all commands in the task including verification steps
+
+		logContent := outWriter.String()
+
+		// verify test ran successfully with all checks passing
+		assert.Contains(t, logContent, "✓ Comment lines deleted successfully")
+		assert.Contains(t, logContent, "✓ old_config line deleted successfully")
+		assert.Contains(t, logContent, "✓ debug setting replaced successfully")
+		assert.Contains(t, logContent, "✓ feature setting replaced successfully")
+		assert.Contains(t, logContent, "✓ monitoring line appended successfully")
+		assert.Contains(t, logContent, "✓ Existing server.port line not duplicated")
+		assert.Contains(t, logContent, "✓ Protected file modified successfully with sudo")
+		assert.Contains(t, logContent, "✓ Variable substituted correctly")
+
+		// verify variable substitution
+		assert.Contains(t, logContent, "host=localhost") // SPOT_REMOTE_ADDR resolves to localhost in test
+		assert.NotContains(t, logContent, "host={SPOT_REMOTE_HOST}")
+	})
 }
 
 func TestProcess_RunWithSudo(t *testing.T) {

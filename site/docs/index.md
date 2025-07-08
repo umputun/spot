@@ -439,6 +439,31 @@ Prints the specified message to the console. This command is useful for debuggin
   echo: $some_var
 ```
 
+#### `line`
+
+Manipulates lines in a file based on a regex pattern. This command supports three operations: delete lines matching a pattern, replace entire lines containing a pattern, or append a line if the pattern is not found. This is useful for simple configuration file modifications without complex sed/grep scripts.
+
+```yaml
+# Delete lines matching a pattern
+- name: remove comments
+  line: {file: "/etc/config.conf", match: "^#", delete: true}
+
+# Replace entire lines containing a pattern
+- name: update setting
+  line: {file: "/etc/config.conf", match: "^port=", replace: "port=8080"}
+
+# Append line if pattern not found
+- name: ensure setting exists
+  line: {file: "/etc/config.conf", match: "^debug=", append: "debug=true"}
+```
+
+The `line` command:
+- Uses regex patterns for matching lines
+- For replace operation: replaces the entire line containing the match, not just the matching portion
+- Only performs one operation per command (delete, replace, or append)
+- Supports sudo for files requiring elevated permissions
+- Supports variable substitution in all fields
+
 ### Command options
 
 Each command type supports the following options:

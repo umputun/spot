@@ -422,6 +422,82 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	return resp, nil
 }
 
+// Line modifies file content by operating on lines that match a regex pattern.
+// It supports three operations: delete lines, replace lines, or append a line if pattern not found.
+func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
+	// check the condition if it exists
+	cond, err := ec.checkCondition(ctx)
+	if err != nil {
+		return resp, err
+	}
+	if !cond {
+		resp.details = fmt.Sprintf(" {skip: %s}", ec.cmd.Name)
+		return resp, nil
+	}
+
+	// apply templating to all fields
+	tmpl := templater{
+		hostAddr: ec.hostAddr,
+		hostName: ec.hostName,
+		task:     ec.tsk,
+		command:  ec.cmd.Name,
+		env:      ec.cmd.Environment,
+	}
+	file := tmpl.apply(ec.cmd.Line.File)
+	match := tmpl.apply(ec.cmd.Line.Match)
+	replace := tmpl.apply(ec.cmd.Line.Replace)
+	appendLine := tmpl.apply(ec.cmd.Line.Append)
+
+	// determine the operation and build the command
+	var operation string
+	var operationCmd string
+
+	switch {
+	case ec.cmd.Line.Delete:
+		operation = "delete"
+		// use sed to delete lines matching the pattern
+		operationCmd = fmt.Sprintf("sed -i '\\|%s|d' %s", match, file)
+
+	case replace != "":
+		operation = "replace"
+		// use sed to replace lines matching the pattern
+		operationCmd = fmt.Sprintf("sed -i 's|^.*%s.*$|%s|' %s", match, replace, file)
+
+	case appendLine != "":
+		operation = "append"
+		// first check if the pattern exists in the file
+		checkCmd := fmt.Sprintf("grep -q '%s' %s", match, file)
+		if ec.cmd.Options.Sudo {
+			checkCmd = fmt.Sprintf("sudo %s", checkCmd)
+		}
+		if _, err := ec.exec.Run(ctx, checkCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+			// pattern not found, append the line
+			operationCmd = fmt.Sprintf("echo '%s' >> %s", appendLine, file)
+		} else {
+			// pattern found, skip
+			resp.details = fmt.Sprintf(" {line: %s, match: %s, skip: pattern found}", file, match)
+			return resp, nil
+		}
+
+	default:
+		return resp, ec.errorFmt("invalid line command configuration: no operation specified")
+	}
+
+	// handle sudo if needed
+	if ec.cmd.Options.Sudo {
+		operationCmd = fmt.Sprintf("sudo %s", operationCmd)
+	}
+
+	// execute the operation
+	_, err = ec.exec.Run(ctx, operationCmd, &executor.RunOpts{Verbose: ec.verbose})
+	if err != nil {
+		return resp, ec.errorFmt("can't execute line %s on %s: %w", operation, ec.hostAddr, err)
+	}
+
+	resp.details = fmt.Sprintf(" {line: %s, %s: %s}", file, operation, match)
+	return resp, nil
+}
+
 func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	if ec.cmd.Condition == "" {
 		return true, nil // no condition, always allow
