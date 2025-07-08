@@ -1,0 +1,151 @@
+user: test
+ssh_key: testdata/test_ssh_key
+
+tasks:
+  - name: test line operations
+    commands:
+      # create test file first
+      - name: create test file
+        script: |
+          cat > /tmp/test_line.txt << 'EOF'
+          # Configuration File
+          server.port=8080
+          server.host=localhost
+          old_config=remove_me
+          debug.enabled=true
+          # Comment to remove
+          log.level=INFO
+          feature.enabled=false
+          EOF
+
+      # test delete operation
+      - name: delete comment lines
+        line: {file: "/tmp/test_line.txt", match: "^#", delete: true}
+      
+      - name: delete old_config line
+        line: {file: "/tmp/test_line.txt", match: "old_config", delete: true}
+
+      # verify delete operations
+      - name: verify delete operations
+        script: |
+          echo "=== Checking delete operations ==="
+          if grep -q "^#" /tmp/test_line.txt; then
+            echo "ERROR: Comment lines should be deleted"
+            exit 1
+          else
+            echo "✓ Comment lines deleted successfully"
+          fi
+          if grep -q "old_config" /tmp/test_line.txt; then
+            echo "ERROR: old_config line should be deleted"
+            exit 1
+          else
+            echo "✓ old_config line deleted successfully"
+          fi
+
+      # test replace operation
+      - name: update debug setting
+        line: {file: "/tmp/test_line.txt", match: "debug.enabled=", replace: "debug.enabled=false"}
+      
+      - name: update feature setting
+        line: {file: "/tmp/test_line.txt", match: "feature.enabled=false", replace: "feature.enabled=true"}
+
+      # verify replace operations
+      - name: verify replace operations
+        script: |
+          echo "=== Checking replace operations ==="
+          if grep -q "debug.enabled=false" /tmp/test_line.txt; then
+            echo "✓ debug setting replaced successfully"
+          else
+            echo "ERROR: debug setting not replaced"
+            cat /tmp/test_line.txt
+            exit 1
+          fi
+          if grep -q "feature.enabled=true" /tmp/test_line.txt; then
+            echo "✓ feature setting replaced successfully"
+          else
+            echo "ERROR: feature setting not replaced"
+            exit 1
+          fi
+
+      # test append operation
+      - name: ensure monitoring enabled
+        line: {file: "/tmp/test_line.txt", match: "monitoring.enabled", append: "monitoring.enabled=true"}
+      
+      - name: try append existing line (should skip)
+        line: {file: "/tmp/test_line.txt", match: "server.port", append: "server.port=9090"}
+
+      # verify append operations
+      - name: verify append operations
+        script: |
+          echo "=== Checking append operations ==="
+          if grep -q "monitoring.enabled=true" /tmp/test_line.txt; then
+            echo "✓ monitoring line appended successfully"
+          else
+            echo "ERROR: monitoring line not appended"
+            exit 1
+          fi
+          # Check that existing line was not duplicated
+          count=$(grep -c "server.port" /tmp/test_line.txt)
+          if [ "$count" -eq 1 ]; then
+            echo "✓ Existing server.port line not duplicated"
+          else
+            echo "ERROR: server.port appears $count times, should be 1"
+            exit 1
+          fi
+
+      # show final file
+      - name: show final file
+        script: |
+          echo "=== Final file contents ==="
+          cat /tmp/test_line.txt
+          echo "=== Line count: $(wc -l < /tmp/test_line.txt) ==="
+
+      # test with sudo
+      - name: create protected file
+        script: |
+          sudo sh -c 'echo "protected content" > /tmp/protected.txt'
+          sudo chmod 600 /tmp/protected.txt
+
+      - name: modify protected file with sudo
+        line: {file: "/tmp/protected.txt", match: "protected", replace: "modified content"}
+        options: {sudo: true}
+
+      - name: verify sudo modification
+        script: |
+          echo "=== Checking sudo modification ==="
+          if sudo grep -q "modified content" /tmp/protected.txt; then
+            echo "✓ Protected file modified successfully with sudo"
+          else
+            echo "ERROR: Protected file not modified"
+            sudo cat /tmp/protected.txt
+            exit 1
+          fi
+
+      # test with variables
+      - name: create file with variables
+        script: |
+          cat > /tmp/test_vars.conf << 'EOF'
+          host={SPOT_REMOTE_HOST}
+          port=22
+          EOF
+
+      - name: replace with variable
+        line: {file: "/tmp/test_vars.conf", match: "^host=", replace: "host=${SPOT_REMOTE_ADDR}"}
+
+      - name: verify variable substitution
+        script: |
+          echo "=== Checking variable substitution ==="
+          if grep -q "host=localhost" /tmp/test_vars.conf; then
+            echo "✓ Variable substituted correctly"
+            cat /tmp/test_vars.conf
+          else
+            echo "ERROR: Variable not substituted"
+            cat /tmp/test_vars.conf
+            exit 1
+          fi
+
+      # cleanup
+      - name: cleanup test files
+        script: |
+          rm -f /tmp/test_line.txt /tmp/test_vars.conf
+          sudo rm -f /tmp/protected.txt

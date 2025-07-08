@@ -25,6 +25,7 @@ type Cmd struct {
 	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
 	MDelete     []DeleteInternal  `yaml:"mdelete" toml:"mdelete"` // multiple delete commands, implemented internally
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
+	Line        LineInternal      `yaml:"line" toml:"line"` // line manipulation command
 	Script      string            `yaml:"script" toml:"script,multiline"`
 	Echo        string            `yaml:"echo" toml:"echo"`
 	Environment map[string]string `yaml:"env" toml:"env"`
@@ -80,6 +81,15 @@ type WaitInternal struct {
 	Timeout       time.Duration `yaml:"timeout" toml:"timeout"`
 	CheckDuration time.Duration `yaml:"interval" toml:"interval"`
 	Command       string        `yaml:"cmd" toml:"cmd,multiline"`
+}
+
+// LineInternal defines line manipulation command, implemented internally
+type LineInternal struct {
+	File    string `yaml:"file" toml:"file"`       // target file path
+	Match   string `yaml:"match" toml:"match"`     // regex pattern to match
+	Delete  bool   `yaml:"delete" toml:"delete"`   // delete matching lines
+	Replace string `yaml:"replace" toml:"replace"` // replace matching lines with this
+	Append  string `yaml:"append" toml:"append"`   // append this line if pattern not found
 }
 
 // GetScript returns a script string and an io.Reader based on the command being single line or multiline.
@@ -384,7 +394,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	return nil
 }
 
-// validate checks if a Cmd has the exactly one command type set (script, copy, mcopy, delete, sync, wait or echo)
+// validate checks if a Cmd has the exactly one command type set (script, copy, mcopy, delete, sync, wait, line or echo)
 // and returns an error if there are either multiple command types set or none set.
 func (cmd *Cmd) validate() error {
 	cmdTypes := []struct {
@@ -399,6 +409,10 @@ func (cmd *Cmd) validate() error {
 		{"sync", func() bool { return cmd.Sync.Source != "" && cmd.Sync.Dest != "" }},
 		{"msync", func() bool { return len(cmd.MSync) > 0 }},
 		{"wait", func() bool { return cmd.Wait.Command != "" }},
+		{"line", func() bool {
+			return cmd.Line.File != "" && cmd.Line.Match != "" &&
+				(cmd.Line.Delete || cmd.Line.Replace != "" || cmd.Line.Append != "")
+		}},
 		{"echo", func() bool { return cmd.Echo != "" }},
 	}
 

@@ -599,6 +599,195 @@ func Test_execEcho(t *testing.T) {
 	})
 }
 
+func Test_execLine(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+	logs := executor.MakeLogs(false, false, nil)
+	ctx := context.Background()
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, errSess)
+
+	t.Run("line command delete", func(t *testing.T) {
+		// create a test file with multiple lines
+		testFile := "/tmp/test_line_delete.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'line1\\nline2\\nline3' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:   testFile,
+					Match:  "line2",
+					Delete: true,
+				},
+				Name: "test line delete",
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {line: /tmp/test_line_delete.txt, delete: line2}", resp.details)
+
+		// verify line was deleted
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"line1", "line3"}, out)
+	})
+
+	t.Run("line command replace", func(t *testing.T) {
+		// create a test file
+		testFile := "/tmp/test_line_replace.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'line1\\nline2\\nline3' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:    testFile,
+					Match:   "line2",
+					Replace: "replaced line",
+				},
+				Name: "test line replace",
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {line: /tmp/test_line_replace.txt, replace: line2}", resp.details)
+
+		// verify line was replaced
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"line1", "replaced line", "line3"}, out)
+	})
+
+	t.Run("line command append", func(t *testing.T) {
+		// create a test file without the pattern
+		testFile := "/tmp/test_line_append.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'line1\\nline2' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:   testFile,
+					Match:  "line3",
+					Append: "line3",
+				},
+				Name: "test line append",
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {line: /tmp/test_line_append.txt, append: line3}", resp.details)
+
+		// verify line was appended
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"line1", "line2", "line3"}, out)
+	})
+
+	t.Run("line command append skip if exists", func(t *testing.T) {
+		// create a test file with the pattern already present
+		testFile := "/tmp/test_line_append_skip.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'line1\\nline2\\nline3' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:   testFile,
+					Match:  "line2",
+					Append: "should not be added",
+				},
+				Name: "test line append skip",
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {line: /tmp/test_line_append_skip.txt, match: line2, skip: pattern found}", resp.details)
+
+		// verify file unchanged
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"line1", "line2", "line3"}, out)
+	})
+
+	t.Run("line command with condition", func(t *testing.T) {
+		testFile := "/tmp/test_line_condition.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo 'test' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:   testFile,
+					Match:  "test",
+					Delete: true,
+				},
+				Name:      "test line with condition",
+				Condition: "test -f /tmp/nonexistent.condition",
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test line with condition}", resp.details)
+
+		// verify file unchanged
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"test"}, out)
+	})
+
+	t.Run("line command with sudo", func(t *testing.T) {
+		// create a test file in a protected directory
+		testDir := "/srv/test_line_sudo"
+		testFile := "/srv/test_line_sudo/test.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("sudo mkdir -p %s && echo -e 'line1\\nline2\\nline3' | sudo tee %s > /dev/null", testDir, testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("sudo rm -rf %s", testDir), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:   testFile,
+					Match:  "line2",
+					Delete: true,
+				},
+				Name: "test line delete with sudo",
+				Options: config.CmdOptions{
+					Sudo: true,
+				},
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {line: /srv/test_line_sudo/test.txt, delete: line2}", resp.details)
+
+		// verify line was deleted
+		out, err := sess.Run(ctx, fmt.Sprintf("sudo cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"line1", "line3"}, out)
+	})
+}
+
 func Test_execCmdWithTmp(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
