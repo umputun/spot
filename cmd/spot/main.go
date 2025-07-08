@@ -50,7 +50,7 @@ type options struct {
 	EnvFile   string            `short:"E" long:"env-file" env:"SPOT_ENV_FILE" description:"environment variables from file" default:"env.yml"`
 
 	// commands filter
-	Skip []string `long:"skip" description:"skip commands"`
+	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `long:"only" description:"run only commands"`
 
 	// secrets

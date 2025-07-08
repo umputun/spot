@@ -37,7 +37,7 @@ prep-site:
 	sed -i '' 's|^.*/workflows/ci.yml.*$$||' site/docs/index.md
 
 site:
-	@rm -f  site/public/*
+	@rm -rf  site/public/*
 	@docker rm -f spot-site
 	docker build -f Dockerfile.site --progress=plain -t spot.site .
 	docker run -d --name=spot-site spot.site

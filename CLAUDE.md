@@ -173,7 +173,7 @@ gofmt -s -w $(find . -type f -name "*.go" -not -path "./vendor/*") && go generat
 - Never commit without running completion sequence
 - Run tests and linter after making significant changes to verify functionality
 - IMPORTANT: Never put into commit message any mention of Claude or Claude Code
-- Do not include "Test plan" sections in PR descriptions
+- IMPORTANT: Never include "Test plan" sections in PR descriptions
 - Do not add comments that describe changes, progress, or historical modifications
 - Comments should only describe the current state and purpose of the code, not its history or evolution
 - Use `go:generate` for generating mocks, never modify generated files manually
@@ -194,6 +194,7 @@ gofmt -s -w $(find . -type f -name "*.go" -not -path "./vendor/*") && go generat
   - If unable to fix an issue with the current approach, report the problem and ask for guidance
   - Focus on minimal changes to address the specific issue at hand
   - Preserve the existing patterns and conventions of the codebase
+- If README.md updated, doc site generation should be run with `make prep-site` command
 
 ## Spot-Specific Libraries
 
