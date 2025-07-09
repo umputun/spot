@@ -728,6 +728,17 @@ commands:
 
 In case of a conflict between environment variables set in the environment file and the cli, the cli variables will take precedence.
 
+**Important Note on Variable Expansion:**
+
+Spot performs its own simple variable substitution before executing a command. It directly replaces placeholders like `$VAR`, `${VAR}`, or `{VAR}` with their defined values. This is a direct string replacement, not a full shell expansion.
+
+This means:
+- **Simple replacement:** `VAR: world` in a script `echo "Hello, $VAR"` becomes `echo "Hello, world"`.
+- **Composition:** You can build variables from others: `env: {BAR: yyy, FOO: xxx$BAR}` will result in `FOO` being `xxxyyy`.
+- **Shell still runs:** After Spot performs its substitution, the resulting string is executed by the shell. This means shell features like command substitution will still work, but they are interpreted by the shell, not by Spot. For example: `env: {FOO: $(echo xxx)}` will result in `FOO` being `xxx` because the shell executes `$(echo xxx)`.
+
+Because Spot's substitution is literal, it can lead to unexpected behavior with special characters (like `$` in passwords or certain symbols in emojis). The shell might interpret these as part of its own syntax. To avoid this, **use single quotes for values that should be treated literally**, as explained in the [Special Characters in Variables](#special-characters-in-variables) section.
+
 ## Targets
 
 Targets are used to define the remote hosts to execute the tasks on. Targets can be defined in the playbook file or passed as a command-line argument. The following target types are supported:
