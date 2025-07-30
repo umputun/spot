@@ -67,7 +67,7 @@ type Task struct {
 	OnError  string     `yaml:"on_error" toml:"on_error"`
 	Targets  []string   `yaml:"targets" toml:"targets"`           // optional list of targets to run task on, names or groups
 	Options  CmdOptions `yaml:"options" toml:"options,omitempty"` // options for all commands
-        Tags     []string    `yaml:"tags" toml:"tags"` // optional list of tags to add to tasks
+	Tags     []string   `yaml:"tags" toml:"tags"`                 // optional list of tags to add to tasks
 }
 
 // Target defines hosts to run commands on
