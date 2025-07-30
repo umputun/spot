@@ -40,6 +40,9 @@ type Process struct {
 
 	Skip []string
 	Only []string
+
+	Tags     []string
+	SkipTags []string
 }
 
 // Connector is an interface for connecting to a host, and returning remote executer.
@@ -80,6 +83,12 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get task %s: %w", task, err)
 	}
+
+	if !p.shouldRunTask(tsk) {
+		log.Printf("[runner] skipping task %q due to tag filtering", tsk.Name)
+		return ProcResp{}, nil
+	}
+
 	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
 
 	allVars := make(map[string]string)
@@ -496,5 +505,31 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 	}
 
 	log.Printf("[DEBUG] skip command %q, not in only_on list", cmd.Name)
+	return false
+}
+
+// shouldRunTask checks if the task should be filtered upon checking
+// tags and skip-tags.
+func (p *Process) shouldRunTask(task *config.Task) bool {
+	if len(p.Tags) > 0 && !hasAnyTag(task.Tags, p.Tags) {
+		return false
+	}
+	if len(p.SkipTags) > 0 && hasAnyTag(task.Tags, p.SkipTags) {
+		return false
+	}
+	return true
+}
+
+// check whether task has tags given in the process run
+func hasAnyTag(taskTags, filterTags []string) bool {
+	tagSet := make(map[string]struct{}, len(taskTags))
+	for _, t := range taskTags {
+		tagSet[t] = struct{}{}
+	}
+	for _, f := range filterTags {
+		if _, ok := tagSet[f]; ok {
+			return true
+		}
+	}
 	return false
 }
