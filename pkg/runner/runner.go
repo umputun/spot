@@ -512,37 +512,37 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 // tags and skip-tags.
 
 func (p *Process) shouldRunTask(task config.Task) bool {
-    log.Printf("[DEBUG] checking task %q with tags %v", task.Name, task.Tags)
+	log.Printf("[DEBUG] checking task %q with tags %v", task.Name, task.Tags)
 
-    if len(p.Tags) == 0 && len(p.SkipTags) == 0 {
-        log.Printf("[DEBUG] no tags were set, will run task %q", task.Name)
-        return true
-    }
+	if len(p.Tags) == 0 && len(p.SkipTags) == 0 {
+		log.Printf("[DEBUG] no tags were set, will run task %q", task.Name)
+		return true
+	}
 
-    taskTags := make(map[string]bool)
-    for _, t := range task.Tags {
-        taskTags[t] = true
-    }
+	taskTags := make(map[string]bool)
+	for _, t := range task.Tags {
+		taskTags[t] = true
+	}
 
-    for _, skipTag := range p.SkipTags {
-        if taskTags[skipTag] {
-            log.Printf("[DEBUG] skip task %q, has matching skip-tags %q", task.Name, skipTag)
-            return false
-        }
-    }
+	for _, skipTag := range p.SkipTags {
+		if taskTags[skipTag] {
+			log.Printf("[DEBUG] skip task %q, has matching skip-tags %q", task.Name, skipTag)
+			return false
+		}
+	}
 
-    if len(p.Tags) > 0 {
-        for _, tag := range p.Tags {
-            if taskTags[tag] {
-                log.Printf("[DEBUG] run task %q, has tag %q", task.Name, tag)
-                return true
-            }
-        }
-        log.Printf("[DEBUG] skipping task %q, no matching tags", task.Name)
-        return false
-    }
+	if len(p.Tags) > 0 {
+		for _, tag := range p.Tags {
+			if taskTags[tag] {
+				log.Printf("[DEBUG] run task %q, has tag %q", task.Name, tag)
+				return true
+			}
+		}
+		log.Printf("[DEBUG] skipping task %q, no matching tags", task.Name)
+		return false
+	}
 
-    return true
+	return true
 }
 
 // check whether task has tags given in the process run
@@ -557,4 +557,17 @@ func hasAnyTag(taskTags, filterTags []string) bool {
 		}
 	}
 	return false
+}
+
+// get the final list of tasks that should run
+func (p *Process) filterTasksToRun() []*config.Task {
+	var filtered []*config.Task
+	for _, task := range p.Playbook.AllTasks() {
+		if p.shouldRunTask(task) {
+			filtered = append(filtered, &task)
+		} else {
+			log.Printf("[DEBUG] filtered out task %q", task.Name)
+		}
+	}
+	return filtered
 }
