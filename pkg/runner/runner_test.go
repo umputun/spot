@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -1346,83 +1345,4 @@ func captureStdOut(t *testing.T, f func()) string {
 	var buf bytes.Buffer
 	io.Copy(&buf, r)
 	return buf.String()
-}
-
-// tests that final list of tasks filtered with tags and skiptags are correct
-func TestFilterTasksToRun_TagsAndSkipTags(t *testing.T) {
-	tests := []struct {
-		name        string
-		tags        []string
-		skipTags    []string
-		allTasks    []config.Task
-		wantedTasks []string
-	}{
-		{
-			name:     "no tags or skip-tags returns all tasks",
-			tags:     nil,
-			skipTags: nil,
-			allTasks: []config.Task{
-				{Name: "task1"},
-				{Name: "task2", Tags: []string{"foo"}},
-			},
-			wantedTasks: []string{"task1", "task2"},
-		},
-		{
-			name:     "filters by tags",
-			tags:     []string{"frontend"},
-			skipTags: nil,
-			allTasks: []config.Task{
-				{Name: "task1", Tags: []string{"frontend"}},
-				{Name: "task2", Tags: []string{"database"}},
-			},
-			wantedTasks: []string{"task1"},
-		},
-		{
-			name:     "filters by skip-tags",
-			tags:     nil,
-			skipTags: []string{"database"},
-			allTasks: []config.Task{
-				{Name: "task1", Tags: []string{"database"}},
-				{Name: "task2", Tags: []string{"frontend"}},
-			},
-			wantedTasks: []string{"task2"},
-		},
-		{
-			name:     "filters by tags and skip-tags",
-			tags:     []string{"backend", "monitoring"},
-			skipTags: []string{"database"},
-			allTasks: []config.Task{
-				{Name: "frontend-task", Tags: []string{"frontend"}},
-				{Name: "database-task", Tags: []string{"database"}},
-				{Name: "backend-task", Tags: []string{"backend"}},
-				{Name: "no-tags-task"},
-				{Name: "monitoring-task", Tags: []string{"monitoring"}},
-			},
-			wantedTasks: []string{"backend-task", "monitoring-task"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			p := &Process{
-				Tags:     tc.tags,
-				SkipTags: tc.skipTags,
-				Playbook: &mocks.PlaybookMock{
-					AllTasksFunc: func() []config.Task {
-						return tc.allTasks
-					},
-				},
-			}
-
-			gotTasks := p.filterTasksToRun()
-			var got []string
-			for _, task := range gotTasks {
-				got = append(got, task.Name)
-			}
-
-			if !reflect.DeepEqual(got, tc.wantedTasks) {
-				t.Errorf("tasks filtered with tags/skip-tags do not match:\nwanted: %v\nactual:  %v", tc.wantedTasks, got)
-			}
-		})
-	}
 }

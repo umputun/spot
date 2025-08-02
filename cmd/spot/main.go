@@ -33,7 +33,7 @@ type options struct {
 	} `positional-args:"yes" positional-optional:"yes"`
 
 	PlaybookFile    string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
-	TaskNames       []string      `short:"n" long:"task" description:"task name"`
+	TaskNames       []string      `short:"n" long:"task" description:"task name or tag"`
 	Targets         []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent      int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout      time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
@@ -41,10 +41,6 @@ type options struct {
 	ForwardSSHAgent bool          `long:"forward-ssh-agent" env:"SPOT_FORWARD_SSH_AGENT" description:"use forward-ssh-agent"`
 	SSHShell        string        `long:"shell" env:"SPOT_SHELL" description:"enforce non-default shell to use for ssh" default:""`
 	SSHTempDir      string        `long:"temp" env:"SPOT_TEMP" description:"temporary directory for ssh" default:""`
-
-	// tasks filter
-	Tags     []string `long:"tags" description:"only run tasks that match one or more of the specified tags"`
-	SkipTags []string `long:"skip-tags" description:"skip tasks that match one or more of the specified tags"`
 
 	// overrides
 	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
@@ -181,9 +177,12 @@ func run(opts options) error {
 
 // runTasks runs all tasks in playbook by default or a single task if specified in command line
 func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Process) error {
+	allTasks := r.Playbook.AllTasks()
+
 	// run specified tasks if there is any
 	if len(taskNames) > 0 {
-		for _, taskName := range taskNames {
+		taskNamesToRun := getTaskNamesToRun(allTasks, taskNames)
+		for _, taskName := range taskNamesToRun {
 			for _, targetName := range targetsForTask(targets, taskName, r.Playbook) {
 				if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
 					return err
@@ -194,7 +193,7 @@ func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Proces
 	}
 
 	// run all tasks in playbook if no task specified
-	for _, task := range r.Playbook.AllTasks() {
+	for _, task := range allTasks {
 		for _, targetName := range targetsForTask(targets, task.Name, r.Playbook) {
 			if err := runTaskForTarget(ctx, r, task.Name, targetName); err != nil {
 				return err
@@ -202,6 +201,52 @@ func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Proces
 		}
 	}
 	return nil
+}
+
+// gets a list of task names to run. If -n/--task is specified, it gets tasks
+// matching the task name, if no task name matches then it checks if tasks with
+// mathing tags. If -n/--task is not specified, returns a list of all task names
+func getTaskNamesToRun(allTasks []config.Task, names []string) []string {
+	// if no task names given, get all task names
+	if len(names) == 0 {
+		var allNames []string
+		for _, t := range allTasks {
+			allNames = append(allNames, t.Name)
+		}
+		return allNames
+	}
+
+	taskSet := make(map[string]struct{})
+	existingNames := make(map[string]struct{})
+
+	// collect all of the existing task names
+	for _, task := range allTasks {
+		existingNames[task.Name] = struct{}{}
+	}
+
+	for _, name := range names {
+		if _, ok := existingNames[name]; ok {
+			// there is a match with task name
+			taskSet[name] = struct{}{}
+			continue
+		}
+
+		// there is no match for task names, will look for a match in tags
+		for _, task := range allTasks {
+			for _, tag := range task.Tags {
+				if tag == name {
+					taskSet[task.Name] = struct{}{}
+					break
+				}
+			}
+		}
+	}
+
+	var taskNamesToRun []string
+	for name := range taskSet {
+		taskNamesToRun = append(taskNamesToRun, name)
+	}
+	return taskNamesToRun
 }
 
 func runAdHoc(ctx context.Context, targets []string, r *runner.Process) error {
@@ -359,8 +404,6 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Dry:         opts.Dry,
 		SSHShell:    opts.SSHShell,
 		SSHTempDir:  opts.SSHTempDir,
-		Tags:        opts.Tags,
-		SkipTags:    opts.SkipTags,
 	}
 	log.Printf("[DEBUG] runner created: concurrency:%d, connector: %s, ssh_shell:%q, verbose:%v, dry:%v, only:%v, skip:%v",
 		r.Concurrency, r.Connector, r.SSHShell, r.Verbose, r.Dry, r.Only, r.Skip)

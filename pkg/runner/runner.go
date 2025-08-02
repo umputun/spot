@@ -40,9 +40,6 @@ type Process struct {
 
 	Skip []string
 	Only []string
-
-	Tags     []string
-	SkipTags []string
 }
 
 // Connector is an interface for connecting to a host, and returning remote executer.
@@ -82,11 +79,6 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	tsk, err := p.Playbook.Task(task)
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get task %s: %w", task, err)
-	}
-
-	if !p.shouldRunTask(*tsk) {
-		log.Printf("[runner] skipping task %q due to tag filtering", tsk.Name)
-		return ProcResp{}, nil
 	}
 
 	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
@@ -506,68 +498,4 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 
 	log.Printf("[DEBUG] skip command %q, not in only_on list", cmd.Name)
 	return false
-}
-
-// shouldRunTask checks if the task should be filtered upon checking
-// tags and skip-tags.
-
-func (p *Process) shouldRunTask(task config.Task) bool {
-	log.Printf("[DEBUG] checking task %q with tags %v", task.Name, task.Tags)
-
-	if len(p.Tags) == 0 && len(p.SkipTags) == 0 {
-		log.Printf("[DEBUG] no tags were set, will run task %q", task.Name)
-		return true
-	}
-
-	taskTags := make(map[string]bool)
-	for _, t := range task.Tags {
-		taskTags[t] = true
-	}
-
-	for _, skipTag := range p.SkipTags {
-		if taskTags[skipTag] {
-			log.Printf("[DEBUG] skip task %q, has matching skip-tags %q", task.Name, skipTag)
-			return false
-		}
-	}
-
-	if len(p.Tags) > 0 {
-		for _, tag := range p.Tags {
-			if taskTags[tag] {
-				log.Printf("[DEBUG] run task %q, has tag %q", task.Name, tag)
-				return true
-			}
-		}
-		log.Printf("[DEBUG] skipping task %q, no matching tags", task.Name)
-		return false
-	}
-
-	return true
-}
-
-// check whether task has tags given in the process run
-func hasAnyTag(taskTags, filterTags []string) bool {
-	tagSet := make(map[string]struct{}, len(taskTags))
-	for _, t := range taskTags {
-		tagSet[t] = struct{}{}
-	}
-	for _, f := range filterTags {
-		if _, ok := tagSet[f]; ok {
-			return true
-		}
-	}
-	return false
-}
-
-// get the final list of tasks that should run
-func (p *Process) filterTasksToRun() []*config.Task {
-	var filtered []*config.Task
-	for _, task := range p.Playbook.AllTasks() {
-		if p.shouldRunTask(task) {
-			filtered = append(filtered, &task)
-		} else {
-			log.Printf("[DEBUG] filtered out task %q", task.Name)
-		}
-	}
-	return filtered
 }
