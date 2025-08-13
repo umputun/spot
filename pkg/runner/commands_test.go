@@ -1039,6 +1039,81 @@ func Test_execCmd_uniqueTmp(t *testing.T) {
 	})
 }
 
+func Test_execCmd_wrapWithSudo(t *testing.T) {
+	t.Run("no sudo", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{Options: config.CmdOptions{Sudo: false}},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "ls -la", result, "command should not be wrapped when sudo is false")
+	})
+
+	t.Run("sudo without password", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{Options: config.CmdOptions{Sudo: true}},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "sudo ls -la", result, "command should be wrapped with sudo when no password")
+	})
+
+	t.Run("sudo with password secret key but no secrets loaded", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true, SudoPassword: "my_sudo_key"},
+			},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "sudo ls -la", result, "should fallback to passwordless sudo when secrets not loaded")
+	})
+
+	t.Run("sudo with password from secrets", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true, SudoPassword: "my_sudo_key"},
+				Secrets: map[string]string{"my_sudo_key": "secret123"},
+			},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "printf '%s\\n' 'secret123' | sudo -S ls -la", result,
+			"command should be wrapped with sudo -S and password piping")
+	})
+
+	t.Run("sudo with empty password in secrets", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true, SudoPassword: "my_sudo_key"},
+				Secrets: map[string]string{"my_sudo_key": ""},
+			},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "sudo ls -la", result, "should fallback to passwordless sudo when password is empty")
+	})
+
+	t.Run("sudo with password containing single quotes", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true, SudoPassword: "my_sudo_key"},
+				Secrets: map[string]string{"my_sudo_key": "pass'word"},
+			},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "printf '%s\\n' 'pass'\\''word' | sudo -S ls -la", result,
+			"password with single quotes should be properly escaped")
+	})
+
+	t.Run("sudo with password containing multiple special chars", func(t *testing.T) {
+		ec := &execCmd{
+			cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true, SudoPassword: "my_sudo_key"},
+				Secrets: map[string]string{"my_sudo_key": "p'a's's'w'o'r'd'"},
+			},
+		}
+		result := ec.wrapWithSudo("ls -la")
+		assert.Equal(t, "printf '%s\\n' 'p'\\''a'\\''s'\\''s'\\''w'\\''o'\\''r'\\''d'\\''' | sudo -S ls -la", result,
+			"password with multiple single quotes should be properly escaped")
+	})
+}
+
 func TestProcessRegisterWithTemplateVars(t *testing.T) {
 	task := &config.Task{Name: "test_task"}
 

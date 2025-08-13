@@ -240,6 +240,21 @@
               "type": "boolean",
               "default": false
             },
+            "sudo": {
+              "type": "boolean",
+              "default": false
+            },
+            "sudo_password": {
+              "type": "string",
+              "description": "Secret key containing sudo password"
+            },
+            "secrets": {
+              "type": "array",
+              "additionalItems": false,
+              "items": {
+                "type": "string"
+              }
+            },
             "only_on": {
               "type": "array",
               "additionalItems": false,
@@ -450,6 +465,21 @@
             "local": {
               "type": "boolean",
               "default": false
+            },
+            "sudo": {
+              "type": "boolean",
+              "default": false
+            },
+            "sudo_password": {
+              "type": "string",
+              "description": "Secret key containing sudo password"
+            },
+            "secrets": {
+              "type": "array",
+              "additionalItems": false,
+              "items": {
+                "type": "string"
+              }
             },
             "only_on": {
               "type": "array",

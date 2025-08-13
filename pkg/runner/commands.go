@@ -107,9 +107,9 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {script: %s, sudo: true}", c)
 		if strings.HasPrefix(c, ec.shell()+" ") { // single line script already has sh -c
-			c = fmt.Sprintf("sudo %s", c)
+			c = ec.wrapWithSudo(c)
 		} else {
-			c = fmt.Sprintf("sudo %s -c %q", ec.shell(), c)
+			c = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c))
 		}
 	}
 	resp.verbose = scr
@@ -226,13 +226,14 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 
 		// run move command with sudo
 		for _, line := range strings.Split(c, "\n") {
-			sudoMove := fmt.Sprintf("sudo %s", line)
+			sudoMove := ec.wrapWithSudo(line)
 			if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 				return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
 			}
 		}
 		if ec.cmd.Copy.ChmodX {
-			if _, err := ec.exec.Run(ctx, fmt.Sprintf("sudo chmod +x %s", dst), &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+			chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod +x %s", dst))
+			if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 				return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
 			}
 			resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true, chmod: +x}", src, dst)
@@ -307,10 +308,11 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 
 	if ec.cmd.Options.Sudo {
 		// if sudo is set, we need to delete the file using sudo by ssh-ing into the host and running the command
-		cmd := fmt.Sprintf("sudo rm -f %s", loc)
+		cmd := fmt.Sprintf("rm -f %s", loc)
 		if ec.cmd.Delete.Recursive {
-			cmd = fmt.Sprintf("sudo rm -rf %s", loc)
+			cmd = fmt.Sprintf("rm -rf %s", loc)
 		}
+		cmd = ec.wrapWithSudo(cmd)
 		if _, err := ec.exec.Run(ctx, cmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 			return resp, ec.errorFmt("can't delete file(s) on %s: %w", ec.hostAddr, err)
 		}
@@ -369,7 +371,7 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v, sudo: true}",
 			c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
-		waitCmd = fmt.Sprintf("sudo %s -c %q", ec.shell(), c) // add sudo if needed
+		waitCmd = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c)) // add sudo if needed
 	}
 	resp.verbose = script
 
@@ -412,7 +414,7 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 		echoCmd = fmt.Sprintf("echo %q", echoCmd)
 	}
 	if ec.cmd.Options.Sudo {
-		echoCmd = fmt.Sprintf("sudo %s -c '%s'", ec.shell(), echoCmd)
+		echoCmd = ec.wrapWithSudo(fmt.Sprintf("%s -c '%s'", ec.shell(), echoCmd))
 	}
 	out, err := ec.exec.Run(ctx, echoCmd, nil)
 	if err != nil {
@@ -467,9 +469,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		operation = "append"
 		// first check if the pattern exists in the file
 		checkCmd := fmt.Sprintf("grep -q '%s' %s", match, file)
-		if ec.cmd.Options.Sudo {
-			checkCmd = fmt.Sprintf("sudo %s", checkCmd)
-		}
+		checkCmd = ec.wrapWithSudo(checkCmd)
 		if _, err := ec.exec.Run(ctx, checkCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 			// pattern not found, append the line
 			operationCmd = fmt.Sprintf("echo '%s' >> %s", appendLine, file)
@@ -484,9 +484,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	// handle sudo if needed
-	if ec.cmd.Options.Sudo {
-		operationCmd = fmt.Sprintf("sudo %s", operationCmd)
-	}
+	operationCmd = ec.wrapWithSudo(operationCmd)
 
 	// execute the operation
 	_, err = ec.exec.Run(ctx, operationCmd, &executor.RunOpts{Verbose: ec.verbose})
@@ -518,7 +516,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	}()
 
 	if ec.cmd.Options.Sudo { // command's sudo also applies to condition script
-		c = fmt.Sprintf("sudo %s -c %q", ec.shell(), c)
+		c = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c))
 	}
 
 	// run the condition command
@@ -720,4 +718,29 @@ func (ec *execCmd) shell() string {
 		return os.Getenv("SHELL") // local commands always use local sh
 	}
 	return ec.sshShell
+}
+
+// wrapWithSudo wraps a command with sudo, using password if available
+func (ec *execCmd) wrapWithSudo(cmd string) string {
+	if !ec.cmd.Options.Sudo {
+		return cmd
+	}
+
+	if ec.cmd.Options.SudoPassword != "" && ec.cmd.Secrets != nil {
+		password, ok := ec.cmd.Secrets[ec.cmd.Options.SudoPassword]
+		if ok && password != "" {
+			// escape single quotes in password to prevent shell injection
+			// in bash, ' is escaped as '\'' inside single quotes
+			escapedPassword := strings.ReplaceAll(password, "'", "'\\''")
+			// use printf to pipe password to sudo -S
+			// note: password will be briefly visible in process list on remote host
+			return fmt.Sprintf("printf '%%s\\n' '%s' | sudo -S %s", escapedPassword, cmd)
+		}
+		if !ok {
+			log.Printf("[WARN] sudo_password refers to missing secret key: %s", ec.cmd.Options.SudoPassword)
+		}
+	}
+
+	// fallback to passwordless sudo
+	return fmt.Sprintf("sudo %s", cmd)
 }
