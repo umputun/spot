@@ -472,6 +472,7 @@ Each command type supports the following options:
 - `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 - `sudo`: if set to `true` the command will be executed with `sudo` privileges. This option is not supported for `sync` command type but can be used with any other command type.
+- `sudo_password`: specifies the secret key containing the sudo password. When set, the password will be piped to `sudo -S` for authentication. Requires the secret to be loaded via the `secrets` option.
 - `only_on`: allows to set a list of host names or addresses where the command will be executed. For example, `only_on: [host1, host2]` will execute a command on `host1` and `host2` only. This option also supports reversed conditions, so if a user wants to execute a command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute a command on all hosts except `host1` and `host2`. 
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
@@ -483,7 +484,7 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
 ```
 
-The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
+The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. This includes `sudo_password` which will be propagated to all commands unless a command specifies its own. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
 
 ```yaml
   - name: deploy-things
@@ -493,6 +494,27 @@ The same options can be set for the whole task as well. In this case, the option
       - name: wait
         script: sleep 5s
 ```
+
+Task-level sudo with password example:
+```yaml
+  - name: system-updates
+    options:
+      sudo: true
+      sudo_password: "ADMIN_PASSWORD"  # secret key name (not the actual password!)
+      secrets: ["ADMIN_PASSWORD"]       # load secret from provider
+    commands:
+      - name: update packages
+        script: apt-get update
+      - name: upgrade packages
+        script: apt-get upgrade -y
+      - name: special command
+        script: dpkg --configure -a
+        options:
+          sudo_password: "SPECIAL_PASSWORD"  # overrides task-level with different secret
+          secrets: ["SPECIAL_PASSWORD"]
+```
+
+**Security Warning**: Never hardcode actual passwords in playbook files. The `sudo_password` field should contain the *name* of a secret key, not the password itself. Store actual passwords securely using one of the secrets providers (Spot DB, AWS Secrets Manager, Vault, etc.) or use environment variables.
 
 ### Command conditionals
 
@@ -506,6 +528,19 @@ example installing curl package if not installed already:
     options: {sudo: true}
     cond: "! command -v curl"
 ```
+
+Example using sudo with password authentication:
+
+```yaml
+  - name: "install package with sudo password"
+    script: "apt-get update && apt-get install -y nginx"
+    options: 
+      sudo: true
+      sudo_password: "SUDO_PASS_KEY"   # name of the secret key (not the actual password!)
+      secrets: ["SUDO_PASS_KEY"]       # load the secret from provider
+```
+
+**Security Note**: When using `sudo_password`, the password is briefly visible in the process list on the remote host during execution. This is an inherent limitation of piping passwords to `sudo -S`. While this approach is common in automation tools, be aware that any user on the remote system could potentially see the password via `ps` during execution. Consider this trade-off when deciding whether to use this feature in your environment.
 
 currently conditions can be used with `script` and `echo` command types only.
 
@@ -727,6 +762,17 @@ commands:
 ```
 
 In case of a conflict between environment variables set in the environment file and the cli, the cli variables will take precedence.
+
+**Important Note on Variable Expansion:**
+
+Spot performs its own simple variable substitution before executing a command. It directly replaces placeholders like `$VAR`, `${VAR}`, or `{VAR}` with their defined values. This is a direct string replacement, not a full shell expansion.
+
+This means:
+- **Simple replacement:** `VAR: world` in a script `echo "Hello, $VAR"` becomes `echo "Hello, world"`.
+- **Composition:** You can build variables from others: `env: {BAR: yyy, FOO: xxx$BAR}` will result in `FOO` being `xxxyyy`.
+- **Shell still runs:** After Spot performs its substitution, the resulting string is executed by the shell. This means shell features like command substitution will still work, but they are interpreted by the shell, not by Spot. For example: `env: {FOO: $(echo xxx)}` will result in `FOO` being `xxx` because the shell executes `$(echo xxx)`.
+
+Because Spot's substitution is literal, it can lead to unexpected behavior with special characters (like `$` in passwords or certain symbols in emojis). The shell might interpret these as part of its own syntax. To avoid this, **use single quotes for values that should be treated literally**, as explained in the [Special Characters in Variables](#special-characters-in-variables) section.
 
 ## Targets
 
@@ -970,7 +1016,7 @@ Spot includes a built-in secrets provider that can be used to store secrets in S
   - sqlite: `file:///path/to/database.db` or `/path/to/database.sqlite` or `/path/to/database.db`, default: `spot.db`
   - mysql: `user:password@tcp(host:port)/dbname`
   - postgresql: `postgres://user:password@host:port/database?option1=value1&option2=value2`
-- `--secrets.key` or `$SPOT_SECRETS_KEY`: the encryption key to use for decrypting secrets.
+- `--secrets.key` or `$SPOT_SECRETS_KEY`: the encryption key to use for decrypting secrets. If not provided, Spot will prompt for it securely (without echoing to screen). The key can also be piped in for automation: `echo "mykey" | spot ...`
 
 If `spot` provider is selected, the table `spot_secrets` will be created in the database. The table has the following columns: `skey` and `sval`. The `skey` column is the secret key, and the `sval` column is the encrypted secret value. The `skey` column is indexed for faster lookups. It is recommended to use application-specific prefixes for the secret keys, for example, `system-name/service-name/secret-key`. This will allow to use the same database for multiple applications without conflicts.
 
@@ -1021,6 +1067,8 @@ Spot provides a simple way to manage secrets for builtin providers using the `sp
 - `spot-secrets get <key>`: gets the secret value for the specified key.
 - `spot-secrets delete <key>`: deletes the secret value for the specified key.
 - `spot-secrets list`: lists all the secret keys in the database.
+
+**Security Note**: The encryption key (`-k/--key`) can be provided via command line, environment variable (`SPOT_SECRETS_KEY`), or if omitted, will be prompted for securely without echoing to the screen. This prevents the key from being visible in shell history or process lists.
 
 ```
 Usage:
