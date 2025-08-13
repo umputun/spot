@@ -484,7 +484,7 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
 ```
 
-The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
+The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. This includes `sudo_password` which will be propagated to all commands unless a command specifies its own. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
 
 ```yaml
   - name: deploy-things
@@ -494,6 +494,27 @@ The same options can be set for the whole task as well. In this case, the option
       - name: wait
         script: sleep 5s
 ```
+
+Task-level sudo with password example:
+```yaml
+  - name: system-updates
+    options:
+      sudo: true
+      sudo_password: "ADMIN_PASSWORD"  # secret key name (not the actual password!)
+      secrets: ["ADMIN_PASSWORD"]       # load secret from provider
+    commands:
+      - name: update packages
+        script: apt-get update
+      - name: upgrade packages
+        script: apt-get upgrade -y
+      - name: special command
+        script: dpkg --configure -a
+        options:
+          sudo_password: "SPECIAL_PASSWORD"  # overrides task-level with different secret
+          secrets: ["SPECIAL_PASSWORD"]
+```
+
+**Security Warning**: Never hardcode actual passwords in playbook files. The `sudo_password` field should contain the *name* of a secret key, not the password itself. Store actual passwords securely using one of the secrets providers (Spot DB, AWS Secrets Manager, Vault, etc.) or use environment variables.
 
 ### Command conditionals
 
@@ -515,8 +536,8 @@ Example using sudo with password authentication:
     script: "apt-get update && apt-get install -y nginx"
     options: 
       sudo: true
-      sudo_password: "admin_password"  # secret key containing sudo password
-      secrets: ["admin_password"]       # load the secret
+      sudo_password: "SUDO_PASS_KEY"   # name of the secret key (not the actual password!)
+      secrets: ["SUDO_PASS_KEY"]       # load the secret from provider
 ```
 
 **Security Note**: When using `sudo_password`, the password is briefly visible in the process list on the remote host during execution. This is an inherent limitation of piping passwords to `sudo -S`. While this approach is common in automation tools, be aware that any user on the remote system could potentially see the password via `ps` during execution. Consider this trade-off when deciding whether to use this feature in your environment.
@@ -995,7 +1016,7 @@ Spot includes a built-in secrets provider that can be used to store secrets in S
   - sqlite: `file:///path/to/database.db` or `/path/to/database.sqlite` or `/path/to/database.db`, default: `spot.db`
   - mysql: `user:password@tcp(host:port)/dbname`
   - postgresql: `postgres://user:password@host:port/database?option1=value1&option2=value2`
-- `--secrets.key` or `$SPOT_SECRETS_KEY`: the encryption key to use for decrypting secrets.
+- `--secrets.key` or `$SPOT_SECRETS_KEY`: the encryption key to use for decrypting secrets. If not provided, Spot will prompt for it securely (without echoing to screen). The key can also be piped in for automation: `echo "mykey" | spot ...`
 
 If `spot` provider is selected, the table `spot_secrets` will be created in the database. The table has the following columns: `skey` and `sval`. The `skey` column is the secret key, and the `sval` column is the encrypted secret value. The `skey` column is indexed for faster lookups. It is recommended to use application-specific prefixes for the secret keys, for example, `system-name/service-name/secret-key`. This will allow to use the same database for multiple applications without conflicts.
 
@@ -1046,6 +1067,8 @@ Spot provides a simple way to manage secrets for builtin providers using the `sp
 - `spot-secrets get <key>`: gets the secret value for the specified key.
 - `spot-secrets delete <key>`: deletes the secret value for the specified key.
 - `spot-secrets list`: lists all the secret keys in the database.
+
+**Security Note**: The encryption key (`-k/--key`) can be provided via command line, environment variable (`SPOT_SECRETS_KEY`), or if omitted, will be prompted for securely without echoing to the screen. This prevents the key from being visible in shell history or process lists.
 
 ```
 Usage:

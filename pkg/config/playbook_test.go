@@ -231,13 +231,15 @@ func TestPlaybook_New(t *testing.T) {
 		assert.EqualValues(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
 		assert.Equal(t, []string{"VAL1", "VAL11", "VAL12", "VAL2"}, p.AllSecretValues())
 
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[0].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[1].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: true,
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
+			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[0].Options)
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
+			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[1].Options)
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: true, SudoPassword: "TASK_PASS",
 			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[2].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: true,
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: true, SudoPassword: "TASK_PASS",
 			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[3].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: false,
+		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: false, SudoPassword: "CMD_PASS",
 			Secrets: []string{"SEC1", "SEC2", "SEC11", "SEC12"}}, p.Tasks[0].Commands[4].Options)
 	})
 

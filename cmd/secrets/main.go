@@ -2,18 +2,20 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 
 	"github.com/fatih/color"
 	"github.com/go-pkgz/lgr"
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/term"
 
 	"github.com/umputun/spot/pkg/secrets"
 )
 
 type options struct {
-	Key  string `short:"k" long:"key" env:"SPOT_SECRETS_KEY" required:"true" description:"key to use for encryption/decryption"`
+	Key  string `short:"k" long:"key" env:"SPOT_SECRETS_KEY" description:"key to use for encryption/decryption"`
 	Conn string `short:"c" long:"conn" env:"SPOT_SECRETS_CONN" default:"spot.db" description:"connection string to use for the secrets database"`
 	Dbg  bool   `long:"dbg" description:"debug mode"`
 
@@ -55,7 +57,8 @@ func main() {
 	if _, err := p.Parse(); err != nil {
 		exitFunc(1) // can be redefined in tests
 	}
-	setupLog(opts.Dbg)
+	
+	setupLog(opts.Dbg) // always set up logging first
 
 	if err := run(p, opts); err != nil {
 		log.Printf("[WARN] %v", err)
@@ -63,7 +66,18 @@ func main() {
 }
 
 func run(p *flags.Parser, opts options) error {
-	sp, err := secrets.NewInternalProvider(opts.Conn, []byte(opts.Key))
+	key := opts.Key
+	
+	// if key is not provided via flag or env, prompt for it
+	if key == "" {
+		promptedKey, err := readPasswordFromStdin("Enter secrets key: ")
+		if err != nil {
+			return fmt.Errorf("failed to read secrets key: %w", err)
+		}
+		key = promptedKey
+	}
+
+	sp, err := secrets.NewInternalProvider(opts.Conn, []byte(key))
 	if err != nil {
 		return fmt.Errorf("can't create secrets provider: %w", err)
 	}
@@ -86,6 +100,7 @@ func run(p *flags.Parser, opts options) error {
 		if getErr != nil {
 			return fmt.Errorf("can't get secret for key %q: %w", opts.GetCmd.PositionalArgs.Key, getErr)
 		}
+		// DO NOT mask the retrieved value - the user explicitly wants to see it!
 		log.Printf("[INFO] key=%s, value=%s", opts.GetCmd.PositionalArgs.Key, val)
 	}
 
@@ -135,4 +150,26 @@ func setupLog(dbg bool) {
 
 	lgr.SetupStdLogger(logOpts...)
 	lgr.Setup(logOpts...)
+}
+
+// readPasswordFromStdin reads a password from stdin without echoing it
+func readPasswordFromStdin(prompt string) (string, error) {
+	// check if stdin is a terminal
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		// not a terminal, read directly (for piped input)
+		var password string
+		if _, err := fmt.Scanln(&password); err != nil && err != io.EOF {
+			return "", err
+		}
+		return password, nil
+	}
+
+	// terminal input, use secure password reading
+	fmt.Fprint(os.Stderr, prompt)
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintln(os.Stderr) // print newline after password input
+	return string(passwordBytes), nil
 }

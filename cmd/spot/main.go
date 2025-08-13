@@ -19,6 +19,7 @@ import (
 	"github.com/go-pkgz/lgr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
 	"github.com/umputun/spot/pkg/config"
@@ -142,13 +143,15 @@ func run(opts options) error {
 		return fmt.Errorf("can't get inentory %q: %w", opts.Inventory, err)
 	}
 
-	pbook, err := makePlaybook(opts, inventoryFile)
+	pbook, manualSecrets, err := makePlaybook(opts, inventoryFile)
 	if err != nil {
 		return fmt.Errorf("can't get playbook %q: %w", opts.PlaybookFile, err)
 	}
 
 	// secrets are known only after playbook is loaded
-	setupLog(opts.Dbg, pbook.AllSecretValues()...) // mask secrets in logs
+	// combine playbook secrets with manually entered secrets for masking
+	allSecrets := append(pbook.AllSecretValues(), manualSecrets...)
+	setupLog(opts.Dbg, allSecrets...) // mask secrets in logs
 
 	r, err := makeRunner(opts, pbook)
 	if err != nil {
@@ -271,14 +274,25 @@ func inventoryFile(inventory string) (string, error) {
 	return exInventory, nil
 }
 
-func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
+func makePlaybook(opts options, inventory string) (*config.PlayBook, []string, error) {
+	var manualSecrets []string
 	// makeSecretProvider creates secret provider based on options
 	makeSecretProvider := func(sopts SecretsProvider) (config.SecretsProvider, error) {
 		switch sopts.Provider {
 		case "none":
 			return &secrets.NoOpProvider{}, nil
 		case "spot":
-			return secrets.NewInternalProvider(sopts.Conn, []byte(sopts.Key))
+			key := sopts.Key
+			// if key is not provided via flag or env, prompt for it
+			if key == "" {
+				promptedKey, err := readPasswordFromStdin("Enter secrets key: ")
+				if err != nil {
+					return nil, fmt.Errorf("failed to read secrets key: %w", err)
+				}
+				key = promptedKey
+				manualSecrets = append(manualSecrets, key) // add to secrets for masking
+			}
+			return secrets.NewInternalProvider(sopts.Conn, []byte(key))
 		case "vault":
 			return secrets.NewHashiVaultProvider(sopts.Vault.URL, sopts.Vault.Path, sopts.Vault.Token)
 		case "aws":
@@ -292,7 +306,7 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
 
 	env, err := envVars(opts.Env, opts.EnvFile)
 	if err != nil {
-		return nil, fmt.Errorf("can't read environment variables: %w", err)
+		return nil, nil, fmt.Errorf("can't read environment variables: %w", err)
 	}
 
 	overrides := config.Overrides{
@@ -305,24 +319,24 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, error) {
 
 	exPlaybookFile, err := expandPath(opts.PlaybookFile)
 	if err != nil {
-		return nil, fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
+		return nil, nil, fmt.Errorf("can't expand playbook path %q: %w", opts.PlaybookFile, err)
 	}
 
 	secretsProvider, err := makeSecretProvider(opts.SecretsProvider)
 	if err != nil {
-		return nil, fmt.Errorf("can't make secrets provider: %w", err)
+		return nil, nil, fmt.Errorf("can't make secrets provider: %w", err)
 	}
 
 	pbook, err := config.New(exPlaybookFile, &overrides, secretsProvider)
 	if err != nil {
-		return nil, fmt.Errorf("can't load playbook %q: %w", exPlaybookFile, err)
+		return nil, nil, fmt.Errorf("can't load playbook %q: %w", exPlaybookFile, err)
 	}
 
 	if pbook.User, err = sshUser(opts.SSHUser, pbook); err != nil {
-		return nil, fmt.Errorf("can't get ssh user: %w", err)
+		return nil, nil, fmt.Errorf("can't get ssh user: %w", err)
 	}
 
-	return pbook, nil
+	return pbook, manualSecrets, nil
 }
 
 func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
@@ -557,4 +571,26 @@ type defaultUserInfoProvider struct{}
 
 func (p *defaultUserInfoProvider) Current() (*user.User, error) {
 	return user.Current()
+}
+
+// readPasswordFromStdin reads a password from stdin without echoing it
+func readPasswordFromStdin(prompt string) (string, error) {
+	// check if stdin is a terminal
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		// not a terminal, read directly (for piped input)
+		var password string
+		if _, err := fmt.Scanln(&password); err != nil && err != io.EOF {
+			return "", err
+		}
+		return password, nil
+	}
+
+	// terminal input, use secure password reading
+	fmt.Fprint(os.Stderr, prompt)
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		return "", err
+	}
+	fmt.Fprintln(os.Stderr) // print newline after password input
+	return string(passwordBytes), nil
 }
