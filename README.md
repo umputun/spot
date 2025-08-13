@@ -472,6 +472,7 @@ Each command type supports the following options:
 - `no_auto`: if set to `true` the command will not be executed automatically, but can be executed manually using the `--only` flag.
 - `local`: if set to `true` the command will be executed on the local host (the one running the `spot` command) instead of the remote host(s).
 - `sudo`: if set to `true` the command will be executed with `sudo` privileges. This option is not supported for `sync` command type but can be used with any other command type.
+- `sudo_password`: specifies the secret key containing the sudo password. When set, the password will be piped to `sudo -S` for authentication. Requires the secret to be loaded via the `secrets` option.
 - `only_on`: allows to set a list of host names or addresses where the command will be executed. For example, `only_on: [host1, host2]` will execute a command on `host1` and `host2` only. This option also supports reversed conditions, so if a user wants to execute a command on all hosts except some, `!` prefix can be used. For example, `only_on: [!host1, !host2]` will execute a command on all hosts except `host1` and `host2`. 
 
 example setting `ignore_errors`, `no_auto` and `only_on` options:
@@ -506,6 +507,19 @@ example installing curl package if not installed already:
     options: {sudo: true}
     cond: "! command -v curl"
 ```
+
+Example using sudo with password authentication:
+
+```yaml
+  - name: "install package with sudo password"
+    script: "apt-get update && apt-get install -y nginx"
+    options: 
+      sudo: true
+      sudo_password: "admin_password"  # secret key containing sudo password
+      secrets: ["admin_password"]       # load the secret
+```
+
+**Security Note**: When using `sudo_password`, the password is briefly visible in the process list on the remote host during execution (not on the local machine). This is similar to many automation tools. For highly sensitive environments, consider using passwordless sudo with appropriate sudoers configuration instead.
 
 currently conditions can be used with `script` and `echo` command types only.
 

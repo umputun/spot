@@ -46,6 +46,7 @@ type CmdOptions struct {
 	NoAuto       bool     `yaml:"no_auto" toml:"no_auto"`             // don't run command automatically
 	Local        bool     `yaml:"local" toml:"local"`                 // run command on localhost
 	Sudo         bool     `yaml:"sudo" toml:"sudo"`                   // run command with sudo
+	SudoPassword string   `yaml:"sudo_password" toml:"sudo_password"` // secret key for sudo password
 	Secrets      []string `yaml:"secrets" toml:"secrets"`             // list of secrets (keys) to load
 	OnlyOn       []string `yaml:"only_on" toml:"only_on"`             // only run on these hosts
 }
