@@ -519,7 +519,7 @@ Example using sudo with password authentication:
       secrets: ["admin_password"]       # load the secret
 ```
 
-**Security Note**: When using `sudo_password`, the password is briefly visible in the process list on the remote host during execution (not on the local machine). This is similar to many automation tools. For highly sensitive environments, consider using passwordless sudo with appropriate sudoers configuration instead.
+**Security Note**: When using `sudo_password`, the password is briefly visible in the process list on the remote host during execution. This is an inherent limitation of piping passwords to `sudo -S`. While this approach is common in automation tools, be aware that any user on the remote system could potentially see the password via `ps` during execution. Consider this trade-off when deciding whether to use this feature in your environment.
 
 currently conditions can be used with `script` and `echo` command types only.
 
