@@ -484,7 +484,7 @@ example setting `ignore_errors`, `no_auto` and `only_on` options:
         options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
 ```
 
-The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
+The same options can be set for the whole task as well. In this case, the options will be applied to all commands in the task but can be overridden for a specific command. This includes `sudo_password` which will be propagated to all commands unless a command specifies its own. Pls note: the command option cannot reset the boolean options that were set for the task. This limitation is due to the way the default values are set.
 
 ```yaml
   - name: deploy-things
@@ -493,6 +493,25 @@ The same options can be set for the whole task as well. In this case, the option
     commands:
       - name: wait
         script: sleep 5s
+```
+
+Task-level sudo with password example:
+```yaml
+  - name: system-updates
+    options:
+      sudo: true
+      sudo_password: "admin_pass"  # applies to all commands in task
+      secrets: ["admin_pass"]
+    commands:
+      - name: update packages
+        script: apt-get update
+      - name: upgrade packages
+        script: apt-get upgrade -y
+      - name: special command
+        script: dpkg --configure -a
+        options:
+          sudo_password: "special_pass"  # overrides task-level password
+          secrets: ["special_pass"]
 ```
 
 ### Command conditionals

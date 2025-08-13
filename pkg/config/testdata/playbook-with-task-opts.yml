@@ -11,6 +11,7 @@ tasks:
         secrets: ["SEC11", "SEC12"]
         no_auto: true
         ignore_errors: true
+        sudo_password: "TASK_PASS"
     commands:
       - name: wait
         script: sleep 5
@@ -35,7 +36,7 @@ tasks:
           git pull
 
       - name: docker
-        options: {no_auto: true, secrets: ["SEC1", "SEC2"]}
+        options: {no_auto: true, secrets: ["SEC1", "SEC2"], sudo_password: "CMD_PASS"}
         script: |
           docker pull umputun/remark42:latest
           docker stop remark42 || true

@@ -180,6 +180,10 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 			if tsk.Options.Sudo {
 				res.Tasks[i].Commands[j].Options.Sudo = tsk.Options.Sudo
 			}
+			// propagate sudo_password from task to commands if not already set in command
+			if tsk.Options.SudoPassword != "" && res.Tasks[i].Commands[j].Options.SudoPassword == "" {
+				res.Tasks[i].Commands[j].Options.SudoPassword = tsk.Options.SudoPassword
+			}
 
 			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)
 		}
