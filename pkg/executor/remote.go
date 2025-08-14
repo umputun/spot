@@ -20,10 +20,11 @@ import (
 
 // Remote executes commands on remote server, via ssh. Not thread-safe.
 type Remote struct {
-	client   *ssh.Client
-	hostAddr string
-	hostName string
-	logs     Logs
+	client           *ssh.Client
+	hostAddr         string
+	hostName         string
+	logs             Logs
+	stopProxyCommand context.CancelFunc
 }
 
 // Close connection to remote server.
@@ -31,6 +32,11 @@ func (ex *Remote) Close() error {
 	if ex.client != nil {
 		return ex.client.Close()
 	}
+
+	if ex.stopProxyCommand != nil {
+		ex.stopProxyCommand()
+	}
+
 	return nil
 }
 

@@ -47,7 +47,7 @@ type PlaybookMock struct {
 	AllTasksFunc func() []config.Task
 
 	// TargetHostsFunc mocks the TargetHosts method.
-	TargetHostsFunc func(name string) ([]config.Destination, error)
+	TargetHostsFunc func(name string, adhocProxyCommand string) ([]config.Destination, error)
 
 	// TaskFunc mocks the Task method.
 	TaskFunc func(name string) (*config.Task, error)
@@ -150,7 +150,7 @@ func (mock *PlaybookMock) AllTasksCalls() []struct {
 }
 
 // TargetHosts calls TargetHostsFunc.
-func (mock *PlaybookMock) TargetHosts(name string) ([]config.Destination, error) {
+func (mock *PlaybookMock) TargetHosts(name string, adhocProxyCommand string) ([]config.Destination, error) {
 	if mock.TargetHostsFunc == nil {
 		panic("PlaybookMock.TargetHostsFunc: method is nil but Playbook.TargetHosts was just called")
 	}
@@ -162,7 +162,7 @@ func (mock *PlaybookMock) TargetHosts(name string) ([]config.Destination, error)
 	mock.lockTargetHosts.Lock()
 	mock.calls.TargetHosts = append(mock.calls.TargetHosts, callInfo)
 	mock.lockTargetHosts.Unlock()
-	return mock.TargetHostsFunc(name)
+	return mock.TargetHostsFunc(name, adhocProxyCommand)
 }
 
 // TargetHostsCalls gets all the calls that were made to TargetHosts.
