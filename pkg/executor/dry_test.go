@@ -68,7 +68,7 @@ func TestDryOperations(t *testing.T) {
 			operation: func() error {
 				return dry.Download(context.Background(), "remote/path", "local/path", &UpDownOpts{Mkdir: true})
 			},
-			expectedLog: "[DEBUG] download local/path to remote/path, mkdir: true",
+			expectedLog: "[DEBUG] download remote/path to local/path, mkdir: true",
 		},
 		{
 			name: "sync",

@@ -53,12 +53,13 @@ type CmdOptions struct {
 
 // CopyInternal defines copy command, implemented internally
 type CopyInternal struct {
-	Source  string   `yaml:"src" toml:"src"`         // source must be a file or a glob pattern
-	Dest    string   `yaml:"dst" toml:"dst"`         // destination must be a file or a directory
-	Mkdir   bool     `yaml:"mkdir" toml:"mkdir"`     // create destination directory if it does not exist
-	Force   bool     `yaml:"force" toml:"force"`     // force copy even if source and destination are the same
-	Exclude []string `yaml:"exclude" toml:"exclude"` // exclude files matching these patterns
-	ChmodX  bool     `yaml:"chmod+x" toml:"chmod+x"` // chmod +x on destination file
+	Source    string   `yaml:"src" toml:"src"`             // source must be a file or a glob pattern
+	Dest      string   `yaml:"dst" toml:"dst"`             // destination must be a file or a directory
+	Direction string   `yaml:"direction" toml:"direction"` // "push" (default, upload) or "pull" (download)
+	Mkdir     bool     `yaml:"mkdir" toml:"mkdir"`         // create destination directory if it does not exist
+	Force     bool     `yaml:"force" toml:"force"`         // force copy even if source and destination are the same
+	Exclude   []string `yaml:"exclude" toml:"exclude"`     // exclude files matching these patterns
+	ChmodX    bool     `yaml:"chmod+x" toml:"chmod+x"`     // chmod +x on destination file (push only)
 }
 
 // SyncInternal defines sync command (recursive copy), implemented internally
@@ -389,6 +390,26 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 			if err := unmarshalField(sf.fld, sf.destSlice); err != nil {
 				return err
 			}
+		}
+	}
+
+	// set defaults and validate copy direction
+	if cmd.Copy.Source != "" && cmd.Copy.Dest != "" {
+		if cmd.Copy.Direction == "" {
+			cmd.Copy.Direction = "push"
+		}
+		if cmd.Copy.Direction != "push" && cmd.Copy.Direction != "pull" {
+			return fmt.Errorf("invalid copy direction %q, must be 'push' or 'pull'", cmd.Copy.Direction)
+		}
+	}
+
+	// propagate defaults and validate copy direction for multiple copy commands
+	for i := range cmd.MCopy {
+		if cmd.MCopy[i].Direction == "" {
+			cmd.MCopy[i].Direction = "push"
+		}
+		if cmd.MCopy[i].Direction != "push" && cmd.MCopy[i].Direction != "pull" {
+			return fmt.Errorf("invalid copy direction %q in mcopy[%d], must be 'push' or 'pull'", cmd.MCopy[i].Direction, i)
 		}
 	}
 

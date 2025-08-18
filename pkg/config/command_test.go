@@ -458,7 +458,7 @@ copy: {src: source, dst: destination}
 `,
 			expectedCmd: Cmd{
 				Name: "test",
-				Copy: CopyInternal{Source: "source", Dest: "destination"},
+				Copy: CopyInternal{Source: "source", Dest: "destination", Direction: "push"},
 			},
 		},
 		{
@@ -471,7 +471,7 @@ copy:
 `,
 			expectedCmd: Cmd{
 				Name:  "test",
-				MCopy: []CopyInternal{{Source: "source1", Dest: "destination1"}, {Source: "source2", Dest: "destination2"}},
+				MCopy: []CopyInternal{{Source: "source1", Dest: "destination1", Direction: "push"}, {Source: "source2", Dest: "destination2", Direction: "push"}},
 			},
 		},
 
@@ -534,17 +534,20 @@ options:
 				Name:   "test",
 				Script: `echo "Hello, World!"`,
 				Copy: CopyInternal{
-					Source: "source",
-					Dest:   "destination",
+					Source:    "source",
+					Dest:      "destination",
+					Direction: "push",
 				},
 				MCopy: []CopyInternal{
 					{
-						Source: "source1",
-						Dest:   "destination1",
+						Source:    "source1",
+						Dest:      "destination1",
+						Direction: "push",
 					},
 					{
-						Source: "source2",
-						Dest:   "destination2",
+						Source:    "source2",
+						Dest:      "destination2",
+						Direction: "push",
 					},
 				},
 				Sync: SyncInternal{
@@ -569,6 +572,91 @@ options:
 					Secrets:      []string{"s1", "s2"},
 				},
 			},
+		},
+		{
+			name: "copy with pull direction",
+			yamlInput: `
+name: download file
+copy: {src: /remote/file.txt, dst: ./local/, direction: pull}
+`,
+			expectedCmd: Cmd{
+				Name: "download file",
+				Copy: CopyInternal{Source: "/remote/file.txt", Dest: "./local/", Direction: "pull"},
+			},
+		},
+		{
+			name: "copy with explicit push direction",
+			yamlInput: `
+name: upload file
+copy: {src: ./local/file.txt, dst: /remote/, direction: push}
+`,
+			expectedCmd: Cmd{
+				Name: "upload file",
+				Copy: CopyInternal{Source: "./local/file.txt", Dest: "/remote/", Direction: "push"},
+			},
+		},
+		{
+			name: "multiple copy with mixed directions",
+			yamlInput: `
+name: mixed copy
+copy:
+  - {src: /remote/config.yml, dst: ./backup/, direction: pull}
+  - {src: ./new-config.yml, dst: /remote/, direction: push}
+  - {src: /remote/data.csv, dst: ./data/, direction: pull}
+`,
+			expectedCmd: Cmd{
+				Name: "mixed copy",
+				MCopy: []CopyInternal{
+					{Source: "/remote/config.yml", Dest: "./backup/", Direction: "pull"},
+					{Source: "./new-config.yml", Dest: "/remote/", Direction: "push"},
+					{Source: "/remote/data.csv", Dest: "./data/", Direction: "pull"},
+				},
+			},
+		},
+		{
+			name: "copy without direction defaults to push",
+			yamlInput: `
+name: default push
+copy: {src: ./file.txt, dst: /remote/}
+`,
+			expectedCmd: Cmd{
+				Name: "default push",
+				Copy: CopyInternal{Source: "./file.txt", Dest: "/remote/", Direction: "push"},
+			},
+		},
+		{
+			name: "multiple copy without direction defaults to push",
+			yamlInput: `
+name: default push multi
+copy:
+  - {src: ./file1.txt, dst: /remote/}
+  - {src: ./file2.txt, dst: /remote/}
+`,
+			expectedCmd: Cmd{
+				Name: "default push multi",
+				MCopy: []CopyInternal{
+					{Source: "./file1.txt", Dest: "/remote/", Direction: "push"},
+					{Source: "./file2.txt", Dest: "/remote/", Direction: "push"},
+				},
+			},
+		},
+		{
+			name: "invalid direction value",
+			yamlInput: `
+name: invalid direction
+copy: {src: ./file.txt, dst: /remote/, direction: invalid}
+`,
+			expectedErr: true,
+		},
+		{
+			name: "invalid direction in mcopy",
+			yamlInput: `
+name: invalid mcopy direction
+copy:
+  - {src: ./file1.txt, dst: /remote/, direction: push}
+  - {src: ./file2.txt, dst: /remote/, direction: wrong}
+`,
+			expectedErr: true,
 		},
 	}
 

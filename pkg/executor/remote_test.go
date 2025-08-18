@@ -47,6 +47,65 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	assert.Equal(t, string(exp), string(act))
 }
 
+func TestExecuter_DownloadWithForce(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// upload a test file first
+	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/test_force.txt", &UpDownOpts{Mkdir: true})
+	require.NoError(t, err)
+
+	tmpFile, err := fileutils.TempFileName("", "test_force.txt")
+	require.NoError(t, err)
+	defer os.RemoveAll(tmpFile)
+
+	// first download - this establishes the baseline with matching size/modtime
+	err = sess.Download(ctx, "/tmp/test_force.txt", tmpFile, &UpDownOpts{})
+	require.NoError(t, err)
+
+	// get file info after first download
+	fi1, err := os.Stat(tmpFile)
+	require.NoError(t, err)
+	modTime1 := fi1.ModTime()
+
+	// now the local and remote files have the same size and similar modtime
+	// download again without force - should skip because files match
+	buff := bytes.NewBuffer(nil)
+	log.SetOutput(buff)
+	err = sess.Download(ctx, "/tmp/test_force.txt", tmpFile, &UpDownOpts{Force: false})
+	require.NoError(t, err)
+	logs := buff.String()
+	assert.Contains(t, logs, "up-to-date, skipping download", "should skip download when files match and force=false")
+
+	// check that file wasn't modified (same modtime)
+	fi2, err := os.Stat(tmpFile)
+	require.NoError(t, err)
+	assert.Equal(t, modTime1, fi2.ModTime(), "file should not be modified when force=false and content matches")
+
+	// download again with force - should overwrite even though files match
+	log.SetOutput(os.Stderr) // restore normal logging
+	err = sess.Download(ctx, "/tmp/test_force.txt", tmpFile, &UpDownOpts{Force: true})
+	require.NoError(t, err)
+
+	// with force=true, file will be rewritten even if content matches
+	// we verify this worked by checking the content is still correct below
+
+	// verify content is still correct
+	exp, err := os.ReadFile("testdata/data1.txt")
+	require.NoError(t, err)
+	act, err := os.ReadFile(tmpFile)
+	require.NoError(t, err)
+	assert.Equal(t, string(exp), string(act))
+}
+
 func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	ctx := context.Background()
 	hostAndPort, teardown := startTestContainer(t)

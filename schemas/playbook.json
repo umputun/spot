@@ -297,9 +297,20 @@
             "dst": {
               "type": "string"
             },
+            "direction": {
+              "type": "string",
+              "enum": ["push", "pull"],
+              "default": "push",
+              "description": "Copy direction: 'push' (upload to remote) or 'pull' (download from remote)"
+            },
             "mkdir": {
               "type": "boolean",
               "default": false
+            },
+            "force": {
+              "type": "boolean",
+              "default": false,
+              "description": "Force copy even if files are up-to-date"
             },
             "recur": {
               "type": "boolean",
