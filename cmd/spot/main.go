@@ -54,6 +54,8 @@ type options struct {
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
 	Only []string `long:"only" description:"run only commands"`
 
+	Local bool `long:"local" description:"run all commands locally without SSH"`
+
 	// secrets
 	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SPOT_SECRETS"`
 
@@ -132,6 +134,9 @@ func main() {
 func run(opts options) error {
 	if opts.Dry {
 		printDryRunWarn(opts.Dbg)
+	}
+	if opts.Local {
+		printLocalRunWarn(opts.Dbg)
 	}
 
 	st := time.Now()
@@ -266,6 +271,15 @@ func printDryRunWarn(dbg bool) {
 	fmt.Print(msg)
 }
 
+func printLocalRunWarn(dbg bool) {
+	if dbg {
+		log.Printf("[WARN] local mode enabled - all commands will run locally without SSH")
+		return
+	}
+	msg := color.New(color.FgHiYellow).SprintfFunc()("local mode - all commands will run locally without SSH\n")
+	fmt.Print(msg)
+}
+
 func inventoryFile(inventory string) (string, error) {
 	exInventory, err := expandPath(inventory)
 	if err != nil {
@@ -367,6 +381,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Verbose:     len(opts.Verbose) > 0,
 		Verbose2:    len(opts.Verbose) > 1,
 		Dry:         opts.Dry,
+		Local:       opts.Local,
 		SSHShell:    opts.SSHShell,
 		SSHTempDir:  opts.SSHTempDir,
 	}

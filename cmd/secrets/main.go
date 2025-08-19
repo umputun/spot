@@ -57,7 +57,7 @@ func main() {
 	if _, err := p.Parse(); err != nil {
 		exitFunc(1) // can be redefined in tests
 	}
-	
+
 	setupLog(opts.Dbg) // always set up logging first
 
 	if err := run(p, opts); err != nil {
@@ -67,7 +67,7 @@ func main() {
 
 func run(p *flags.Parser, opts options) error {
 	key := opts.Key
-	
+
 	// if key is not provided via flag or env, prompt for it
 	if key == "" {
 		promptedKey, err := readPasswordFromStdin("Enter secrets key: ")
