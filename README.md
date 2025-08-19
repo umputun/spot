@@ -147,6 +147,7 @@ Spot supports the following command-line options:
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`. Values could be taken from the OS environment variables as well, e.g., `-e VAR1:$ENV_VAR1` or `-e VAR1:${ENV_VAR1}`.
 - `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The file can have values from the OS environment variables as well. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
 - `--no-color`: disable the colorized output. It can also be set with the environment variable `SPOT_NO_COLOR`.
+- `--local`: Forces all commands to run locally without SSH connections. Useful for running playbooks on the control machine without SSH setup, for testing, or in CI/CD environments.
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution. Setting this flag multiple times increases the verbosity level, i.e., `-vv`.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution and diagnostic messages.

@@ -736,29 +736,63 @@ func TestProcess_RunVerbose(t *testing.T) {
 
 func TestProcess_RunLocal(t *testing.T) {
 	ctx := context.Background()
-	testingHostAndPort, teardown := startTestContainer(t)
-	defer teardown()
 
-	var buf bytes.Buffer
-	log.SetOutput(&buf)
+	t.Run("command with local option", func(t *testing.T) {
+		var buf bytes.Buffer
+		log.SetOutput(&buf)
+		defer log.SetOutput(os.Stderr)
 
-	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
-	require.NoError(t, err)
-	conf, err := config.New("testdata/conf-local.yml", nil, nil)
-	require.NoError(t, err)
-	p := Process{
-		Concurrency: 1,
-		Connector:   connector,
-		Playbook:    conf,
-		Logs:        logs,
-		Verbose:     true,
-	}
-	res, err := p.Run(ctx, "default", testingHostAndPort)
-	require.NoError(t, err)
-	t.Log(buf.String())
-	assert.Equal(t, 2, res.Commands)
-	assert.Contains(t, buf.String(), "run command \"show content\"")
+		logs := executor.MakeLogs(false, false, nil)
+		conf, err := config.New("testdata/conf-local.yml", nil, nil)
+		require.NoError(t, err)
+		p := Process{
+			Concurrency: 1,
+			Connector:   nil, // not needed for local execution
+			Playbook:    conf,
+			Logs:        logs,
+			Verbose:     true,
+		}
+		res, err := p.Run(ctx, "default", "localhost")
+		require.NoError(t, err)
+		t.Log(buf.String())
+		assert.Equal(t, 2, res.Commands)
+		assert.Contains(t, buf.String(), "run command \"show content\"")
+		assert.Contains(t, buf.String(), "run local command")
+	})
+
+	t.Run("process with Local flag forces all local", func(t *testing.T) {
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(os.Stderr)
+
+		// use simple test config
+		conf, err := config.New("testdata/conf-local-test.yml", nil, nil)
+		require.NoError(t, err)
+
+		var res ProcResp
+		stdout := captureStdOut(t, func() {
+			logs := executor.MakeLogs(true, false, nil) // create logs with verbose=true inside capture
+			p := Process{
+				Concurrency: 1,
+				Connector:   nil, // not needed for local execution
+				Playbook:    conf,
+				Logs:        logs,
+				Verbose:     true,
+				Local:       true, // force local mode
+			}
+			// run a simple task
+			res, err = p.Run(ctx, "simple_task", "remark42")
+		})
+
+		require.NoError(t, err)
+		t.Log(stdout)
+		assert.Equal(t, 2, res.Commands) // 2 commands run locally once
+		assert.Equal(t, 1, res.Hosts)    // only localhost, not the 2 remote hosts
+		// should see local execution even for remote commands
+		assert.Contains(t, stdout, "[localhost] run command")
+		assert.Contains(t, stdout, "[localhost] completed task")
+		// should NOT attempt SSH connection
+		assert.NotContains(t, stdout, "can't connect")
+	})
 }
 
 func TestProcess_RunFailed(t *testing.T) {
@@ -1287,6 +1321,61 @@ func TestProcess_RunBcryptPassword(t *testing.T) {
 		assert.NoError(t, err, "Command should succeed with preserved password")
 		assert.Contains(t, logContent, "AUTO: Password preserved correctly", "Password should be preserved")
 		assert.NotContains(t, logContent, "AUTO: Password corrupted!", "Password should not be corrupted")
+	})
+}
+
+func TestProcess_pickCmdExecutor(t *testing.T) {
+	logs := executor.MakeLogs(false, false, nil)
+
+	t.Run("local mode forces local executor", func(t *testing.T) {
+		p := Process{Local: true, Logs: logs}
+		cmd := config.Cmd{Name: "test"}
+		ec := execCmd{cmd: cmd, hostAddr: "remote.host", hostName: "remote"}
+
+		result := p.pickCmdExecutor(cmd, ec, "remote.host", "remote")
+
+		// verify executor is local even though host is remote
+		assert.NotNil(t, result.exec)
+		_, isLocal := result.exec.(*executor.Local)
+		assert.True(t, isLocal, "should be local executor")
+	})
+
+	t.Run("local mode with dry run", func(t *testing.T) {
+		p := Process{Local: true, Dry: true, Logs: logs}
+		cmd := config.Cmd{Name: "test"}
+		ec := execCmd{cmd: cmd, hostAddr: "remote.host", hostName: "remote"}
+
+		result := p.pickCmdExecutor(cmd, ec, "remote.host", "remote")
+
+		// verify executor is dry
+		assert.NotNil(t, result.exec)
+		_, isDry := result.exec.(*executor.Dry)
+		assert.True(t, isDry, "should be dry executor")
+	})
+
+	t.Run("command local overrides even without global local", func(t *testing.T) {
+		p := Process{Local: false, Logs: logs}
+		cmd := config.Cmd{Name: "test", Options: config.CmdOptions{Local: true}}
+		ec := execCmd{cmd: cmd, hostAddr: "remote.host", hostName: "remote"}
+
+		result := p.pickCmdExecutor(cmd, ec, "remote.host", "remote")
+
+		// verify executor is local
+		assert.NotNil(t, result.exec)
+		_, isLocal := result.exec.(*executor.Local)
+		assert.True(t, isLocal, "should be local executor")
+	})
+
+	t.Run("no local flags returns original executor", func(t *testing.T) {
+		p := Process{Local: false, Logs: logs}
+		cmd := config.Cmd{Name: "test"}
+		mockExec := &mocks.InterfaceMock{}
+		ec := execCmd{cmd: cmd, hostAddr: "remote.host", hostName: "remote", exec: mockExec}
+
+		result := p.pickCmdExecutor(cmd, ec, "remote.host", "remote")
+
+		// verify executor unchanged
+		assert.Equal(t, mockExec, result.exec)
 	})
 }
 
