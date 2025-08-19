@@ -265,12 +265,70 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, 2, len(files), "should have downloaded 2 files")
 	})
 
+	t.Run("download relative symlink with sudo", func(t *testing.T) {
+		// test downloading relative symlinks (like /etc/os-release -> ../usr/lib/os-release)
+		// this reproduces real-world scenario where relative symlinks exist
+		_, err := sess.Run(ctx, "sudo sh -c 'mkdir -p /usr/lib && echo real-os-content > /usr/lib/os-release && cd /etc && ln -sf ../usr/lib/os-release os-release && chmod 600 /usr/lib/os-release /etc/os-release && chown root:root /usr/lib/os-release /etc/os-release'", nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, "sudo rm -f /etc/os-release /usr/lib/os-release", nil)
+
+		tmpFile := "/tmp/spot_test_relative_symlink_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer os.Remove(tmpFile)
+
+		// download should work and get the actual file content, not symlink
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy:    config.CopyInternal{Source: "/etc/os-release", Dest: tmpFile, Direction: "pull"},
+			Options: config.CmdOptions{Sudo: true}}}
+
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+		assert.Contains(t, resp.details, "direction: pull")
+
+		// verify the actual file content was downloaded (not symlink)
+		content, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "real-os-content")
+	})
+
 	t.Run("copy with invalid direction", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "invalid"}}}
 		_, err := ec.Copy(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid copy direction")
+	})
+
+	t.Run("copy pull relative symlink without sudo", func(t *testing.T) {
+		// test regular download (without sudo) handles relative symlinks correctly via SFTP
+		// this should work fine since SFTP follows symlinks naturally
+		testingHostAndPort, teardown := startTestContainer(t)
+		defer teardown()
+
+		connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+		require.NoError(t, connErr)
+		sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+		require.NoError(t, errSess)
+		defer sess.Close()
+
+		// create a real file and a relative symlink pointing to it
+		_, err := sess.Run(ctx, "echo 'symlink-content' > /tmp/real-file.txt", nil)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "cd /tmp && ln -sf real-file.txt symlink-file.txt", nil)
+		require.NoError(t, err)
+
+		// download the symlink without sudo (regular download via SFTP)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "/tmp/symlink-file.txt", Dest: "/tmp/downloaded-symlink.txt", Direction: "pull"}}}
+
+		_, err = ec.Copy(ctx)
+		require.NoError(t, err)
+
+		// verify content was downloaded correctly
+		content, err := os.ReadFile("/tmp/downloaded-symlink.txt")
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "symlink-content")
+		defer os.Remove("/tmp/downloaded-symlink.txt")
 	})
 
 	t.Run("copy pull with local execution", func(t *testing.T) {

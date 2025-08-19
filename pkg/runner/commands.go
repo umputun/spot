@@ -303,7 +303,8 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 	if hasGlob {
 		// for glob patterns: don't quote source to allow shell expansion, copy all to temp dir
 		// the destination should be just the directory, not include the glob pattern
-		cpCmd = fmt.Sprintf("mkdir -p %q && cp -r %s %q && chmod -R +r %q",
+		// use -L to dereference symlinks - relative symlinks become dangling when copied to /tmp
+		cpCmd = fmt.Sprintf("mkdir -p %q && cp -rL %s %q && chmod -R +r %q",
 			tmpRemoteDir, src, tmpRemoteDir, tmpRemoteDir)
 		// download entire temp directory content
 		// not using path.Join to keep the linux slash
@@ -311,8 +312,9 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 	} else {
 		// for single files: quote everything (existing behavior)
 		// not using filepath.Join to keep the linux slash
+		// use -L to dereference symlinks - relative symlinks become dangling when copied to /tmp
 		tmpSrc := tmpRemoteDir + "/" + filepath.Base(src)
-		cpCmd = fmt.Sprintf("mkdir -p %q && cp -r %q %q && chmod -R +r %q",
+		cpCmd = fmt.Sprintf("mkdir -p %q && cp -rL %q %q && chmod -R +r %q",
 			tmpRemoteDir, src, tmpSrc, tmpSrc)
 		downloadSrc = tmpSrc
 	}
