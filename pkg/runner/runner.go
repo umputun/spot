@@ -1,5 +1,7 @@
 package runner
 
+//go:generate moq -out mocks/executor.go -pkg mocks -skip-ensure -fmt goimports ../executor Interface
+
 import (
 	"context"
 	"encoding/json"
@@ -35,6 +37,7 @@ type Process struct {
 	Verbose     bool
 	Verbose2    bool
 	Dry         bool
+	Local       bool
 	SSHShell    string
 	SSHTempDir  string
 
@@ -87,6 +90,12 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	targetHosts, err := p.Playbook.TargetHosts(target)
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get target %s: %w", target, err)
+	}
+
+	// in local mode, replace all target hosts with single localhost entry
+	if p.Local {
+		targetHosts = []config.Destination{{Host: "localhost", Name: "localhost", Port: 0, User: ""}}
+		log.Printf("[DEBUG] local mode - using localhost as single target")
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
@@ -182,8 +191,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	stTask := time.Now()
 
 	var remote executor.Interface
-	if p.anyRemoteCommand(tsk) {
-		// make remote executor only if there is a remote command in the taks
+	if p.anyRemoteCommand(tsk) && !p.Local {
+		// make remote executor only if there is a remote command in the task and not in local mode
 		var err error
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
 		if err != nil {
@@ -232,7 +241,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName
-		if cmd.Options.Local {
+		if cmd.Options.Local || p.Local {
 			repHostAddr = "localhost"
 			repHostName = ""
 		}
@@ -276,7 +285,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 	}
 
-	if p.anyRemoteCommand(&activeTask) {
+	if p.anyRemoteCommand(&activeTask) && !p.Local {
 		report(hostAddr, hostName, "completed task %q, commands: %d (%v)\n", activeTask.Name, resp.count, since(stTask))
 	} else {
 		report("localhost", "", "completed task %q, commands: %d (%v)\n",
@@ -344,14 +353,14 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
 	if p.Dry {
 		log.Printf("[DEBUG] run dry command %q", cmd.Name)
-		if cmd.Options.Local {
+		if cmd.Options.Local || p.Local {
 			ec.exec = executor.NewDry(p.Logs.WithHost("localhost", ""))
 		} else {
 			ec.exec = executor.NewDry(p.Logs.WithHost(hostAddr, hostName))
 		}
 		return ec
 	}
-	if cmd.Options.Local {
+	if cmd.Options.Local || p.Local {
 		log.Printf("[DEBUG] run local command %q", cmd.Name)
 		ec.exec = executor.NewLocal(p.Logs.WithHost("localhost", ""))
 		return ec
