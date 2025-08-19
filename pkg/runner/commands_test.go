@@ -242,6 +242,29 @@ func Test_execCmd(t *testing.T) {
 		assert.Contains(t, string(content), "sudo-content")
 	})
 
+	t.Run("download with glob pattern and sudo", func(t *testing.T) {
+		// create multiple test files that need sudo
+		_, err := sess.Run(ctx, "sudo sh -c 'echo test1 > /srv/test1.log && echo test2 > /srv/test2.log && chmod 600 /srv/*.log && chown root:root /srv/*.log'", nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, "sudo rm -f /srv/*.log", nil)
+
+		tmpDir := "/tmp/spot_test_glob_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		defer os.RemoveAll(tmpDir)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy:    config.CopyInternal{Source: "/srv/*.log", Dest: tmpDir, Direction: "pull", Mkdir: true},
+			Options: config.CmdOptions{Sudo: true}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+		assert.Contains(t, resp.details, "direction: pull")
+
+		// verify both files were downloaded
+		files, err := os.ReadDir(tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(files), "should have downloaded 2 files")
+	})
+
 	t.Run("copy with invalid direction", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "invalid"}}}

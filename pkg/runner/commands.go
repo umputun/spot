@@ -294,13 +294,28 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 	tmpRemoteDir := ec.uniqueTmp("/tmp/.spot-download-")
 	resp.details = fmt.Sprintf(" {copy: %s <- %s, direction: pull, sudo: true}", dst, src)
 
-	// create temp copy on remote that SSH user can read
-	// not using filepath.Join because we want to keep the linux slash
-	tmpSrc := tmpRemoteDir + "/" + filepath.Base(src)
+	// check if source contains glob pattern
+	hasGlob := strings.ContainsAny(src, "*?[")
 
-	// prepare copy command with sudo to temp location
-	// wrap entire command sequence with sudo so all commands run with elevated privileges
-	cpCmd := fmt.Sprintf("mkdir -p %q && cp -r %q %q && chmod -R +r %q", tmpRemoteDir, src, tmpSrc, tmpSrc)
+	var cpCmd string
+	var downloadSrc string
+
+	if hasGlob {
+		// for glob patterns: don't quote source to allow shell expansion, copy all to temp dir
+		// the destination should be just the directory, not include the glob pattern
+		cpCmd = fmt.Sprintf("mkdir -p %q && cp -r %s %q && chmod -R +r %q",
+			tmpRemoteDir, src, tmpRemoteDir, tmpRemoteDir)
+		// download entire temp directory content
+		// not using path.Join to keep the linux slash
+		downloadSrc = tmpRemoteDir + "/*"
+	} else {
+		// for single files: quote everything (existing behavior)
+		// not using filepath.Join to keep the linux slash
+		tmpSrc := tmpRemoteDir + "/" + filepath.Base(src)
+		cpCmd = fmt.Sprintf("mkdir -p %q && cp -r %q %q && chmod -R +r %q",
+			tmpRemoteDir, src, tmpSrc, tmpSrc)
+		downloadSrc = tmpSrc
+	}
 
 	// run copy with sudo on remote - this wraps the entire command sequence
 	sudoCmd := ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), cpCmd))
@@ -322,7 +337,7 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 		Force:   ec.cmd.Copy.Force,
 		Exclude: ec.cmd.Copy.Exclude,
 	}
-	if err := ec.exec.Download(ctx, tmpSrc, dst, opts); err != nil {
+	if err := ec.exec.Download(ctx, downloadSrc, dst, opts); err != nil {
 		return resp, ec.errorFmt("can't download file from %s: %w", ec.hostAddr, err)
 	}
 
