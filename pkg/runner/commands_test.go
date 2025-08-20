@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -191,10 +193,192 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("copy a single file", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "push"}}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
+	})
+
+	t.Run("download a single file", func(t *testing.T) {
+		// first upload a file to download
+		_, err := sess.Run(ctx, "echo 'test content' > /tmp/download_test.txt", nil)
+		require.NoError(t, err)
+
+		tmpFile := "/tmp/spot_test_download_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer os.Remove(tmpFile)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "/tmp/download_test.txt", Dest: tmpFile, Direction: "pull"}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "direction: pull")
+
+		// verify file was downloaded
+		content, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "test content")
+	})
+
+	t.Run("download with sudo", func(t *testing.T) {
+		// create a file in /srv that needs sudo to read (like other working sudo tests)
+		_, err := sess.Run(ctx, "sudo sh -c 'echo sudo-content > /srv/sudo_test.txt && chmod 600 /srv/sudo_test.txt && chown root:root /srv/sudo_test.txt'", nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, "sudo rm -f /srv/sudo_test.txt", nil)
+
+		tmpFile := "/tmp/spot_test_sudo_download_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer os.Remove(tmpFile)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy:    config.CopyInternal{Source: "/srv/sudo_test.txt", Dest: tmpFile, Direction: "pull"},
+			Options: config.CmdOptions{Sudo: true}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+		assert.Contains(t, resp.details, "direction: pull")
+
+		// verify file was downloaded
+		content, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "sudo-content")
+	})
+
+	t.Run("download with glob pattern and sudo", func(t *testing.T) {
+		// create multiple test files that need sudo
+		_, err := sess.Run(ctx, "sudo sh -c 'echo test1 > /srv/test1.log && echo test2 > /srv/test2.log && chmod 600 /srv/*.log && chown root:root /srv/*.log'", nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, "sudo rm -f /srv/*.log", nil)
+
+		tmpDir := "/tmp/spot_test_glob_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		defer os.RemoveAll(tmpDir)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy:    config.CopyInternal{Source: "/srv/*.log", Dest: tmpDir, Direction: "pull", Mkdir: true},
+			Options: config.CmdOptions{Sudo: true}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+		assert.Contains(t, resp.details, "direction: pull")
+
+		// verify both files were downloaded
+		files, err := os.ReadDir(tmpDir)
+		require.NoError(t, err)
+		assert.Equal(t, 2, len(files), "should have downloaded 2 files")
+	})
+
+	t.Run("download relative symlink with sudo", func(t *testing.T) {
+		// test downloading relative symlinks (like /etc/os-release -> ../usr/lib/os-release)
+		// this reproduces real-world scenario where relative symlinks exist
+		_, err := sess.Run(ctx, "sudo sh -c 'mkdir -p /usr/lib && echo real-os-content > /usr/lib/os-release && cd /etc && ln -sf ../usr/lib/os-release os-release && chmod 600 /usr/lib/os-release /etc/os-release && chown root:root /usr/lib/os-release /etc/os-release'", nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, "sudo rm -f /etc/os-release /usr/lib/os-release", nil)
+
+		tmpFile := "/tmp/spot_test_relative_symlink_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer os.Remove(tmpFile)
+
+		// download should work and get the actual file content, not symlink
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy:    config.CopyInternal{Source: "/etc/os-release", Dest: tmpFile, Direction: "pull"},
+			Options: config.CmdOptions{Sudo: true}}}
+
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+		assert.Contains(t, resp.details, "direction: pull")
+
+		// verify the actual file content was downloaded (not symlink)
+		content, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "real-os-content")
+	})
+
+	t.Run("copy with invalid direction", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "invalid"}}}
+		_, err := ec.Copy(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid copy direction")
+	})
+
+	t.Run("copy pull relative symlink without sudo", func(t *testing.T) {
+		// test regular download (without sudo) handles relative symlinks correctly via SFTP
+		// this should work fine since SFTP follows symlinks naturally
+
+		// create a real file and a relative symlink pointing to it
+		_, err := sess.Run(ctx, "echo 'symlink-content' > /tmp/real-file.txt", nil)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "cd /tmp && ln -sf real-file.txt symlink-file.txt", nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, "rm -f /tmp/real-file.txt /tmp/symlink-file.txt", nil)
+
+		tmpFile := "/tmp/spot_test_symlink_nosudo_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer os.Remove(tmpFile)
+
+		// download the symlink without sudo (regular download via SFTP)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy: config.CopyInternal{Source: "/tmp/symlink-file.txt", Dest: tmpFile, Direction: "pull"}}}
+
+		_, err = ec.Copy(ctx)
+		require.NoError(t, err)
+
+		// verify content was downloaded correctly
+		content, err := os.ReadFile(tmpFile)
+		require.NoError(t, err)
+		assert.Contains(t, string(content), "symlink-content")
+	})
+
+	t.Run("copy pull with local execution", func(t *testing.T) {
+		localExec := executor.NewLocal(logs)
+		ec := execCmd{exec: localExec, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Copy:    config.CopyInternal{Source: "/tmp/test.txt", Dest: "./test.txt", Direction: "pull"},
+			Options: config.CmdOptions{Local: true}}}
+		_, err := ec.Copy(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot use direction=pull with local execution")
+	})
+
+	t.Run("mcopy with mixed directions", func(t *testing.T) {
+		// create remote files to download
+		_, err := sess.Run(ctx, "echo 'content1' > /tmp/mcopy_test1.txt", nil)
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "echo 'content2' > /tmp/mcopy_test2.txt", nil)
+		require.NoError(t, err)
+
+		// create local file to upload
+		tmpUpload := "/tmp/mcopy_upload_" + strconv.Itoa(rand.Int())
+		err = os.WriteFile(tmpUpload, []byte("upload content"), 0o644)
+		require.NoError(t, err)
+		defer os.Remove(tmpUpload)
+
+		tmpDownload1 := "/tmp/mcopy_download1_" + strconv.Itoa(rand.Int())
+		tmpDownload2 := "/tmp/mcopy_download2_" + strconv.Itoa(rand.Int())
+		tmpRemoteUpload := "/tmp/mcopy_uploaded_" + strconv.Itoa(rand.Int())
+		defer os.Remove(tmpDownload1)
+		defer os.Remove(tmpDownload2)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			MCopy: []config.CopyInternal{
+				{Source: "/tmp/mcopy_test1.txt", Dest: tmpDownload1, Direction: "pull"},
+				{Source: tmpUpload, Dest: tmpRemoteUpload, Direction: "push"},
+				{Source: "/tmp/mcopy_test2.txt", Dest: tmpDownload2, Direction: "pull"},
+			}}}
+		resp, err := ec.Mcopy(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "<-") // pull indicator
+		assert.Contains(t, resp.details, "->") // push indicator
+
+		// verify downloads worked
+		content1, err := os.ReadFile(tmpDownload1)
+		require.NoError(t, err)
+		assert.Contains(t, string(content1), "content1")
+
+		content2, err := os.ReadFile(tmpDownload2)
+		require.NoError(t, err)
+		assert.Contains(t, string(content2), "content2")
+
+		// verify upload worked
+		out, err := sess.Run(ctx, "cat "+tmpRemoteUpload, nil)
+		require.NoError(t, err)
+		assert.Contains(t, out[0], "upload content")
 	})
 
 	t.Run("wait done", func(t *testing.T) {

@@ -347,9 +347,9 @@ Read more about YAML multiline string formatting on [yaml-multiline.info](https:
 
 #### `copy`
 
-Copies a file from the local machine to the remote host(s). If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, the same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
+Copies files between the local machine and remote host(s). The optional `direction` field controls the transfer direction: `push` (default) uploads files from local to remote, while `pull` downloads files from remote to local. When `direction` is not specified, it defaults to `push` for backward compatibility. If `mkdir` is set to `true` the command will create the destination directory if it doesn't exist, the same as `mkdir -p` in bash. The command also supports glob patterns in `src` field.
 
-Copy command performs a quick check to see if the file already exists on the remote host(s) with the same size and modification time,
+Copy command performs a quick check to see if the file already exists on the destination with the same size and modification time,
 and skips the copy if it does. This option can be disabled by setting `force: true` flag. Another option is `exclude` which allows to specify a list of files to exclude to be copied. 
 
 
@@ -382,6 +382,22 @@ Copy file and making it executable is also supported:
 - name: copy file and make it executable
   copy:
     - {"src": "testdata/script.sh", "dst": "/tmp/script.sh", "chmod+x": true}
+
+- name: download file from remote to local
+  copy: {"src": "/remote/path/data.csv", "dst": "./local/data.csv", "direction": "pull"}
+
+- name: download files with glob pattern
+  copy: {"src": "/remote/logs/*.log", "dst": "./logs/", "direction": "pull", "mkdir": true}
+
+- name: download file with sudo on remote
+  copy: {"src": "/etc/app/config.yml", "dst": "./configs/app.yml", "direction": "pull"}
+  options: {sudo: true}
+
+- name: mixed upload and download
+  copy:
+    - {"src": "local/deploy.sh", "dst": "/remote/scripts/deploy.sh", "direction": "push"}
+    - {"src": "/remote/logs/app.log", "dst": "./logs/app.log", "direction": "pull"}
+    - {"src": "/remote/data/results.csv", "dst": "./data/results.csv", "direction": "pull", "force": true}
 ```
 
 

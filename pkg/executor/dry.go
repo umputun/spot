@@ -69,15 +69,16 @@ func (ex *Dry) Upload(_ context.Context, local, remote string, opts *UpDownOpts)
 
 // Download file from remote server with scp
 func (ex *Dry) Download(_ context.Context, remote, local string, opts *UpDownOpts) (err error) {
-	var mkdir bool
+	var mkdir, force bool
 	var exclude []string
 
 	if opts != nil {
 		mkdir = opts.Mkdir
+		force = opts.Force
 		exclude = opts.Exclude
 	}
 
-	log.Printf("[DEBUG] download %s to %s, mkdir: %v, exclude: %v", local, remote, mkdir, exclude)
+	log.Printf("[DEBUG] download %s to %s, mkdir: %v, force: %v, exclude: %v", remote, local, mkdir, force, exclude)
 	return nil
 }
 

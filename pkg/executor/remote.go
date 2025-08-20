@@ -106,18 +106,19 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 	if ex.client == nil {
 		return fmt.Errorf("client is not connected")
 	}
-	log.Printf("[DEBUG] download %s to %s", local, remote)
+	log.Printf("[DEBUG] download %s to %s", remote, local)
 
 	host, port, err := net.SplitHostPort(ex.hostAddr)
 	if err != nil {
 		return fmt.Errorf("failed to split hostAddr and port: %w", err)
 	}
 
-	var mkdir bool
+	var mkdir, force bool
 	var exclude []string
 
 	if opts != nil {
 		mkdir = opts.Mkdir
+		force = opts.Force
 		exclude = opts.Exclude
 	}
 
@@ -140,6 +141,7 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 			localFile:  localFile,
 			remoteFile: remoteFile,
 			mkdir:      mkdir,
+			force:      force,
 			remoteHost: host,
 			remotePort: port,
 		}
@@ -450,34 +452,37 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		return fmt.Errorf("failed to stat remote file: %v", err)
 	}
 
-	// check if local file exists, if not create it.
-	if _, stErr := os.Stat(req.localFile); stErr != nil {
-		if !os.IsNotExist(stErr) {
-			return fmt.Errorf("failed to stat local file: %v", stErr)
+	// create local directory if mkdir is set
+	if req.mkdir {
+		localDir := filepath.Dir(req.localFile)
+		if err := os.MkdirAll(localDir, 0o750); err != nil {
+			return fmt.Errorf("failed to create local directory %s: %v", localDir, err)
 		}
-		outFh, crErr := os.Create(req.localFile)
-		if crErr != nil {
-			return fmt.Errorf("failed to open local file %s: %v", req.localFile, crErr)
-		}
-		defer outFh.Close() // nolint
 	}
 
-	localFh, err := os.OpenFile(req.localFile, os.O_WRONLY|os.O_CREATE, 0o600)
+	// check if local file exists and should be skipped
+	fileExists := false
+	if localFi, err := os.Stat(req.localFile); err == nil {
+		fileExists = true
+		// if the local file size and mod time are the same as the remote file, don't download. Force flag overrides this.
+		if !req.force && localFi.Size() == remoteFi.Size() && isWithinOneSecond(localFi.ModTime(), remoteFi.ModTime()) {
+			log.Printf("[INFO] local file %s is up-to-date, skipping download", req.localFile)
+			return nil
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to stat local file: %v", err)
+	}
+
+	// open local file for writing (create if doesn't exist, truncate if exists)
+	openFlags := os.O_WRONLY | os.O_CREATE
+	if fileExists {
+		openFlags |= os.O_TRUNC
+	}
+	localFh, err := os.OpenFile(req.localFile, openFlags, 0o600) // nolint:gosec // req.localFile comes from user config
 	if err != nil {
 		return fmt.Errorf("failed to open local file: %v", err)
 	}
 	defer localFh.Close() // nolint
-
-	localFi, err := localFh.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to stat local file: %v", err)
-	}
-
-	// if the local file size and mod time are the same as the remote file, don't download. Force flag overrides this.
-	if !req.force && localFi.Size() == remoteFi.Size() && isWithinOneSecond(localFi.ModTime(), remoteFi.ModTime()) {
-		log.Printf("[INFO] local file %s is up-to-date.", req.localFile)
-		return nil
-	}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -494,7 +499,16 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		}
 	}
 
-	return localFh.Sync() // nolint
+	if err = localFh.Sync(); err != nil {
+		return fmt.Errorf("failed to sync local file: %v", err)
+	}
+
+	// set local file's modtime to match remote file's modtime for proper comparison in future downloads
+	if err = os.Chtimes(req.localFile, remoteFi.ModTime(), remoteFi.ModTime()); err != nil {
+		return fmt.Errorf("failed to set modification time of local file %q: %v", req.localFile, err)
+	}
+
+	return nil
 }
 
 type fileProperties struct {

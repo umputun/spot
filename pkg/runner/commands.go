@@ -177,6 +177,38 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 	src := tmpl.apply(ec.cmd.Copy.Source)
 	dst := tmpl.apply(ec.cmd.Copy.Dest)
 
+	// default to "push" if direction is not set (extra safety, config should set it)
+	direction := ec.cmd.Copy.Direction
+	if direction == "" {
+		direction = "push"
+	}
+
+	// validate direction
+	if direction != "push" && direction != "pull" {
+		return resp, ec.errorFmt("invalid copy direction %q, must be 'push' or 'pull'", direction)
+	}
+
+	// check for invalid combinations
+	if ec.cmd.Options.Local && direction == "pull" {
+		return resp, ec.errorFmt("cannot use direction=pull with local execution")
+	}
+
+	// warn if chmod+x is used with pull
+	if direction == "pull" && ec.cmd.Copy.ChmodX {
+		log.Printf("[WARN] chmod+x ignored for download operations")
+	}
+
+	// handle download (pull) direction
+	if direction == "pull" {
+		return ec.copyPull(ctx, src, dst)
+	}
+
+	// handle upload (push) direction
+	return ec.copyPush(ctx, src, dst)
+}
+
+// copyPush uploads files from local machine to remote host
+func (ec *execCmd) copyPush(ctx context.Context, src, dst string) (resp execCmdResp, err error) {
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can use the original destination and upload the file directly
 		resp.details = fmt.Sprintf(" {copy: %s -> %s}", src, dst)
@@ -193,67 +225,142 @@ func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, nil
 	}
 
-	if ec.cmd.Options.Sudo {
-		// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
-		tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
-		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
-		// not using filepath.Join because we want to keep the linux slash, see https://github.com/umputun/spot/issues/144
-		tmpDest := tmpRemoteDir + "/" + filepath.Base(dst)
+	// if sudo is set, we need to upload the file to a temporary directory and move it to the final destination
+	tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
+	resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
+	// not using filepath.Join because we want to keep the linux slash, see https://github.com/umputun/spot/issues/144
+	tmpDest := tmpRemoteDir + "/" + filepath.Base(dst)
 
-		// upload to a temporary directory with mkdir
-		err := ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
-		if err != nil {
-			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
+	// upload to a temporary directory with mkdir
+	err = ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
+	if err != nil {
+		return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
+	}
+	defer func() {
+		// remove temporary directory we created under /tmp/.spot-<rand>
+		if e := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); e != nil {
+			log.Printf("[WARN] can't remove temporary directory %q on %s: %v", tmpRemoteDir, ec.hostAddr, e)
 		}
-		defer func() {
-			// remove temporary directory we created under /tmp/.spot-<rand>
-			if e := ec.exec.Delete(ctx, tmpRemoteDir, &executor.DeleteOpts{Recursive: true}); e != nil {
-				log.Printf("[WARN] can't remove temporary directory %q on %s: %v", tmpRemoteDir, ec.hostAddr, e)
-			}
-		}()
+	}()
 
-		mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
-		if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
-			mvCmd = fmt.Sprintf("mkdir -p %s\nmv -f %s/* %s", dst, tmpDest, dst) // move multiple files, if wildcard is used
-		}
-		if ec.cmd.Copy.Mkdir {
-			mvCmd = fmt.Sprintf("mkdir -p %s\n%s", filepath.Dir(dst), mvCmd) // create directory before moving
-		}
-		c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
-		if err != nil {
-			return resp, ec.errorFmt("can't prepare sudo moving command on %s: %w", ec.hostAddr, err)
-		}
+	mvCmd := fmt.Sprintf("mv -f %s %s", tmpDest, dst) // move a single file
+	if strings.Contains(src, "*") && !strings.HasSuffix(tmpDest, "/") {
+		mvCmd = fmt.Sprintf("mkdir -p %s\nmv -f %s/* %s", dst, tmpDest, dst) // move multiple files, if wildcard is used
+	}
+	if ec.cmd.Copy.Mkdir {
+		mvCmd = fmt.Sprintf("mkdir -p %s\n%s", filepath.Dir(dst), mvCmd) // create directory before moving
+	}
 
-		// run move command with sudo
-		for _, line := range strings.Split(c, "\n") {
-			sudoMove := ec.wrapWithSudo(line)
-			if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-				return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
-			}
+	c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
+	if err != nil {
+		return resp, ec.errorFmt("can't prepare sudo moving command on %s: %w", ec.hostAddr, err)
+	}
+
+	// run move command with sudo
+	for _, line := range strings.Split(c, "\n") {
+		sudoMove := ec.wrapWithSudo(line)
+		if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+			return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
 		}
-		if ec.cmd.Copy.ChmodX {
-			chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod +x %s", dst))
-			if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-				return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
-			}
-			resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true, chmod: +x}", src, dst)
+	}
+	if ec.cmd.Copy.ChmodX {
+		chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod +x %s", dst))
+		if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+			return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
 		}
+		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true, chmod: +x}", src, dst)
 	}
 
 	return resp, nil
 }
 
-// Mcopy uploads multiple files to a target host. It calls copy function for each file.
+// copyPull downloads files from remote host to local machine
+func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdResp, err error) {
+	if !ec.cmd.Options.Sudo {
+		// direct download without sudo
+		resp.details = fmt.Sprintf(" {copy: %s <- %s, direction: pull}", dst, src)
+		opts := &executor.UpDownOpts{
+			Mkdir:   ec.cmd.Copy.Mkdir,
+			Force:   ec.cmd.Copy.Force,
+			Exclude: ec.cmd.Copy.Exclude,
+		}
+		if err := ec.exec.Download(ctx, src, dst, opts); err != nil {
+			return resp, ec.errorFmt("can't download file from %s: %w", ec.hostAddr, err)
+		}
+		return resp, nil
+	}
+
+	// sudo handling for download - copy to temp on remote with sudo, then download
+	tmpRemoteDir := ec.uniqueTmp("/tmp/.spot-download-")
+	resp.details = fmt.Sprintf(" {copy: %s <- %s, direction: pull, sudo: true}", dst, src)
+
+	// check if source contains glob pattern
+	hasGlob := strings.ContainsAny(src, "*?[")
+
+	var cpCmd string
+	var downloadSrc string
+
+	if hasGlob {
+		// for glob patterns: don't quote source to allow shell expansion, copy all to temp dir
+		// the destination should be just the directory, not include the glob pattern
+		// use -L to dereference symlinks - relative symlinks become dangling when copied to /tmp
+		cpCmd = fmt.Sprintf("mkdir -p %q && cp -rL %s %q && chmod -R +r %q",
+			tmpRemoteDir, src, tmpRemoteDir, tmpRemoteDir)
+		// download entire temp directory content
+		// not using path.Join to keep the linux slash
+		downloadSrc = tmpRemoteDir + "/*"
+	} else {
+		// for single files: quote everything (existing behavior)
+		// not using filepath.Join to keep the linux slash
+		// use -L to dereference symlinks - relative symlinks become dangling when copied to /tmp
+		tmpSrc := tmpRemoteDir + "/" + filepath.Base(src)
+		cpCmd = fmt.Sprintf("mkdir -p %q && cp -rL %q %q && chmod -R +r %q",
+			tmpRemoteDir, src, tmpSrc, tmpSrc)
+		downloadSrc = tmpSrc
+	}
+
+	// run copy with sudo on remote - this wraps the entire command sequence
+	sudoCmd := ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), cpCmd))
+	if _, err := ec.exec.Run(ctx, sudoCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		return resp, ec.errorFmt("can't prepare file for download with sudo on %s: %w", ec.hostAddr, err)
+	}
+
+	// cleanup function to remove temp directory on remote
+	defer func() {
+		cleanCmd := ec.wrapWithSudo(fmt.Sprintf("rm -rf %q", tmpRemoteDir))
+		if _, e := ec.exec.Run(ctx, cleanCmd, &executor.RunOpts{Verbose: false}); e != nil {
+			log.Printf("[WARN] can't remove temporary directory %q on %s: %v", tmpRemoteDir, ec.hostAddr, e)
+		}
+	}()
+
+	// download from temp location (no sudo needed now)
+	opts := &executor.UpDownOpts{
+		Mkdir:   ec.cmd.Copy.Mkdir,
+		Force:   ec.cmd.Copy.Force,
+		Exclude: ec.cmd.Copy.Exclude,
+	}
+	if err := ec.exec.Download(ctx, downloadSrc, dst, opts); err != nil {
+		return resp, ec.errorFmt("can't download file from %s: %w", ec.hostAddr, err)
+	}
+
+	return resp, nil
+}
+
+// Mcopy uploads or downloads multiple files to/from a target host. It calls copy function for each file.
 func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	for _, c := range ec.cmd.MCopy {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
-		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
+		arrow := "->"
+		if c.Direction == "pull" {
+			arrow = "<-"
+		}
+		msgs = append(msgs, fmt.Sprintf("%s %s %s", src, arrow, dst))
 		ecSingle := ec
-		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Mkdir: c.Mkdir, Force: c.Force,
-			ChmodX: c.ChmodX, Exclude: c.Exclude}
+		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
+			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude}
 		if _, err := ecSingle.Copy(ctx); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
