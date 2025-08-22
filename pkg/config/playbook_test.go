@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -854,6 +855,149 @@ func TestPlayBook_SSHTempDir(t *testing.T) {
 						assert.Equal(t, tt.want, cmd.SSHTempDir, "task %q command %q", tsk.Name, cmd.Name)
 					}
 				}
+			}
+		})
+	}
+}
+
+func TestResolveTasks(t *testing.T) {
+	tests := []struct {
+		name        string
+		tasks       []string
+		allTasks    []Task
+		wantedTasks []string
+	}{
+		{
+			name:  "no tasks provided returns all tasks",
+			tasks: nil,
+			allTasks: []Task{
+				{Name: "task1"},
+				{Name: "task2", Tags: []string{"foo"}},
+				{Name: "task3", Tags: []string{"bar"}},
+			},
+			wantedTasks: []string{"task1", "task2", "task3"},
+		},
+		{
+			name:  "filters by tasks matching single tag",
+			tasks: []string{"frontend"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"frontend"}},
+				{Name: "task2", Tags: []string{"database"}},
+				{Name: "task3"},
+			},
+			wantedTasks: []string{"task1"},
+		},
+		{
+			name:  "filters by tasks matching multiple tags",
+			tasks: []string{"backend", "frontend"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"frontend"}},
+				{Name: "task2", Tags: []string{"database"}},
+				{Name: "task3", Tags: []string{"backend"}},
+			},
+			wantedTasks: []string{"task1", "task3"},
+		},
+		{
+			name:  "filters by tasks matching name",
+			tasks: []string{"task2"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"database"}},
+				{Name: "task2", Tags: []string{"frontend"}},
+			},
+			wantedTasks: []string{"task2"},
+		},
+		{
+			name:  "filters by matching name or tags",
+			tasks: []string{"monitoring", "backend-task"},
+			allTasks: []Task{
+				{Name: "frontend-task", Tags: []string{"frontend"}},
+				{Name: "database-task", Tags: []string{"database"}},
+				{Name: "backend-task", Tags: []string{"backend"}},
+				{Name: "no-tags-task"},
+				{Name: "monitoring-task", Tags: []string{"monitoring"}},
+			},
+			wantedTasks: []string{"backend-task", "monitoring-task"},
+		},
+		{
+			name:  "filters by matching both name and tags",
+			tasks: []string{"monitoring", "backend"},
+			allTasks: []Task{
+				{Name: "frontend-task", Tags: []string{"frontend"}},
+				{Name: "database-task", Tags: []string{"database"}},
+				{Name: "backend-task", Tags: []string{"backend"}},
+				{Name: "backend", Tags: []string{"backend-test"}},
+				{Name: "no-tags-task"},
+				{Name: "monitoring-task", Tags: []string{"monitoring"}},
+			},
+			wantedTasks: []string{"backend", "monitoring-task"},
+		},
+		{
+			name:  "multiple tasks matching same tag",
+			tasks: []string{"common"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"common"}},
+				{Name: "task2", Tags: []string{"common", "other-tag"}},
+				{Name: "task3", Tags: []string{"another-tag"}},
+				{Name: "common", Tags: []string{"some-tag"}},
+			},
+			wantedTasks: []string{"common"},
+		},
+		{
+			name:  "preserves task order when multiple tags match",
+			tasks: []string{"deploy"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"deploy"}},
+				{Name: "task2", Tags: []string{"deploy"}},
+				{Name: "task3", Tags: []string{"deploy"}},
+			},
+			wantedTasks: []string{"task1", "task2", "task3"},
+		},
+		{
+			name:  "tasks with empty tags doesn't match tags filter",
+			tasks: []string{"common"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"common"}},
+				{Name: "task2", Tags: []string{}},
+			},
+			wantedTasks: []string{"task1"}, // duplicates removed
+		},
+		{
+			name:  "ignores duplicate task names given on CLI",
+			tasks: []string{"task1", "task1"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"deploy"}},
+				{Name: "task2", Tags: []string{"deploy"}},
+			},
+			wantedTasks: []string{"task1"},
+		},
+		{
+			name:  "ignores empty CLI arg with other valid tags",
+			tasks: []string{"", "task1"},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"deploy"}},
+				{Name: "task2", Tags: []string{"deploy"}},
+				{Name: "task3", Tags: []string{"deploy"}},
+			},
+			wantedTasks: []string{"task1"},
+		},
+		{
+			name:  "ignores empty CLI arg",
+			tasks: []string{""},
+			allTasks: []Task{
+				{Name: "task1", Tags: []string{"deploy"}},
+				{Name: "task2", Tags: []string{"deploy"}},
+				{Name: "task3", Tags: []string{"deploy"}},
+			},
+			wantedTasks: []string{"task1", "task2", "task3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := PlayBook{Tasks: tt.allTasks}
+			actual := p.ResolveTasks(tt.tasks)
+			if !reflect.DeepEqual(actual, tt.wantedTasks) {
+				t.Errorf("ResolveTasks(%v) = %v, want %v", tt.tasks, actual, tt.wantedTasks)
 			}
 		})
 	}

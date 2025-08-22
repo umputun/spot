@@ -55,6 +55,7 @@ type Playbook interface {
 	AllSecretValues() []string
 	UpdateTasksTargets(vars map[string]string)
 	UpdateRegisteredVars(vars map[string]string)
+	ResolveTasks(names []string) []string
 }
 
 // ProcResp holds the information about processed commands and hosts.

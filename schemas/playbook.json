@@ -435,6 +435,12 @@
             "$ref": "#/definitions/command"
           }
         },
+	"tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "options": {
           "type": "object",
           "additionalProperties": false,

@@ -314,6 +314,7 @@ Each task consists of a list of commands that will be executed on the remote hos
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of the playbook file for the specified task.
 - `targets` - list of target names, groups, tags, or host addresses to execute the task on. Command line `-t` flag can be used to override this field. The `targets` field may include variables. For more details see [Dynamic targets](#dynamic-targets) section.
+- `tags`: specifies a list of tags to categorize the task. When running with the `-n` / `--task=` option, if the provided value does not match a task `name`, it will be matched against these tags. This allows executing all tasks that share a common tag. Example: `tags: [deploy, files]`
 
 *Note: these fields are supported in the full playbook type only*
 

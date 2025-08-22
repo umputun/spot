@@ -677,3 +677,75 @@ func (p *PlayBook) localShell() string {
 	}
 	return "/bin/sh"
 }
+
+// ResolveTasks returns a list of tasks to run preserving the order of tasks in the playbook
+func (p *PlayBook) ResolveTasks(names []string) []string {
+	// remove any empty or duplicate task names provided in the cli args
+	processedNames := make(map[string]struct{}, len(names))
+	var finalNames []string
+
+	for _, name := range names {
+		if name != "" {
+        		if _, exists := processedNames[name]; !exists {
+            			processedNames[name] = struct{}{}
+            			finalNames = append(finalNames, name)
+        		}
+    		}
+	}
+
+	// if there are no task names specified then get all task names in the playbook order
+	if len(finalNames) == 0 {
+		allNames := make([]string, len(p.Tasks))
+		for i, t := range p.Tasks {
+			allNames[i] = t.Name
+		}
+		return allNames
+	}
+
+	taskSet := make(map[string]struct{})
+	existingNames := make(map[string]struct{}, len(p.Tasks))
+	tagMap := make(map[string][]string)
+	unknownNames := []string{}
+
+	// get existing task names and build a map of tag to task names
+	// this eliminates O(n*m) lookups for each name provided by allowing O(1) lookup per tag,
+	// which will help avoid slow performance for large playbooks with many tasks and tags
+	for _, task := range p.Tasks {
+		existingNames[task.Name] = struct{}{}
+		for _, tag := range task.Tags {
+			tagMap[tag] = append(tagMap[tag], task.Name)
+		}
+	}
+
+	// check if the given task name matches any playbook task, if not then check task tags
+	for _, name := range finalNames {
+		if _, ok := existingNames[name]; ok {
+			// specified task name matches a task in the existing names
+			taskSet[name] = struct{}{}
+		} else if taggedTasks, ok := tagMap[name]; ok {
+			// match on map that maps tag to tasks
+			for _, tn := range taggedTasks {
+				taskSet[tn] = struct{}{}
+			}
+		} else {
+			// no match in names or tags
+			unknownNames = append(unknownNames, name)
+		}
+	}
+
+	// log a warning for unknown names specified
+	if len(unknownNames) > 0 {
+		for _, unknownName := range unknownNames {
+			log.Printf("Warning: name '%s' does not match any task name or tag", unknownName)
+		}
+	}
+
+	// keep the task order written in the playbook
+	var taskNamesToRun []string
+	for _, task := range p.Tasks {
+		if _, ok := taskSet[task.Name]; ok {
+			taskNamesToRun = append(taskNamesToRun, task.Name)
+		}
+	}
+	return taskNamesToRun
+}
