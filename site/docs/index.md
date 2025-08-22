@@ -34,11 +34,11 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 <details markdown>
   <summary>Screenshots</summary>
 
-- `spot` with playbook `spot.yml`: `spot -p spot.yml -t prod`
+- `spot` with playbook `spot.yml` and target name `prod`: `spot -p spot.yml -t prod`
 
 ![spot-playbook](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook.jpg)
 
-- `spot` with the same playbook in dry mode: `spot -p spot.yml -t prod -v`
+- `spot` with the same playbook in dry mode: `spot -p spot.yml -t prod --dry`
 
 ![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook-dry.jpg)
 
