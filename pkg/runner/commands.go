@@ -578,8 +578,12 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		checkCmd := fmt.Sprintf("grep -q '%s' %s", match, file)
 		checkCmd = ec.wrapWithSudo(checkCmd)
 		if _, err := ec.exec.Run(ctx, checkCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
-			// pattern not found, append the line
-			operationCmd = fmt.Sprintf("echo '%s' >> %s", appendLine, file)
+			// pattern not found, append the line using tee -a for proper sudo support
+			if ec.cmd.Options.Sudo {
+				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", appendLine, file)
+			} else {
+				operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", appendLine, file)
+			}
 		} else {
 			// pattern found, skip
 			resp.details = fmt.Sprintf(" {line: %s, match: %s, skip: pattern found}", file, match)
@@ -590,8 +594,10 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, ec.errorFmt("invalid line command configuration: no operation specified")
 	}
 
-	// handle sudo if needed
-	operationCmd = ec.wrapWithSudo(operationCmd)
+	// handle sudo if needed (append operation handles sudo internally)
+	if operation != "append" {
+		operationCmd = ec.wrapWithSudo(operationCmd)
+	}
 
 	// execute the operation
 	_, err = ec.exec.Run(ctx, operationCmd, &executor.RunOpts{Verbose: ec.verbose})

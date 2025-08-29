@@ -970,6 +970,39 @@ func Test_execLine(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []string{"line1", "line3"}, out)
 	})
+
+	t.Run("line command append with sudo", func(t *testing.T) {
+		// create a test file in a protected directory that requires sudo to write
+		testDir := "/srv/test_line_append_sudo"
+		testFile := "/srv/test_line_append_sudo/authorized_keys"
+		_, err := sess.Run(ctx, fmt.Sprintf("sudo mkdir -p %s && echo 'existing-key' | sudo tee %s > /dev/null && sudo chmod 600 %s && sudo chown root:root %s", testDir, testFile, testFile, testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("sudo rm -rf %s", testDir), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{
+					File:   testFile,
+					Match:  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5",
+					Append: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 testkey@example.com",
+				},
+				Name: "test line append with sudo",
+				Options: config.CmdOptions{
+					Sudo: true,
+				},
+			},
+		}
+		resp, err := ec.Line(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {line: /srv/test_line_append_sudo/authorized_keys, append: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5}", resp.details)
+
+		// verify line was appended
+		out, err := sess.Run(ctx, fmt.Sprintf("sudo cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"existing-key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 testkey@example.com"}, out)
+	})
 }
 
 func Test_execCmdWithTmp(t *testing.T) {
