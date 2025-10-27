@@ -21,9 +21,6 @@ type Connector struct {
 	timeout               time.Duration
 	enableAgent           bool
 	enableAgentForwarding bool
-	enableProxy           bool
-	proxyCommandParsed    []string
-	stopProxyCommand      context.CancelFunc
 	logs                  Logs
 }
 
@@ -84,26 +81,23 @@ func (c *Connector) WithAgentForwarding() *Connector {
 // Connect connects to a remote hostAddr and returns a remote executer, caller must close.
 func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string) (*Remote, error) {
 	log.Printf("[DEBUG] connect to %q (%s), user %q", hostAddr, hostName, user)
-	client, err := c.sshClient(ctx, hostAddr, user)
+	client, _, err := c.sshClient(ctx, hostAddr, user, nil)
 	if err != nil {
 		return nil, err
 	}
 	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName, logs: c.logs.WithHost(hostAddr, hostName)}, nil
 }
 
-// ConnectWithProxy saves values in Connector necessary to execute SSH ProxyCommand, see https://man.openbsd.org/ssh_config.5#ProxyCommand
+// ConnectWithProxy connects to a remote host through a proxy command and returns a remote executer, caller must close.
 func (c *Connector) ConnectWithProxy(ctx context.Context, hostAddr, hostName, user string, proxyCommandParsed []string) (*Remote, error) {
 	log.Printf("[DEBUG] connect to %q (%s), user %q, proxy command: %s", hostAddr, hostName, user, proxyCommandParsed)
 
-	c.proxyCommandParsed = proxyCommandParsed
-	c.enableProxy = true
-
-	client, err := c.sshClient(ctx, hostAddr, user)
+	client, stopProxyCommand, err := c.sshClient(ctx, hostAddr, user, proxyCommandParsed)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName, logs: c.logs.WithHost(hostAddr, hostName), stopProxyCommand: c.stopProxyCommand}, nil
+	return &Remote{client: client, hostAddr: hostAddr, hostName: hostName, logs: c.logs.WithHost(hostAddr, hostName), stopProxyCommand: stopProxyCommand}, nil
 }
 
 func (c *Connector) forwardAgent(client *ssh.Client) error {
@@ -264,7 +258,7 @@ func (c *Connector) dialWithProxy(ctx context.Context, host string, cmdArgs []st
 	return sshClient, cancelCopy, nil
 }
 
-func (c *Connector) sshClient(ctx context.Context, host, user string) (session *ssh.Client, err error) {
+func (c *Connector) sshClient(ctx context.Context, host, user string, proxyCommandParsed []string) (*ssh.Client, context.CancelFunc, error) {
 	var client *ssh.Client
 	var stopProxyCommand context.CancelFunc
 
@@ -275,37 +269,32 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 
 	conf, err := c.sshConfig(user, c.privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ssh config: %w", err)
+		return nil, nil, fmt.Errorf("failed to create ssh config: %w", err)
 	}
 
-	if !c.enableProxy {
+	if len(proxyCommandParsed) == 0 {
 		client, err = c.dial(ctx, host, conf)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-	}
-
-	if c.enableProxy {
-		cmdArgs, err := substituteProxyCommand(user, host, c.proxyCommandParsed)
+	} else {
+		cmdArgs, err := substituteProxyCommand(user, host, proxyCommandParsed)
 		if err != nil {
-			return nil, fmt.Errorf("failed to substitute proxy command with target host values: %w", err)
+			return nil, nil, fmt.Errorf("failed to substitute proxy command with target host values: %w", err)
 		}
 
 		client, stopProxyCommand, err = c.dialWithProxy(ctx, host, cmdArgs, conf)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create client connection wtth proxy command %s, to %s: %v", cmdArgs, host, err)
-		}
-		if stopProxyCommand != nil {
-			c.stopProxyCommand = stopProxyCommand
+			return nil, nil, fmt.Errorf("failed to create client connection wtth proxy command %s, to %s: %v", cmdArgs, host, err)
 		}
 	}
 
 	if err := c.forwardAgent(client); err != nil {
-		return nil, fmt.Errorf("failed to forward agent to %s: %v", host, err)
+		return nil, nil, fmt.Errorf("failed to forward agent to %s: %v", host, err)
 	}
 
 	log.Printf("[DEBUG] ssh session created to %s", host)
-	return client, nil
+	return client, stopProxyCommand, nil
 }
 
 func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, error) {
