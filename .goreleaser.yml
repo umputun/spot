@@ -1,3 +1,5 @@
+version: 2
+
 signs:
   - artifacts: checksum
 
@@ -70,13 +72,12 @@ archives:
       - LICENSE
       - README.md
       - spot.1
-    rlcp: true
 
 
 brews:
   -
     name: spot
-    tap:
+    repository:
       owner: umputun
       name: homebrew-apps
       branch: master
