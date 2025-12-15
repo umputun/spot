@@ -2350,12 +2350,18 @@ func Xtime(t *TLS, tloc uintptr) time.Time_t {
 	if __ccgo_strace {
 		trc("t=%v tloc=%v, (%v:)", t, tloc, origin(2))
 	}
-	panic(todo(""))
-	// n := time.Now().UTC().Unix()
-	// if tloc != 0 {
-	// 	*(*types.Time_t)(unsafe.Pointer(tloc)) = types.Time_t(n)
-	// }
-	// return types.Time_t(n)
+
+	var tvs unix.Timeval
+	err := unix.Gettimeofday(&tvs)
+	if err != nil {
+		t.setErrno(err)
+		return types.Time_t(-1)
+	}
+
+	if tloc != 0 {
+		*(*types.Time_t)(unsafe.Pointer(tloc)) = types.Time_t(tvs.Sec)
+	}
+	return types.Time_t(tvs.Sec)
 }
 
 // int utimes(const char *filename, const struct timeval times[2]);
