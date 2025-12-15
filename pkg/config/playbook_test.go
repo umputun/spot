@@ -21,7 +21,7 @@ func TestPlaybook_New(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
-		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Len(t, c.Tasks, 1, "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 		assert.Equal(t, "/bin/sh", c.Tasks[0].Commands[0].SSHShell, "ssh shell")
 		expShell := os.Getenv("SHELL")
@@ -31,7 +31,7 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, expShell, c.Tasks[0].Commands[0].LocalShell, "local shell")
 
 		tsk := c.Tasks[0]
-		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+		assert.Len(t, tsk.Commands, 5, "5 commands")
 		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
 
@@ -39,11 +39,11 @@ func TestPlaybook_New(t *testing.T) {
 		c, err := New("testdata/f1.toml", nil, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
-		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Len(t, c.Tasks, 1, "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 
 		tsk := c.Tasks[0]
-		assert.Equal(t, 5, len(tsk.Commands), "5 commands")
+		assert.Len(t, tsk.Commands, 5, "5 commands")
 		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
 
@@ -92,7 +92,7 @@ func TestPlaybook_New(t *testing.T) {
 	t.Run("adhoc mode", func(t *testing.T) {
 		c, err := New("no-such-thing", &Overrides{AdHocCommand: "echo 123", User: "umputun"}, nil)
 		require.NoError(t, err)
-		assert.Equal(t, 0, len(c.Tasks), "empty config, no task just overrides")
+		assert.Empty(t, c.Tasks, "empty config, no task just overrides")
 	})
 
 	t.Run("incorrectly formatted file", func(t *testing.T) {
@@ -128,11 +128,11 @@ func TestPlaybook_New(t *testing.T) {
 	t.Run("simple playbook with inventory", func(t *testing.T) {
 		c, err := New("testdata/simple-playbook.yml", nil, nil)
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(c.Tasks), "1 task")
+		assert.Len(t, c.Tasks, 1, "1 task")
 		assert.Equal(t, "default", c.Tasks[0].Name, "task name")
-		assert.Equal(t, 5, len(c.Tasks[0].Commands), "5 commands")
+		assert.Len(t, c.Tasks[0].Commands, 5, "5 commands")
 
-		assert.Equal(t, 1, len(c.Targets))
+		assert.Len(t, c.Targets, 1)
 		assert.Equal(t, []string{"name1", "name2"}, c.Targets["default"].Names)
 		assert.Equal(t, []Destination{{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
@@ -140,12 +140,12 @@ func TestPlaybook_New(t *testing.T) {
 	t.Run("simple playbook without inventory", func(t *testing.T) {
 		c, err := New("testdata/simple-playbook-no-inventory.yml", nil, nil)
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(c.Tasks), "1 task")
+		assert.Len(t, c.Tasks, 1, "1 task")
 		assert.Equal(t, "default", c.Tasks[0].Name, "task name")
-		assert.Equal(t, 5, len(c.Tasks[0].Commands), "5 commands")
+		assert.Len(t, c.Tasks[0].Commands, 5, "5 commands")
 
-		assert.Equal(t, 1, len(c.Targets))
-		assert.Equal(t, 0, len(c.Targets["default"].Names))
+		assert.Len(t, c.Targets, 1)
+		assert.Empty(t, c.Targets["default"].Names)
 		assert.Equal(t, []Destination{{Host: "name1", Port: 22}, {Host: "192.168.1.1", Port: 22},
 			{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
@@ -153,12 +153,12 @@ func TestPlaybook_New(t *testing.T) {
 	t.Run("simple playbook with a single target set", func(t *testing.T) {
 		c, err := New("testdata/simple-playbook-single-target.yml", nil, nil)
 		require.NoError(t, err)
-		require.Equal(t, 1, len(c.Tasks), "1 task")
+		require.Len(t, c.Tasks, 1, "1 task")
 		assert.Equal(t, "default", c.Tasks[0].Name, "task name")
-		assert.Equal(t, 5, len(c.Tasks[0].Commands), "5 commands")
+		assert.Len(t, c.Tasks[0].Commands, 5, "5 commands")
 
-		assert.Equal(t, 1, len(c.Targets))
-		assert.Equal(t, 0, len(c.Targets["default"].Names))
+		assert.Len(t, c.Targets, 1)
+		assert.Empty(t, c.Targets["default"].Names)
 		assert.Equal(t, []Destination{{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
 
@@ -182,16 +182,16 @@ func TestPlaybook_New(t *testing.T) {
 
 		p, err := New("testdata/playbook-with-secrets.yml", nil, secProvider)
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(p.Tasks), "1 task")
+		assert.Len(t, p.Tasks, 1, "1 task")
 		assert.Equal(t, "deploy-remark42", p.Tasks[0].Name, "task name")
-		assert.Equal(t, 5, len(p.Tasks[0].Commands), "5 commands")
+		assert.Len(t, p.Tasks[0].Commands, 5, "5 commands")
 
 		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"},
 			p.secrets, "Secrets map for all Secrets")
 
 		tsk, err := p.Task("deploy-remark42")
 		require.NoError(t, err)
-		assert.Equal(t, 5, len(tsk.Commands))
+		assert.Len(t, tsk.Commands, 5)
 		assert.Equal(t, "docker", tsk.Commands[4].Name)
 		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
 		assert.Equal(t, []string{"VAL1", "VAL11", "VAL12", "VAL2"}, p.AllSecretValues())
@@ -217,18 +217,18 @@ func TestPlaybook_New(t *testing.T) {
 
 		p, err := New("testdata/playbook-with-task-opts.yml", nil, secProvider)
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(p.Tasks), "1 task")
+		assert.Len(t, p.Tasks, 1, "1 task")
 		assert.Equal(t, "deploy-remark42", p.Tasks[0].Name, "task name")
-		assert.Equal(t, 5, len(p.Tasks[0].Commands), "5 commands")
+		assert.Len(t, p.Tasks[0].Commands, 5, "5 commands")
 
 		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"},
 			p.secrets, "Secrets map for all Secrets")
 
 		tsk, err := p.Task("deploy-remark42")
 		require.NoError(t, err)
-		assert.Equal(t, 5, len(tsk.Commands))
+		assert.Len(t, tsk.Commands, 5)
 		assert.Equal(t, "docker", tsk.Commands[4].Name)
-		assert.EqualValues(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
+		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
 		assert.Equal(t, []string{"VAL1", "VAL11", "VAL12", "VAL2"}, p.AllSecretValues())
 
 		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
@@ -252,13 +252,13 @@ func TestPlaybook_New(t *testing.T) {
 		c, err := New("testdata/with-ssh-shell.yml", nil, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
-		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Len(t, c.Tasks, 1, "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 		assert.Equal(t, "/bin/bash", c.Tasks[0].Commands[0].SSHShell, "remote ssh shell")
 		assert.Equal(t, "/bin/xxx", c.Tasks[0].Commands[0].LocalShell, "local local shell")
 
 		tsk := c.Tasks[0]
-		assert.Equal(t, 6, len(tsk.Commands), "5 commands")
+		assert.Len(t, tsk.Commands, 6, "6 commands")
 		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
 
@@ -266,12 +266,12 @@ func TestPlaybook_New(t *testing.T) {
 		c, err := New("testdata/with-ssh-shell.yml", &Overrides{SSHShell: "/bin/zsh"}, nil)
 		require.NoError(t, err)
 		t.Logf("%+v", c)
-		assert.Equal(t, 1, len(c.Tasks), "single task")
+		assert.Len(t, c.Tasks, 1, "single task")
 		assert.Equal(t, "umputun", c.User, "user")
 		assert.Equal(t, "/bin/zsh", c.Tasks[0].Commands[0].SSHShell, "remote ssh shell")
 
 		tsk := c.Tasks[0]
-		assert.Equal(t, 6, len(tsk.Commands), "5 commands")
+		assert.Len(t, tsk.Commands, 6, "6 commands")
 		assert.Equal(t, "deploy-remark42", tsk.Name, "task name")
 	})
 }
@@ -290,7 +290,7 @@ func TestPlayBook_Task(t *testing.T) {
 		require.NoError(t, err)
 		tsk, err := c.Task("deploy-remark42")
 		require.NoError(t, err)
-		assert.Equal(t, 5, len(tsk.Commands))
+		assert.Len(t, tsk.Commands, 5)
 		assert.Equal(t, "deploy-remark42", tsk.Name)
 	})
 
@@ -299,7 +299,7 @@ func TestPlayBook_Task(t *testing.T) {
 		require.NoError(t, err)
 		tsk, err := c.Task("ad-hoc")
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(tsk.Commands))
+		assert.Len(t, tsk.Commands, 1)
 		assert.Equal(t, "ad-hoc", tsk.Name)
 		assert.Equal(t, "echo 123", tsk.Commands[0].Script)
 		assert.Equal(t, "/bin/sh", tsk.Commands[0].SSHShell)
@@ -310,7 +310,7 @@ func TestPlayBook_Task(t *testing.T) {
 		require.NoError(t, err)
 		tsk, err := c.Task("ad-hoc")
 		require.NoError(t, err)
-		assert.Equal(t, 1, len(tsk.Commands))
+		assert.Len(t, tsk.Commands, 1)
 		assert.Equal(t, "ad-hoc", tsk.Name)
 		assert.Equal(t, "echo 123", tsk.Commands[0].Script)
 		assert.Equal(t, "/bin/zsh", tsk.Commands[0].SSHShell)
@@ -327,7 +327,7 @@ func TestPlayBook_TaskOverrideEnv(t *testing.T) {
 
 	tsk, err := c.Task("deploy-remark42")
 	require.NoError(t, err)
-	assert.Equal(t, 5, len(tsk.Commands))
+	assert.Len(t, tsk.Commands, 5)
 	assert.Equal(t, "deploy-remark42", tsk.Name)
 	cmd := tsk.Commands[2]
 	assert.Equal(t, "some local command", cmd.Name)
@@ -784,21 +784,21 @@ func TestPlayBook_loadSecrets(t *testing.T) {
 			{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"secret1", "secret2"}}}}},
 		}}
 		err := p.loadSecrets()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, map[string]string{"secret1": "value1", "secret2": "value2"}, p.secrets)
 	})
 
 	t.Run("provider not set", func(t *testing.T) {
 		p := PlayBook{Tasks: []Task{{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"secret1"}}}}}}}
 		err := p.loadSecrets()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "secrets are defined in playbook (1 secrets), but provider is not set", err.Error())
 	})
 
 	t.Run("provider retrieval failure", func(t *testing.T) {
 		p := PlayBook{secretsProvider: &secProvider, Tasks: []Task{{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"unknown"}}}}}}}
 		err := p.loadSecrets()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "can't get secret \"unknown\" defined in task \"\", command \"\": unknown secret key \"unknown\"", err.Error())
 	})
 }
@@ -808,7 +808,7 @@ func TestPlayBook_AllTasks(t *testing.T) {
 		{Name: "task1", Targets: []string{"target1"}},
 		{Name: "task2", Targets: []string{"target2", "target3"}},
 	}}
-	assert.Equal(t, 2, len(p.AllTasks()))
+	assert.Len(t, p.AllTasks(), 2)
 	assert.Equal(t, "task1", p.AllTasks()[0].Name)
 	assert.Equal(t, "task2", p.AllTasks()[1].Name)
 	assert.Equal(t, []string{"target1"}, p.AllTasks()[0].Targets)

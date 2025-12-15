@@ -39,9 +39,9 @@ func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, 
 		return envShell // use SHELL env var
 	}
 
-	if strings.HasPrefix(cmd, shell()+" -c ") {
+	if rest, found := strings.CutPrefix(cmd, shell()+" -c "); found {
 		// strip sh -c 'command' to just command to avoid double shell
-		cmd = strings.TrimPrefix(cmd, shell()+" -c ")
+		cmd = rest
 		cmd = strings.TrimPrefix(cmd, "'")
 		cmd = strings.TrimSuffix(cmd, "'")
 	}

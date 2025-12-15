@@ -15,7 +15,7 @@ func TestAnsibleVaultProvider_Get(t *testing.T) {
 
 	t.Run("secret found", func(t *testing.T) {
 		encryptedSecret, err := p.Get("secret")
-		require.NoError(t, nil, err, "Get method should not return an error")
+		require.NoError(t, err, "Get method should not return an error")
 		assert.Equal(t, "test-secret-data", encryptedSecret, "Get method should return the correct secret value")
 	})
 

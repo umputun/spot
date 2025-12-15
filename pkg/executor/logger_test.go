@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStdOutLogWriter(t *testing.T) {
@@ -104,7 +105,7 @@ func TestStdOutLogWriter(t *testing.T) {
 			}
 
 			n, err := writer.Write([]byte(tc.input))
-			assert.NoError(t, err, "write() should not return an error")
+			require.NoError(t, err, "write() should not return an error")
 			assert.Equal(t, len(tc.input), n, "write() should return the number of bytes written")
 
 			var lines []string
@@ -114,7 +115,7 @@ func TestStdOutLogWriter(t *testing.T) {
 				lines = []string{}
 			}
 
-			assert.Equalf(t, len(tc.expectedLines), len(lines),
+			assert.Lenf(t, lines, len(tc.expectedLines),
 				"number of lines in the output should match the expected number: %v", lines)
 
 			for i, expectedLine := range tc.expectedLines {
@@ -226,7 +227,7 @@ func TestColorizedWriter(t *testing.T) {
 				writer = writer.WithHost(tc.withHostAddr, tc.withHostName)
 			}
 			_, err := writer.Write([]byte(tc.input))
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			scanner := bufio.NewScanner(buffer)
 			lineIndex := 0
@@ -236,7 +237,7 @@ func TestColorizedWriter(t *testing.T) {
 				lineIndex++
 			}
 
-			assert.NoError(t, scanner.Err())
+			require.NoError(t, scanner.Err())
 			assert.Equal(t, len(tc.expectedLines), lineIndex)
 		})
 	}

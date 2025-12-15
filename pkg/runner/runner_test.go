@@ -45,7 +45,7 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 8, res.Commands)
 		assert.Equal(t, 1, res.Hosts)
-		assert.EqualValues(t, map[string]string{"bar": "9", "bar2": "10", "baz": "zzzzz", "foo": "6", "foo2": "7"}, res.Vars)
+		assert.Equal(t, map[string]string{"bar": "9", "bar2": "10", "baz": "zzzzz", "foo": "6", "foo2": "7"}, res.Vars)
 	})
 
 	t.Run("simple playbook", func(t *testing.T) {
@@ -170,8 +170,8 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, outWriter.String(), `> var foo: 6`)
 		assert.Contains(t, outWriter.String(), `> var bar: 9`)
 		assert.Contains(t, outWriter.String(), `> var baz: qux`, "was not overwritten")
-		assert.EqualValues(t, map[string]string{"bar": "9", "bar2": "10", "baz": "zzzzz", "foo": "6", "foo2": "7"}, res.Vars)
-		assert.EqualValues(t, map[string]string{"bar2": "10", "foo2": "7"}, res.Registered)
+		assert.Equal(t, map[string]string{"bar": "9", "bar2": "10", "baz": "zzzzz", "foo": "6", "foo2": "7"}, res.Vars)
+		assert.Equal(t, map[string]string{"bar2": "10", "foo2": "7"}, res.Registered)
 	})
 
 	t.Run("with secrets", func(t *testing.T) {
@@ -223,7 +223,7 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 2, res.Commands)
 		assert.Contains(t, outWriter.String(), ` > setvar filename=testdata/conf.yml`)
-		assert.EqualValues(t, map[string]string{"filename": "testdata/conf.yml"}, res.Vars)
+		assert.Equal(t, map[string]string{"filename": "testdata/conf.yml"}, res.Vars)
 	})
 
 	t.Run("env variables for copy command", func(t *testing.T) {
@@ -378,7 +378,7 @@ func TestProcess_Run(t *testing.T) {
 		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
 
 		_, err = p.Run(ctx, "multiline_failed", testingHostAndPort)
-		assert.ErrorContains(t, err, "failed to run command on remote server: Process exited with status 2")
+		require.ErrorContains(t, err, "failed to run command on remote server: Process exited with status 2")
 		assert.Contains(t, outWriter.String(), ` > good command 1`)
 		assert.NotContains(t, outWriter.String(), ` > good command 2`)
 		assert.NotContains(t, outWriter.String(), ` > good command 3`)
@@ -401,7 +401,7 @@ func TestProcess_Run(t *testing.T) {
 		log.SetOutput(io.MultiWriter(outWriter, os.Stderr))
 
 		_, err = p.Run(ctx, "with_task_user", testingHostAndPort)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, outWriter.String(), ` > good command 1`)
 		assert.Contains(t, outWriter.String(), `(test2)`)
 		assert.Contains(t, outWriter.String(), ` > test2`)
@@ -1171,9 +1171,9 @@ func TestGen(t *testing.T) {
 
 			err := p.Gen([]string{tc.target}, tmplRdr, respWr)
 			if tc.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.want, respWr.String())
 			}
 		})
@@ -1318,7 +1318,7 @@ func TestProcess_RunBcryptPassword(t *testing.T) {
 		assert.Contains(t, logContent, "---- PROPAGATED AUTO: "+expectedBcrypt, "Propagation should preserve bcrypt")
 
 		// the password should be preserved correctly
-		assert.NoError(t, err, "Command should succeed with preserved password")
+		require.NoError(t, err, "Command should succeed with preserved password")
 		assert.Contains(t, logContent, "AUTO: Password preserved correctly", "Password should be preserved")
 		assert.NotContains(t, logContent, "AUTO: Password corrupted!", "Password should not be corrupted")
 	})

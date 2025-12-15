@@ -166,8 +166,8 @@ type Basics struct {
 	Complex64s  []complex64
 	Complex128  complex128
 	Complex128s []complex128
-	Interface   interface{}
-	Interfaces  []interface{}
+	Interface   any
+	Interfaces  []any
 }
 
 // These tests test that all supported basic types are copied correctly.  This
@@ -1092,7 +1092,7 @@ type I struct {
 	A string
 }
 
-func (i *I) DeepCopy() interface{} {
+func (i *I) DeepCopy() any {
 	return &I{A: "custom copy"}
 }
 

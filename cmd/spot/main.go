@@ -545,12 +545,14 @@ func formatErrorString(input string) string {
 		formattedErrors = append(formattedErrors, strings.TrimSpace(match[1]))
 	}
 
-	formattedString := fmt.Sprintf("%s\n", strings.TrimSpace(headerMatch[1]))
+	var formattedString strings.Builder
+	formattedString.WriteString(strings.TrimSpace(headerMatch[1]))
+	formattedString.WriteString("\n")
 	for i, err := range formattedErrors {
-		formattedString += fmt.Sprintf("   [%d] %s\n", i, err)
+		formattedString.WriteString(fmt.Sprintf("   [%d] %s\n", i, err))
 	}
 
-	return formattedString
+	return formattedString.String()
 }
 
 func setupLog(dbg bool, secs ...string) {

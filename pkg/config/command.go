@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -297,7 +297,7 @@ func (cmd *Cmd) genEnv() []string {
 	for k, v := range cmd.Environment {
 		envs = append(envs, fmt.Sprintf("%s=%q", k, v))
 	}
-	sort.Slice(envs, func(i, j int) bool { return envs[i] < envs[j] })
+	slices.Sort(envs)
 	return envs
 }
 
@@ -309,15 +309,15 @@ func (cmd *Cmd) getSecrets() []string {
 			secrets = append(secrets, fmt.Sprintf("%s=%q", k, v))
 		}
 	}
-	sort.Slice(secrets, func(i, j int) bool { return secrets[i] < secrets[j] })
+	slices.Sort(secrets)
 	return secrets
 }
 
 // UnmarshalYAML implements yaml.Unmarshaler interface
 // It allows to unmarshal a "copy", "sync" and "delete" from a single field or a slice
 // All other fields are unmarshalled as usual.
-func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var asMap map[string]interface{}
+func (cmd *Cmd) UnmarshalYAML(unmarshal func(any) error) error {
+	var asMap map[string]any
 	if err := unmarshal(&asMap); err != nil {
 		return err
 	}
@@ -344,7 +344,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// helper function to unmarshal a field into a given target
-	unmarshalField := func(fieldName string, target interface{}) error {
+	unmarshalField := func(fieldName string, target any) error {
 		fieldValue, exists := asMap[fieldName]
 		if !exists {
 			return nil
@@ -367,7 +367,7 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// iterate over all fields in the struct and unmarshal them
-	structType := reflect.TypeOf(*cmd)
+	structType := reflect.TypeFor[Cmd]()
 	structValue := reflect.ValueOf(cmd).Elem()
 	for i := 0; i < structType.NumField(); i++ {
 		field := structType.Field(i)

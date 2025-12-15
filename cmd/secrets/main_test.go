@@ -77,14 +77,13 @@ func TestSpotSecrets(t *testing.T) {
 
 			err := runCommand()
 			if tc.wantError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 
 			logged := buf.String()
-			exps := strings.Split(tc.wantLog, "\n")
-			for _, exp := range exps {
+			for exp := range strings.SplitSeq(tc.wantLog, "\n") {
 				assert.Contains(t, logged, exp)
 			}
 		})

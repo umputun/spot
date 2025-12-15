@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -163,8 +163,7 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 }
 
 func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
@@ -179,8 +178,7 @@ func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
 }
 
 func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
@@ -195,8 +193,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 }
 
 func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
@@ -268,13 +265,13 @@ func TestUpload_UploadOverwriteWithAndWithoutForce(t *testing.T) {
 
 	// attempt to upload again without force
 	err = sess.Upload(ctx, "testdata/data1.txt", "testdata/data2.txt", &UpDownOpts{Mkdir: true})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Contains(t, wr.String(), "remote file testdata/data2.txt identical to local file testdata/data1.txt, skipping upload")
 	wr.Reset()
 
 	// attempt to upload again with force
 	err = sess.Upload(ctx, "testdata/data1.txt", "testdata/data2.txt", &UpDownOpts{Mkdir: true, Force: true})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotContains(t, wr.String(), "skipping upload")
 }
 
@@ -311,14 +308,14 @@ func TestExecuter_Run(t *testing.T) {
 
 	t.Run("multi line out", func(t *testing.T) {
 		err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/st/data1.txt", &UpDownOpts{Mkdir: true})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		err = sess.Upload(ctx, "testdata/data2.txt", "/tmp/st/data2.txt", &UpDownOpts{Mkdir: true})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		out, err := sess.Run(ctx, "ls -1 /tmp/st", nil)
 		require.NoError(t, err)
 		t.Logf("out: %v", out)
-		assert.Equal(t, 2, len(out))
+		assert.Len(t, out, 2)
 		assert.Equal(t, "data1.txt", out[0])
 		assert.Equal(t, "data2.txt", out[1])
 	})
@@ -327,7 +324,7 @@ func TestExecuter_Run(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
 		out, e := sess.Run(ctx, cmd, &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
 	})
 
@@ -341,15 +338,15 @@ func TestExecuter_Run(t *testing.T) {
 			defer session.Close()
 
 			err = session.Upload(ctx, "testdata/data1.txt", "/tmp/st/data1.txt", &UpDownOpts{Mkdir: true})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			err = session.Upload(ctx, "testdata/data2.txt", "/tmp/st/data2.txt", &UpDownOpts{Mkdir: true})
-			assert.NoError(t, err)
+			require.NoError(t, err)
 
 			cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
 			out, e := session.Run(ctx, cmd, &RunOpts{Verbose: true})
 			require.NoError(t, e)
 			t.Logf("out: %v", out)
-			sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+			slices.Sort(out)
 			assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
 		})
 
@@ -386,16 +383,16 @@ func TestExecuter_Sync(t *testing.T) {
 	t.Run("sync", func(t *testing.T) {
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", &SyncOpts{Delete: true})
 		require.NoError(t, e)
-		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
 
 		res, e = sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", &SyncOpts{Delete: true})
 		require.NoError(t, e)
-		assert.Equal(t, 0, len(res), "no files should be synced", res)
+		assert.Empty(t, res, "no files should be synced")
 	})
 
 	t.Run("sync no src", func(t *testing.T) {
@@ -409,11 +406,11 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", &SyncOpts{Delete: true})
 		require.NoError(t, e)
-		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 		out, e := sess.Run(ctx, "find /tmp/sync.dest2 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		assert.Equal(t, []string{"17 /tmp/sync.dest2/d1/file11.txt", "185 /tmp/sync.dest2/file1.txt", "61 /tmp/sync.dest2/file2.txt"}, out)
 	})
 
@@ -424,11 +421,11 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", &SyncOpts{Delete: true})
 		require.NoError(t, e)
-		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 		out, e := sess.Run(ctx, "find /tmp/sync.dest3 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		assert.Equal(t, []string{"17 /tmp/sync.dest3/d1/file11.txt", "185 /tmp/sync.dest3/file1.txt", "61 /tmp/sync.dest3/file2.txt"}, out)
 	})
 
@@ -439,11 +436,11 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", nil)
 		require.NoError(t, e)
-		sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		assert.Equal(t, []string{"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
 			"185 /tmp/sync.dest4/file1.txt", "61 /tmp/sync.dest4/file2.txt"}, out)
 	})
@@ -462,12 +459,12 @@ func TestExecuter_Delete(t *testing.T) {
 
 	res, err := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest", &SyncOpts{Delete: true})
 	require.NoError(t, err)
-	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+	slices.Sort(res)
 	assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
 
 	t.Run("delete file", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest/file1.txt", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", nil)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"d1", "file2.txt"}, out)
@@ -480,7 +477,7 @@ func TestExecuter_Delete(t *testing.T) {
 
 	t.Run("delete dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest", &DeleteOpts{Recursive: true})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
@@ -493,7 +490,7 @@ func TestExecuter_Delete(t *testing.T) {
 		require.NoError(t, e)
 		assert.Contains(t, out, "empty", out)
 		err = sess.Delete(ctx, "/tmp/sync.dest/empty", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.NotContains(t, out, "empty", out)
@@ -523,12 +520,12 @@ func TestExecuter_DeleteWithExclude(t *testing.T) {
 
 	res, err := sess.Sync(ctx, "testdata/delete", "/tmp/delete.dest", &SyncOpts{Delete: true})
 	require.NoError(t, err)
-	sort.Slice(res, func(i, j int) bool { return res[i] < res[j] })
+	slices.Sort(res)
 	assert.Equal(t, []string{"d1/file11.txt", "d1/file12.txt", "d2/file21.txt", "d2/file22.txt", "file1.txt", "file2.txt", "file3.txt"}, res)
 
 	t.Run("delete dir with excluded files", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/delete.dest", &DeleteOpts{Recursive: true, Exclude: []string{"file2.*", "d1/*", "d2/file21.txt"}})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.Contains(t, out, "delete.dest", out)

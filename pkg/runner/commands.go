@@ -257,7 +257,7 @@ func (ec *execCmd) copyPush(ctx context.Context, src, dst string) (resp execCmdR
 	}
 
 	// run move command with sudo
-	for _, line := range strings.Split(c, "\n") {
+	for line := range strings.SplitSeq(c, "\n") {
 		sudoMove := ec.wrapWithSudo(line)
 		if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 			return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
@@ -675,7 +675,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	rdr := bytes.NewBuffer([]byte(tmpl.apply(buf.String())))
 
 	// prepare scr(ipt) for reporting
-	for _, l := range strings.Split(rdr.String(), "\n") {
+	for l := range strings.SplitSeq(rdr.String(), "\n") {
 		if strings.TrimSpace(l) == "" {
 			continue
 		}

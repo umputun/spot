@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestDestinations(t *testing.T) {
@@ -287,9 +288,9 @@ func TestDestinations(t *testing.T) {
 			res, err := tge.Destinations("test")
 
 			if tc.err {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expected, res)
 			}
 		})
@@ -347,10 +348,10 @@ func TestHostAddressParsing(t *testing.T) {
 			res, err := tge.Destinations(tc.input)
 
 			if tc.err {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, 1, len(res))
+				require.NoError(t, err)
+				assert.Len(t, res, 1)
 				assert.Equal(t, tc.expected, res[0])
 			}
 		})

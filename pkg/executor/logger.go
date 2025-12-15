@@ -112,7 +112,7 @@ func (s *colorizedWriter) Write(p []byte) (n int, err error) {
 }
 
 // hostColorizer returns a function that formats a string with a color based on the hostAddr name.
-func (s *colorizedWriter) hostColorizer(host string) func(format string, a ...interface{}) string {
+func (s *colorizedWriter) hostColorizer(host string) func(format string, a ...any) string {
 	colors := []color.Attribute{
 		color.FgHiRed, color.FgHiGreen, color.FgHiYellow,
 		color.FgHiBlue, color.FgHiMagenta, color.FgHiCyan,
@@ -185,8 +185,7 @@ type stdOutLogWriter struct {
 }
 
 func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
-	lines := strings.Split(string(p), "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(string(p), "\n") {
 		if line == "" {
 			continue
 		}

@@ -16,6 +16,9 @@ linters:
     - staticcheck
     - unconvert
     - unused
+    - testifylint
+    - modernize
+    - nestif
   settings:
     goconst:
       min-len: 2
