@@ -1168,6 +1168,46 @@ func Test_execCmdWithTmp(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, wr.String(), fmt.Sprintf("cannot access '%s'", tmpPath))
 	})
+
+	t.Run("copy single file with sudo and mkdir to non-existent directory", func(t *testing.T) {
+		// this test verifies the fix for the bug where mkdir: true was ignored
+		// when copying a single file (non-wildcard) with sudo: true
+		// see: https://github.com/umputun/spot/issues/xxx
+		wr := bytes.NewBuffer(nil)
+		log.SetOutput(io.MultiWriter(wr, os.Stdout))
+
+		testDir := "/tmp/spot-test-mkdir-sudo-" + fmt.Sprintf("%d", time.Now().UnixNano())
+		defer func() {
+			sess.Run(ctx, "sudo rm -rf "+testDir, nil)
+		}()
+
+		// create a temp source file
+		tmpSrc, err := os.CreateTemp("", "spot-test-src-*.txt")
+		require.NoError(t, err)
+		_, err = tmpSrc.WriteString("test content for mkdir+sudo")
+		require.NoError(t, err)
+		tmpSrc.Close()
+		defer os.Remove(tmpSrc.Name())
+
+		// copy single file with sudo and mkdir to a non-existent directory
+		// this was the bug: mkdir was ignored for single files with sudo
+		destFile := testDir + "/subdir/test-file.txt"
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Copy:    config.CopyInternal{Source: tmpSrc.Name(), Dest: destFile, Mkdir: true}}}
+		resp, err := ec.Copy(ctx)
+		require.NoError(t, err, "copy should succeed with mkdir+sudo creating parent directory")
+		assert.Contains(t, resp.details, "sudo: true")
+
+		// verify file was copied
+		wr.Reset()
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Options: config.CmdOptions{Sudo: true},
+			Script:  "cat " + destFile}}
+		_, err = ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, wr.String(), "test content for mkdir+sudo")
+	})
 }
 
 func Test_execCmd_prepScript(t *testing.T) {
