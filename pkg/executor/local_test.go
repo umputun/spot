@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"testing"
 	"time"
 
@@ -53,7 +53,7 @@ func TestRun(t *testing.T) {
 
 		out, err := l.Run(ctx, "ls -1 /tmp/st", nil)
 		require.NoError(t, err)
-		assert.Equal(t, 2, len(out))
+		assert.Len(t, out, 2)
 		assert.Equal(t, "data1.txt", out[0])
 		assert.Equal(t, "data2.txt", out[1])
 	})
@@ -66,7 +66,7 @@ func TestRun(t *testing.T) {
 	t.Run("find out", func(t *testing.T) {
 		out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
 		require.NoError(t, e)
-		sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+		slices.Sort(out)
 		assert.Contains(t, out, "/tmp/st/data1.txt")
 		assert.Contains(t, out, "/tmp/st/data2.txt")
 	})
@@ -76,7 +76,7 @@ func TestRun(t *testing.T) {
 			l := NewLocal(MakeLogs(true, false, []string{"data2"}))
 			out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
 			require.NoError(t, e)
-			sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+			slices.Sort(out)
 			assert.Equal(t, []string{"/tmp/st/data1.txt", "/tmp/st/data2.txt"}, out)
 		})
 
@@ -210,7 +210,7 @@ func TestUploadAndDownload(t *testing.T) {
 					return
 				}
 
-				assert.NoError(t, err, "unexpected error")
+				require.NoError(t, err, "unexpected error")
 
 				dstContent, err := os.ReadFile(dstFile)
 				require.NoError(t, err)
@@ -295,7 +295,7 @@ func TestUploadDownloadWithGlob(t *testing.T) {
 					return
 				}
 
-				assert.NoError(t, err, "unexpected error")
+				require.NoError(t, err, "unexpected error")
 
 				// assert that all files were uploaded
 				files, err := os.ReadDir(dstDir)
@@ -371,7 +371,7 @@ func TestUploadDownloadWithExclude(t *testing.T) {
 				return
 			}
 
-			assert.NoError(t, err, "unexpected error")
+			require.NoError(t, err, "unexpected error")
 
 			// assert that all files were uploaded
 			files, err := os.ReadDir(dstDir)
@@ -676,9 +676,9 @@ func TestDelete(t *testing.T) {
 			l := &Local{}
 			err = l.Delete(context.Background(), remoteFile, &DeleteOpts{Recursive: tc.recursive})
 			if tc.expectError {
-				assert.Error(t, err, "expected an error")
+				require.Error(t, err, "expected an error")
 			} else {
-				assert.NoError(t, err, "unexpected error")
+				require.NoError(t, err, "unexpected error")
 
 				_, err := os.Stat(remoteFile)
 				assert.True(t, os.IsNotExist(err), "remote file should be deleted")
@@ -788,14 +788,14 @@ func TestDeleteWithExclude(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			remoteFile, err := initTestCase(tc)
-			assert.NoError(t, err, "unable to initialize test case")
+			require.NoError(t, err, "unable to initialize test case")
 
 			l := &Local{}
 			err = l.Delete(context.Background(), remoteFile, &DeleteOpts{Recursive: tc.recursive, Exclude: tc.exclude})
-			if tc.expectError {
-				assert.Error(t, err, "expected an error")
+			if tc.expectError { //nolint:nestif // test assertions require nested checks
+				require.Error(t, err, "expected an error")
 			} else {
-				assert.NoError(t, err, "unexpected error")
+				require.NoError(t, err, "unexpected error")
 
 				if len(tc.dstStructure) == 0 {
 					_, err := os.Stat(remoteFile)
@@ -852,11 +852,11 @@ func TestUpload_SpecialCharacterInPath(t *testing.T) {
 	dstFile := filepath.Join(dstDir, "file_with_special_#_character.txt")
 
 	err = l.Upload(context.Background(), srcFile.Name(), dstFile, &UpDownOpts{Mkdir: true})
-	assert.NoError(t, err, "unexpected error")
+	require.NoError(t, err, "unexpected error")
 
 	dstContent, err := os.ReadFile(dstFile)
 	require.NoError(t, err)
-	assert.Equal(t, "", string(dstContent), "uploaded content should match source content")
+	assert.Empty(t, string(dstContent), "uploaded content should match source content")
 }
 
 func TestLocal_copyFile(t *testing.T) {
@@ -871,23 +871,23 @@ func TestLocal_copyFile(t *testing.T) {
 
 		// create a source file
 		err := os.WriteFile(src, []byte("content"), 0o644)
-		assert.NoError(t, err, "creating a source file should not return an error")
+		require.NoError(t, err, "creating a source file should not return an error")
 
 		// call copyFile
 		err = l.copyFile(src, dst)
-		assert.NoError(t, err, "copying an existing source file should not return an error")
+		require.NoError(t, err, "copying an existing source file should not return an error")
 
 		// check if the destination file was created and has the correct content
 		content, err := os.ReadFile(dst)
-		assert.NoError(t, err, "reading the destination file should not return an error")
+		require.NoError(t, err, "reading the destination file should not return an error")
 		assert.Equal(t, "content", string(content), "destination file content should be the same as the source file")
 
 		// check if the destination file has the same permissions as the source file
 		srcInfo, err := os.Stat(src)
-		assert.NoError(t, err, "getting source file info should not return an error")
+		require.NoError(t, err, "getting source file info should not return an error")
 
 		dstInfo, err := os.Stat(dst)
-		assert.NoError(t, err, "getting destination file info should not return an error")
+		require.NoError(t, err, "getting destination file info should not return an error")
 
 		assert.Equal(t, srcInfo.Mode(), dstInfo.Mode(), "destination file permissions should be the same as the source file")
 	})
@@ -914,7 +914,7 @@ func TestLocal_copyFile(t *testing.T) {
 
 		// create a source file
 		err := os.WriteFile(src, []byte("content"), 0o644)
-		assert.NoError(t, err, "creating a source file should not return an error")
+		require.NoError(t, err, "creating a source file should not return an error")
 
 		err = l.copyFile(src, dst)
 		assert.ErrorContains(t, err, "destination_file.txt: no such file or directory",
@@ -930,15 +930,15 @@ func TestLocal_copyFile(t *testing.T) {
 
 		// create a source file
 		err := os.WriteFile(src, []byte("content"), 0o644)
-		assert.NoError(t, err, "creating a source file should not return an error")
+		require.NoError(t, err, "creating a source file should not return an error")
 
 		// call copyFile
 		err = l.copyFile(src, dst)
-		assert.NoError(t, err, "copying an existing source file should not return an error")
+		require.NoError(t, err, "copying an existing source file should not return an error")
 
 		// remove write permission from the destination file
 		err = os.Chmod(dst, 0o444)
-		assert.NoError(t, err, "changing permissions of the destination file should not return an error")
+		require.NoError(t, err, "changing permissions of the destination file should not return an error")
 
 		// call copyFile again
 		err = l.copyFile(src, dst)

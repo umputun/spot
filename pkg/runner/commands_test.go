@@ -262,7 +262,7 @@ func Test_execCmd(t *testing.T) {
 		// verify both files were downloaded
 		files, err := os.ReadDir(tmpDir)
 		require.NoError(t, err)
-		assert.Equal(t, 2, len(files), "should have downloaded 2 files")
+		assert.Len(t, files, 2, "should have downloaded 2 files")
 	})
 
 	t.Run("download relative symlink with sudo", func(t *testing.T) {

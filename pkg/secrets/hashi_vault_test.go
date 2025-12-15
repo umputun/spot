@@ -21,7 +21,7 @@ func TestHashiVaultProvider_Get(t *testing.T) {
 	vaultClient.SetToken("myroot-token")
 
 	// write a secret to the Vault
-	_, err = vaultClient.Logical().Write("secret/data/spot", map[string]interface{}{
+	_, err = vaultClient.Logical().Write("secret/data/spot", map[string]any{
 		"data": map[string]string{"key1": "test-secret"},
 	})
 	require.NoError(t, err, "failed to write secret to Vault")

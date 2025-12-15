@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"regexp"
 	"strings"
 	"sync"
@@ -104,7 +105,6 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
 	for i, host := range targetHosts {
-		i, host := i, host //nolint:copyloopvar // copy loop variables in case we downgrade to pre 1.22 go version
 		wg.Go(func() error {
 			user := host.User // default user from target
 			if tsk.User != "" {
@@ -120,12 +120,8 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 				errLog := p.Logs.WithHost(host.Host, host.Name).Err
 				errLog.Write([]byte(e.Error())) // nolint
 			}
-			for k, v := range resp.vars {
-				allVars[k] = v
-			}
-			for k, v := range resp.registered {
-				allRegistered[k] = v
-			}
+			maps.Copy(allVars, resp.vars)
+			maps.Copy(allRegistered, resp.registered)
 			lock.Unlock()
 
 			return e
@@ -263,10 +259,8 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 			continue
 		}
 
-		p.updateVars(exResp.vars, cmd, &activeTask) // set variables from command output to all commands env in task
-		for k, v := range exResp.registered {       // store registered variables from command output
-			resp.registered[k] = v
-		}
+		p.updateVars(exResp.vars, cmd, &activeTask)   // set variables from command output to all commands env in task
+		maps.Copy(resp.registered, exResp.registered) // store registered variables from command output
 		if exResp.verbose != "" && ec.verbose2 {
 			report(repHostAddr, repHostName, exResp.verbose)
 		}
@@ -280,9 +274,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		report(repHostAddr, repHostName, "completed command %q%s (%v)", cmd.Name, details, since(stCmd))
 
 		resp.count++
-		for k, v := range exResp.vars {
-			resp.vars[k] = v
-		}
+		maps.Copy(resp.vars, exResp.vars)
 	}
 
 	if p.anyRemoteCommand(&activeTask) && !p.Local {

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMemoryProvider_Get(t *testing.T) {
@@ -11,8 +12,8 @@ func TestMemoryProvider_Get(t *testing.T) {
 
 	t.Run("get existing secret", func(t *testing.T) {
 		val, err := m.Get("sec1")
-		assert.NoError(t, err)
-		assert.Equal(t, val, "val1")
+		require.NoError(t, err)
+		assert.Equal(t, "val1", val)
 	})
 
 	t.Run("get non-existing secret", func(t *testing.T) {
@@ -23,21 +24,21 @@ func TestMemoryProvider_Get(t *testing.T) {
 	t.Run("get empty secret", func(t *testing.T) {
 		m := NewMemoryProvider(map[string]string{"sec1": ""})
 		val, err := m.Get("sec1")
-		assert.NoError(t, err)
-		assert.Equal(t, val, "")
+		require.NoError(t, err)
+		assert.Empty(t, val)
 	})
 
 	t.Run("get secret with spaces", func(t *testing.T) {
 		m := NewMemoryProvider(map[string]string{"sec1": "  val1  "})
 		val, err := m.Get("sec1")
-		assert.NoError(t, err)
-		assert.Equal(t, val, "  val1  ")
+		require.NoError(t, err)
+		assert.Equal(t, "  val1  ", val)
 	})
 
 	t.Run("get secret with special characters", func(t *testing.T) {
 		m := NewMemoryProvider(map[string]string{"sec1": "val1!@#$%^&*()_+-={}|[]\\:\";'<>?,./"})
 		val, err := m.Get("sec1")
-		assert.NoError(t, err)
-		assert.Equal(t, val, "val1!@#$%^&*()_+-={}|[]\\:\";'<>?,./")
+		require.NoError(t, err)
+		assert.Equal(t, "val1!@#$%^&*()_+-={}|[]\\:\";'<>?,./", val)
 	})
 }

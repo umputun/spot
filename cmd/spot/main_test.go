@@ -79,7 +79,7 @@ func Test_runCompleted(t *testing.T) {
 			require.NoError(t, err)
 		})
 		t.Log("out\n", logOut)
-		assert.True(t, time.Since(st) >= 1*time.Second)
+		assert.GreaterOrEqual(t, time.Since(st), 1*time.Second)
 	})
 
 	t.Run("normal run with secrets", func(t *testing.T) {
@@ -129,7 +129,7 @@ func Test_runCompleted(t *testing.T) {
 			require.NoError(t, err)
 		})
 		t.Log("out\n", logOut)
-		assert.True(t, time.Since(st) < 1*time.Second)
+		assert.Less(t, time.Since(st), 1*time.Second)
 		assert.NotContains(t, logOut, "secval")
 	})
 
@@ -198,7 +198,7 @@ func Test_runCompletedSimplePlaybook(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Log("out\n", logOut)
-	assert.True(t, time.Since(st) >= 1*time.Second)
+	assert.GreaterOrEqual(t, time.Since(st), 1*time.Second)
 }
 
 func Test_runAdhoc(t *testing.T) {
@@ -238,7 +238,7 @@ func Test_runCompletedSeveralTasks(t *testing.T) {
 		require.NoError(t, err)
 	})
 	t.Log("out: ", logOut)
-	assert.True(t, time.Since(st) >= 1*time.Second)
+	assert.GreaterOrEqual(t, time.Since(st), 1*time.Second)
 	assert.Contains(t, logOut, "task 1 command 1")
 	assert.Contains(t, logOut, "task 2 command 1")
 	assert.NotContains(t, logOut, "task 3 command 1")
@@ -263,7 +263,7 @@ func Test_runCompletedAllTasks(t *testing.T) {
 	})
 	t.Log("out: ", logOut)
 
-	assert.True(t, time.Since(st) >= 1*time.Second)
+	assert.GreaterOrEqual(t, time.Since(st), 1*time.Second)
 	assert.Contains(t, logOut, "task1")
 	assert.Contains(t, logOut, "task2")
 	assert.Contains(t, logOut, "all good, 123")
@@ -532,30 +532,24 @@ func runSSHAgent(t *testing.T, keyPath string) (stop func()) {
 
 	stopCh := make(chan struct{})
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for {
 			c, e := sock.Accept()
 			if e != nil {
 				return
 			}
 
-			wg.Add(1)
-			go func(c net.Conn) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-stopCh
 				c.Close()
-			}(c)
+			})
 
-			wg.Add(1)
-			go func(c net.Conn) {
-				defer wg.Done()
+			wg.Go(func() {
 				defer c.Close()
 				agent.ServeAgent(a, c)
-			}(c)
+			})
 		}
-	}()
+	})
 
 	prevAgent, resetAgent := os.LookupEnv("SSH_AUTH_SOCK")
 	os.Setenv("SSH_AUTH_SOCK", sock.Addr().String())

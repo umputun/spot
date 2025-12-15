@@ -241,7 +241,7 @@ echo 'Goodbye, World!'`,
 			assert.Equal(t, tc.expectedScript, script)
 			if reader != nil {
 				contents, err := io.ReadAll(reader)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				lines := strings.Split(string(contents), "\n")
 				assert.Equal(t, tc.expectedContents, lines[:len(lines)-1])
 			} else {
@@ -255,7 +255,7 @@ func TestCmd_getScriptCommand(t *testing.T) {
 	c, err := New("testdata/f1.yml", nil, nil)
 	require.NoError(t, err)
 	t.Logf("%+v", c)
-	assert.Equal(t, 1, len(c.Tasks), "single task")
+	assert.Len(t, c.Tasks, 1, "single task")
 
 	t.Run("script", func(t *testing.T) {
 		cmd := c.Tasks[0].Commands[3]
@@ -268,7 +268,7 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		cmd := c.Tasks[0].Commands[1]
 		assert.Equal(t, "copy configuration", cmd.Name)
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, "", res)
+		assert.Empty(t, res)
 	})
 
 	t.Run("script with env", func(t *testing.T) {
@@ -283,7 +283,7 @@ func TestCmd_getScriptCommandCustomShell(t *testing.T) {
 	c, err := New("testdata/f1.yml", &Overrides{SSHShell: "/bin/bash"}, nil)
 	require.NoError(t, err)
 	t.Logf("%+v", c)
-	assert.Equal(t, 1, len(c.Tasks), "single task")
+	assert.Len(t, c.Tasks, 1, "single task")
 
 	t.Run("script", func(t *testing.T) {
 		cmd := c.Tasks[0].Commands[3]
@@ -296,7 +296,7 @@ func TestCmd_getScriptCommandCustomShell(t *testing.T) {
 		cmd := c.Tasks[0].Commands[1]
 		assert.Equal(t, "copy configuration", cmd.Name)
 		res := cmd.scriptCommand(cmd.Script)
-		assert.Equal(t, "", res)
+		assert.Empty(t, res)
 	})
 
 	t.Run("script with env", func(t *testing.T) {
@@ -409,7 +409,7 @@ func TestCmd_getScriptFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			reader := tt.cmd.scriptFile(tt.cmd.Script, tt.cmd.Register)
 			scriptContentBytes, err := io.ReadAll(reader)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			scriptContent := string(scriptContentBytes)
 			assert.Equal(t, tt.expected, scriptContent)
 		})
@@ -666,9 +666,9 @@ copy:
 			err := yaml.Unmarshal([]byte(tc.yamlInput), &c)
 
 			if tc.expectedErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedCmd, c)
 			}
 		})
@@ -752,10 +752,10 @@ echo 'Goodbye, World!'
 
 			if tc.expectedReader != nil {
 				expectedBytes, err := io.ReadAll(tc.expectedReader)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				actualBytes, err := io.ReadAll(reader)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				assert.Equal(t, string(expectedBytes), string(actualBytes))
 			} else {
@@ -819,10 +819,10 @@ echo 'Goodbye, World!'
 
 			if tc.expectedReader != nil {
 				expectedBytes, err := io.ReadAll(tc.expectedReader)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				actualBytes, err := io.ReadAll(reader)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 
 				assert.Equal(t, string(expectedBytes), string(actualBytes))
 			} else {

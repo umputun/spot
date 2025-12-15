@@ -39,7 +39,7 @@ func (p *HashiVaultProvider) Get(key string) (string, error) {
 		return "", errors.New("secret not found")
 	}
 
-	data, ok := secret.Data["data"].(map[string]interface{})
+	data, ok := secret.Data["data"].(map[string]any)
 	if !ok {
 		return "", errors.New("unexpected secret data format")
 	}

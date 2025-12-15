@@ -10,7 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -224,7 +224,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 		exclude = opts.Exclude
 	}
 
-	if fileInfo.IsDir() && recursive {
+	if fileInfo.IsDir() && recursive { //nolint:nestif // recursive deletion with exclusions requires complex logic
 		hasExclusion := false
 		walker := sftpClient.Walk(remoteFile)
 
@@ -339,7 +339,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 		return nil, fmt.Errorf("canceled: %w", ctx.Err())
 	}
 
-	for _, line := range strings.Split(stdoutBuf.String(), "\n") {
+	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
 		if line != "" {
 			out = append(out, line)
 		}
@@ -633,8 +633,8 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, ex
 		}
 	}
 
-	sort.Slice(updatedFiles, func(i, j int) bool { return updatedFiles[i] < updatedFiles[j] })
-	sort.Slice(deletedFiles, func(i, j int) bool { return deletedFiles[i] < deletedFiles[j] })
+	slices.Sort(updatedFiles)
+	slices.Sort(deletedFiles)
 
 	return updatedFiles, deletedFiles
 }

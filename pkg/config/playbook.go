@@ -125,24 +125,25 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 	data, err := os.ReadFile(fname) // nolint
 	if err != nil {
 		log.Printf("[DEBUG] no playbook file %s found", fname)
-		if overrides != nil && overrides.AdHocCommand != "" {
-			// no config file but adhoc set, just return empty config with overrides
-			inventoryLoc := os.Getenv(inventoryEnv) // default inventory location from env
-			if overrides.Inventory != "" {
-				inventoryLoc = overrides.Inventory // inventory set in cli overrides
-			}
-			if inventoryLoc != "" { // load inventory if set in cli or env
-				res.inventory, err = res.loadInventory(inventoryLoc)
-				if err != nil {
-					return nil, fmt.Errorf("can't load inventory %s: %w", overrides.Inventory, err)
-				}
-				log.Printf("[INFO] inventory loaded from %s with %d hosts", inventoryLoc, len(res.inventory.Groups[allHostsGrp]))
-			} else {
-				log.Printf("[INFO] no inventory loaded")
-			}
+		if overrides == nil || overrides.AdHocCommand == "" {
+			return nil, err
+		}
+		// no config file but adhoc set, just return empty config with overrides
+		inventoryLoc := os.Getenv(inventoryEnv) // default inventory location from env
+		if overrides.Inventory != "" {
+			inventoryLoc = overrides.Inventory // inventory set in cli overrides
+		}
+		if inventoryLoc == "" { // no inventory to load
+			log.Printf("[INFO] no inventory loaded")
 			return res, nil
 		}
-		return nil, err
+		// load inventory if set in cli or env
+		res.inventory, err = res.loadInventory(inventoryLoc)
+		if err != nil {
+			return nil, fmt.Errorf("can't load inventory %s: %w", overrides.Inventory, err)
+		}
+		log.Printf("[INFO] inventory loaded from %s with %d hosts", inventoryLoc, len(res.inventory.Groups[allHostsGrp]))
+		return res, nil
 	}
 
 	if err = unmarshalPlaybookFile(fname, data, overrides, res); err != nil {
@@ -230,7 +231,7 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 // it will try to unmarshal to a SimplePlayBook struct and convert it to a complete PlayBook struct.
 func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res *PlayBook) (err error) {
 
-	unmarshal := func(data []byte, v interface{}, isFull bool) error {
+	unmarshal := func(data []byte, v any, isFull bool) error {
 		pbookType := "simple"
 		if isFull {
 			pbookType = "full"
@@ -287,19 +288,17 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		}
 
 		for _, t := range targets {
-			if strings.Contains(t, ":") {
+			hasPort := strings.Contains(t, ":")
+			switch {
+			case hasPort:
 				ip, port := splitIPAddress(t)
 				target.Hosts = append(target.Hosts, Destination{Host: ip, Port: port}) // set as hosts in case of ip:port
 				log.Printf("[DEBUG] set target host %s:%d", ip, port)
-			}
-
-			if hasInventory && !strings.Contains(t, ":") {
+			case hasInventory:
 				target.Names = append(target.Names, t) // set as names in case of just name and inventory is set
 				log.Printf("[DEBUG] set target name %s", t)
-			}
-
-			if !hasInventory && !strings.Contains(t, ":") { // set as host with :22 in case of just name and no inventory
-				target.Hosts = append(target.Hosts, Destination{Host: t, Port: 22}) // set as hosts in case of ip:port
+			default: // set as host with :22 in case of just name and no inventory
+				target.Hosts = append(target.Hosts, Destination{Host: t, Port: 22})
 				log.Printf("[DEBUG] set target host %s:22", t)
 			}
 		}
