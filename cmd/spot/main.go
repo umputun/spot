@@ -34,7 +34,7 @@ type options struct {
 	} `positional-args:"yes" positional-optional:"yes"`
 
 	PlaybookFile    string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
-	TaskNames       []string      `short:"n" long:"task" description:"task name"`
+	TaskNames       []string      `short:"n" long:"task" description:"task name or tag"`
 	Targets         []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent      int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
 	SSHTimeout      time.Duration `long:"timeout" env:"SPOT_TIMEOUT" description:"ssh timeout" default:"30s"`
@@ -185,26 +185,18 @@ func run(opts options) error {
 
 // runTasks runs all tasks in playbook by default or a single task if specified in command line
 func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Process) error {
-	// run specified tasks if there is any
-	if len(taskNames) > 0 {
-		for _, taskName := range taskNames {
-			for _, targetName := range targetsForTask(targets, taskName, r.Playbook) {
-				if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
-	}
+	fmt.Printf("Type of r.Playbook: %T\n", r.Playbook)
 
-	// run all tasks in playbook if no task specified
-	for _, task := range r.Playbook.AllTasks() {
-		for _, targetName := range targetsForTask(targets, task.Name, r.Playbook) {
-			if err := runTaskForTarget(ctx, r, task.Name, targetName); err != nil {
+	taskNamesToRun := r.Playbook.ResolveTasks(taskNames)
+
+	for _, taskName := range taskNamesToRun {
+		for _, targetName := range targetsForTask(targets, taskName, r.Playbook) {
+			if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
 				return err
 			}
 		}
 	}
+
 	return nil
 }
 
