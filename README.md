@@ -1107,6 +1107,92 @@ Available commands:
 
 ```
 
+## Editor Integration
+
+Spot provides JSON schemas for playbook and inventory files, enabling autocompletion, validation, and documentation in editors.
+
+**Schema URLs:**
+- Playbook: `https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json`
+- Inventory: `https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json`
+
+### Per-file (inline comment)
+
+Add a schema comment at the top of your YAML file. Works with any editor supporting yaml-language-server (Zed, VSCode, Neovim):
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json
+user: deploy
+targets:
+  ...
+```
+
+### Per-project
+
+**Zed** - create `.zed/settings.json` in your project root:
+
+```json
+{
+  "lsp": {
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "schemas": {
+            "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["spot.yml", "*.spot.yml"],
+            "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["inventory.yml"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**VSCode** - create `.vscode/settings.json`:
+
+```json
+{
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["spot.yml", "*.spot.yml"],
+    "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["inventory.yml"]
+  }
+}
+```
+
+### System-wide
+
+**Zed** - add to `~/.config/zed/settings.json` in the `lsp` section:
+
+```json
+"yaml-language-server": {
+  "settings": {
+    "yaml": {
+      "schemas": {
+        "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["**/spot.yml", "**/*.spot.yml"],
+        "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["**/inventory.yml"]
+      }
+    }
+  }
+}
+```
+
+**VSCode** - add to user settings (`Cmd/Ctrl+Shift+P` → "Preferences: Open User Settings (JSON)"):
+
+```json
+"yaml.schemas": {
+  "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["**/spot.yml", "**/*.spot.yml"],
+  "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["**/inventory.yml"]
+}
+```
+
+### IntelliJ IDEA / GoLand
+
+1. Go to **Settings → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings**
+2. Click **+** to add a new mapping
+3. Set **Name**: `Spot Playbook`
+4. Set **Schema URL**: `https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json`
+5. Add file pattern: `spot.yml` or `*.spot.yml`
+6. Repeat for inventory schema if needed
+
 ## Why Spot?
 
 Spot is simple. It only has a few basic commands with a very limited set of options and flags. The playbook is just a list of commands to run, plus a list of remote targets to apply those commands against. Each command is made to be as intuitive and as direct as possible. Despite its simplicity, Spot is surprisingly powerful and can help get things done. This tool was built out of frustration with the complexity of similar tools. All I wanted was something that is simple, easy to use, easy to understand, and capable of handling most of the usual deployment tasks. I didn't want to have to check the documentation or resort to googling every time I used it. Spot is the result of that effort.
