@@ -2,37 +2,33 @@
   "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json",
   "title": "Spot Inventory",
-  "description": "Spot Inventory",
+  "description": "Spot inventory file defining hosts and groups for deployment targets",
   "type": "object",
-  "additionalProperties": false,
   "oneOf": [
     {
-      "required": [
-        "hosts"
-      ]
-    }, {
-      "required": [
-        "groups"
-      ]
+      "required": ["hosts"],
+      "description": "Flat list of hosts"
+    },
+    {
+      "required": ["groups"],
+      "description": "Hosts organized into named groups"
     }
   ],
   "properties": {
     "hosts": {
       "type": "array",
-      "additionalItems": false,
+      "description": "Flat list of hosts (creates automatic 'all' group)",
       "items": {
         "$ref": "#/definitions/host"
       }
     },
     "groups": {
       "type": "object",
-      "additionalProperties": false,
-      "patternProperties": {
-        ".*": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/host"
-          }
+      "description": "Named groups of hosts (e.g., production, staging)",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "$ref": "#/definitions/host"
         }
       }
     }
@@ -41,30 +37,33 @@
     "host": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "host"
-      ],
+      "required": ["host"],
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "Custom name for the host (used in logs and targeting)"
         },
         "host": {
-          "type": "string"
+          "type": "string",
+          "description": "Hostname or IP address"
         },
         "port": {
           "type": "integer",
           "minimum": 1,
           "maximum": 65535,
-          "default": 22
+          "default": 22,
+          "description": "SSH port (default: 22)"
         },
         "user": {
-          "type": "string"
+          "type": "string",
+          "description": "SSH user override for this host"
         },
         "tags": {
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "description": "Tags for filtering and selection"
         }
       }
     }

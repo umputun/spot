@@ -2,506 +2,553 @@
   "$schema": "http://json-schema.org/draft-07/schema",
   "$id": "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json",
   "title": "Spot Playbook",
-  "description": "Spot Playbook",
+  "description": "Spot Playbook configuration for deployment and configuration management",
   "type": "object",
   "anyOf": [
     {
-      "required": [
-        "user",
-        "ssh_key",
-        "inventory",
-        "task"
-      ]
+      "required": ["user", "task"],
+      "description": "Simplified playbook with single task"
     },
     {
-      "required": [
-        "user",
-        "ssh_key",
-        "inventory",
-        "tasks"
-      ]
+      "required": ["user", "tasks"],
+      "description": "Full playbook with multiple tasks"
     }
   ],
   "properties": {
     "user": {
-      "type": "string"
+      "type": "string",
+      "description": "Default SSH user for remote connections"
     },
     "ssh_key": {
-      "type": "string"
+      "type": "string",
+      "description": "Path to SSH private key file"
+    },
+    "ssh_shell": {
+      "type": "string",
+      "description": "Remote shell to use for SSH commands (default: /bin/sh)"
+    },
+    "ssh_temp": {
+      "type": "string",
+      "description": "Remote temporary directory for script uploads (default: /tmp)"
+    },
+    "local_shell": {
+      "type": "string",
+      "description": "Local shell to use for local commands (default: OS shell)"
     },
     "inventory": {
-      "type": "string"
+      "type": "string",
+      "description": "Path or URL to inventory file"
     },
-    "task": {
-      "type": "array",
-      "additionalItems": false,
-      "minItems": 1,
-      "items": {
-        "$ref": "#/definitions/command"
-      }
+    "targets": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/targetsMap",
+          "description": "Full playbook: map of named target definitions"
+        },
+        {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Simplified playbook: list of host names, IPs, or host:port"
+        }
+      ]
+    },
+    "target": {
+      "type": "string",
+      "description": "Simplified playbook: single target host"
     },
     "tasks": {
       "type": "array",
-      "additionalItems": false,
       "minItems": 1,
       "items": {
         "$ref": "#/definitions/task"
-      }
-    }
-  },
-  "dependencies": {
-    "task": {
-      "oneOf": [
-        {
-          "required": [
-            "targets"
-          ]
-        },
-        {
-          "required": [
-            "target"
-          ]
-        }
-      ],
-      "properties": {
-        "targets": {
-          "type": "array",
-          "additionalItems": false,
-          "items": {
-            "type": "string"
-          }
-        },
-        "target": {
-          "type": "string"
-        }
-      }
+      },
+      "description": "Full playbook: list of tasks to execute"
     },
-    "tasks": {
-      "required": [
-        "targets"
-      ],
-      "properties": {
-        "targets": {
-          "$ref": "#/definitions/targets"
-        }
-      }
+    "task": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/command"
+      },
+      "description": "Simplified playbook: list of commands (single anonymous task)"
+    },
+    "options": {
+      "$ref": "#/definitions/options",
+      "description": "Simplified playbook: default options for all commands"
     }
   },
   "definitions": {
-    "hostsTargetType": {
+    "targetsMap": {
       "type": "object",
+      "description": "Map of named target definitions",
+      "additionalProperties": {
+        "$ref": "#/definitions/targetDefinition"
+      }
+    },
+    "targetDefinition": {
+      "type": "object",
+      "description": "Target definition specifying hosts to run commands on",
       "additionalProperties": false,
       "properties": {
         "hosts": {
           "type": "array",
-          "additionalItems": false,
           "items": {
             "$ref": "#/definitions/host"
-          }
-        }
-      }
-    },
-    "groupsTargetType": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
+          },
+          "description": "Direct list of hosts"
+        },
         "groups": {
           "type": "array",
-          "additionalItems": false,
           "items": {
             "type": "string"
-          }
-        }
-      }
-    },
-    "namesTargetType": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
+          },
+          "description": "List of inventory group names"
+        },
         "names": {
           "type": "array",
-          "additionalItems": false,
           "items": {
             "type": "string"
-          }
-        }
-      }
-    },
-    "targets": {
-      "type": "object",
-      "additionalProperties": false,
-      "patternProperties": {
-        ".*": {
-          "type": "object",
-          "additionalProperties": false,
-          "anyOf": [
-            {
-              "$ref": "#/definitions/hostsTargetType"
-            },
-            {
-              "$ref": "#/definitions/groupsTargetType"
-            },
-            {
-              "$ref": "#/definitions/namesTargetType"
-            }
-          ]
+          },
+          "description": "List of host names from inventory"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of tags to match from inventory"
         }
       }
     },
     "host": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "host"
-      ],
+      "required": ["host"],
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "Custom name for the host"
         },
         "host": {
-          "type": "string"
+          "type": "string",
+          "description": "Hostname or IP address"
         },
         "port": {
           "type": "integer",
           "minimum": 1,
           "maximum": 65535,
-          "default": 22
+          "default": 22,
+          "description": "SSH port (default: 22)"
         },
         "user": {
-          "type": "string"
+          "type": "string",
+          "description": "SSH user override for this host"
         },
         "tags": {
           "type": "array",
           "items": {
             "type": "string"
-          }
-        }
-      }
-    },
-    "command": {
-      "type": "object",
-      "oneOf": [
-        {
-          "required": [
-            "echo"
-          ]
-        },
-        {
-          "required": [
-            "script"
-          ]
-        },
-        {
-          "required": [
-            "copy"
-          ]
-        },
-        {
-          "required": [
-            "sync"
-          ]
-        },
-        {
-          "required": [
-            "delete"
-          ]
-        },
-        {
-          "required": [
-            "wait"
-          ]
-        },
-        {
-          "required": [
-            "line"
-          ]
-        }
-      ],
-      "properties": {
-        "name": {
-          "type": "string"
-        },
-        "on_exit": {
-          "type": "string"
-        },
-        "options": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "ignore_errors": {
-              "type": "boolean",
-              "default": false
-            },
-            "no_auto": {
-              "type": "boolean",
-              "default": false
-            },
-            "local": {
-              "type": "boolean",
-              "default": false
-            },
-            "sudo": {
-              "type": "boolean",
-              "default": false
-            },
-            "sudo_password": {
-              "type": "string",
-              "description": "Secret key containing sudo password"
-            },
-            "secrets": {
-              "type": "array",
-              "additionalItems": false,
-              "items": {
-                "type": "string"
-              }
-            },
-            "only_on": {
-              "type": "array",
-              "additionalItems": false,
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "env": {
-          "type": "object",
-          "patternProperties": {
-            ".*": {
-              "type": "string"
-            }
-          }
-        },
-        "echo": {
-          "type": "string"
-        },
-        "script": {
-          "type": "string"
-        },
-        "copy": {
-          "type": [
-            "object",
-            "array"
-          ],
-          "additionalProperties": false,
-          "additionalItems": false,
-          "minItems": 1,
-          "required": [
-            "src",
-            "dst"
-          ],
-          "properties": {
-            "src": {
-              "type": "string"
-            },
-            "dst": {
-              "type": "string"
-            },
-            "direction": {
-              "type": "string",
-              "enum": ["push", "pull"],
-              "default": "push",
-              "description": "Copy direction: 'push' (upload to remote) or 'pull' (download from remote)"
-            },
-            "mkdir": {
-              "type": "boolean",
-              "default": false
-            },
-            "force": {
-              "type": "boolean",
-              "default": false,
-              "description": "Force copy even if files are up-to-date"
-            },
-            "recur": {
-              "type": "boolean",
-              "default": false
-            },
-            "chmod+x": {
-              "type": "boolean",
-              "default": false
-            },
-            "exclude": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "sync": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "src",
-            "dst"
-          ],
-          "properties": {
-            "src": {
-              "type": "string"
-            },
-            "dst": {
-              "type": "string"
-            },
-            "delete": {
-              "type": "boolean",
-              "default": false
-            },
-            "exclude": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "delete": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "path"
-          ],
-          "properties": {
-            "path": {
-              "type": "string"
-            },
-            "recur": {
-              "type": "boolean",
-              "default": false
-            },
-            "exclude": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          }
-        },
-        "wait": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "cmd",
-            "timeout",
-            "interval"
-          ],
-          "properties": {
-            "cmd": {
-              "type": "string"
-            },
-            "timeout": {
-              "type": "string"
-            },
-            "interval": {
-              "type": "string"
-            }
-          }
-        },
-        "line": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "file",
-            "match"
-          ],
-          "properties": {
-            "file": {
-              "type": "string"
-            },
-            "match": {
-              "type": "string"
-            },
-            "delete": {
-              "type": "boolean",
-              "default": false
-            },
-            "replace": {
-              "type": "string"
-            },
-            "append": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "dependencies": {
-        "script": {
-          "properties": {
-            "cond": {
-              "type": "string"
-            }
-          }
+          },
+          "description": "Tags for host selection"
         }
       }
     },
     "task": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "commands"
-      ],
+      "required": ["name", "commands"],
       "properties": {
         "name": {
-          "type": "string"
-        },
-        "on_error": {
-          "type": "string"
-        },
-        "targets": {
-          "$ref": "#/definitions/targets"
+          "type": "string",
+          "description": "Unique task name"
         },
         "user": {
-          "type": "string"
+          "type": "string",
+          "description": "SSH user override for this task"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of target names or host references to run this task on"
+        },
+        "on_error": {
+          "type": "string",
+          "description": "Script to execute if any command in task fails"
         },
         "commands": {
           "type": "array",
-          "additionalItems": false,
           "minItems": 1,
           "items": {
             "$ref": "#/definitions/command"
-          }
+          },
+          "description": "List of commands to execute"
         },
         "options": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "ignore_errors": {
-              "type": "boolean",
-              "default": false
-            },
-            "no_auto": {
-              "type": "boolean",
-              "default": false
-            },
-            "local": {
-              "type": "boolean",
-              "default": false
-            },
-            "sudo": {
-              "type": "boolean",
-              "default": false
-            },
-            "sudo_password": {
-              "type": "string",
-              "description": "Secret key containing sudo password"
-            },
-            "secrets": {
-              "type": "array",
-              "additionalItems": false,
-              "items": {
-                "type": "string"
-              }
-            },
-            "only_on": {
-              "type": "array",
-              "additionalItems": false,
-              "items": {
-                "type": "string"
-              }
-            }
-          }
+          "$ref": "#/definitions/options",
+          "description": "Default options for all commands in this task"
         }
       }
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Command name for logging and identification"
+        },
+        "script": {
+          "type": "string",
+          "description": "Shell script to execute"
+        },
+        "echo": {
+          "type": "string",
+          "description": "Message to print (supports variable substitution)"
+        },
+        "copy": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/copySpec"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/copySpec"
+              },
+              "description": "Multiple copy operations"
+            }
+          ],
+          "description": "File copy operation(s)"
+        },
+        "sync": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/syncSpec"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/syncSpec"
+              },
+              "description": "Multiple sync operations"
+            }
+          ],
+          "description": "Directory sync operation(s)"
+        },
+        "delete": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/deleteSpec"
+            },
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/deleteSpec"
+              },
+              "description": "Multiple delete operations"
+            }
+          ],
+          "description": "File/directory delete operation(s)"
+        },
+        "mcopy": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/copySpec"
+          },
+          "description": "Multiple copy operations (explicit array form)"
+        },
+        "msync": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/syncSpec"
+          },
+          "description": "Multiple sync operations (explicit array form)"
+        },
+        "mdelete": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/deleteSpec"
+          },
+          "description": "Multiple delete operations (explicit array form)"
+        },
+        "wait": {
+          "$ref": "#/definitions/waitSpec",
+          "description": "Wait for condition to be true"
+        },
+        "line": {
+          "$ref": "#/definitions/lineSpec",
+          "description": "File line manipulation"
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Environment variables for this command"
+        },
+        "cond": {
+          "type": "string",
+          "description": "Condition to check before executing (prefix with ! to negate)"
+        },
+        "register": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Variable names to capture from script output"
+        },
+        "on_exit": {
+          "type": "string",
+          "description": "Script to run after command completes (regardless of success/failure)"
+        },
+        "options": {
+          "$ref": "#/definitions/options",
+          "description": "Command-specific options"
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["script"]
+        },
+        {
+          "required": ["echo"]
+        },
+        {
+          "required": ["copy"]
+        },
+        {
+          "required": ["sync"]
+        },
+        {
+          "required": ["delete"]
+        },
+        {
+          "required": ["mcopy"]
+        },
+        {
+          "required": ["msync"]
+        },
+        {
+          "required": ["mdelete"]
+        },
+        {
+          "required": ["wait"]
+        },
+        {
+          "required": ["line"]
+        }
+      ]
+    },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ignore_errors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Continue execution even if command fails"
+        },
+        "no_auto": {
+          "type": "boolean",
+          "default": false,
+          "description": "Skip command unless explicitly requested with --only"
+        },
+        "local": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run command on localhost instead of remote"
+        },
+        "sudo": {
+          "type": "boolean",
+          "default": false,
+          "description": "Run command with sudo"
+        },
+        "sudo_password": {
+          "type": "string",
+          "description": "Secret key containing sudo password"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of secret keys to load for this command"
+        },
+        "only_on": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Run only on specified hosts (prefix with ! to exclude)"
+        }
+      }
+    },
+    "copySpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "dst"],
+      "properties": {
+        "src": {
+          "type": "string",
+          "description": "Source file path or glob pattern"
+        },
+        "dst": {
+          "type": "string",
+          "description": "Destination file or directory path"
+        },
+        "direction": {
+          "type": "string",
+          "enum": ["push", "pull"],
+          "default": "push",
+          "description": "Copy direction: 'push' (upload to remote) or 'pull' (download from remote)"
+        },
+        "mkdir": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create destination directory if it doesn't exist"
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force copy even if files are identical"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Patterns to exclude from copy"
+        },
+        "chmod+x": {
+          "type": "boolean",
+          "default": false,
+          "description": "Make destination file executable after copy"
+        }
+      }
+    },
+    "syncSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "dst"],
+      "properties": {
+        "src": {
+          "type": "string",
+          "description": "Source directory path"
+        },
+        "dst": {
+          "type": "string",
+          "description": "Destination directory path"
+        },
+        "delete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Delete files in destination not present in source"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Patterns to exclude from sync"
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force sync even if files are identical"
+        }
+      }
+    },
+    "deleteSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "Path to file or directory to delete"
+        },
+        "recur": {
+          "type": "boolean",
+          "default": false,
+          "description": "Delete recursively (for directories)"
+        },
+        "exclude": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Patterns to exclude from deletion"
+        }
+      }
+    },
+    "waitSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cmd"],
+      "properties": {
+        "cmd": {
+          "type": "string",
+          "description": "Command to check (must exit 0 for success)"
+        },
+        "timeout": {
+          "type": "string",
+          "default": "30s",
+          "description": "Maximum time to wait (e.g., '30s', '5m')"
+        },
+        "interval": {
+          "type": "string",
+          "default": "1s",
+          "description": "Time between checks (e.g., '1s', '5s')"
+        }
+      }
+    },
+    "lineSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file", "match"],
+      "properties": {
+        "file": {
+          "type": "string",
+          "description": "Target file path"
+        },
+        "match": {
+          "type": "string",
+          "description": "Regex pattern to match lines"
+        },
+        "delete": {
+          "type": "boolean",
+          "default": false,
+          "description": "Delete matching lines"
+        },
+        "replace": {
+          "type": "string",
+          "description": "Replace matching lines with this text"
+        },
+        "append": {
+          "type": "string",
+          "description": "Append this line if pattern not found"
+        }
+      },
+      "anyOf": [
+        {
+          "properties": {
+            "delete": {
+              "const": true
+            }
+          },
+          "required": ["delete"]
+        },
+        {
+          "required": ["replace"]
+        },
+        {
+          "required": ["append"]
+        }
+      ]
     }
   }
 }
