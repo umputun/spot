@@ -1123,10 +1123,10 @@ func Test_shouldRunCmd(t *testing.T) {
 
 func TestGen(t *testing.T) {
 	mockPbook := &mocks.PlaybookMock{
-		TargetHostsFunc: func(string) ([]config.Destination, error) {
+		TargetHostsFunc: func(string, string) ([]config.Destination, error) {
 			return []config.Destination{
-				{Name: "test1", Host: "host1", Port: 8080, User: "user1", Tags: []string{"tag1", "tag2"}},
-				{Name: "test2", Host: "host2", Port: 8081, User: "user2", Tags: []string{"tag3", "tag4"}},
+				{Name: "test1", Host: "host1", Port: 8080, User: "user1", Tags: []string{"tag1", "tag2"}, ProxyCommand: "ssh bastion1 -W %h:%p", ProxyCommandParsed: []string{"ssh", "jump1", "-W", "%h:%p"}},
+				{Name: "test2", Host: "host2", Port: 8081, User: "user2", Tags: []string{"tag3", "tag4"}, ProxyCommand: "ssh bastion1 -W %h:%p", ProxyCommandParsed: []string{"ssh", "jump1", "-W", "%h:%p"}},
 			}, nil
 		},
 	}
@@ -1151,6 +1151,13 @@ func TestGen(t *testing.T) {
 			tmplInput: `{{range .}}{{.Name}}, {{.Host}}, {{.Port}}, {{.User}}{{end}}`,
 			wantErr:   false,
 			want:      "test1, host1, 8080, user1test2, host2, 8081, user2",
+		},
+		{
+			name:      "multiple fields, and proxy command ",
+			target:    "test",
+			tmplInput: `{{range .}}{{.Name}}, {{.Host}}, {{.Port}}, {{.User}}, {{.ProxyCommand}}{{end}}`,
+			wantErr:   false,
+			want:      "test1, host1, 8080, user1, ssh bastion1 -W %h:%ptest2, host2, 8081, user2, ssh bastion1 -W %h:%p",
 		},
 		{
 			name:      "invalid template",
@@ -1219,8 +1226,8 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 		TaskFunc: func(name string) (*config.Task, error) {
 			return conf.Task(name)
 		},
-		TargetHostsFunc: func(name string) ([]config.Destination, error) {
-			return conf.TargetHosts(name)
+		TargetHostsFunc: func(name string, adhocProxyCommand string) ([]config.Destination, error) {
+			return conf.TargetHosts(name, adhocProxyCommand)
 		},
 		AllSecretValuesFunc:    conf.AllSecretValues,
 		UpdateTasksTargetsFunc: conf.UpdateTasksTargets,
