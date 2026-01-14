@@ -27,21 +27,21 @@
 //
 //	OS      Arch    SQLite version
 //	------------------------------
-//	darwin	amd64   3.50.4
-//	darwin	arm64   3.50.4
-//	freebsd	amd64   3.50.4
-//	freebsd	arm64   3.50.4
-//	linux	386     3.50.4
-//	linux	amd64   3.50.4
-//	linux	arm     3.50.4
-//	linux	arm64   3.50.4
-//	linux	loong64 3.50.4
-//	linux	ppc64le 3.50.4
-//	linux	riscv64 3.50.4
-//	linux	s390x   3.50.4
-//	windows	386     3.50.4
-//	windows	amd64   3.50.4
-//	windows	arm64   3.50.4
+//	darwin	amd64   3.51.1
+//	darwin	arm64   3.51.1
+//	freebsd	amd64   3.51.1
+//	freebsd	arm64   3.51.1
+//	linux	386     3.51.1
+//	linux	amd64   3.51.1
+//	linux	arm     3.51.1
+//	linux	arm64   3.51.1
+//	linux	loong64 3.51.1
+//	linux	ppc64le 3.51.1
+//	linux	riscv64 3.51.1
+//	linux	s390x   3.51.1
+//	windows	386     3.51.1
+//	windows	amd64   3.51.1
+//	windows	arm64   3.51.1
 //
 // # Benchmarks
 //
@@ -55,10 +55,12 @@
 //
 // # Changelog
 //
+//   - 2026-01-13 v1.44.0: Upgrade to SQLite 3.51.1.
+//
 //   - 2025-10-10 v1.39.1: Upgrade to SQLite 3.50.4.
 //
 //   - 2025-06-09 v1.38.0: Upgrade to SQLite 3.50.1.
-// 
+//
 //   - 2025-02-26 v1.36.0: Upgrade to SQLite 3.49.0.
 //
 //   - 2024-11-16 v1.34.0: Implement ResetSession and IsValid methods in connection
