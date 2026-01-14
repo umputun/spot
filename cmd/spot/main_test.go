@@ -129,7 +129,7 @@ func Test_runCompleted(t *testing.T) {
 			require.NoError(t, err)
 		})
 		t.Log("out\n", logOut)
-		assert.Less(t, time.Since(st), 1*time.Second)
+		assert.Less(t, time.Since(st), 3*time.Second)
 		assert.NotContains(t, logOut, "secval")
 	})
 

@@ -133,10 +133,11 @@ func run(p *flags.Parser, opts options) error {
 }
 
 func setupLog(dbg bool) {
-	logOpts := []lgr.Option{lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+	logOpts := make([]lgr.Option, 0, 7) // max: 3 debug + 3 common + 1 colorizer
 	if dbg {
-		logOpts = []lgr.Option{lgr.Debug, lgr.CallerFile, lgr.CallerFunc, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError}
+		logOpts = append(logOpts, lgr.Debug, lgr.CallerFile, lgr.CallerFunc)
 	}
+	logOpts = append(logOpts, lgr.Msec, lgr.LevelBraces, lgr.StackTraceOnError)
 
 	colorizer := lgr.Mapper{
 		ErrorFunc:  func(s string) string { return color.New(color.FgHiRed).Sprint(s) },

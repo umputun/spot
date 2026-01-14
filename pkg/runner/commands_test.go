@@ -150,6 +150,39 @@ func Test_templaterApply(t *testing.T) {
 			expected: "normal value and \\$special\\$value",
 		},
 		{
+			name: "env variable should not match prefix of longer variable name",
+			inp:  `SUBNET_ID="subnet-12345"; echo "subnet=$SUBNET id=$SUBNET_ID"`,
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "test",
+				task:     &config.Task{Name: "task1", User: "user"},
+				env:      map[string]string{"SUBNET": "10.0.0.0/24"},
+			},
+			expected: `SUBNET_ID="subnet-12345"; echo "subnet=10.0.0.0/24 id=$SUBNET_ID"`,
+		},
+		{
+			name: "env variable with underscore suffix should not be affected by shorter var",
+			inp:  "$HOST is different from $HOST_NAME and $HOSTNAME",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "test",
+				task:     &config.Task{Name: "task1", User: "user"},
+				env:      map[string]string{"HOST": "myhost"},
+			},
+			expected: "myhost is different from $HOST_NAME and $HOSTNAME",
+		},
+		{
+			name: "env variable at end of string",
+			inp:  "value is $SUBNET",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "test",
+				task:     &config.Task{Name: "task1", User: "user"},
+				env:      map[string]string{"SUBNET": "10.0.0.0/24"},
+			},
+			expected: "value is 10.0.0.0/24",
+		},
+		{
 			name: "with error msg",
 			inp:  "$SPOT_REMOTE_HOST:$SPOT_REMOTE_USER:$SPOT_COMMAND ${SPOT_ERROR} and $SPOT_ERROR",
 			tmpl: templater{

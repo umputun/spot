@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -747,9 +748,18 @@ type templater struct {
 // it also applies the task environment variables to strings
 func (tm *templater) apply(inp string) string {
 	apply := func(inp, from, to string) string {
-		// replace either {SPOT_REMOTE_HOST} ${SPOT_REMOTE_HOST} or $SPOT_REMOTE_HOST format
+		// replace ${VAR} format - braces delimit the variable name
 		res := strings.ReplaceAll(inp, fmt.Sprintf("${%s}", from), to)
-		res = strings.ReplaceAll(res, fmt.Sprintf("$%s", from), to)
+
+		// replace $VAR format with word-boundary check to avoid matching prefixes
+		// e.g., $SUBNET should not match inside $SUBNET_ID
+		re := regexp.MustCompile(`\$` + regexp.QuoteMeta(from) + `(?:[^a-zA-Z0-9_]|$)`)
+		res = re.ReplaceAllStringFunc(res, func(match string) string {
+			suffix := match[len("$"+from):] // preserve trailing character (or empty if at end)
+			return to + suffix
+		})
+
+		// replace {VAR} format - braces delimit the variable name
 		res = strings.ReplaceAll(res, fmt.Sprintf("{%s}", from), to)
 		return res
 	}

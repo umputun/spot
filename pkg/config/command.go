@@ -438,7 +438,8 @@ func (cmd *Cmd) validate() error {
 		{"echo", func() bool { return cmd.Echo != "" }},
 	}
 
-	setCmds, names := []string{}, []string{}
+	setCmds := make([]string, 0, 2)
+	names := make([]string, 0, len(cmdTypes))
 	for _, cmdType := range cmdTypes {
 		names = append(names, cmdType.name)
 		if cmdType.check() {
