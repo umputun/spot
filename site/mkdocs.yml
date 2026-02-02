@@ -44,9 +44,6 @@ extra:
       link: https://hub.docker.com/r/umputun/spot/
     - icon: fontawesome/brands/twitter
       link: https://twitter.com/umputun
-  analytics:
-    provider: custom
-    analytic_id: 04942b40-0a7a-47a1-9dbc-76eb9a9e7999
 
 markdown_extensions:
   - smarty
