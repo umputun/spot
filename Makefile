@@ -39,8 +39,8 @@ prep-site:
 	cp -fv site/docs-src/logo.png site/site/assets/logo.png
 	# prepare mkdocs source
 	cp -fv README.md site/docs-src/index.md
-	sed -i '' 's|https:\/\/github.com\/umputun\/spot\/raw\/master\/site\/spot-bg.png|logo.png|' site/docs-src/index.md
-	sed -i '' 's|^.*/workflows/ci.yml.*$$||' site/docs-src/index.md
+	sed 's|https://github.com/umputun/spot/raw/master/site/spot-bg.png|logo.png|' site/docs-src/index.md > site/docs-src/index.md.tmp && mv site/docs-src/index.md.tmp site/docs-src/index.md
+	sed 's|^.*/workflows/ci.yml.*$$||' site/docs-src/index.md > site/docs-src/index.md.tmp && mv site/docs-src/index.md.tmp site/docs-src/index.md
 
 site: prep-site
 	@test -d site/.venv || python3 -m venv site/.venv
