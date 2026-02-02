@@ -33,7 +33,7 @@ jobs:
         run: pip install -r site/requirements.txt
 
       - name: build site
-        run: make prep-site && make site
+        run: make site
 
       - name: verify build output
         run: |

@@ -955,6 +955,19 @@
         @media (max-width: 768px) {
             .nav-links {
                 display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: rgba(10, 14, 20, 0.95);
+                backdrop-filter: blur(12px);
+                flex-direction: column;
+                padding: 20px;
+                gap: 16px;
+                border-bottom: 1px solid var(--border);
+            }
+            .nav-links.mobile-open {
+                display: flex;
             }
             .mobile-menu-btn {
                 display: block;
@@ -1412,7 +1425,7 @@ go install github.com/umputun/spot/cmd/spot-secrets@latest</code>
                     </h3>
                     <div class="code-block">
 <code><span class="comment"># Download from releases page</span>
-<a href="https://github.com/umputun/spot/releases" target="_blank" style="color: var(--green);">github.com/umputun/spot/releases</a></code>
+<a href="https://github.com/umputun/spot/releases" target="_blank" rel="noopener" style="color: var(--green);">github.com/umputun/spot/releases</a></code>
                     </div>
                 </div>
             </div>
@@ -1437,6 +1450,15 @@ go install github.com/umputun/spot/cmd/spot-secrets@latest</code>
     </footer>
 
     <script>
+        // Mobile menu toggle
+        const mobileMenuBtn = document.querySelector('.mobile-menu-btn');
+        const navLinks = document.querySelector('.nav-links');
+        if (mobileMenuBtn && navLinks) {
+            mobileMenuBtn.addEventListener('click', () => {
+                navLinks.classList.toggle('mobile-open');
+            });
+        }
+
         // Smooth scroll for anchor links
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function (e) {
@@ -1445,41 +1467,28 @@ go install github.com/umputun/spot/cmd/spot-secrets@latest</code>
                 if (target) {
                     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+                // Close mobile menu after clicking
+                if (navLinks) navLinks.classList.remove('mobile-open');
             });
         });
 
-        // Reveal on scroll
-        const observerOptions = {
-            threshold: 0.1,
-            rootMargin: '0px 0px -50px 0px'
-        };
-
-        const observer = new IntersectionObserver((entries) => {
+        // Scroll reveal with single IntersectionObserver instance
+        const revealObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
-                    entry.target.style.animationPlayState = 'running';
-                    observer.unobserve(entry.target);
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                    revealObserver.unobserve(entry.target);
                 }
             });
-        }, observerOptions);
+        }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
 
         // Observe cards and items for scroll reveal
         document.querySelectorAll('.feature-card, .command-item, .install-card, .why-item, .step').forEach((el, i) => {
             el.style.opacity = '0';
             el.style.transform = 'translateY(20px)';
             el.style.transition = `opacity 0.5s ease ${i % 3 * 0.1}s, transform 0.5s ease ${i % 3 * 0.1}s`;
-
-            const cardObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.style.opacity = '1';
-                        entry.target.style.transform = 'translateY(0)';
-                        cardObserver.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.1 });
-
-            cardObserver.observe(el);
+            revealObserver.observe(el);
         });
     </script>
 </body>
