@@ -34,11 +34,11 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 <details markdown>
   <summary>Screenshots</summary>
 
-- `spot` with playbook `spot.yml`: `spot -p spot.yml -t prod`
+- `spot` with playbook `spot.yml` and target name `prod`: `spot -p spot.yml -t prod`
 
 ![spot-playbook](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook.jpg)
 
-- `spot` with the same playbook in dry mode: `spot -p spot.yml -t prod -v`
+- `spot` with the same playbook in dry mode: `spot -p spot.yml -t prod --dry`
 
 ![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook-dry.jpg)
 
@@ -147,6 +147,7 @@ Spot supports the following command-line options:
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`. Values could be taken from the OS environment variables as well, e.g., `-e VAR1:$ENV_VAR1` or `-e VAR1:${ENV_VAR1}`.
 - `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The file can have values from the OS environment variables as well. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
 - `--no-color`: disable the colorized output. It can also be set with the environment variable `SPOT_NO_COLOR`.
+- `--local`: Forces all commands to run locally without SSH connections. Useful for running playbooks on the control machine without SSH setup, for testing, or in CI/CD environments.
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution. Setting this flag multiple times increases the verbosity level, i.e., `-vv`.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution and diagnostic messages.
@@ -1105,6 +1106,92 @@ Available commands:
   set   add a new secret
 
 ```
+
+## Editor Integration
+
+Spot provides JSON schemas for playbook and inventory files, enabling autocompletion, validation, and documentation in editors.
+
+**Schema URLs:**
+- Playbook: `https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json`
+- Inventory: `https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json`
+
+### Per-file (inline comment)
+
+Add a schema comment at the top of your YAML file. Works with any editor supporting yaml-language-server (Zed, VSCode, Neovim):
+
+```yaml
+# yaml-language-server: $schema=https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json
+user: deploy
+targets:
+  ...
+```
+
+### Per-project
+
+**Zed** - create `.zed/settings.json` in your project root:
+
+```json
+{
+  "lsp": {
+    "yaml-language-server": {
+      "settings": {
+        "yaml": {
+          "schemas": {
+            "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["spot.yml", "*.spot.yml"],
+            "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["inventory.yml"]
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**VSCode** - create `.vscode/settings.json`:
+
+```json
+{
+  "yaml.schemas": {
+    "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["spot.yml", "*.spot.yml"],
+    "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["inventory.yml"]
+  }
+}
+```
+
+### System-wide
+
+**Zed** - add to `~/.config/zed/settings.json` in the `lsp` section:
+
+```json
+"yaml-language-server": {
+  "settings": {
+    "yaml": {
+      "schemas": {
+        "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["**/spot.yml", "**/*.spot.yml"],
+        "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["**/inventory.yml"]
+      }
+    }
+  }
+}
+```
+
+**VSCode** - add to user settings (`Cmd/Ctrl+Shift+P` → "Preferences: Open User Settings (JSON)"):
+
+```json
+"yaml.schemas": {
+  "https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json": ["**/spot.yml", "**/*.spot.yml"],
+  "https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json": ["**/inventory.yml"]
+}
+```
+
+### IntelliJ IDEA / GoLand
+
+1. Go to **Settings → Languages & Frameworks → Schemas and DTDs → JSON Schema Mappings**
+2. Click **+** to add a new mapping
+3. Set **Name**: `Spot Playbook`
+4. Set **Schema URL**: `https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json`
+5. Add file pattern: `spot.yml` or `*.spot.yml`
+6. Repeat for inventory schema if needed
 
 ## Why Spot?
 

@@ -1,16 +1,18 @@
 site_name: SPOT
-site_url: https://simplotask.com/
+site_url: https://spotctl.com/docs/
 site_author: Umputun
 site_description: >-
-  SPOT (aka simplotask) is a powerful and easy-to-use tool for effortless deployment and configuration management.
+  SPOT is a powerful and easy-to-use tool for effortless deployment and configuration management.
+
+docs_dir: docs-src
+site_dir: site/docs
 
 repo_name: umputun/spot
 repo_url: https://github.com/umputun/spot
-copyright: Some rights reserved &copy; 2023 Umputun
+copyright: Some rights reserved &copy; 2026 Umputun
 
 theme:
   name: material
-  custom_dir: overrides
   favicon: favicon.png
   language: en
   palette:

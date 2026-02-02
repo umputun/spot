@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spot - Deploy anywhere. Simply.</title>
+    <meta name="description" content="Spot is a powerful deployment tool with playbook-based configuration, concurrent execution, and built-in secrets management. Single binary, no agents, pure SSH.">
+    <meta name="keywords" content="deployment tool, configuration management, SSH deployment, playbook, DevOps, infrastructure automation, secrets management, concurrent execution, YAML playbook, server deployment">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://spotctl.com/">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Spot - Deploy anywhere. Simply.">
+    <meta property="og:description" content="Playbook-based deployment tool with concurrent execution and built-in secrets management. Single binary, no agents, pure SSH.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://spotctl.com/">
+    <meta property="og:site_name" content="Spot">
+    <meta property="og:image" content="https://spotctl.com/assets/logo.png">
+    <meta property="og:image:width" content="512">
+    <meta property="og:image:height" content="512">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Spot - Deploy anywhere. Simply.">
+    <meta name="twitter:description" content="Playbook-based deployment tool with concurrent execution and built-in secrets management.">
+    <meta name="twitter:image" content="https://spotctl.com/assets/logo.png">
+
+    <!-- Schema.org structured data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Spot",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "Linux, macOS, Windows",
+        "description": "Playbook-based deployment tool with concurrent execution, built-in secrets management, and a single binary with zero dependencies.",
+        "url": "https://spotctl.com",
+        "downloadUrl": "https://github.com/umputun/spot/releases",
+        "softwareVersion": "latest",
+        "author": {
+            "@type": "Person",
+            "name": "Umputun",
+            "url": "https://github.com/umputun"
+        },
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "license": "https://opensource.org/licenses/MIT"
+    }
+    </script>
+
+    <link rel="icon" type="image/png" href="favicon.png">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-primary: #0a0e14;
+            --bg-secondary: #0f1419;
+            --bg-card: #151b23;
+            --bg-elevated: #1a222c;
+            --coral: #E8553E;
+            --coral-dim: #c4442f;
+            --coral-glow: rgba(232, 85, 62, 0.15);
+            --coral-glow-strong: rgba(232, 85, 62, 0.25);
+            --text-primary: #e6e6e6;
+            --text-secondary: #8a939e;
+            --text-muted: #545d68;
+            --border: #1e2731;
+            --border-light: #2a3542;
+            --green: #3fb950;
+            --cyan: #56d4dd;
+            --yellow: #d29922;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Dot grid background pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: radial-gradient(circle at 1px 1px, rgba(232, 85, 62, 0.08) 1px, transparent 0);
+            background-size: 40px 40px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Typography */
+        h1, h2, h3 {
+            font-family: 'IBM Plex Sans', sans-serif;
+            font-weight: 600;
+            line-height: 1.25;
+            letter-spacing: -0.02em;
+        }
+
+        code, pre, .mono {
+            font-family: 'Fira Code', monospace;
+        }
+
+        a {
+            color: var(--coral);
+            text-decoration: none;
+            transition: color 0.2s, text-shadow 0.2s;
+        }
+
+        a:hover {
+            color: var(--coral-dim);
+            text-shadow: 0 0 20px var(--coral-glow);
+        }
+
+        /* Container */
+        .container {
+            max-width: 1120px;
+            margin: 0 auto;
+            padding: 0 24px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Reveal animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 0.8; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(2deg); }
+        }
+
+        .reveal {
+            animation: fadeInUp 0.6s ease-out forwards;
+            opacity: 0;
+        }
+
+        .reveal-delay-1 { animation-delay: 0.1s; }
+        .reveal-delay-2 { animation-delay: 0.2s; }
+        .reveal-delay-3 { animation-delay: 0.3s; }
+        .reveal-delay-4 { animation-delay: 0.4s; }
+        .reveal-delay-5 { animation-delay: 0.5s; }
+        .reveal-delay-6 { animation-delay: 0.6s; }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(10, 14, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 24px;
+            max-width: 1120px;
+            margin: 0 auto;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1.35rem;
+            color: var(--text-primary);
+            transition: transform 0.2s;
+        }
+
+        .logo:hover {
+            transform: scale(1.02);
+            text-shadow: none;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dim) 100%);
+            border-radius: 50%;
+            box-shadow: 0 4px 15px var(--coral-glow-strong);
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: color 0.2s, transform 0.2s;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--coral);
+            transition: width 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+            text-shadow: none;
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.25s;
+            border: none;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dim) 100%);
+            color: white;
+            box-shadow: 0 4px 15px var(--coral-glow);
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.4s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--coral-glow-strong);
+            color: white;
+        }
+
+        .btn-primary:hover::before {
+            left: 100%;
+        }
+
+        .btn-secondary {
+            background: var(--bg-elevated);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-light);
+        }
+
+        .btn-secondary:hover {
+            color: var(--text-primary);
+            border-color: var(--coral);
+            box-shadow: 0 0 20px var(--coral-glow);
+            transform: translateY(-2px);
+        }
+
+        .github-link {
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .github-link:hover {
+            color: var(--text-primary);
+            transform: scale(1.1);
+            text-shadow: none;
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 160px 0 100px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Hero gradient orbs */
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 800px;
+            height: 500px;
+            background: radial-gradient(ellipse at center, var(--coral-glow-strong) 0%, transparent 60%);
+            pointer-events: none;
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        .hero h1 {
+            font-size: clamp(2.6rem, 5vw, 3.5rem);
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .hero h1 .accent {
+            color: var(--coral);
+            text-shadow: 0 0 40px var(--coral-glow-strong);
+        }
+
+        .hero-subtitle {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            max-width: 560px;
+            margin: 0 auto 36px;
+            line-height: 1.7;
+            position: relative;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 14px;
+            justify-content: center;
+            margin-bottom: 60px;
+            position: relative;
+        }
+
+        /* Terminal */
+        .terminal {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            max-width: 840px;
+            margin: 0 auto;
+            overflow: hidden;
+            text-align: left;
+            position: relative;
+            box-shadow:
+                0 25px 60px rgba(0, 0, 0, 0.4),
+                0 0 40px var(--coral-glow),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .terminal::before {
+            content: '';
+            position: absolute;
+            top: -1px;
+            left: 20%;
+            right: 20%;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--coral), transparent);
+            opacity: 0.5;
+        }
+
+        .terminal-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            transition: transform 0.2s;
+        }
+
+        .terminal-dot:hover {
+            transform: scale(1.2);
+        }
+
+        .terminal-dot.red { background: #ff5f57; box-shadow: 0 0 8px rgba(255, 95, 87, 0.5); }
+        .terminal-dot.yellow { background: #febc2e; box-shadow: 0 0 8px rgba(254, 188, 46, 0.5); }
+        .terminal-dot.green { background: #28c840; box-shadow: 0 0 8px rgba(40, 200, 64, 0.5); }
+
+        .terminal-title {
+            flex: 1;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            font-family: 'Fira Code', monospace;
+        }
+
+        .terminal-body {
+            padding: 20px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            line-height: 1.8;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            color: var(--text-secondary);
+        }
+
+        .terminal-body .command { color: var(--text-primary); }
+        .terminal-body .host { color: var(--coral); }
+        .terminal-body .success { color: var(--green); }
+        .terminal-body .time { color: var(--text-muted); }
+
+        /* Sections */
+        section {
+            padding: 90px 0;
+            position: relative;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 55px;
+        }
+
+        .section-header h2 {
+            font-size: 2.2rem;
+            margin-bottom: 14px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .section-header h2::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--coral), transparent);
+            border-radius: 2px;
+        }
+
+        .section-header p {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            max-width: 480px;
+            margin: 20px auto 0;
+        }
+
+        /* Why Spot Section */
+        .why-section {
+            background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+
+        .why-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--coral), transparent);
+            opacity: 0.3;
+        }
+
+        .why-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 40px;
+        }
+
+        .why-item {
+            text-align: center;
+            transition: transform 0.3s;
+        }
+
+        .why-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .why-item .icon-box {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 18px;
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .why-item:hover .icon-box {
+            border-color: var(--coral);
+            box-shadow: 0 0 25px var(--coral-glow);
+        }
+
+        .why-item .icon-box svg {
+            width: 26px;
+            height: 26px;
+            color: var(--coral);
+            transition: transform 0.3s;
+        }
+
+        .why-item:hover .icon-box svg {
+            transform: scale(1.1);
+        }
+
+        .why-item h3 {
+            font-size: 1.05rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .why-item p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Features Grid */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .feature-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 28px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--coral), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .feature-card:hover {
+            border-color: var(--border-light);
+            transform: translateY(-4px);
+            box-shadow:
+                0 20px 40px rgba(0, 0, 0, 0.3),
+                0 0 30px var(--coral-glow);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--coral-glow) 0%, transparent 100%);
+            border: 1px solid rgba(232, 85, 62, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 18px;
+            color: var(--coral);
+            transition: all 0.3s;
+        }
+
+        .feature-card:hover .feature-icon {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px var(--coral-glow);
+        }
+
+        .feature-card h3 {
+            font-size: 1.05rem;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .feature-card p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        /* How It Works */
+        .steps-section {
+            background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-primary) 100%);
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 30px;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s;
+        }
+
+        .step:hover {
+            transform: translateY(-4px);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 14px;
+        }
+
+        .step-number {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, var(--coral) 0%, var(--coral-dim) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.95rem;
+            color: white;
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px var(--coral-glow);
+            transition: all 0.3s;
+        }
+
+        .step:hover .step-number {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px var(--coral-glow-strong);
+        }
+
+        .step h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        .step > p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 18px;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            flex: 1;
+            color: var(--text-secondary);
+            transition: all 0.3s;
+        }
+
+        .step:hover .code-block {
+            border-color: var(--border-light);
+            box-shadow: 0 0 20px var(--coral-glow);
+        }
+
+        .code-block .keyword { color: var(--coral); }
+        .code-block .string { color: var(--green); }
+        .code-block .comment { color: var(--text-muted); }
+
+        /* Command Types */
+        .commands-section {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .commands-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .command-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 14px;
+            padding: 22px;
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-card) 100%);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .command-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 3px;
+            height: 0;
+            background: var(--coral);
+            border-radius: 3px 0 0 3px;
+            transition: height 0.3s;
+        }
+
+        .command-item:hover {
+            border-color: var(--border-light);
+            transform: translateX(4px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .command-item:hover::before {
+            height: 100%;
+        }
+
+        .command-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--coral-glow) 0%, transparent 100%);
+            border: 1px solid rgba(232, 85, 62, 0.2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--coral);
+            flex-shrink: 0;
+            transition: all 0.3s;
+        }
+
+        .command-item:hover .command-icon {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px var(--coral-glow);
+        }
+
+        .command-item h4 {
+            font-family: 'Fira Code', monospace;
+            font-size: 0.95rem;
+            margin-bottom: 6px;
+            color: var(--coral);
+            font-weight: 500;
+        }
+
+        .command-item p {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        /* Installation */
+        .install-section {
+            background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+        }
+
+        .install-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        .install-card {
+            background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-elevated) 100%);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 26px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .install-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, var(--coral-glow) 0%, transparent 70%);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .install-card:hover {
+            transform: translateY(-4px);
+            border-color: var(--border-light);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .install-card:hover::before {
+            opacity: 1;
+        }
+
+        .install-card h3 {
+            font-size: 1rem;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            position: relative;
+        }
+
+        .install-card h3 svg {
+            color: var(--coral);
+            transition: transform 0.3s;
+        }
+
+        .install-card:hover h3 svg {
+            transform: scale(1.2);
+        }
+
+        .install-card .code-block {
+            margin: 0;
+            font-size: 0.75rem;
+            background: var(--bg-primary);
+            position: relative;
+            white-space: pre;
+            overflow-x: auto;
+        }
+
+        /* Footer */
+        footer {
+            border-top: 1px solid var(--border);
+            padding: 50px 0;
+            position: relative;
+        }
+
+        footer::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--coral), transparent);
+            opacity: 0.3;
+        }
+
+        .footer-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 30px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            transition: color 0.2s, transform 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: var(--coral);
+            transform: translateY(-2px);
+        }
+
+        .footer-copyright {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1000px) {
+            .features-grid,
+            .commands-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .why-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .steps {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+            .install-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+            .mobile-menu-btn {
+                display: block;
+            }
+            .hero {
+                padding: 130px 0 60px;
+            }
+            .hero-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            .features-grid,
+            .commands-grid {
+                grid-template-columns: 1fr;
+            }
+            .footer-content {
+                flex-direction: column;
+                gap: 20px;
+                text-align: center;
+            }
+            .footer-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .why-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .icon {
+            width: 22px;
+            height: 22px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-inner">
+            <a href="/" class="logo">
+                <div class="logo-icon"></div>
+                <span>spot</span>
+            </a>
+
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#commands">Commands</a>
+                <a href="#install">Install</a>
+            </div>
+
+            <div class="nav-right">
+                <a href="https://github.com/umputun/spot" class="github-link" target="_blank" rel="noopener">
+                    <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                    </svg>
+                </a>
+                <a href="/docs/" class="btn btn-primary">Documentation</a>
+            </div>
+
+            <button class="mobile-menu-btn" aria-label="Menu">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h18M3 6h18M3 18h18"/>
+                </svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1 class="reveal">Deploy anywhere. <span class="accent">Simply.</span></h1>
+            <p class="hero-subtitle reveal reveal-delay-1">
+                Playbook-based deployment tool with concurrent execution, built-in secrets management, and a single binary with zero dependencies.
+            </p>
+
+            <div class="hero-buttons reveal reveal-delay-2">
+                <a href="#install" class="btn btn-primary">Get Started</a>
+                <a href="/docs/" class="btn btn-secondary">Documentation</a>
+            </div>
+
+            <div class="terminal reveal reveal-delay-3">
+                <div class="terminal-header">
+                    <div class="terminal-dot red"></div>
+                    <div class="terminal-dot yellow"></div>
+                    <div class="terminal-dot green"></div>
+                    <span class="terminal-title">spot -p deploy.yml -t prod --concurrent=2</span>
+                </div>
+                <div class="terminal-body">
+<span class="output">spot v1.0.0</span>
+<span class="host">[web1 prod1.example.com:22]</span> <span class="output">run task</span> <span class="command">"deploy-app"</span><span class="output">, commands: 4</span>
+<span class="host">[web1 prod1.example.com:22]</span> <span class="success">completed</span> <span class="output">command</span> <span class="command">"copy config"</span> <span class="output">{copy: app.conf → /etc/app/}</span> <span class="time">(42ms)</span>
+<span class="host">[web1 prod1.example.com:22]</span> <span class="success">completed</span> <span class="output">command</span> <span class="command">"sync assets"</span> <span class="output">{sync: ./dist → /var/www/}</span> <span class="time">(380ms)</span>
+<span class="host">[web1 prod1.example.com:22]</span> <span class="success">completed</span> <span class="output">command</span> <span class="command">"restart service"</span> <span class="output">{script: systemctl restart app}</span> <span class="time">(95ms)</span>
+<span class="host">[web1 prod1.example.com:22]</span> <span class="success">completed</span> <span class="output">command</span> <span class="command">"health check"</span> <span class="output">{wait: curl localhost:8080/health}</span> <span class="time">(1.2s)</span>
+<span class="host">[web1 prod1.example.com:22]</span> <span class="success">completed</span> <span class="output">task</span> <span class="command">"deploy-app"</span><span class="output">, commands: 4</span> <span class="time">(1.7s)</span>
+<span class="host">[web2 prod2.example.com:22]</span> <span class="output">run task</span> <span class="command">"deploy-app"</span><span class="output">, commands: 4</span>
+<span class="host">[web2 prod2.example.com:22]</span> <span class="success">completed</span> <span class="output">command</span> <span class="command">"copy config"</span> <span class="output">{copy: app.conf → /etc/app/}</span> <span class="time">(38ms)</span>
+<span class="output">...</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why Spot Section -->
+    <section class="why-section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Why Spot?</h2>
+                <p>Deployment should be simple. Spot makes it that way.</p>
+            </div>
+
+            <div class="why-grid">
+                <div class="why-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        </svg>
+                    </div>
+                    <h3>Single Binary</h3>
+                    <p>Download one file. No runtime, no dependencies. Works on Linux, macOS, and Windows.</p>
+                </div>
+
+                <div class="why-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                            <line x1="6" y1="6" x2="6.01" y2="6"/>
+                            <line x1="6" y1="18" x2="6.01" y2="18"/>
+                        </svg>
+                    </div>
+                    <h3>No Agents</h3>
+                    <p>Pure SSH. No daemons to install or manage on remote hosts. If you can SSH, you can deploy.</p>
+                </div>
+
+                <div class="why-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                        </svg>
+                    </div>
+                    <h3>Simple Config</h3>
+                    <p>Plain YAML or TOML. No complex DSL to learn. If you know YAML, you already know Spot.</p>
+                </div>
+
+                <div class="why-item">
+                    <div class="icon-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                        </svg>
+                    </div>
+                    <h3>Just Enough</h3>
+                    <p>Focused toolset for real-world deployments. No bloat, no learning curve, no surprises.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features">
+        <div class="container">
+            <div class="section-header">
+                <h2>Features</h2>
+                <p>Everything you need for reliable deployments, nothing you don't.</p>
+            </div>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/>
+                            <line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                    </div>
+                    <h3>Playbook Configuration</h3>
+                    <p>Define tasks in simple YAML or TOML. No complex DSL to learn, just straightforward configuration.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <h3>Concurrent Execution</h3>
+                    <p>Execute tasks on multiple hosts simultaneously with configurable parallelism.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                    </div>
+                    <h3>Secrets Management</h3>
+                    <p>Built-in encrypted secrets with multiple providers: SQLite, Vault, AWS, Ansible Vault.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4"/>
+                            <path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
+                        </svg>
+                    </div>
+                    <h3>Dry-Run Mode</h3>
+                    <p>Preview exactly what will happen before executing. See all commands without changes.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="4 17 10 11 4 5"/>
+                            <line x1="12" y1="19" x2="20" y2="19"/>
+                        </svg>
+                    </div>
+                    <h3>Ad-hoc Commands</h3>
+                    <p>Run quick one-off commands across multiple hosts without creating a playbook.</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                    </div>
+                    <h3>Inventory Management</h3>
+                    <p>Organize hosts into groups with tags. Load inventory from files or URLs.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section id="how-it-works" class="steps-section">
+        <div class="container">
+            <div class="section-header">
+                <h2>How It Works</h2>
+                <p>Three simple steps to deploy your application.</p>
+            </div>
+
+            <div class="steps">
+                <div class="step">
+                    <div class="step-header">
+                        <div class="step-number">1</div>
+                        <h3>Define Your Playbook</h3>
+                    </div>
+                    <p>Create a YAML file with your tasks and commands.</p>
+                    <div class="code-block">
+<code><span class="keyword">user:</span> <span class="string">deploy</span>
+<span class="keyword">ssh_key:</span> <span class="string">~/.ssh/id_rsa</span>
+
+<span class="keyword">targets:</span>
+  <span class="keyword">prod:</span>
+    <span class="keyword">hosts:</span>
+      - <span class="keyword">host:</span> <span class="string">prod1.example.com</span>
+      - <span class="keyword">host:</span> <span class="string">prod2.example.com</span>
+
+<span class="keyword">tasks:</span>
+  - <span class="keyword">name:</span> <span class="string">deploy-app</span>
+    <span class="keyword">commands:</span>
+      - <span class="keyword">name:</span> <span class="string">copy config</span>
+        <span class="keyword">copy:</span> <span class="string">{src: "app.conf", dst: "/etc/app/"}</span></code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-header">
+                        <div class="step-number">2</div>
+                        <h3>Configure Inventory</h3>
+                    </div>
+                    <p>Organize your hosts into groups with optional tags.</p>
+                    <div class="code-block">
+<code><span class="keyword">groups:</span>
+  <span class="keyword">web:</span>
+    - <span class="keyword">host:</span> <span class="string">web1.example.com</span>
+      <span class="keyword">name:</span> <span class="string">web1</span>
+    - <span class="keyword">host:</span> <span class="string">web2.example.com</span>
+      <span class="keyword">name:</span> <span class="string">web2</span>
+  <span class="keyword">db:</span>
+    - <span class="keyword">host:</span> <span class="string">db1.example.com</span>
+      <span class="keyword">tags:</span> <span class="string">[primary, us-east]</span></code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-header">
+                        <div class="step-number">3</div>
+                        <h3>Execute with Spot</h3>
+                    </div>
+                    <p>Run your playbook with optional concurrency.</p>
+                    <div class="code-block">
+<code><span class="comment"># Run on production targets</span>
+<span class="command">$ spot -p deploy.yml -t prod</span>
+
+<span class="comment"># Run with 4 concurrent hosts</span>
+<span class="command">$ spot -p deploy.yml -t prod -c 4</span>
+
+<span class="comment"># Dry run to preview changes</span>
+<span class="command">$ spot -p deploy.yml -t prod --dry</span>
+
+<span class="comment"># Run specific task only</span>
+<span class="command">$ spot -p deploy.yml -t prod -n deploy-app</span></code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Command Types -->
+    <section id="commands" class="commands-section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Command Types</h2>
+                <p>Built-in commands for common deployment operations.</p>
+            </div>
+
+            <div class="commands-grid">
+                <div class="command-item">
+                    <div class="command-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="4 17 10 11 4 5"/>
+                            <line x1="12" y1="19" x2="20" y2="19"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4>script</h4>
+                        <p>Execute shell scripts on remote hosts with environment variables.</p>
+                    </div>
+                </div>
+
+                <div class="command-item">
+                    <div class="command-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"/>
+                            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4>copy</h4>
+                        <p>Copy files with glob patterns, mkdir support, push/pull directions.</p>
+                    </div>
+                </div>
+
+                <div class="command-item">
+                    <div class="command-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="16 16 12 12 8 16"/>
+                            <line x1="12" y1="12" x2="12" y2="21"/>
+                            <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4>sync</h4>
+                        <p>Synchronize directories with delete option and exclusion patterns.</p>
+                    </div>
+                </div>
+
+                <div class="command-item">
+                    <div class="command-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"/>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4>delete</h4>
+                        <p>Remove files or directories with optional recursive deletion.</p>
+                    </div>
+                </div>
+
+                <div class="command-item">
+                    <div class="command-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4>wait</h4>
+                        <p>Wait for a condition with configurable timeout and intervals.</p>
+                    </div>
+                </div>
+
+                <div class="command-item">
+                    <div class="command-icon">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h4>line</h4>
+                        <p>Manipulate config file lines with regex patterns.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Installation -->
+    <section id="install" class="install-section">
+        <div class="container">
+            <div class="section-header">
+                <h2>Installation</h2>
+                <p>Get started in seconds with your preferred method.</p>
+            </div>
+
+            <div class="install-grid">
+                <div class="install-card">
+                    <h3>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M5.8 11.3L2 13.1L5.8 14.9L7.6 18.7L9.4 14.9L13.2 13.1L9.4 11.3L7.6 7.5L5.8 11.3ZM18.4 5.8L14.6 7.6L18.4 9.4L20.2 13.2L22 9.4L25.8 7.6L22 5.8L20.2 2L18.4 5.8Z"/>
+                        </svg>
+                        Homebrew
+                    </h3>
+                    <div class="code-block">
+<code>brew tap umputun/apps
+brew install umputun/apps/spot</code>
+                    </div>
+                </div>
+
+                <div class="install-card">
+                    <h3>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M1.811 10.715c-.047.07-.082.146-.103.226L.085 17.464a.558.558 0 00.227.582l6.248 4.318a.545.545 0 00.611 0l6.248-4.318a.558.558 0 00.227-.582l-1.623-6.523a.558.558 0 00-.103-.226L7.96 5.478V.548A.546.546 0 007.417 0H6.326a.546.546 0 00-.545.548v4.93L1.811 10.715z"/>
+                        </svg>
+                        Go Install
+                    </h3>
+                    <div class="code-block">
+<code>go install github.com/umputun/spot/cmd/spot@latest
+go install github.com/umputun/spot/cmd/spot-secrets@latest</code>
+                    </div>
+                </div>
+
+                <div class="install-card">
+                    <h3>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Binary Release
+                    </h3>
+                    <div class="code-block">
+<code><span class="comment"># Download from releases page</span>
+<a href="https://github.com/umputun/spot/releases" target="_blank" style="color: var(--green);">github.com/umputun/spot/releases</a></code>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="https://github.com/umputun/spot" target="_blank" rel="noopener">GitHub</a>
+                    <a href="/docs/">Documentation</a>
+                    <a href="https://github.com/umputun/spot/releases" target="_blank" rel="noopener">Releases</a>
+                    <a href="https://github.com/umputun/spot/issues" target="_blank" rel="noopener">Issues</a>
+                </div>
+                <div class="footer-copyright">
+                    &copy; 2026 Umputun. MIT License.
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+
+        // Reveal on scroll
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.animationPlayState = 'running';
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        // Observe cards and items for scroll reveal
+        document.querySelectorAll('.feature-card, .command-item, .install-card, .why-item, .step').forEach((el, i) => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(20px)';
+            el.style.transition = `opacity 0.5s ease ${i % 3 * 0.1}s, transform 0.5s ease ${i % 3 * 0.1}s`;
+
+            const cardObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.style.opacity = '1';
+                        entry.target.style.transform = 'translateY(0)';
+                        cardObserver.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            cardObserver.observe(el);
+        });
+    </script>
+</body>
+</html>
