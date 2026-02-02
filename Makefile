@@ -32,18 +32,20 @@ version:
 	@echo "revision: $(REV)"
 
 prep-site:
-	cp -fv README.md site/docs/index.md
-	sed -i '' 's|https:\/\/github.com\/umputun\/spot\/raw\/master\/site\/spot-bg.png|logo.png|' site/docs/index.md
-	sed -i '' 's|^.*/workflows/ci.yml.*$$||' site/docs/index.md
+	# copy landing page assets to site output
+	mkdir -p site/site/assets
+	cp -fv site/docs/index.html site/site/index.html
+	cp -fv site/docs/favicon.png site/site/favicon.png
+	cp -fv site/docs-src/logo.png site/site/assets/logo.png
+	# prepare mkdocs source
+	cp -fv README.md site/docs-src/index.md
+	sed 's|https://github.com/umputun/spot/raw/master/site/spot-bg.png|logo.png|' site/docs-src/index.md > site/docs-src/index.md.tmp && mv site/docs-src/index.md.tmp site/docs-src/index.md
+	sed 's|^.*/workflows/ci.yml.*$$||' site/docs-src/index.md > site/docs-src/index.md.tmp && mv site/docs-src/index.md.tmp site/docs-src/index.md
 
-site:
-	@rm -rf  site/public/*
-	@docker rm -f spot-site
-	docker build -f Dockerfile.site --progress=plain -t spot.site .
-	docker run -d --name=spot-site spot.site
-	sleep 3
-	docker cp "spot-site":/srv/site/ site/public
-	docker rm -f spot-site
+site: prep-site
+	@test -d site/.venv || python3 -m venv site/.venv
+	@site/.venv/bin/pip install -q -r site/requirements.txt
+	cd site && .venv/bin/mkdocs build
 
 man:
 	@echo "generating man page..."

@@ -23,9 +23,12 @@ spot-private*.yml
 spot-inventory-private.yml
 spot-inventory-private2.yml
 site/public/
+site/site/
+site/.venv/
 identifier.sqlite
 test_secrets.db
 spot.sqlite
 spot.db
 pr_236_notes.md
 .claude/
+.playwright-mcp/
