@@ -1251,6 +1251,10 @@ The project is currently in active development, and breaking changes may occur u
 
 *Update: Version 1 has been released and is now considered stable. We do not anticipate any breaking changes for this version.*
 
+## For LLMs
+
+See [llms.txt](https://spotctl.com/llms.txt) for LLM-optimized documentation.
+
 ## Contributing
 
 Please feel free to open a discussion, submit issues, fork the repository, and send pull requests. See [CONTRIBUTING.md](https://github.com/umputun/spot/blob/master/CONTRIBUTING.md) for more information.

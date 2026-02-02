@@ -1,0 +1,919 @@
+# spot
+
+Deployment and configuration management tool. Define playbooks with tasks, execute on remote hosts concurrently via SSH. Single Go binary, zero dependencies.
+
+**GitHub:** https://github.com/umputun/spot
+**Docs:** https://spotctl.com/docs/
+
+## Installation
+
+```bash
+# homebrew (macOS) - installs both spot and spot-secrets
+brew tap umputun/apps
+brew install umputun/apps/spot
+
+# go install
+go install github.com/umputun/spot/cmd/spot@latest
+go install github.com/umputun/spot/cmd/spot-secrets@latest
+
+# universal install script (Linux/macOS)
+curl -sSfL https://raw.githubusercontent.com/umputun/spot/master/install.sh | sudo sh
+
+# debian/ubuntu
+wget https://github.com/umputun/spot/releases/download/v<VERSION>/spot_v<VERSION>_linux_amd64.deb
+sudo dpkg -i spot_v<VERSION>_linux_amd64.deb
+
+# centos/rhel/fedora
+wget https://github.com/umputun/spot/releases/download/v<VERSION>/spot_v<VERSION>_linux_amd64.rpm
+sudo rpm -i spot_v<VERSION>_linux_amd64.rpm
+
+# alpine
+wget https://github.com/umputun/spot/releases/download/v<VERSION>/spot_v<VERSION>_linux_amd64.apk
+sudo apk add spot_v<VERSION>_linux_amd64.apk
+
+# releases: https://github.com/umputun/spot/releases
+```
+
+## CLI Options (Complete Reference)
+
+```
+-p, --playbook=FILE      Playbook file (default: spot.yml, env: $SPOT_PLAYBOOK)
+-n, --task=NAME          Task name(s) to execute (repeatable for multiple tasks)
+-t, --target=TARGET      Target name, group, tag, hostname, or IP (repeatable)
+-c, --concurrent=N       Concurrent hosts (default: 1, sequential)
+    --timeout=DURATION   SSH timeout (default: 30s, env: $SPOT_TIMEOUT)
+    --ssh-agent          Use SSH agent (env: $SPOT_SSH_AGENT)
+    --forward-ssh-agent  Forward SSH agent to remote (env: $SPOT_FORWARD_SSH_AGENT)
+    --shell=PATH         Remote shell (default: /bin/sh, env: $SPOT_SHELL)
+    --local-shell=PATH   Local shell (default: OS shell, env: $SPOT_LOCAL_SHELL)
+    --temp=DIR           Remote temp directory (default: /tmp, env: $SPOT_TEMP_DIR)
+-i, --inventory=FILE     Inventory file or URL (env: $SPOT_INVENTORY)
+-u, --user=USER          SSH user override
+-k, --key=PATH           SSH key override
+-s, --skip=CMD           Skip command(s) by name (repeatable)
+-o, --only=CMD           Run only these command(s) (repeatable)
+-e, --env=KEY:VALUE      Environment variable (repeatable, supports $VAR expansion)
+-E, --env-file=FILE      Environment file (default: env.yml, env: $SPOT_ENV_FILE)
+    --no-color           Disable colored output (env: $SPOT_NO_COLOR)
+    --local              Force all commands to run locally (no SSH)
+    --dry                Dry-run mode (show commands without executing)
+-v, --verbose            Verbose output (use -vv for more detail)
+    --dbg                Debug mode (maximum detail)
+-h, --help               Show help
+```
+
+## Playbook Structure
+
+### Full Playbook Format (Multiple Tasks/Targets)
+
+```yaml
+# Global settings
+user: deploy                        # default SSH user
+ssh_key: ~/.ssh/id_rsa             # SSH private key path
+ssh_shell: /bin/bash               # remote shell (default: /bin/sh)
+ssh_temp: /tmp                     # remote temp directory
+local_shell: /bin/bash             # local shell for local commands
+inventory: /etc/spot/inventory.yml  # default inventory file
+
+# Named targets
+targets:
+  prod:
+    hosts:                         # direct host definitions
+      - {host: "h1.example.com", user: "admin", name: "h1", port: 22}
+      - {host: "h2.example.com", port: 2222}
+  staging:
+    groups: ["staging", "web"]     # groups from inventory
+  by-tag:
+    tags: ["us-east", "primary"]   # hosts with these tags
+  by-name:
+    names: ["server1", "server2"]  # hosts by name from inventory
+  combined:                        # can combine all types
+    hosts: [{host: "direct.example.com"}]
+    groups: ["app"]
+    names: ["db1"]
+    tags: ["critical"]
+
+# Task definitions
+tasks:
+  - name: deploy-app               # task name (required, must be unique)
+    user: deploy-user              # override user for this task
+    targets: ["prod", "staging"]   # target override (supports variables)
+    on_error: "curl -s localhost/error?msg={SPOT_ERROR}"  # error hook (local)
+    options:                       # task-level options (apply to all commands)
+      sudo: true
+      secrets: [db_password]
+    commands:
+      - name: command-name         # command definitions below
+        ...
+
+  - name: another-task
+    commands:
+      ...
+```
+
+### Simplified Playbook Format (Single Task)
+
+```yaml
+user: deploy
+ssh_key: ~/.ssh/id_rsa
+targets: ["server1", "server2", "h1.example.com:2222"]  # names + direct hosts
+# OR single target:
+target: "server1"
+
+task:                              # note: "task" not "tasks"
+  - name: update
+    script: |
+      cd /app
+      git pull
+  - name: restart
+    script: systemctl restart app
+    options: {sudo: true}
+```
+
+### Differences Between Full and Simplified
+
+| Feature | Full | Simplified |
+|---------|------|------------|
+| Multiple targets | Yes | No (single target set) |
+| Multiple tasks | Yes | No (single task) |
+| Target types | hosts, groups, names, tags | names + direct hosts only |
+| Task-level on_error | Yes | No |
+| Task-level user | Yes | No |
+| Single target field | No | Yes (`target:` for one host) |
+
+## Command Types (Complete Reference)
+
+### script
+
+Execute shell commands remotely (or locally with `options.local`).
+
+```yaml
+# Single-line: executed directly in shell
+- name: simple command
+  script: ls -la /tmp
+
+# Multi-line: creates temp script, uploads, executes
+- name: complex script
+  script: |
+    #!/bin/bash
+    set -e
+    echo "Starting deployment"
+    cd /app
+    git pull origin main
+    npm install
+    npm run build
+  env:
+    NODE_ENV: production
+    API_URL: https://api.example.com
+
+# Custom shebang
+- name: python script
+  script: |
+    #!/usr/bin/env python3
+    import os
+    print(f"Home: {os.environ['HOME']}")
+```
+
+**Multi-line scripts automatically get:**
+- `set -e` (fail on error)
+- Environment variables exported at top
+- Uploaded to remote temp dir, executed, cleaned up
+
+### copy
+
+Copy files between local and remote. Supports globs, mkdir, chmod.
+
+```yaml
+# Basic copy (push - local to remote)
+- name: copy config
+  copy: {"src": "config.yml", "dst": "/etc/app/config.yml"}
+
+# With options
+- name: copy with mkdir
+  copy: {"src": "config.yml", "dst": "/etc/app/config.yml", "mkdir": true}
+
+# Glob patterns
+- name: copy all configs
+  copy: {"src": "configs/*.yml", "dst": "/etc/app/"}
+
+# Multiple files
+- name: copy multiple
+  copy:
+    - {"src": "file1.txt", "dst": "/tmp/file1.txt"}
+    - {"src": "file2.txt", "dst": "/tmp/file2.txt"}
+
+# Make executable
+- name: copy script
+  copy: {"src": "deploy.sh", "dst": "/tmp/deploy.sh", "chmod+x": true}
+
+# Force copy (skip size/time check)
+- name: force copy
+  copy: {"src": "data.bin", "dst": "/tmp/data.bin", "force": true}
+
+# Exclude files
+- name: copy with exclude
+  copy: {"src": "configs/*.yml", "dst": "/etc/app/", "exclude": ["test.yml"]}
+
+# Pull (remote to local)
+- name: download logs
+  copy: {"src": "/var/log/app.log", "dst": "./logs/app.log", "direction": "pull"}
+
+# Pull with glob
+- name: download all logs
+  copy: {"src": "/var/log/*.log", "dst": "./logs/", "direction": "pull", "mkdir": true}
+
+# Pull with sudo
+- name: download protected file
+  copy: {"src": "/etc/shadow", "dst": "./backup/shadow", "direction": "pull"}
+  options: {sudo: true}
+```
+
+**Copy parameters:**
+- `src`: source path (local for push, remote for pull), supports globs
+- `dst`: destination path
+- `mkdir`: create destination directory if missing (default: false)
+- `force`: skip size/time optimization, always copy (default: false)
+- `chmod+x`: make destination executable (default: false)
+- `exclude`: list of filenames to exclude
+- `direction`: "push" (default) or "pull"
+
+### sync
+
+Synchronize directories (like rsync).
+
+```yaml
+# Basic sync
+- name: sync assets
+  sync: {"src": "static/", "dst": "/var/www/static/"}
+
+# With delete (remove files not in source)
+- name: sync with delete
+  sync: {"src": "static/", "dst": "/var/www/static/", "delete": true}
+
+# With exclude
+- name: sync with exclude
+  sync: {"src": "app/", "dst": "/opt/app/", "exclude": ["*.log", "tmp/*", ".git"]}
+
+# Multiple syncs
+- name: sync multiple
+  sync:
+    - {"src": "frontend/", "dst": "/var/www/"}
+    - {"src": "backend/", "dst": "/opt/api/"}
+```
+
+**Sync parameters:**
+- `src`: source directory (local)
+- `dst`: destination directory (remote)
+- `delete`: remove remote files not in source (default: false)
+- `exclude`: list of patterns to exclude
+
+**Note:** sync does NOT support `sudo` option.
+
+### delete
+
+Remove files or directories on remote.
+
+```yaml
+# Delete file
+- name: remove old config
+  delete: {"path": "/tmp/old-config.yml"}
+
+# Delete directory recursively
+- name: cleanup cache
+  delete: {"path": "/var/cache/app", "recur": true}
+
+# Delete with exclude
+- name: cleanup logs but keep recent
+  delete: {"path": "/var/log/app", "recur": true, "exclude": ["*.log.1"]}
+
+# Multiple deletes
+- name: cleanup multiple
+  delete:
+    - {"path": "/tmp/build"}
+    - {"path": "/tmp/cache", "recur": true}
+```
+
+**Delete parameters:**
+- `path`: path to delete
+- `recur`: recursive delete for directories (default: false)
+- `exclude`: list of patterns to exclude
+
+### wait
+
+Wait for a condition (command returns 0).
+
+```yaml
+# Wait for HTTP endpoint
+- name: wait for app
+  wait: {"cmd": "curl -sf http://localhost:8080/health", "timeout": "60s", "interval": "2s"}
+
+# Wait for port
+- name: wait for database
+  wait: {"cmd": "nc -z localhost 5432", "timeout": "30s"}
+
+# Wait for file
+- name: wait for pid file
+  wait: {"cmd": "test -f /var/run/app.pid", "timeout": "10s"}
+```
+
+**Wait parameters:**
+- `cmd`: command to run (success = exit code 0)
+- `timeout`: maximum wait time (default: 30s)
+- `interval`: check interval (default: 1s)
+
+### echo
+
+Print message to console.
+
+```yaml
+- name: status message
+  echo: "Deploying to {SPOT_REMOTE_HOST}"
+
+- name: print variable
+  echo: "Version: $APP_VERSION"
+```
+
+### line
+
+Manipulate lines in a file by regex pattern.
+
+```yaml
+# Delete lines matching pattern
+- name: remove comments
+  line: {file: "/etc/app.conf", match: "^#", delete: true}
+
+# Replace entire line containing pattern
+- name: update port
+  line: {file: "/etc/app.conf", match: "^port=", replace: "port=8080"}
+
+# Append line if pattern not found
+- name: ensure setting exists
+  line: {file: "/etc/app.conf", match: "^debug=", append: "debug=false"}
+```
+
+**Line parameters:**
+- `file`: path to file
+- `match`: regex pattern to match
+- `delete`: delete matching lines (boolean)
+- `replace`: replace entire matching line with this text
+- `append`: append this line if pattern not found
+
+**Note:** Only one operation (delete, replace, append) per command.
+
+## Command Options
+
+Options can be set at command level or task level (applies to all commands in task).
+
+```yaml
+# Command-level options
+- name: install packages
+  script: apt-get update && apt-get install -y nginx
+  options:
+    sudo: true                    # run with sudo
+    sudo_password: "SUDO_KEY"     # secret key name for sudo password
+    secrets: ["SUDO_KEY"]         # load secrets
+    local: true                   # run on local machine instead of remote
+    ignore_errors: true           # continue even if command fails
+    no_auto: true                 # skip unless --only flag specifies this command
+    only_on: [host1, host2]       # run only on these hosts
+    only_on: [!host3]             # run on all EXCEPT host3
+
+# Task-level options (apply to all commands)
+- name: deploy-task
+  options:
+    sudo: true
+    secrets: [db_password, api_key]
+  commands:
+    - name: cmd1
+      script: ...                 # inherits sudo: true
+    - name: cmd2
+      script: ...
+      options:
+        sudo_password: "OTHER_KEY"  # override for this command
+```
+
+## Conditionals
+
+Execute command only if condition is met.
+
+```yaml
+# Run if command succeeds (exit 0)
+- name: install curl if missing
+  script: apt-get install -y curl
+  cond: "! command -v curl"
+  options: {sudo: true}
+
+# Check file exists
+- name: backup if exists
+  script: cp /etc/app.conf /etc/app.conf.bak
+  cond: "test -f /etc/app.conf"
+
+# Check file doesn't exist
+- name: create if missing
+  script: touch /var/run/app.pid
+  cond: "! test -f /var/run/app.pid"
+```
+
+**Note:** Conditionals work with `script` and `echo` commands only.
+
+## Deferred Actions (on_exit)
+
+Execute cleanup after task completes (regardless of success/failure).
+
+```yaml
+- name: copy and run script
+  copy: {"src": "deploy.sh", "dst": "/tmp/deploy.sh", "chmod+x": true}
+  on_exit: "rm -f /tmp/deploy.sh"   # cleanup registered
+
+- name: execute script
+  script: /tmp/deploy.sh
+  # on_exit from previous command runs after entire task completes
+```
+
+## Variables
+
+### Runtime Variables (Spot-provided)
+
+Available in script, copy, sync, delete, wait, echo, env:
+
+```
+{SPOT_REMOTE_HOST}  - hostname:port (e.g., "server.example.com:22")
+{SPOT_REMOTE_ADDR}  - hostname/IP only (e.g., "server.example.com")
+{SPOT_REMOTE_PORT}  - port only (e.g., "22")
+{SPOT_REMOTE_NAME}  - custom name from inventory (e.g., "web1")
+{SPOT_REMOTE_USER}  - SSH user (e.g., "deploy")
+{SPOT_COMMAND}      - current command name
+{SPOT_TASK}         - current task name
+{SPOT_ERROR}        - last error message (for on_error hooks)
+```
+
+**Variable syntax:** `{VAR}`, `${VAR}`, or `$VAR`
+
+### Environment Variables
+
+```yaml
+# In playbook
+- name: with env
+  script: echo "$DB_HOST:$DB_PORT"
+  env:
+    DB_HOST: localhost
+    DB_PORT: 5432
+    PATH: "/custom/bin:$PATH"    # can reference other env vars
+
+# From CLI
+spot -e DB_HOST:prod-db.example.com -e DB_PORT:5432
+
+# From file (env.yml or --env-file)
+vars:
+  DB_HOST: localhost
+  DB_PORT: 5432
+  SECRET: ${MY_SECRET}           # from OS environment
+```
+
+**Precedence:** CLI > playbook env > env file
+
+### Passing Variables Between Commands
+
+```yaml
+# Export variables (available in subsequent commands)
+- name: get version
+  script: |
+    export APP_VERSION=$(cat /app/version)
+    export BUILD_DATE=$(date +%Y%m%d)
+
+- name: use exported
+  echo: "Version: $APP_VERSION, Built: $BUILD_DATE"
+
+# Register variables explicitly
+- name: get info
+  script: |
+    FILE_NAME=/tmp/output.txt
+    RESULT_CODE=42
+  register: [FILE_NAME, RESULT_CODE]
+
+- name: use registered
+  copy: {"src": "$FILE_NAME", "dst": "/backup/"}
+```
+
+**Registered variables persist across tasks** in the same playbook run.
+
+### Template Variables in Register
+
+```yaml
+- name: host-specific var
+  script: |
+    export STATUS_192.168.1.10="healthy"
+  register: ["STATUS_{SPOT_REMOTE_ADDR}"]
+
+- name: env-based var
+  script: |
+    export CONFIG_production="prod-settings"
+  env: {ENV_TYPE: production}
+  register: ["CONFIG_{ENV_TYPE}"]
+```
+
+## Inventory
+
+### File Format
+
+```yaml
+# Groups with hosts
+groups:
+  production:
+    - {host: "prod1.example.com", name: "prod1", port: 22, user: "deploy", tags: ["primary", "us-east"]}
+    - {host: "prod2.example.com", name: "prod2", tags: ["secondary", "us-west"]}
+  staging:
+    - {host: "stage.example.com", port: 2222, user: "stage"}
+  database:
+    - {host: "db1.example.com", name: "db1", tags: ["mysql"]}
+
+# Standalone hosts (creates implicit "hosts" group)
+hosts:
+  - {host: "standalone.example.com", name: "standalone"}
+```
+
+**Host fields:**
+- `host`: hostname or IP (required)
+- `port`: SSH port (default: 22)
+- `user`: SSH user (default: playbook user)
+- `name`: custom name for reference
+- `tags`: list of tags for filtering
+
+**Special group:** `all` automatically contains all hosts from all groups.
+
+### Loading Inventory
+
+```bash
+# From playbook
+inventory: /path/to/inventory.yml
+
+# From CLI (overrides playbook)
+spot --inventory=inventory.yml
+spot --inventory=http://inventory-server/hosts.yml
+
+# From environment
+export SPOT_INVENTORY=/etc/spot/inventory.yml
+```
+
+### Target Selection
+
+When using `--target=X`, spot tries to match in order:
+1. Target name in playbook
+2. Group name in inventory
+3. Tag in inventory
+4. Host name in inventory
+5. Direct host address in playbook
+6. Use as literal host address
+
+```bash
+spot -t prod              # match playbook target "prod"
+spot -t production        # match inventory group "production"
+spot -t us-east           # match inventory tag "us-east"
+spot -t web1              # match inventory host name "web1"
+spot -t 192.168.1.10      # use as direct host
+spot -t user@host:2222    # direct host with user and port
+```
+
+### Dynamic Targets
+
+```yaml
+tasks:
+  - name: discover
+    targets: ["default"]
+    script: |
+      export TARGET=$(curl -s http://api.example.com/next-host)
+    options: {local: true}
+
+  - name: deploy
+    targets: ["$TARGET"]    # use discovered host
+    script: ./deploy.sh
+```
+
+### Export Inventory
+
+```bash
+# Export to JSON
+spot --gen --target=prod
+
+# Export to file
+spot --gen --gen.output=hosts.json --target=prod
+
+# Export with template
+spot --gen --gen.template=template.txt --target=prod
+```
+
+Template example:
+```
+{{- range .}}
+Host: {{.Host}}:{{.Port}} ({{.Name}})
+User: {{.User}}
+Tags: {{range .Tags}}{{.}} {{end}}
+{{- end -}}
+```
+
+## Secrets Management
+
+### Built-in Provider (spot-secrets)
+
+Uses SQLite (default), MySQL, or PostgreSQL with strong encryption (Argon2 + NaCl SecretBox).
+
+```bash
+# Manage secrets
+spot-secrets set myapp/db_password "secret123"
+spot-secrets get myapp/db_password
+spot-secrets list
+spot-secrets del myapp/db_password
+
+# Connection strings
+-c, --conn=FILE          # SQLite: file path or file:///path (default: spot.db)
+                         # MySQL: user:pass@tcp(host:port)/dbname
+                         # PostgreSQL: postgres://user:pass@host:port/db
+
+# Encryption key
+-k, --key=KEY            # Or $SPOT_SECRETS_KEY, or prompted securely
+```
+
+**Use in spot:**
+```bash
+spot --secrets.provider=spot \
+     --secrets.conn=spot.db \
+     --secrets.key="encryption-key"
+```
+
+### HashiCorp Vault
+
+```bash
+spot --secrets.provider=vault \
+     --secrets.vault.url=https://vault.example.com \
+     --secrets.vault.token=$VAULT_TOKEN \
+     --secrets.vault.path=secret/myapp
+```
+
+### AWS Secrets Manager
+
+```bash
+spot --secrets.provider=aws \
+     --secrets.aws.region=us-east-1 \
+     --secrets.aws.access-key=$AWS_ACCESS_KEY \
+     --secrets.aws.secret-key=$AWS_SECRET_KEY
+```
+
+Or use default AWS credentials from environment.
+
+### Ansible Vault
+
+```bash
+spot --secrets.provider=ansible-vault \
+     --secrets.ansible.path=secrets.yml \
+     --secrets.ansible.secret="vault-password"
+```
+
+### Using Secrets in Playbook
+
+```yaml
+- name: database setup
+  script: |
+    psql -h $DB_HOST -U $DB_USER -p $DB_PASSWORD -c "CREATE DATABASE app"
+  options:
+    secrets: [DB_PASSWORD, DB_USER]   # loaded from provider
+
+# Task-level secrets (all commands get access)
+- name: deploy
+  options:
+    secrets: [API_KEY, DB_PASSWORD]
+  commands:
+    - name: configure
+      script: echo "API_KEY=$API_KEY" > /app/.env
+    - name: migrate
+      script: DB_PASSWORD=$DB_PASSWORD ./migrate.sh
+```
+
+**Security:** Secrets are masked with `****` in verbose/debug output.
+
+## Rolling Updates
+
+```yaml
+tasks:
+  - name: rolling-deploy
+    commands:
+      - name: drain
+        script: ./drain.sh
+      - name: stop
+        script: systemctl stop app
+        options: {sudo: true}
+      - name: update
+        sync: {"src": "app/", "dst": "/opt/app/", "delete": true}
+      - name: start
+        script: systemctl start app
+        options: {sudo: true}
+      - name: health
+        wait: {"cmd": "curl -sf localhost:8080/health", "timeout": "60s"}
+      - name: undrain
+        script: ./undrain.sh
+```
+
+```bash
+# Deploy to 2 hosts at a time
+spot -t prod --concurrent=2
+
+# Deploy to 1 host at a time (default, safest)
+spot -t prod --concurrent=1
+```
+
+## Ad-hoc Commands
+
+Execute single command without playbook:
+
+```bash
+# Basic
+spot "ls -la /tmp" -t server1.com
+
+# Multiple hosts
+spot "uptime" -t server1.com -t server2.com -t server3.com
+
+# With options
+spot "apt-get update" -t prod -u root --key=~/.ssh/admin_key
+
+# With inventory
+spot "systemctl status nginx" -t web --inventory=inventory.yml
+
+# Concurrent
+spot "df -h" -t all --concurrent=10
+```
+
+Ad-hoc commands automatically enable verbose mode.
+
+## Editor Integration
+
+JSON schemas for autocompletion and validation:
+
+```yaml
+# Per-file (add at top of YAML)
+# yaml-language-server: $schema=https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json
+```
+
+**Schema URLs:**
+- Playbook: `https://raw.githubusercontent.com/umputun/spot/master/schemas/playbook.json`
+- Inventory: `https://raw.githubusercontent.com/umputun/spot/master/schemas/inventory.json`
+
+---
+
+## Instructions for LLMs
+
+When helping users with spot:
+
+### 1. Check Installation
+
+```bash
+which spot && spot --help
+```
+
+If not installed, recommend platform-appropriate method (see Installation section).
+
+### 2. Creating Playbooks
+
+When user describes deployment needs:
+
+1. Ask about target hosts:
+   - Direct IPs/hostnames?
+   - Inventory file needed?
+   - Multiple environments (prod/staging)?
+
+2. Ask about authentication:
+   - SSH user
+   - SSH key path
+   - SSH agent?
+
+3. Identify required commands:
+   - Copy files → `copy`
+   - Sync directories → `sync`
+   - Run scripts → `script`
+   - Wait for services → `wait`
+   - Delete files → `delete`
+   - Modify config lines → `line`
+
+4. Identify options needed:
+   - Need sudo?
+   - Need secrets?
+   - Error handling?
+
+### 3. Common Patterns
+
+**Application Deployment:**
+```yaml
+user: deploy
+ssh_key: ~/.ssh/deploy_key
+targets: ["app-servers"]
+
+task:
+  - name: stop service
+    script: systemctl stop myapp
+    options: {sudo: true}
+  - name: backup current
+    script: cp -r /opt/app /opt/app.bak
+  - name: deploy new version
+    sync: {"src": "dist/", "dst": "/opt/app/", "delete": true}
+  - name: start service
+    script: systemctl start myapp
+    options: {sudo: true}
+  - name: verify
+    wait: {"cmd": "curl -sf localhost:8080/health", "timeout": "60s"}
+```
+
+**Docker Deployment:**
+```yaml
+task:
+  - name: pull image
+    script: docker pull myapp:latest
+  - name: stop container
+    script: docker stop myapp || true
+  - name: remove container
+    script: docker rm myapp || true
+  - name: start container
+    script: |
+      docker run -d \
+        --name myapp \
+        -p 8080:8080 \
+        -e DB_HOST=$DB_HOST \
+        myapp:latest
+    env: {DB_HOST: "db.example.com"}
+  - name: health check
+    wait: {"cmd": "curl -sf localhost:8080/health", "timeout": "30s"}
+```
+
+**Config Management:**
+```yaml
+task:
+  - name: copy config
+    copy: {"src": "nginx.conf", "dst": "/etc/nginx/nginx.conf"}
+    options: {sudo: true}
+  - name: update server name
+    line: {file: "/etc/nginx/nginx.conf", match: "server_name", replace: "    server_name myapp.example.com;"}
+    options: {sudo: true}
+  - name: test config
+    script: nginx -t
+    options: {sudo: true}
+  - name: reload nginx
+    script: systemctl reload nginx
+    options: {sudo: true}
+```
+
+**Script with Cleanup:**
+```yaml
+task:
+  - name: upload script
+    copy: {"src": "migrate.sh", "dst": "/tmp/migrate.sh", "chmod+x": true}
+    on_exit: "rm -f /tmp/migrate.sh"
+  - name: run migration
+    script: /tmp/migrate.sh
+    options: {sudo: true}
+```
+
+**Multi-environment:**
+```yaml
+targets:
+  prod:
+    groups: ["production"]
+  staging:
+    groups: ["staging"]
+
+tasks:
+  - name: deploy
+    commands:
+      - name: deploy app
+        sync: {"src": "app/", "dst": "/opt/app/"}
+      - name: restart
+        script: systemctl restart app
+        options: {sudo: true}
+```
+
+### 4. Debugging
+
+```bash
+# Dry run (show what would happen)
+spot --dry -t prod
+
+# Verbose output
+spot -v -t prod
+spot -vv -t prod   # more verbose
+
+# Debug mode (maximum detail)
+spot --dbg -t prod
+
+# Test connectivity
+spot "echo ok" -t hostname
+
+# Run single command
+spot -o command-name -t prod
+```
+
+### 5. Key Points
+
+- Playbooks are YAML or TOML
+- Two formats: full (multiple tasks/targets) and simplified (single task)
+- Commands execute sequentially within a task
+- Use `--concurrent=N` for parallel execution across hosts
+- Secrets are never shown in output
+- `--dry` is safe way to test playbooks
+- Variables use `{VAR}`, `${VAR}`, or `$VAR` syntax
+- Relative paths resolve from current working directory, not playbook location

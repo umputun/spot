@@ -36,6 +36,7 @@ prep-site:
 	mkdir -p site/site/assets
 	cp -fv site/docs/index.html site/site/index.html
 	cp -fv site/docs/favicon.png site/site/favicon.png
+	cp -fv site/docs/llms.txt site/site/llms.txt
 	cp -fv site/docs-src/logo.png site/site/assets/logo.png
 	# prepare mkdocs source
 	cp -fv README.md site/docs-src/index.md
