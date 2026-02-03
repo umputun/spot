@@ -81,6 +81,7 @@ brews:
       owner: umputun
       name: homebrew-apps
       branch: master
+    directory: Formula
     commit_author:
       name: umputun
       email: umputun@gmail.com
