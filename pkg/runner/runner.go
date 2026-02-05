@@ -59,6 +59,7 @@ type Playbook interface {
 	AllSecretValues() []string
 	UpdateTasksTargets(vars map[string]string)
 	UpdateRegisteredVars(vars map[string]string)
+	ResolveTasks(names []string) []string
 }
 
 // ProcResp holds the information about processed commands and hosts.
@@ -84,6 +85,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get task %s: %w", task, err)
 	}
+
 	log.Printf("[DEBUG] task %q has %d commands", task, len(tsk.Commands))
 
 	allVars := make(map[string]string)

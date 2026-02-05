@@ -187,6 +187,12 @@
           },
           "description": "List of commands to execute"
         },
+	"tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "options": {
           "$ref": "#/definitions/options",
           "description": "Default options for all commands in this task"
