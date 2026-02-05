@@ -80,11 +80,13 @@ type Target struct {
 
 // Destination defines destination info
 type Destination struct {
-	Name string   `yaml:"name" toml:"name"`
-	Host string   `yaml:"host" toml:"host"`
-	Port int      `yaml:"port" toml:"port"`
-	User string   `yaml:"user" toml:"user"`
-	Tags []string `yaml:"tags" toml:"tags"`
+	Name               string   `yaml:"name" toml:"name"`
+	Host               string   `yaml:"host" toml:"host"`
+	Port               int      `yaml:"port" toml:"port"`
+	User               string   `yaml:"user" toml:"user"`
+	Tags               []string `yaml:"tags" toml:"tags"`
+	ProxyCommand       string   `yaml:"proxy_command" toml:"proxy_command"`
+	ProxyCommandParsed []string `yaml:"-" toml:"-"` // parsed proxy command arguments
 }
 
 // Overrides defines override for task passed from cli
@@ -148,6 +150,16 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 
 	if err = unmarshalPlaybookFile(fname, data, overrides, res); err != nil {
 		return nil, fmt.Errorf("can't unmarshal config: %w", err)
+	}
+
+	// process all host in targets (parse proxy commands and save it in form suitable for exec.CommandContext() )
+	for targetName, target := range res.Targets {
+		for i := range target.Hosts {
+			if err := normalizeProxyCommand(&target.Hosts[i]); err != nil {
+				return nil, fmt.Errorf("failed to process destination in target %s: %w", targetName, err)
+			}
+		}
+		res.Targets[targetName] = target
 	}
 
 	if err = res.checkConfig(); err != nil {
@@ -379,7 +391,9 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 }
 
 // TargetHosts returns target hosts for given target name.
-func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
+// adhocProxyCommand is the proxy command value that can be passed when name represents a hostname
+// not existing in the playbook and passed via CLI argument --target.
+func (p *PlayBook) TargetHosts(name, adhocProxyCommand string) ([]Destination, error) {
 
 	userOverride := func(u string) string {
 		// apply overrides of user
@@ -395,7 +409,13 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 	}
 
 	tgExtractor := newTargetExtractor(p.Targets, p.User, p.inventory)
-	res, err := tgExtractor.Destinations(name)
+
+	proxyCommandParsed, err := parseProxyCommand(adhocProxyCommand)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proxy command for host %s: command:%s, error: %w", name, adhocProxyCommand, err)
+	}
+
+	res, err := tgExtractor.Destinations(name, proxyCommandParsed)
 	if err != nil {
 		return nil, err
 	}
@@ -678,4 +698,83 @@ func (p *PlayBook) localShell() string {
 		return res
 	}
 	return "/bin/sh"
+}
+
+// normalizeProxyCommand processes a Destination struct to set default values and parse proxy commands.
+func normalizeProxyCommand(dest *Destination) error {
+	if dest.ProxyCommand != "" {
+		parsed, err := parseProxyCommand(dest.ProxyCommand)
+		if err != nil {
+			return fmt.Errorf("failed to parse proxy command for host %s: %w", dest.Host, err)
+		}
+		dest.ProxyCommandParsed = parsed
+	}
+	return nil
+}
+
+// parseProxyCommand parses a proxy command string into arguments compatible with exec.Command().
+// It handles shell-style quoting and splitting of the command string.
+func parseProxyCommand(commandStr string) ([]string, error) {
+	if commandStr == "" {
+		return []string{}, nil
+	}
+
+	commandStr = strings.TrimSpace(commandStr)
+	if commandStr == "" {
+		return []string{}, nil
+	}
+
+	var args []string
+	var current strings.Builder
+	var inQuotes bool
+	var quoteChar rune
+	var hadQuotes bool
+
+	for i := 0; i < len(commandStr); i++ {
+		r := rune(commandStr[i])
+		switch {
+		case !inQuotes && (r == '"' || r == '\''):
+			inQuotes = true
+			quoteChar = r
+			hadQuotes = true
+		case inQuotes && r == quoteChar:
+			inQuotes = false
+			quoteChar = 0
+		case r == '\\' && i+1 < len(commandStr):
+			next := rune(commandStr[i+1])
+
+			// if special character escaped outside quote substring - saving it without first escape character (unescaping)
+			if (!inQuotes && (next == ' ' || next == '"' || next == '\'' || next == '\\' || next == ':')) ||
+				(inQuotes && next == quoteChar) { // special case when inside quoted substring a quote character escaped
+
+				current.WriteRune(next)
+				i++ // Skip the next character (escape character removed from sequence)
+			} else {
+				// inside quoted substring save characters as is
+				current.WriteRune(r)
+			}
+		case !inQuotes && r == ' ':
+			if current.Len() > 0 || hadQuotes {
+				args = append(args, current.String())
+				current.Reset()
+				hadQuotes = false
+			}
+		default:
+			current.WriteRune(r)
+		}
+	}
+
+	if inQuotes {
+		return nil, fmt.Errorf("unclosed quote in proxy command: %s", commandStr)
+	}
+
+	if current.Len() > 0 || hadQuotes {
+		args = append(args, current.String())
+	}
+
+	if len(args) == 0 {
+		return nil, fmt.Errorf("empty proxy command")
+	}
+
+	return args, nil
 }
