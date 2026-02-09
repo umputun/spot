@@ -663,8 +663,13 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		env:      ec.cmd.Environment, // include environment variables for variable expansion
 	}
 
-	if s != "" { // single command, nothing to do just apply templates
-		return tmpl.apply(s), "", nil, nil
+	if s != "" { // single command
+		if shouldForceScriptFile(s) {
+			r = strings.NewReader(s)
+			s = ""
+		} else {
+			return tmpl.apply(s), "", nil, nil
+		}
 	}
 
 	// multiple commands, create a temporary script
@@ -734,6 +739,12 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	}
 
 	return cmd, scr, teardown, nil
+}
+
+// shouldForceScriptFile returns true for commands that are safer to execute via temp script file.
+// This avoids shell quoting pitfalls (e.g., single quotes, pipes, or "=>" tokens).
+func shouldForceScriptFile(s string) bool {
+	return strings.Contains(s, "'") || strings.Contains(s, "|") || strings.Contains(s, "=>")
 }
 
 // templater is a helper struct to apply templates to a command
