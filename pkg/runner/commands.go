@@ -719,7 +719,8 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 	if err = ec.exec.Upload(ctx, tmp.Name(), dst, &executor.UpDownOpts{Mkdir: true}); err != nil {
 		return "", "", nil, ec.errorFmt("can't upload script to %s: %w", ec.hostAddr, err)
 	}
-	cmd = fmt.Sprintf("%s -c %s", ec.shell(), dst)
+	// run script via shell interpreter to avoid noexec mount issues on remote tmp dirs
+	cmd = fmt.Sprintf("%s %q", ec.shell(), dst)
 
 	teardown = func() error {
 		log.Printf("[DEBUG] removed local temp script %s", tmp.Name())
