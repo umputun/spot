@@ -1,0 +1,187 @@
+user: prog10
+ssh_key: "d:/Kube/spot/keys/kube"
+ssh_temp: spot_tmp
+ssh_shell: /bin/sh
+local_shell: "cmd.exe"
+
+tasks:
+  - name: full-asterisk-deployment-and-debug
+    commands:
+      - name: 2-upload-build-files
+        copy:
+          - {src: "d:/Kube/spot/asterisk_backup/asterisk-22-current.tar.gz", dst: "/home/prog10/asterisk-22-current.tar.gz"}
+          - {src: "d:/Kube/spot/asterisk_backup/jansson-2.14.1.tar.bz2", dst: "/home/prog10/jansson-2.14.1.tar.bz2"}
+          - {src: "d:/Kube/spot/asterisk_backup/pjproject-2.15.1.tar.bz2", dst: "/home/prog10/pjproject-2.15.1.tar.bz2"}
+          - {src: "d:/Kube/spot/asterisk_backup/build_asterisk.sh", dst: "/home/prog10/build_asterisk.sh"}
+      - name: 3-execute-build
+        script: |
+          sed -i 's/\r$//' /home/prog10/build_asterisk.sh
+          sudo cp /home/prog10/jansson-2.14.1.tar.bz2 /tmp/jansson-2.14.1.tar.bz2
+          sudo cp /home/prog10/pjproject-2.15.1.tar.bz2 /tmp/pjproject-2.15.1.tar.bz2
+          chmod +x /home/prog10/build_asterisk.sh
+          /home/prog10/build_asterisk.sh
+      - name: 4-upload-configs
+        copy:
+          - {src: "d:/Kube/spot/asterisk_backup/ast_old_conf.tar.gz", dst: "/tmp/ast_old_conf.tar.gz"}
+          - {src: "d:/Kube/spot/asterisk_backup/apply_configs.sh", dst: "/home/prog10/apply_configs.sh"}
+      - name: 5-apply-configs-and-fix-logic
+        script: |
+          sed -i 's/\r$//' /home/prog10/apply_configs.sh
+          chmod +x /home/prog10/apply_configs.sh
+          /home/prog10/apply_configs.sh
+      - name: 6-verify-service
+        script: |
+          sudo systemctl enable asterisk
+          sudo systemctl restart asterisk
+          sleep 5
+          sudo /usr/sbin/asterisk -rx "core show version"
+      - name: 7-install-web-and-db
+        script: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apache2 mariadb-server php php-mysql libapache2-mod-php php-cli php-common php-curl php-gd php-mbstring php-xml php-bcmath php-intl php-json php-zip lua-sql-mysql
+      - name: 8-install-phpmyadmin-headless
+        script: |
+          echo 'phpmyadmin phpmyadmin/dbconfig-install boolean true' | sudo debconf-set-selections
+          echo 'phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2' | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y phpmyadmin
+      - name: 9-configure-permissions
+        script: |
+          sudo chown -R www-data:www-data /var/www/html
+          sudo systemctl enable apache2 mariadb
+          sudo systemctl restart apache2 mariadb
+      - name: 10-verify-lamp
+        script: |
+          php -v
+          sudo mysqladmin ping
+          sudo /usr/sbin/apache2 -v
+          sudo systemctl is-active apache2
+      - name: 11-install-odbc-driver
+        script: |
+          sudo apt-get update
+          sudo apt-get install -y odbc-mariadb
+      - name: 12-configure-odbcinst
+        script: |
+          sudo bash -c "echo [MySQL] > /etc/odbcinst.ini"
+          sudo bash -c "echo Description = MariaDB >> /etc/odbcinst.ini"
+          sudo bash -c "echo Driver = /usr/lib/x86_64-linux-gnu/odbc/libmaodbc.so >> /etc/odbcinst.ini"
+          sudo bash -c "echo UsageCount = 1 >> /etc/odbcinst.ini"
+      - name: 13-verify-odbc
+        script: |
+          sudo odbcinst -q -d
+          sudo odbcinst -q -s
+          ls -l /etc/odbc.ini
+      - name: 14-upload-mysql-dumps
+        copy:
+          - {src: "d:/Kube/spot/asterisk_backup/snb_asterisk.sql", dst: "/var/tmp/snb_asterisk.sql"}
+          - {src: "d:/Kube/spot/asterisk_backup/holidays.sql", dst: "/var/tmp/holidays.sql"}
+      - name: 15-create-and-import-databases
+        script: |
+          sudo mysqladmin create snb_asterisk || true
+          sudo mysqladmin create holidays || true
+          sudo mysql snb_asterisk < /var/tmp/snb_asterisk.sql
+          sudo mysql holidays < /var/tmp/holidays.sql
+      - name: 16-fix-db-user-for-real
+        script: |
+          sudo mysql -e "GRANT ALL PRIVILEGES ON snb_asterisk.* TO 'userforasterisk'@'localhost' IDENTIFIED BY 'Administrator-123';"
+          sudo mysql -e "GRANT ALL PRIVILEGES ON holidays.* TO 'userforasterisk'@'localhost';"
+          sudo mysql -e "FLUSH PRIVILEGES;"
+      - name: 17.1-disable-remote-odbc
+        script: |
+          sudo sed -i '/\[voip_ukhta-connector\]/,/^\s*$/s/^/;/' /etc/odbc.ini
+          sudo sed -i '/\[voip_usi-connector\]/,/^\s*$/s/^/;/' /etc/odbc.ini
+          sudo sed -i '/\[voip_msk-connector\]/,/^\s*$/s/^/;/' /etc/odbc.ini
+      - name: 18.0-force-kill-asterisk
+        script: |
+          sudo systemctl stop asterisk || true
+          sudo killall -9 asterisk || true
+          sudo rm -f /var/run/asterisk/asterisk.*
+          sudo systemctl start asterisk
+          sleep 5
+      - name: 18.1-verify-odbc-clean
+        script: sudo /usr/sbin/asterisk -rx "odbc show all"
+      - name: 18.3-debug-asterisk-fail
+        script: |
+          sudo systemctl status asterisk
+          sudo journalctl -n 50 -u asterisk
+      - name: 18.4-check-internal-logs
+        script: sudo tail -n 100 /var/log/asterisk/messages || sudo dmesg | tail -n 20
+      - name: 18.5-check-module-files
+        script: ls -l /usr/lib/asterisk/modules/res_odbc.so /usr/lib/asterisk/modules/res_config_odbc.so
+      - name: 18.6-force-load-and-debug
+        script: sudo /usr/sbin/asterisk -rx "module load res_odbc.so" || sudo /usr/sbin/asterisk -cvvvvvx "module load res_odbc.so" 2>&1 | grep res_odbc
+      - name: 19-check-files-existence
+        script: ls -la /usr/lib/asterisk/modules/res_odbc.so /usr/lib/asterisk/modules/res_config_odbc.so
+      - name: 20-check-ldd-dependencies
+        script: ldd /usr/lib/asterisk/modules/res_odbc.so
+      - name: 21-enable-autoload
+        script: |
+          sudo sed -i 's/autoload=no/autoload=yes/g' /etc/asterisk/modules.conf || echo 'autoload=yes' | sudo tee -a /etc/asterisk/modules.conf
+      - name: 22-manual-load-test
+        script: sudo timeout 3s /usr/sbin/asterisk -cvvvvv 2>&1 | grep odbc > /tmp/ast_debug.log || true
+      - name: 23-read-debug-log
+        script: cat /tmp/ast_debug.log
+      - name: 25-check-config-path
+        script: sudo /usr/sbin/asterisk -rx "core show settings" | grep Config
+      - name: 29-check-alternative-paths
+        script: ls -d /usr/local/etc/asterisk /usr/local/lib/asterisk/modules || echo 'No local paths'
+      - name: 30-brute-force-start-debug
+        script: sudo /usr/sbin/asterisk -C /etc/asterisk/asterisk.conf -M /usr/lib/asterisk/modules -cvvvvvx "core show help" | head -n 20
+      - name: 31-check-asterisk-conf
+        script: sudo cat /etc/asterisk/asterisk.conf | grep -E 'astetcdir|astmoddir'
+      - name: 32-cat-conf-with-sudo
+        script: sudo cat /etc/asterisk/asterisk.conf
+      - name: 33-check-permissions
+        script: sudo ls -ld /etc/asterisk /usr/lib/asterisk/modules
+      - name: 34-fix-asterisk-rights
+        script: |
+          sudo chown -R root:root /etc/asterisk
+          sudo chmod -R 755 /etc/asterisk /usr/lib/asterisk/modules
+      - name: 35-restart-after-fix
+        script: |
+          sudo systemctl restart asterisk
+          sleep 3
+          sudo /usr/sbin/asterisk -rx "core show version"
+      - name: 36-manual-test-run
+        script: sudo timeout 3s /usr/sbin/asterisk -cvvvvv > /tmp/asterisk_boot.log 2>&1 || true
+      - name: 37-show-boot-errors
+        script: cat /tmp/asterisk_boot.log | head -n 50
+      - name: 38-check-run-folder
+        script: |
+          sudo mkdir -p /var/run/asterisk /var/log/asterisk
+          sudo chmod 755 /var/run/asterisk /var/log/asterisk
+          sudo chown -R root:root /var/run/asterisk /var/log/asterisk
+      - name: 39-read-paths-from-conf
+        script: sudo grep -E 'astetcdir|astmoddir|astrundir' /etc/asterisk/asterisk.conf || echo "Config file issues"
+      - name: 40-find-all-sockets
+        script: sudo find / -name asterisk.ctl 2>/dev/null
+      - name: 41-check-active-process-config
+        script: ps -ef | grep [a]sterisk
+      - name: 42-force-connect-with-path
+        script: sudo /usr/sbin/asterisk -ndddvvc -rx "core show version; odbc show all"
+      - name: 43-symlink-socket-if-needed
+        script: |
+          sudo mkdir -p /var/run/asterisk
+          sudo ln -s /usr/local/var/run/asterisk/asterisk.ctl /var/run/asterisk/asterisk.ctl || true
+      - name: 44-fix-runtime-dir-permissions
+        script: |
+          sudo chmod 755 /run/asterisk
+          sudo chmod 666 /run/asterisk/asterisk.ctl || true
+      - name: 45-test-odbc-direct-socket
+        script: sudo /usr/sbin/asterisk -s /run/asterisk/asterisk.ctl -rx "core show version; odbc show all"
+      - name: 46-create-cli-symlink
+        script: |
+          sudo mkdir -p /var/run/asterisk
+          sudo ln -sf /run/asterisk/asterisk.ctl /var/run/asterisk/asterisk.ctl
+      - name: 47-check-res-odbc-loading
+        script: sudo /usr/sbin/asterisk -s /run/asterisk/asterisk.ctl -rx "module show like res_odbc"
+      - name: 48-verify-version
+        script: sudo /usr/sbin/asterisk -s /run/asterisk/asterisk.ctl -rx "core show version"
+      - name: 49-verify-odbc-clean
+        script: sudo /usr/sbin/asterisk -s /run/asterisk/asterisk.ctl -rx "odbc show all"
+      - name: 50-check-if-module-is-even-there
+        script: sudo /usr/sbin/asterisk -s /run/asterisk/asterisk.ctl -rx "module show like odbc"
+      - name: 51-force-reload-odbc
+        script: sudo /usr/sbin/asterisk -s /run/asterisk/asterisk.ctl -rx "module reload res_odbc.so" || true
+      - name: 64-sanitize-modules-conf
+        script: |
+          echo -e "[modules]\nautoload=yes\nnoload => pbx_lua.so\npreload => res_odbc.so\npreload => res_config_odbc.so" | sudo tee /etc/asterisk/modules.conf
