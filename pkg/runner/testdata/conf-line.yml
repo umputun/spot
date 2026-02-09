@@ -135,7 +135,7 @@ tasks:
       - name: verify variable substitution
         script: |
           echo "=== Checking variable substitution ==="
-          if grep -q "host=localhost" /tmp/test_vars.conf; then
+          if grep -q "host={TESTING_HOST_PORT}" /tmp/test_vars.conf; then
             echo "✓ Variable substituted correctly"
             cat /tmp/test_vars.conf
           else

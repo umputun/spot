@@ -410,6 +410,7 @@ func TestProcess_Run(t *testing.T) {
 	t.Run("line command operations", func(t *testing.T) {
 		conf, err := config.New("testdata/conf-line.yml", nil, nil)
 		require.NoError(t, err)
+		conf.UpdateRegisteredVars(map[string]string{"TESTING_HOST_PORT": testingHostAndPort})
 
 		p := Process{
 			Concurrency: 1,
@@ -1190,6 +1191,10 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
+	host := strings.Split(testingHostAndPort, ":")[0]
+	port, err := strconv.Atoi(strings.Split(testingHostAndPort, ":")[1])
+	require.NoError(t, err)
+
 	// capture log output to verify test results
 	var buf bytes.Buffer
 	log.SetOutput(io.MultiWriter(&buf, os.Stdout))
@@ -1202,6 +1207,7 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 
 	conf, err := config.New("testdata/register_templates.yml", nil, nil)
 	require.NoError(t, err)
+	conf.UpdateRegisteredVars(map[string]string{"TESTING_HOST": host})
 
 	// run the task with template variables in register
 	p := Process{
@@ -1220,7 +1226,9 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 			return conf.Task(name)
 		},
 		TargetHostsFunc: func(name string) ([]config.Destination, error) {
-			return conf.TargetHosts(name)
+			return []config.Destination{
+				{Name: "test1", Host: host, Port: port, User: conf.User},
+			}, nil
 		},
 		AllSecretValuesFunc:    conf.AllSecretValues,
 		UpdateTasksTargetsFunc: conf.UpdateTasksTargets,
@@ -1230,9 +1238,8 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 		},
 	}
 
-	// use testingHostAndPort as target to match docker test container
 	p.Playbook = playMock
-	res, err := p.Run(ctx, "register_with_template_vars", testingHostAndPort)
+	res, err := p.Run(ctx, "register_with_template_vars", "default")
 	require.NoError(t, err)
 
 	// print out what's in the registered variables
@@ -1247,14 +1254,13 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 	assert.Equal(t, "static-test", res.Registered["STATIC_VAR"])
 
 	// check VAR_{SPOT_REMOTE_ADDR} -> VAR_[actual IP address]
-	host := "localhost" // we know this is the hostname from our test config
 	varHostKey := "VAR_" + host
 	assert.Contains(t, res.Registered, varHostKey, "Host-specific variable not found")
 	assert.Equal(t, "host-specific-value", res.Registered[varHostKey])
 
-	// check second template substitution HOST_{SPOT_REMOTE_NAME} -> HOST_localhost
-	assert.Contains(t, res.Registered, "HOST_localhost", "Host name template variable not found")
-	assert.Equal(t, "hostname-specific-value", res.Registered["HOST_localhost"])
+	// check second template substitution HOST_{SPOT_REMOTE_NAME} -> HOST_test1
+	assert.Contains(t, res.Registered, "HOST_test1", "Host name template variable not found")
+	assert.Equal(t, "hostname-specific-value", res.Registered["HOST_test1"])
 
 	// check template substitution with user CMD_{SPOT_REMOTE_USER} -> CMD_test
 	assert.Contains(t, res.Registered, "CMD_test", "User template variable not found")
@@ -1272,7 +1278,7 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 	buf.Reset() // clear the log buffer
 
 	// run the second task to verify variable propagation
-	_, err = p.Run(ctx, "verify_variable_propagation", testingHostAndPort)
+	_, err = p.Run(ctx, "verify_variable_propagation", "default")
 	require.NoError(t, err, "Second task should pass as variables are propagated")
 
 	// verify the expected success message

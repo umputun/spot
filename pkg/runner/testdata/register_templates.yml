@@ -1,9 +1,5 @@
 user: test
 
-targets:
-  localhost:
-    hosts: [{host: "localhost", name: "local"}]
-
 tasks:
   - name: register_with_template_vars
     commands:
@@ -26,15 +22,15 @@ tasks:
       - name: register with SPOT_REMOTE_ADDR
         script: |
           # This will create a variable with the host address in the name
-          export VAR_localhost="host-specific-value"
-          echo "Setting VAR_localhost=$VAR_localhost"
+          export VAR_{TESTING_HOST}="host-specific-value"
+          echo "Setting VAR_{TESTING_HOST}=$VAR_{TESTING_HOST}"
         register: ["VAR_{SPOT_REMOTE_ADDR}"]
       
       - name: register with SPOT_REMOTE_NAME
         script: |
           # This will create a variable with the host name in the name
-          export HOST_localhost="hostname-specific-value"
-          echo "Setting HOST_localhost=$HOST_localhost"
+          export HOST_test1="hostname-specific-value"
+          echo "Setting HOST_test1=$HOST_test1"
         register: ["HOST_{SPOT_REMOTE_NAME}"]
         
       - name: register with SPOT_REMOTE_USER
@@ -55,15 +51,15 @@ tasks:
           echo "STATIC_VAR='${STATIC_VAR}'"
           echo "DYNAMIC_VAR='${DYNAMIC_VAR}'"
           echo "DYNAMIC_mydynamic='${DYNAMIC_mydynamic}'"
-          echo "VAR_localhost='${VAR_localhost}'"
-          echo "HOST_localhost='${HOST_localhost}'"
+          echo "VAR_{SPOT_REMOTE_ADDR}='$VAR_{SPOT_REMOTE_ADDR}'"
+          echo "HOST_test1='${HOST_test1}'"
           echo "CMD_test='${CMD_test}'"
           
           # Verify all variables are set correctly
           [ "$STATIC_VAR" = "static-test" ] || { echo "ERROR: STATIC_VAR is wrong"; exit 1; }
           [ "$DYNAMIC_mydynamic" = "dynamic-test-value" ] || { echo "ERROR: DYNAMIC_mydynamic is wrong"; exit 2; }
-          [ "$VAR_localhost" = "host-specific-value" ] || { echo "ERROR: VAR_localhost is wrong"; exit 3; }
-          [ "$HOST_localhost" = "hostname-specific-value" ] || { echo "ERROR: HOST_localhost is wrong"; exit 4; }
+          [ "$VAR_{SPOT_REMOTE_ADDR}" = "host-specific-value" ] || { echo "ERROR: $VAR_{SPOT_REMOTE_ADDR} is wrong"; exit 3; }
+          [ "$HOST_test1" = "hostname-specific-value" ] || { echo "ERROR: HOST_test1 is wrong"; exit 4; }
           
           echo "SUCCESS: All variables are correctly registered and accessible"
 
@@ -80,23 +76,23 @@ tasks:
           echo "STATIC_VAR='${STATIC_VAR}'"
           echo "DYNAMIC_VAR='${DYNAMIC_VAR}'"
           echo "DYNAMIC_mydynamic='${DYNAMIC_mydynamic}'"
-          echo "VAR_localhost='${VAR_localhost}'"
-          echo "HOST_localhost='${HOST_localhost}'"
+          echo "VAR_{SPOT_REMOTE_ADDR}='$VAR_{SPOT_REMOTE_ADDR}'"
+          echo "HOST_test1='${HOST_test1}'"
           echo "CMD_test='${CMD_test}'"
           
           # Verify registered variables with simple checks
           # Print actual vs expected values for debugging
           echo "Expected STATIC_VAR='static-test', actual='${STATIC_VAR}'"
           echo "Expected DYNAMIC_mydynamic='dynamic-test-value', actual='${DYNAMIC_mydynamic}'"
-          echo "Expected VAR_localhost='host-specific-value', actual='${VAR_localhost}'"
-          echo "Expected HOST_localhost='hostname-specific-value', actual='${HOST_localhost}'"
+          echo "Expected VAR_{SPOT_REMOTE_ADDR}='host-specific-value', actual='$VAR_{SPOT_REMOTE_ADDR}'"
+          echo "Expected HOST_test1='hostname-specific-value', actual='${HOST_test1}'"
           echo "Expected CMD_test='command-template-value', actual='${CMD_test}'"
           
           # Check that all variables are propagated correctly
           [ "$STATIC_VAR" = "static-test" ] || { echo "ERROR: STATIC_VAR is wrong"; exit 1; }
           [ "$DYNAMIC_mydynamic" = "dynamic-test-value" ] || { echo "ERROR: DYNAMIC_mydynamic is wrong"; exit 2; }
-          [ "$VAR_localhost" = "host-specific-value" ] || { echo "ERROR: VAR_localhost is wrong"; exit 3; }
-          [ "$HOST_localhost" = "hostname-specific-value" ] || { echo "ERROR: HOST_localhost is wrong"; exit 4; }
+          [ "$VAR_{SPOT_REMOTE_ADDR}" = "host-specific-value" ] || { echo "ERROR: VAR_{SPOT_REMOTE_ADDR} is wrong"; exit 3; }
+          [ "$HOST_test1" = "hostname-specific-value" ] || { echo "ERROR: HOST_test1 is wrong"; exit 4; }
           [ "$CMD_test" = "command-template-value" ] || { echo "ERROR: CMD_test is wrong"; exit 5; }
           
           echo "SUCCESS: All variables are correctly propagated between tasks"

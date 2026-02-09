@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -284,7 +285,7 @@ func TestExecuter_ConnectCanceled(t *testing.T) {
 	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	_, err = c.Connect(ctx, hostAndPort, "h1", "test")
-	assert.ErrorContains(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
+	assert.ErrorContains(t, err, fmt.Sprintf("failed to dial: dial tcp: lookup %s: i/o timeout", strings.Split(hostAndPort, ":")[0]))
 }
 
 func TestExecuter_Run(t *testing.T) {
