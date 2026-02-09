@@ -42,6 +42,17 @@ type Process struct {
 	SSHShell    string
 	SSHTempDir  string
 
+	// REVIEW TAG
+	// So it looks like ProxyCommand is related to host or target, it is not common but possible that to reach
+	// 2 different hosts 2 different ProxyCommand is necessary.
+	// There is also exists cli argument `--target` that in one form can be treated as forced hostname (target)
+	// and it is accessed inside Process.Run(). Also that `target` is one of the options for method main.run() and
+	// is being used in tests to bypass host configuration in playbook. This complicates passing ProxyCommand to
+	// the places where it is needed.
+	// To not override signature of Process.Run(), adding AdhocProxyCommand to Process structure
+
+	AdhocProxyCommand string
+
 	Skip []string
 	Only []string
 }
@@ -49,13 +60,14 @@ type Process struct {
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
+	ConnectWithProxy(ctx context.Context, hostAddr, hostName, user string, proxyCommandParsed []string) (*executor.Remote, error)
 }
 
 // Playbook is an interface for getting task and target information from playbook.
 type Playbook interface {
 	AllTasks() []config.Task
 	Task(name string) (*config.Task, error)
-	TargetHosts(name string) ([]config.Destination, error)
+	TargetHosts(name string, adhocProxyCommand string) ([]config.Destination, error)
 	AllSecretValues() []string
 	UpdateTasksTargets(vars map[string]string)
 	UpdateRegisteredVars(vars map[string]string)
@@ -88,7 +100,12 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 	allVars := make(map[string]string)
 	allRegistered := make(map[string]string)
-	targetHosts, err := p.Playbook.TargetHosts(target)
+
+	// If target here represents hostname and not the name of target in the Playbook, it is possible that target
+	// requires ProxyCommand to connect. Such target will need to  pass AdhocProxyCommand as cli argument `--proxy-command`
+	// and it's value is passed down here.
+	targetHosts, err := p.Playbook.TargetHosts(target, p.AdhocProxyCommand)
+
 	if err != nil {
 		return ProcResp{}, fmt.Errorf("can't get target %s: %w", target, err)
 	}
@@ -110,7 +127,8 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 			if tsk.User != "" {
 				user = tsk.User // override user from task if any set
 			}
-			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
+
+			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user, host.ProxyCommandParsed)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(resp.count))
 			}
@@ -147,7 +165,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 
 	targetHosts := []config.Destination{}
 	for _, target := range targets {
-		hosts, err := p.Playbook.TargetHosts(target)
+		hosts, err := p.Playbook.TargetHosts(target, p.AdhocProxyCommand)
 		if err != nil {
 			return fmt.Errorf("can't get target %s: %w", target, err)
 		}
@@ -178,7 +196,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
 // returns number of executed commands, vars from all commands and error if any.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (taskOnHostResp, error) {
+func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string, proxyCommandParsed []string) (taskOnHostResp, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
 		p.Logs.WithHost(hostAddr, hostName).Info.Printf(f, vals...)
 	}
@@ -190,13 +208,27 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	if p.anyRemoteCommand(tsk) && !p.Local {
 		// make remote executor only if there is a remote command in the task and not in local mode
 		var err error
-		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
-		if err != nil {
-			if hostName != "" {
-				return taskOnHostResp{}, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
+
+		if len(proxyCommandParsed) == 0 {
+			remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
+			if err != nil {
+				if hostName != "" {
+					return taskOnHostResp{}, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
+				}
+				return taskOnHostResp{}, err
 			}
-			return taskOnHostResp{}, err
 		}
+
+		if len(proxyCommandParsed) > 0 {
+			remote, err = p.Connector.ConnectWithProxy(ctx, hostAddr, hostName, user, proxyCommandParsed)
+			if err != nil {
+				if hostName != "" {
+					return taskOnHostResp{}, fmt.Errorf("can't connect through proxy command %s to %s, user: %s: %w", proxyCommandParsed, hostName, user, err)
+				}
+				return taskOnHostResp{}, err
+			}
+		}
+
 		defer remote.Close()
 		report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
 	} else {

@@ -282,10 +282,11 @@ func TestDestinations(t *testing.T) {
 		},
 	}
 
+	var proxyCommandParsed []string
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tge := newTargetExtractor(tc.targets, tc.user, tc.inventory)
-			res, err := tge.Destinations("test")
+			res, err := tge.Destinations("test", proxyCommandParsed)
 
 			if tc.err {
 				require.Error(t, err)
@@ -295,6 +296,7 @@ func TestDestinations(t *testing.T) {
 			}
 		})
 	}
+
 }
 
 func TestHostAddressParsing(t *testing.T) {
@@ -342,10 +344,12 @@ func TestHostAddressParsing(t *testing.T) {
 		},
 	}
 
+	var proxyCommandParsed []string
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tge := newTargetExtractor(nil, tc.user, &InventoryData{})
-			res, err := tge.Destinations(tc.input)
+			res, err := tge.Destinations(tc.input, proxyCommandParsed)
 
 			if tc.err {
 				require.Error(t, err)

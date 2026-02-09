@@ -23,7 +23,7 @@ func newTargetExtractor(targets map[string]Target, user string, inventory *Inven
 // Destinations returns list of destinations for target name
 // It first checks if the target exists in the playbook; if not, it looks into the inventory.
 // After collecting the destinations, it deduplicates them before returning.
-func (tg *targetExtractor) Destinations(name string) (res []Destination, err error) {
+func (tg *targetExtractor) Destinations(name string, proxyCommandParsed []string) (res []Destination, err error) {
 	dedup := func(in []Destination) (res []Destination) {
 		seen := make(map[string]struct{})
 		for _, d := range in {
@@ -40,7 +40,7 @@ func (tg *targetExtractor) Destinations(name string) (res []Destination, err err
 	if ok {
 		res, err = tg.destinationsFromPlaybook(name, t)
 	} else {
-		res, err = tg.destinationsFromInventory(name)
+		res, err = tg.destinationsFromInventory(name, proxyCommandParsed)
 	}
 	if err != nil {
 		return nil, err
@@ -141,7 +141,7 @@ func (tg *targetExtractor) matchTagsInventory(name string, tags []string) []Dest
 // If the target name contains an '@', it splits the user from the host and uses it for the destination.
 // If the target name contains a ':', it splits the host from the port and uses them for the destination.
 // If none of the above conditions match, it defaults to using the target name as the host and assumes port 22.
-func (tg *targetExtractor) destinationsFromInventory(name string) ([]Destination, error) {
+func (tg *targetExtractor) destinationsFromInventory(name string, proxyCommandParsed []string) ([]Destination, error) {
 	hosts, ok := tg.inventory.Groups[name]
 	if ok {
 		// the name is a group in inventory, return all hosts in the group
@@ -182,6 +182,13 @@ func (tg *targetExtractor) destinationsFromInventory(name string) ([]Destination
 	}
 
 	// check if the name looks like host:port
+	// At this point code will treat name as the taget hostname, if ProxyCommand is not empty
+	// configure it too in Destination structure.
+
+	// Old code does not expect additional filed (ProxyCommand, ProxyCommandParsed) and tests configured to not expect it,
+	// to respect that returning Destination with them only then ProxyCommand provided
+	var adhocRes Destination
+
 	if strings.Contains(name, ":") {
 		elems := strings.Split(name, ":")
 		port, err := strconv.Atoi(elems[1])
@@ -189,10 +196,33 @@ func (tg *targetExtractor) destinationsFromInventory(name string) ([]Destination
 			return nil, fmt.Errorf("can't parse port %s: %w", elems[1], err)
 		}
 		log.Printf("[DEBUG] target %q used as host:port %s:%d", name, elems[0], port)
-		return []Destination{{Host: elems[0], Name: elems[0], Port: port, User: user}}, nil
+
+		adhocRes = Destination{Host: elems[0], Name: elems[0], Port: port, User: user}
+		adhocRes = tg.updateWithProxyCommand(adhocRes, proxyCommandParsed)
+
+		return []Destination{adhocRes}, nil
 	}
 
 	// we have no idea what this is, use it as host:22
 	log.Printf("[DEBUG] target %q used as host:22 %s", name, name)
-	return []Destination{{Host: name, Name: name, Port: 22, User: user}}, nil
+
+	adhocRes = Destination{Host: name, Name: name, Port: 22, User: user}
+	adhocRes = tg.updateWithProxyCommand(adhocRes, proxyCommandParsed)
+	return []Destination{adhocRes}, nil
+
+}
+
+// updateWithProxyCommand sets proxy command fields on destination from parsed proxy command arguments.
+// Fields are set only if proxyCommandParsed is not empty.
+func (tg *targetExtractor) updateWithProxyCommand(res Destination, proxyCommandParsed []string) Destination {
+	// To run task (or connect with proxy) only parsed form of ProxyCommand is necessary,
+	// but to not confuse user during debug saving both forms in Destination.
+	// To not pass 2 forms, reconstruct original form from parsed.
+
+	if len(proxyCommandParsed) > 0 {
+		res.ProxyCommand = strings.Join(proxyCommandParsed, " ")
+		res.ProxyCommandParsed = proxyCommandParsed
+	}
+	return res
+
 }
