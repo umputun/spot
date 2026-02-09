@@ -1092,9 +1092,6 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 		Image:        "lscr.io/linuxserver/openssh-server:latest",
 		ExposedPorts: []string{"2222/tcp"},
 		WaitingFor:   wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 60),
-		Files: []testcontainers.ContainerFile{
-			{HostFilePath: "testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
-		},
 		Env: map[string]string{
 			"PUBLIC_KEY": string(pubKey),
 			"USER_NAME":  "test",
@@ -1107,7 +1104,6 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, err)
 	port, err := container.MappedPort(ctx, "2222")
 	require.NoError(t, err)
 	host, err := container.Host(ctx)
