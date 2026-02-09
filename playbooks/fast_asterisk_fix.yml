@@ -1,0 +1,61 @@
+user: prog10
+ssh_key: "d:/Kube/spot/keys/kube"
+ssh_temp: spot_tmp
+ssh_shell: /bin/bash
+local_shell: "cmd.exe"
+
+tasks:
+  - name: fast-asterisk-fix
+    commands:
+      - name: 01-kill-and-backup-runtime
+        script: "TS=$(date +%Y%m%d_%H%M%S); echo '=== Stopping Asterisk and backing up runtime ==='; if [ -d /var/run/asterisk ]; then sudo cp -r /var/run/asterisk /var/run/asterisk.bak_$TS; fi; sudo systemctl stop asterisk 2>/dev/null || true; sleep 2; sudo killall -9 asterisk 2>/dev/null || true; sudo rm -rf /var/run/asterisk/* /run/asterisk/* /tmp/asterisk.ctl 2>/dev/null || true; echo '=== Cleanup completed ==='"
+        options: {ignore_errors: true}
+
+      - name: 02-upload-configs
+        copy:
+          - {src: "d:/Kube/spot/asterisk_backup/ast_old_conf.tar.gz", dst: "/tmp/ast_old_conf.tar.gz", mkdir: true}
+          - {src: "d:/Kube/spot/asterisk_backup/apply_configs.sh", dst: "/home/prog10/apply_configs.sh"}
+
+      - name: 03-apply-configs-with-backup
+        script: "TS=$(date +%Y%m%d_%H%M%S); echo '=== Applying Asterisk configs ==='; if [ -d /etc/asterisk ]; then sudo cp -r /etc/asterisk /etc/asterisk.bak_$TS; echo 'Config backup created: /etc/asterisk.bak_$TS'; fi; sed -i 's/\r$//' /home/prog10/apply_configs.sh; chmod +x /home/prog10/apply_configs.sh; /home/prog10/apply_configs.sh; echo '=== Configs applied ==='"
+
+      - name: 04-setup-odbc-ini
+        script: "TS=$(date +%Y%m%d_%H%M%S); echo '=== Setting up ODBC ==='; if [ -f /etc/odbcinst.ini ]; then sudo cp /etc/odbcinst.ini /etc/odbcinst.ini.bak_$TS; fi; echo '[MySQL]' | sudo tee /etc/odbcinst.ini > /dev/null; echo 'Description = MariaDB' | sudo tee -a /etc/odbcinst.ini > /dev/null; echo 'Driver = /usr/lib/x86_64-linux-gnu/odbc/libmaodbc.so' | sudo tee -a /etc/odbcinst.ini > /dev/null; echo 'UsageCount = 1' | sudo tee -a /etc/odbcinst.ini > /dev/null; echo '=== ODBC driver configured ==='"
+
+      - name: 05-setup-database-user
+        script: "echo '=== Setting up database privileges ==='; sudo mysql -e \"GRANT ALL PRIVILEGES ON snb_asterisk.* TO 'userforasterisk'@'localhost' IDENTIFIED BY 'Flvbybcnhfnjh-123'; GRANT ALL PRIVILEGES ON holidays.* TO 'userforasterisk'@'localhost'; FLUSH PRIVILEGES;\"; echo '=== Database privileges granted ==='"
+        options: {ignore_errors: true}
+
+      - name: 06-fix-odbc-connection-ip
+        script: "TS=$(date +%Y%m%d_%H%M%S); echo '=== Fixing ODBC connection IPs ==='; if [ -f /etc/odbc.ini ]; then sudo cp /etc/odbc.ini /etc/odbc.ini.bak_$TS; sudo sed -i 's/192.168.32.235/127.0.0.1/g' /etc/odbc.ini; echo 'Fixed: /etc/odbc.ini'; fi; if [ -f /etc/asterisk/res_odbc.conf ]; then sudo cp /etc/asterisk/res_odbc.conf /etc/asterisk/res_odbc.conf.bak_$TS; sudo sed -i 's/192.168.32.235/127.0.0.1/g' /etc/asterisk/res_odbc.conf; echo 'Fixed: /etc/asterisk/res_odbc.conf'; fi; echo '=== ODBC IPs fixed ==='"
+
+      - name: 07-setup-modules-conf
+        script: "TS=$(date +%Y%m%d_%H%M%S); echo '=== Setting up modules.conf ==='; if [ -f /etc/asterisk/modules.conf ]; then sudo cp /etc/asterisk/modules.conf /etc/asterisk/modules.conf.bak_$TS; fi; echo '[modules]' | sudo tee /etc/asterisk/modules.conf > /dev/null; echo 'autoload=yes' | sudo tee -a /etc/asterisk/modules.conf > /dev/null; echo 'preload => res_odbc.so' | sudo tee -a /etc/asterisk/modules.conf > /dev/null; echo 'preload => res_config_odbc.so' | sudo tee -a /etc/asterisk/modules.conf > /dev/null; echo '=== modules.conf configured ==='"
+
+      - name: 08-fix-filesystem-permissions
+        script: "TS=$(date +%Y%m%d_%H%M%S); echo '=== Fixing filesystem permissions ==='; if [ -d /var/log/asterisk ]; then sudo cp -r /var/log/asterisk /var/log/asterisk.bak_$TS; fi; sudo mkdir -p /var/run/asterisk /var/log/asterisk /var/spool/asterisk; sudo chown -R root:root /etc/asterisk /var/run/asterisk /var/log/asterisk /var/spool/asterisk; sudo chmod -R 755 /etc/asterisk /usr/lib/asterisk/modules /var/run/asterisk /var/log/asterisk /var/spool/asterisk; echo '=== Permissions fixed ==='"
+
+      - name: 09-start-asterisk
+        script: "echo '=== Starting Asterisk ==='; sudo /usr/sbin/asterisk -C /etc/asterisk/asterisk.conf; sleep 5; echo '=== Asterisk started, waiting for initialization ==='"
+
+      - name: 10-verify-process-running
+        script: "echo '=== Verifying Asterisk process ==='; ps -ef | grep [a]sterisk; if pgrep -x 'asterisk' > /dev/null; then echo '✓ Asterisk process is running'; else echo '✗ ERROR: Asterisk process not found!'; exit 1; fi"
+
+      - name: 11-verify-module-files
+        script: "echo '=== Checking ODBC module files ==='; for module in res_odbc.so res_config_odbc.so; do if [ -f /usr/lib/asterisk/modules/$module ]; then echo '✓ '$module' found'; else echo '✗ ERROR: '$module' MISSING!'; fi; done"
+
+      - name: 12-load-odbc-modules
+        script: "echo '=== Loading ODBC modules ==='; sudo /usr/sbin/asterisk -rx \"module load res_odbc.so\" || echo 'res_odbc.so already loaded or load failed'; sleep 1; sudo /usr/sbin/asterisk -rx \"module load res_config_odbc.so\" || echo 'res_config_odbc.so already loaded or load failed'; sleep 1; echo '=== Module loading completed ==='"
+        options: {ignore_errors: true}
+
+      - name: 13-verify-odbc-status
+        script: "echo '=== Checking ODBC status ==='; sudo /usr/sbin/asterisk -rx \"odbc show all\""
+        options: {ignore_errors: true}
+
+      - name: 14-check-odbc-modules
+        script: "echo '=== Checking loaded ODBC modules ==='; sudo /usr/sbin/asterisk -rx \"module show like odbc\""
+        options: {ignore_errors: true}
+
+      - name: 15-final-status
+        script: "echo '========================================='; echo '=== ASTERISK FIX COMPLETED ==='; echo '========================================='; echo 'Process status:'; ps -ef | grep [a]sterisk | head -1; echo ''; echo 'ODBC Status:'; sudo /usr/sbin/asterisk -rx \"odbc show all\" 2>/dev/null || echo 'ODBC not responding (may need module reload)'; echo ''; echo 'Backup locations:'; sudo find /etc /var/run /var/log -maxdepth 2 -name '*.bak_*' -type d 2>/dev/null | head -10; echo '========================================='"
+        options: {ignore_errors: true}

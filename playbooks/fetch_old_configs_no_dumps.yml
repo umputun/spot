@@ -1,0 +1,17 @@
+user: prog10
+ssh_key: "d:/Kube/spot/keys/kube"
+ssh_temp: spot_tmp
+ssh_shell: /bin/sh
+local_shell: "cmd.exe"
+
+tasks:
+  - name: fetch-old-configs-and-distributive
+    commands:
+      - name: archive-server-configs
+        script: "sudo tar -czf /tmp/ast_old_conf.tar.gz -C /etc/asterisk . -C /etc odbc.ini odbcinst.ini && sudo chown prog10:prog10 /tmp/ast_old_conf.tar.gz"
+
+      - name: download-configs-to-windows
+        copy:
+          src: "/tmp/ast_old_conf.tar.gz"
+          dst: "d:/Kube/spot/asterisk_backup/ast_old_conf.tar.gz"
+          direction: "pull"
