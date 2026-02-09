@@ -103,13 +103,20 @@ func (cmd *Cmd) GetScript() (command string, rdr io.Reader) {
 	elems := strings.Split(cmd.Script, "\n")
 	// if there are multiple lines, we need to use a script file.
 	// export presence should be treated as multiline for env vars to be set. The same thing for register variables.
-	if len(elems) > 1 || strings.Contains(cmd.Script, "export") || len(cmd.Register) > 0 {
+	// also force script file for "risky" single-line content to avoid shell quoting pitfalls.
+	if len(elems) > 1 || strings.Contains(cmd.Script, "export") || len(cmd.Register) > 0 || isRiskySingleLine(cmd.Script) {
 		log.Printf("[DEBUG] command %q is multiline, using script file", cmd.Name)
 		return "", cmd.scriptFile(cmd.Script, cmd.Register)
 	}
 
 	log.Printf("[DEBUG] command %q is single line, using script string", cmd.Name)
 	return cmd.scriptCommand(cmd.Script), nil
+}
+
+// isRiskySingleLine returns true for single-line scripts that should be executed via a temp script file
+// to avoid shell quoting pitfalls.
+func isRiskySingleLine(s string) bool {
+	return strings.Contains(s, "'") || strings.Contains(s, "|") || strings.Contains(s, "=>")
 }
 
 // GetWait returns a wait command as a string and an io.Reader based on whether the command is a single line or multiline
