@@ -136,7 +136,7 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 
 		key, err := os.ReadFile(privateKeyPath) // nolint
 		if err != nil {
-			return nil, fmt.Errorf("unable to read private key: %vw", err)
+			return nil, fmt.Errorf("unable to read private key: %w", err)
 		}
 		signer, err := ssh.ParsePrivateKey(key)
 		if err != nil {
