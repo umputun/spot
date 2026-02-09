@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -83,7 +84,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 
 		remoteFile := remote
 		if len(matches) > 1 { // if there are multiple files, treat remote as a directory
-			remoteFile = filepath.Join(remote, filepath.Base(match))
+			remoteFile = path.Join(remote, filepath.Base(match))
 		}
 		req := sftpReq{
 			client:     ex.client,
@@ -132,8 +133,8 @@ func (ex *Remote) Download(ctx context.Context, remote, local string, opts *UpDo
 
 		// if the remote basename does not equal the remoteFile basename,
 		// treat remote as a glob pattern and local as a directory
-		if filepath.Base(remote) != filepath.Base(remoteFile) {
-			localFile = filepath.Join(local, filepath.Base(remoteFile))
+		if path.Base(remote) != path.Base(remoteFile) {
+			localFile = filepath.Join(local, path.Base(remoteFile))
 		}
 
 		req := sftpReq{
@@ -173,7 +174,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *Sy
 	unmatchedFiles, deletedFiles := ex.findUnmatchedFiles(localFiles, remoteFiles, excl)
 	for _, file := range unmatchedFiles {
 		localPath := filepath.Join(localDir, file)
-		remotePath := filepath.Join(remoteDir, file)
+		remotePath := path.Join(remoteDir, file)
 		if err = ex.Upload(ctx, localPath, remotePath, &UpDownOpts{Mkdir: true}); err != nil {
 			return nil, fmt.Errorf("failed to upload %s to %s: %w", localPath, remotePath, err)
 		}
@@ -186,7 +187,7 @@ func (ex *Remote) Sync(ctx context.Context, localDir, remoteDir string, opts *Sy
 		// note: this may cause attempts to remove files from already deleted directories, but it's ok, Delete is idempotent.
 		for _, file := range deletedFiles {
 			deleteOpts := &DeleteOpts{Recursive: remoteFiles[file].IsDir}
-			if err = ex.Delete(ctx, filepath.Join(remoteDir, file), deleteOpts); err != nil {
+			if err = ex.Delete(ctx, path.Join(remoteDir, file), deleteOpts); err != nil {
 				return nil, fmt.Errorf("failed to delete %s: %w", file, err)
 			}
 		}
@@ -234,8 +235,8 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 				continue
 			}
 
-			path := walker.Path()
-			relPath, e := filepath.Rel(remoteFile, path)
+			p := walker.Path()
+			relPath, e := remoteRel(remoteFile, p)
 			if e != nil {
 				return e
 			}
@@ -393,7 +394,7 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	}
 
 	if req.mkdir {
-		rdir := filepath.Dir(req.remoteFile)
+		rdir := path.Dir(req.remoteFile)
 		if e := sftpClient.MkdirAll(rdir); e != nil {
 			return fmt.Errorf("failed to create remote directory %q: %v", rdir, e)
 		}
@@ -578,8 +579,8 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 		}
 
 		for _, entry := range entries {
-			fullPath := filepath.Join(dir, entry.Name())
-			relPath, err := filepath.Rel(root, fullPath)
+			fullPath := path.Join(dir, entry.Name())
+			relPath, err := remoteRel(root, fullPath)
 			if err != nil {
 				log.Printf("[WARN] failed to get relative path for %s: %v", fullPath, err)
 				continue
@@ -653,7 +654,7 @@ func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, erro
 
 	files := make([]string, 0, len(matches))
 	for _, match := range matches {
-		relPath, e := filepath.Rel(filepath.Dir(remote), match)
+		relPath, e := remoteRel(path.Dir(remote), match)
 		if e != nil {
 			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
@@ -665,4 +666,40 @@ func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, erro
 	}
 
 	return files, nil
+}
+
+// remoteRel returns a relative path for remote (posix) paths.
+// It avoids filepath.Rel which uses OS-specific separators on Windows.
+func remoteRel(root, p string) (string, error) {
+	root = path.Clean(root)
+	p = path.Clean(p)
+
+	if root == "." {
+		return p, nil
+	}
+
+	// ensure root has no trailing slash except for "/"
+	if root != "/" && strings.HasSuffix(root, "/") {
+		root = strings.TrimSuffix(root, "/")
+	}
+
+	if p == root {
+		return ".", nil
+	}
+
+	prefix := root + "/"
+	if root == "/" {
+		prefix = "/"
+	}
+
+	if strings.HasPrefix(p, prefix) {
+		rel := strings.TrimPrefix(p, prefix)
+		if rel == "" {
+			return ".", nil
+		}
+		return rel, nil
+	}
+
+	// fallback: return original path (better than hard failure for globs)
+	return p, nil
 }

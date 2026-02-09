@@ -12,6 +12,7 @@ import (
 	mr "math/rand"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -230,7 +231,7 @@ func (ec *execCmd) copyPush(ctx context.Context, src, dst string) (resp execCmdR
 	tmpRemoteDir := ec.uniqueTmp(tmpRemoteDirPrefix)
 	resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true}", src, dst)
 	// not using filepath.Join because we want to keep the linux slash, see https://github.com/umputun/spot/issues/144
-	tmpDest := tmpRemoteDir + "/" + filepath.Base(dst)
+	tmpDest := tmpRemoteDir + "/" + path.Base(dst)
 
 	// upload to a temporary directory with mkdir
 	err = ec.exec.Upload(ctx, src, tmpDest, &executor.UpDownOpts{Mkdir: true, Force: true, Exclude: ec.cmd.Copy.Exclude})
@@ -249,7 +250,7 @@ func (ec *execCmd) copyPush(ctx context.Context, src, dst string) (resp execCmdR
 		mvCmd = fmt.Sprintf("mkdir -p %s\nmv -f %s/* %s", dst, tmpDest, dst) // move multiple files, if wildcard is used
 	}
 	if ec.cmd.Copy.Mkdir {
-		mvCmd = fmt.Sprintf("mkdir -p %s\n%s", filepath.Dir(dst), mvCmd) // create directory before moving
+		mvCmd = fmt.Sprintf("mkdir -p %s\n%s", path.Dir(dst), mvCmd) // create directory before moving
 	}
 
 	c, _, _, err := ec.prepScript(ctx, mvCmd, nil)
@@ -314,7 +315,7 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 		// for single files: quote everything (existing behavior)
 		// not using filepath.Join to keep the linux slash
 		// use -L to dereference symlinks - relative symlinks become dangling when copied to /tmp
-		tmpSrc := tmpRemoteDir + "/" + filepath.Base(src)
+		tmpSrc := tmpRemoteDir + "/" + path.Base(src)
 		cpCmd = fmt.Sprintf("mkdir -p %q && cp -rL %q %q && chmod -R +r %q",
 			tmpRemoteDir, src, tmpSrc, tmpSrc)
 		downloadSrc = tmpSrc
@@ -805,8 +806,8 @@ func (tm *templater) apply(inp string) string {
 func (ec *execCmd) uniqueTmp(defaultPrefix string) string {
 	prefix := defaultPrefix
 	if ec.sshTmpDir != "" {
-		_, last := filepath.Split(defaultPrefix) // get the last part of the path from default
-		prefix = filepath.Join(ec.sshTmpDir, last)
+		last := path.Base(defaultPrefix) // get the last part of the path from default
+		prefix = path.Join(ec.sshTmpDir, last)
 	}
 	rndInt := func() int64 {
 		var randomInt int64
