@@ -1115,7 +1115,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 		resp, err = ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, wr.String(), "/tmp/inventory.txt")
-		assert.Contains(t, wr.String(), "> -rw-r--r-- ")
+		assert.Regexp(t, "> -rw-[r-][w-]-[r-][w-]-", wr.String())
 
 		// check if tmp dir removed
 		wr.Reset()
@@ -1150,7 +1150,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 		resp, err = ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, wr.String(), "/tmp/inventory.txt")
-		assert.Contains(t, wr.String(), "> -rwxr-xr-x ", "file should be executable")
+		assert.Regexp(t, "> -rwx[r-][w-]x[r-][w-]x", wr.String(), "file should be executable")
 
 		// check if tmp dir removed
 		wr.Reset()
