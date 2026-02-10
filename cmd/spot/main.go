@@ -34,6 +34,7 @@ type options struct {
 	} `positional-args:"yes" positional-optional:"yes"`
 
 	PlaybookFile    string        `short:"p" long:"playbook" env:"SPOT_PLAYBOOK" description:"playbook file" default:"spot.yml"`
+	AnsiblePlaybook bool          `long:"ansible" description:"parse ansible-like playbook (hosts/tasks/vars/handlers)"`
 	TaskNames       []string      `short:"n" long:"task" description:"task name"`
 	Targets         []string      `short:"t" long:"target" description:"target name" default:"default"`
 	Concurrent      int           `short:"c" long:"concurrent" description:"concurrent tasks" default:"1"`
@@ -341,7 +342,12 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, []string, e
 		return nil, nil, fmt.Errorf("can't make secrets provider: %w", err)
 	}
 
-	pbook, err := config.New(exPlaybookFile, &overrides, secretsProvider)
+	var pbook *config.PlayBook
+	if opts.AnsiblePlaybook {
+		pbook, err = config.NewAnsible(exPlaybookFile, &overrides, secretsProvider)
+	} else {
+		pbook, err = config.New(exPlaybookFile, &overrides, secretsProvider)
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("can't load playbook %q: %w", exPlaybookFile, err)
 	}
