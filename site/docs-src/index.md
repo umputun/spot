@@ -63,7 +63,7 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 
 ```bash
 brew tap umputun/apps
-brew install umputun/apps/spot
+brew install --cask umputun/apps/spot
 ```
 
 _This will install both `spot` and `spot-secrets` binaries._
