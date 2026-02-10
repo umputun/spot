@@ -24,7 +24,7 @@ func TestExecuter_UploadAndDownload(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
@@ -52,7 +52,7 @@ func TestExecuter_DownloadWithForce(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
@@ -111,7 +111,7 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
@@ -167,7 +167,7 @@ func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestExecuter_Upload_FailedNoRemoteDir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestExecuter_Upload_CantMakeRemoteDir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestExecuter_Upload_Canceled(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -230,7 +230,7 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestUpload_UploadOverwriteWithAndWithoutForce(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
@@ -281,7 +281,7 @@ func TestExecuter_ConnectCanceled(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	_, err = c.Connect(ctx, hostAndPort, "h1", "test")
 	assert.ErrorContains(t, err, "failed to dial: dial tcp: lookup localhost: i/o timeout")
@@ -294,7 +294,7 @@ func TestExecuter_Run(t *testing.T) {
 	defer teardown()
 
 	logs := MakeLogs(true, false, nil)
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -331,7 +331,7 @@ func TestExecuter_Run(t *testing.T) {
 	t.Run("with secrets", func(t *testing.T) {
 
 		capturedStdout := captureStdOut(t, func() {
-			c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, []string{"data2"}))
+			c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, []string{"data2"}))
 			require.NoError(t, err)
 			session, err := c.Connect(ctx, hostAndPort, "h1", "test")
 			require.NoError(t, err)
@@ -374,7 +374,7 @@ func TestExecuter_Sync(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -451,7 +451,7 @@ func TestExecuter_Delete(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -512,7 +512,7 @@ func TestExecuter_DeleteWithExclude(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
 	require.NoError(t, err)
@@ -662,7 +662,7 @@ func Test_getRemoteFilesProperties(t *testing.T) {
 	hostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 
-	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	c, err := NewConnector("testdata/test_ssh_key", "", time.Second*10, MakeLogs(true, false, nil))
 	require.NoError(t, err)
 
 	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")

@@ -29,7 +29,7 @@ func TestProcess_Run(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 
 	t.Run("full playbook", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 
 		lgs := executor.MakeLogs(false, false, conf.AllSecretValues())
-		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
+		conn, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, lgs)
 		require.NoError(t, err)
 
 		p := Process{
@@ -265,7 +265,7 @@ func TestProcess_Run(t *testing.T) {
 		lgs := executor.MakeLogs(false, false, conf.AllSecretValues())
 		lgs.Info = lgs.Info.WithWriter(wr)
 
-		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
+		conn, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, lgs)
 		require.NoError(t, err)
 
 		p := Process{
@@ -292,7 +292,7 @@ func TestProcess_Run(t *testing.T) {
 		lgs := executor.MakeLogs(true, false, conf.AllSecretValues())
 		lgs.Info = lgs.Info.WithWriter(wr)
 
-		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
+		conn, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, lgs)
 		require.NoError(t, err)
 
 		p := Process{
@@ -320,7 +320,7 @@ func TestProcess_Run(t *testing.T) {
 		lgs := executor.MakeLogs(true, false, conf.AllSecretValues())
 		lgs.Info = lgs.Info.WithWriter(wr)
 
-		conn, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, lgs)
+		conn, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, lgs)
 		require.NoError(t, err)
 
 		p := Process{
@@ -450,7 +450,7 @@ func TestProcess_RunWithSudo(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -575,7 +575,7 @@ func TestProcess_RunDry(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -599,7 +599,7 @@ func TestProcess_RunOnlyAndSkip(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -656,7 +656,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		log.SetOutput(io.Discard)
 
 		logs := executor.MakeLogs(true, false, nil)
-		connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+		connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 		require.NoError(t, err)
 
 		conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -677,7 +677,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		log.SetOutput(io.Discard)
 		stdout := captureStdOut(t, func() {
 			logs := executor.MakeLogs(true, false, nil)
-			connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+			connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 			require.NoError(t, err)
 
 			conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -707,7 +707,7 @@ func TestProcess_RunVerbose(t *testing.T) {
 		log.SetOutput(io.Discard)
 		stdout := captureStdOut(t, func() {
 			logs := executor.MakeLogs(true, false, nil)
-			connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+			connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 			require.NoError(t, err)
 
 			conf, err := config.New("testdata/conf.yml", nil, nil)
@@ -801,7 +801,7 @@ func TestProcess_RunFailed(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -822,7 +822,7 @@ func TestProcess_RunFailed_WithOnError(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf-onerror.yml",
 		&config.Overrides{Environment: map[string]string{"var1": "value1", "var2": "value2"}},
@@ -881,7 +881,7 @@ func TestProcess_RunFailedErrIgnored(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -903,7 +903,7 @@ func TestProcess_RunWithOnExit(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -955,7 +955,7 @@ func TestProcess_RunTaskWithWait(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 	conf, err := config.New("testdata/conf.yml", nil, nil)
 	require.NoError(t, err)
@@ -1197,7 +1197,7 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 
 	// initialize test components
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 
 	conf, err := config.New("testdata/register_templates.yml", nil, nil)
@@ -1287,7 +1287,7 @@ func TestProcess_RunBcryptPassword(t *testing.T) {
 	defer teardown()
 
 	logs := executor.MakeLogs(false, false, nil)
-	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", "", time.Second*10, logs)
 	require.NoError(t, err)
 
 	conf, err := config.New("testdata/conf-bcrypt.yml", nil, nil)

@@ -34,6 +34,12 @@ func NewConnector(privateKey, password string, timeout time.Duration, logs Logs)
 	}
 	log.Printf("[DEBUG] use private key %q", privateKey)
 	if _, err := os.Stat(privateKey); os.IsNotExist(err) {
+		if password != "" || os.Getenv("SSH_AUTH_SOCK") != "" {
+			log.Printf("[WARN] private key file %q does not exist, falling back to agent/password", privateKey)
+			res.privateKey = ""
+			res.enableAgent = true
+			return res, nil
+		}
 		return nil, fmt.Errorf("private key file %q does not exist", privateKey)
 	}
 	return res, nil
@@ -173,5 +179,13 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 }
 
 func (c *Connector) String() string {
-	return fmt.Sprintf("ssh connector with private key %s.., timeout %v, agent %v", c.privateKey[:8], c.timeout, c.enableAgent)
+	keyPrefix := "none"
+	if c.privateKey != "" {
+		if len(c.privateKey) >= 8 {
+			keyPrefix = c.privateKey[:8]
+		} else {
+			keyPrefix = c.privateKey
+		}
+	}
+	return fmt.Sprintf("ssh connector with private key %s.., timeout %v, agent %v", keyPrefix, c.timeout, c.enableAgent)
 }
