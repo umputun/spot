@@ -415,6 +415,13 @@ func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetNa
 func targetsForTask(targets []string, taskName string, pbook runner.Playbook) []string {
 	if len(targets) > 1 || (len(targets) == 1 && targets[0] != "default") {
 		// non-default target specified on command line
+		// if ansible mode and task has its own targets, intersect instead of overriding
+		if pb, ok := pbook.(*config.PlayBook); ok && pb.Ansible {
+			tsk, err := pbook.Task(taskName)
+			if err == nil && len(tsk.Targets) > 0 {
+				return intersectTargets(tsk.Targets, targets)
+			}
+		}
 		return targets
 	}
 
@@ -431,6 +438,20 @@ func targetsForTask(targets []string, taskName string, pbook runner.Playbook) []
 
 	log.Printf("[INFO] task %q has %d targets [%s] pre-defined", taskName, len(tsk.Targets), strings.Join(tsk.Targets, ", "))
 	return tsk.Targets
+}
+
+func intersectTargets(a, b []string) []string {
+	set := map[string]struct{}{}
+	for _, v := range b {
+		set[v] = struct{}{}
+	}
+	res := []string{}
+	for _, v := range a {
+		if _, ok := set[v]; ok {
+			res = append(res, v)
+		}
+	}
+	return res
 }
 
 // get ssh key from cli or playbook. if no key is provided, use default ~/.ssh/id_rsa

@@ -32,6 +32,7 @@ type PlayBook struct {
 	Inventory  string            `yaml:"inventory" toml:"inventory"`     // inventory file or url
 	Targets    map[string]Target `yaml:"targets" toml:"targets"`         // list of targets/environments
 	Tasks      []Task            `yaml:"tasks" toml:"tasks"`             // list of tasks
+	Ansible    bool              `yaml:"-" toml:"-"`                     // ansible-like playbook mode
 
 	inventory       *InventoryData    // loaded inventory
 	overrides       *Overrides        // overrides passed from cli
