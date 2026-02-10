@@ -66,6 +66,7 @@ type Task struct {
 	Commands []Cmd      `yaml:"commands" toml:"commands"`
 	OnError  string     `yaml:"on_error" toml:"on_error"`
 	Targets  []string   `yaml:"targets" toml:"targets"`           // optional list of targets to run task on, names or groups
+	Tags     []string   `yaml:"tags" toml:"tags"`                 // optional tags for task filtering
 	Options  CmdOptions `yaml:"options" toml:"options,omitempty"` // options for all commands
 }
 
@@ -376,6 +377,20 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 	}
 
 	return res, nil
+}
+
+// TasksByTag returns names of tasks matching the given tag (case-insensitive).
+func (p *PlayBook) TasksByTag(tag string) []string {
+	var result []string
+	for _, t := range p.Tasks {
+		for _, tt := range t.Tags {
+			if strings.EqualFold(tt, tag) {
+				result = append(result, t.Name)
+				break
+			}
+		}
+	}
+	return result
 }
 
 // TargetHosts returns target hosts for given target name.

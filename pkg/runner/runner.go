@@ -55,6 +55,7 @@ type Connector interface {
 type Playbook interface {
 	AllTasks() []config.Task
 	Task(name string) (*config.Task, error)
+	TasksByTag(tag string) []string
 	TargetHosts(name string) ([]config.Destination, error)
 	AllSecretValues() []string
 	UpdateTasksTargets(vars map[string]string)

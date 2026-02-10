@@ -128,7 +128,7 @@ Spot supports the following command-line options:
 
 - `-p`, `--playbook=`: Specifies the playbook file for use. Defaults to `spot.yml`. You can also set the environment
   variable `$SPOT_PLAYBOOK` to define the playbook file path.
-- `-n`, `--task=`: Specifies task names to execute. The task should be defined in the playbook file. Several tasks can be executed by providing the `--task` flag multiple times, e.g., `-n copy_files -n warmup_cache`.
+- `-n`, `--task=`: Specifies task names or tags to execute. Spot first tries to match an exact task name; if no match is found, it treats the value as a tag and runs all tasks with that tag in playbook order. Several values can be provided by using the flag multiple times, e.g., `-n copy_files -n warmup_cache` or `-n deploy` (to run all tasks tagged "deploy").
   If not specified all the tasks will be executed.
 - `-t`, `--target=`: Specifies the target name to use for the task execution. The target should be defined in the playbook file and can represent remote hosts, inventory files, or inventory URLs. If not specified, the `default` target will be used. User can pass a hostname, group name, tag or IP instead of the target name for a quick override. Providing the `-t`, `--target` flag multiple times with different targets sets multiple destination targets or multiple hosts, e.g., `-t prod -t dev` or `-t example1.com -t example2.com`.
 - `-c`, `--concurrent=`: Sets the number of concurrent hosts to execute tasks. Defaults to `1`, which means hosts will be handled  sequentially.
@@ -193,6 +193,7 @@ targets:
 # list of tasks, i.e. commands to execute
 tasks:
   - name: deploy-things
+    tags: ["deploy"]                                          # tags for task filtering via -n flag
     on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
     commands:
       - name: wait
@@ -316,6 +317,7 @@ Each task consists of a list of commands that will be executed on the remote hos
 - `on_error`: specifies the command to execute on the local host (the one running the `spot` command) in case of an error. The command can use the `{SPOT_ERROR}` variable to access the last error message. Example: `on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}"`
 - `user`: specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the top section of the playbook file for the specified task.
 - `targets` - list of target names, groups, tags, or host addresses to execute the task on. Command line `-t` flag can be used to override this field. The `targets` field may include variables. For more details see [Dynamic targets](#dynamic-targets) section.
+- `tags` - list of tags for task filtering. When using `-n` flag, spot first tries to match an exact task name; if no match is found, it treats the value as a tag and runs all tasks with that tag in playbook order. Example: `tags: ["deploy", "prod"]`
 
 *Note: these fields are supported in the full playbook type only*
 
@@ -505,6 +507,7 @@ The same options can be set for the whole task as well. In this case, the option
 
 ```yaml
   - name: deploy-things
+    tags: ["deploy"]                                          # tags for task filtering via -n flag
     on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
     options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
     commands:

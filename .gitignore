@@ -32,3 +32,7 @@ spot.db
 pr_236_notes.md
 .claude/
 .playwright-mcp/
+.idea/
+spot
+# ralphex progress logs
+progress*.txt

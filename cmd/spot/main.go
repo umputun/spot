@@ -187,7 +187,11 @@ func run(opts options) error {
 func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Process) error {
 	// run specified tasks if there is any
 	if len(taskNames) > 0 {
-		for _, taskName := range taskNames {
+		resolved, err := resolveTaskNames(taskNames, r.Playbook)
+		if err != nil {
+			return err
+		}
+		for _, taskName := range resolved {
 			for _, targetName := range targetsForTask(targets, taskName, r.Playbook) {
 				if err := runTaskForTarget(ctx, r, taskName, targetName); err != nil {
 					return err
@@ -208,6 +212,47 @@ func runTasks(ctx context.Context, taskNames, targets []string, r *runner.Proces
 	return nil
 }
 
+// resolveTaskNames resolves each task name as either an exact task name or a tag.
+// if an exact task name match is found, it is used directly. otherwise, all tasks with a matching tag
+// are included in playbook order. returns error if no match found for any name.
+func resolveTaskNames(taskNames []string, pbook runner.Playbook) ([]string, error) {
+	allTasks := pbook.AllTasks()
+	var result []string
+	seen := make(map[string]bool)
+	for _, name := range taskNames {
+		// check for exact task name match (case-insensitive)
+		found := false
+		for _, t := range allTasks {
+			if strings.EqualFold(t.Name, name) {
+				if !seen[t.Name] {
+					result = append(result, t.Name)
+					seen[t.Name] = true
+				}
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
+
+		// check for tag match
+		tagged := pbook.TasksByTag(name)
+		if len(tagged) > 0 {
+			for _, tn := range tagged {
+				if !seen[tn] {
+					result = append(result, tn)
+					seen[tn] = true
+				}
+			}
+			continue
+		}
+
+		return nil, fmt.Errorf("task or tag %q not found", name)
+	}
+	return result, nil
+}
+
 func runAdHoc(ctx context.Context, targets []string, r *runner.Process) error {
 	errs := new(multierror.Error)
 	r.Verbose = true // always verbose for ad-hoc
@@ -221,9 +266,17 @@ func runAdHoc(ctx context.Context, targets []string, r *runner.Process) error {
 
 // runGen generates a destination report for the tasks' targets
 func runGen(opts options, r *runner.Process) (err error) {
+	taskNames := opts.TaskNames
+	if len(taskNames) > 0 {
+		var resolveErr error
+		if taskNames, resolveErr = resolveTaskNames(taskNames, r.Playbook); resolveErr != nil {
+			return resolveErr
+		}
+	}
+
 	var targets []string
 	uniqueTargets := make(map[string]bool)
-	for _, taskName := range opts.TaskNames {
+	for _, taskName := range taskNames {
 		for _, target := range targetsForTask(opts.Targets, taskName, r.Playbook) {
 			// ensure there is no duplicates in the targets list
 			if _, exists := uniqueTargets[target]; !exists {

@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/umputun/spot/pkg/config"
+	"github.com/umputun/spot/pkg/runner/mocks"
 )
 
 func Test_main(t *testing.T) {
@@ -1112,7 +1113,7 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 }
 
 // captureStdout captures everything written to stdout within the function fn
-func captureStdout(t *testing.T, fn func()) string {
+func captureStdout(_ *testing.T, fn func()) string {
 	// keep backup of the real stdout
 	old := os.Stdout
 	defer func() { os.Stdout = old }()
@@ -1126,4 +1127,76 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	out, _ := io.ReadAll(r)
 	return string(out)
+}
+
+func Test_resolveTaskNames(t *testing.T) {
+	allTasks := []config.Task{
+		{Name: "deploy-app", Tags: []string{"deploy", "prod"}},
+		{Name: "deploy-db", Tags: []string{"deploy", "prod"}},
+		{Name: "test", Tags: []string{"test"}},
+		{Name: "lint"},
+	}
+
+	pbMock := &mocks.PlaybookMock{
+		AllTasksFunc: func() []config.Task { return allTasks },
+		TasksByTagFunc: func(tag string) []string {
+			var res []string
+			for _, t := range allTasks {
+				for _, tt := range t.Tags {
+					if strings.EqualFold(tt, tag) {
+						res = append(res, t.Name)
+						break
+					}
+				}
+			}
+			return res
+		},
+	}
+
+	t.Run("exact name match", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"deploy-app"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"deploy-app"}, result)
+	})
+
+	t.Run("tag match", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"deploy"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"deploy-app", "deploy-db"}, result)
+	})
+
+	t.Run("exact name takes priority over tag", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"test"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"test"}, result)
+	})
+
+	t.Run("mixed name and tag", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"lint", "deploy"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"lint", "deploy-app", "deploy-db"}, result)
+	})
+
+	t.Run("no match returns error", func(t *testing.T) {
+		_, err := resolveTaskNames([]string{"unknown"}, pbMock)
+		assert.EqualError(t, err, `task or tag "unknown" not found`)
+	})
+
+	t.Run("case insensitive name match", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"Deploy-App"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"deploy-app"}, result)
+	})
+
+	t.Run("deduplicates name and tag overlap", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"deploy-app", "deploy"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"deploy-app", "deploy-db"}, result)
+	})
+
+	t.Run("deduplicates overlapping tags", func(t *testing.T) {
+		result, err := resolveTaskNames([]string{"deploy", "prod"}, pbMock)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"deploy-app", "deploy-db"}, result)
+	})
 }
