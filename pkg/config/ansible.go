@@ -305,6 +305,7 @@ func translateAnsibleTask(task map[string]any, vars map[string]any) ([]Cmd, stri
 	loopItems, loopVar := parseLoop(task, vars)
 	envVars := parseEnvironment(task["environment"], vars)
 	baseEnv := varsToEnv(vars)
+	ignoreErrors := toBool(task["ignore_errors"])
 
 	if len(loopItems) == 0 {
 		loopItems = []any{nil}
@@ -326,6 +327,9 @@ func translateAnsibleTask(task map[string]any, vars map[string]any) ([]Cmd, stri
 		cmd.Name = name
 		if when != "" {
 			cmd.Condition = translateWhen(when)
+		}
+		if ignoreErrors {
+			cmd.Options.IgnoreErrors = true
 		}
 		if len(baseEnv) > 0 || len(envVars) > 0 {
 			cmd.Environment = mergeEnv(baseEnv, envVars)
