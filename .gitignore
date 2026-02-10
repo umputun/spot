@@ -33,6 +33,6 @@ pr_236_notes.md
 .claude/
 .playwright-mcp/
 .idea/
-spot
-# ralphex progress logs
+# compiled binary
+/spot
 progress*.txt

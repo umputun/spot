@@ -75,7 +75,7 @@ func Test_runCompleted(t *testing.T) {
 			Dbg: true,
 		}
 		st := time.Now()
-		logOut := captureStdout(t, func() {
+		logOut := captureStdout(func() {
 			err := run(opts)
 			require.NoError(t, err)
 		})
@@ -98,7 +98,7 @@ func Test_runCompleted(t *testing.T) {
 			},
 			Dbg: true,
 		}
-		logOut := captureStdout(t, func() {
+		logOut := captureStdout(func() {
 			err := run(opts)
 			require.NoError(t, err)
 		})
@@ -125,7 +125,7 @@ func Test_runCompleted(t *testing.T) {
 			Dbg: true,
 		}
 		st := time.Now()
-		logOut := captureStdout(t, func() {
+		logOut := captureStdout(func() {
 			err := run(opts)
 			require.NoError(t, err)
 		})
@@ -149,7 +149,7 @@ func Test_runCompleted(t *testing.T) {
 			},
 			Dbg: true,
 		}
-		logOut := captureStdout(t, func() {
+		logOut := captureStdout(func() {
 			err := run(opts)
 			require.NoError(t, err)
 		})
@@ -171,7 +171,7 @@ func Test_runCompleted(t *testing.T) {
 			Dbg:     true,
 			Verbose: []bool{true},
 		}
-		logOut := captureStdout(t, func() {
+		logOut := captureStdout(func() {
 			err := run(opts)
 			require.NoError(t, err)
 		})
@@ -194,7 +194,7 @@ func Test_runCompletedSimplePlaybook(t *testing.T) {
 		Dbg:          true,
 	}
 	st := time.Now()
-	logOut := captureStdout(t, func() {
+	logOut := captureStdout(func() {
 		err := run(opts)
 		require.NoError(t, err)
 	})
@@ -213,7 +213,7 @@ func Test_runAdhoc(t *testing.T) {
 		Dbg:     true,
 	}
 	opts.PositionalArgs.AdHocCmd = "echo hello"
-	logOut := captureStdout(t, func() {
+	logOut := captureStdout(func() {
 		err := run(opts)
 		require.NoError(t, err)
 	})
@@ -234,7 +234,7 @@ func Test_runCompletedSeveralTasks(t *testing.T) {
 	}
 
 	st := time.Now()
-	logOut := captureStdout(t, func() {
+	logOut := captureStdout(func() {
 		err := run(opts)
 		require.NoError(t, err)
 	})
@@ -258,7 +258,7 @@ func Test_runCompletedAllTasks(t *testing.T) {
 	}
 
 	st := time.Now()
-	logOut := captureStdout(t, func() {
+	logOut := captureStdout(func() {
 		err := run(opts)
 		require.NoError(t, err)
 	})
@@ -491,7 +491,7 @@ func TestRunWithCustomTempDir(t *testing.T) {
 		Dbg:          true,
 	}
 
-	logOut := captureStdout(t, func() {
+	logOut := captureStdout(func() {
 		err := run(opts)
 		require.NoError(t, err)
 	})
@@ -1113,7 +1113,7 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 }
 
 // captureStdout captures everything written to stdout within the function fn
-func captureStdout(_ *testing.T, fn func()) string {
+func captureStdout(fn func()) string {
 	// keep backup of the real stdout
 	old := os.Stdout
 	defer func() { os.Stdout = old }()
