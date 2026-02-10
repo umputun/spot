@@ -16,6 +16,7 @@ import (
 // Connector provides factory methods to create Remote executor. Each executor is connected to a single SSH hostAddr.
 type Connector struct {
 	privateKey            string
+	password              string
 	timeout               time.Duration
 	enableAgent           bool
 	enableAgentForwarding bool
@@ -23,11 +24,12 @@ type Connector struct {
 }
 
 // NewConnector creates a new Connector for a given user and private key.
-func NewConnector(privateKey string, timeout time.Duration, logs Logs) (res *Connector, err error) {
-	res = &Connector{privateKey: privateKey, timeout: timeout, logs: logs}
+func NewConnector(privateKey, password string, timeout time.Duration, logs Logs) (res *Connector, err error) {
+	res = &Connector{privateKey: privateKey, password: password, timeout: timeout, logs: logs}
 	if privateKey == "" {
 		res.enableAgent = true
 		log.Printf("[DEBUG] no private key provided, use ssh agent only")
+		// no key file to validate, continue
 		return res, nil
 	}
 	log.Printf("[DEBUG] use private key %q", privateKey)
@@ -131,18 +133,28 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 			} else {
 				return nil, fmt.Errorf("unable to connect to ssh agent: %w", e)
 			}
-			return auth, nil
+			// continue to add other auth methods if present
 		}
 
-		key, err := os.ReadFile(privateKeyPath) // nolint
-		if err != nil {
-			return nil, fmt.Errorf("unable to read private key: %vw", err)
+		if privateKeyPath != "" {
+			key, err := os.ReadFile(privateKeyPath) // nolint
+			if err != nil {
+				return nil, fmt.Errorf("unable to read private key: %vw", err)
+			}
+			signer, err := ssh.ParsePrivateKey(key)
+			if err != nil {
+				return nil, fmt.Errorf("unable to parse private key: %w", err)
+			}
+			auth = append(auth, ssh.PublicKeys(signer))
 		}
-		signer, err := ssh.ParsePrivateKey(key)
-		if err != nil {
-			return nil, fmt.Errorf("unable to parse private key: %w", err)
+
+		if c.password != "" {
+			auth = append(auth, ssh.Password(c.password))
 		}
-		auth = append(auth, ssh.PublicKeys(signer))
+
+		if len(auth) == 0 {
+			return nil, fmt.Errorf("no ssh auth methods available")
+		}
 		return auth, nil
 	}
 

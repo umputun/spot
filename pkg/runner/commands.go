@@ -865,18 +865,24 @@ func (ec *execCmd) wrapWithSudo(cmd string) string {
 		return cmd
 	}
 
-	if ec.cmd.Options.SudoPassword != "" && ec.cmd.Secrets != nil {
-		password, ok := ec.cmd.Secrets[ec.cmd.Options.SudoPassword]
-		if ok && password != "" {
+	if ec.cmd.Options.SudoPassword != "" {
+		password := ""
+		if ec.cmd.Secrets != nil {
+			if v, ok := ec.cmd.Secrets[ec.cmd.Options.SudoPassword]; ok {
+				password = v
+			}
+		}
+		if password == "" {
+			// treat value as literal password if not found in secrets
+			password = ec.cmd.Options.SudoPassword
+		}
+		if password != "" {
 			// escape single quotes in password to prevent shell injection
 			// in bash, ' is escaped as '\'' inside single quotes
 			escapedPassword := strings.ReplaceAll(password, "'", "'\\''")
 			// use printf to pipe password to sudo -S
 			// note: password will be briefly visible in process list on remote host
 			return fmt.Sprintf("printf '%%s\\n' '%s' | sudo -S %s", escapedPassword, cmd)
-		}
-		if !ok {
-			log.Printf("[WARN] sudo_password refers to missing secret key: %s", ec.cmd.Options.SudoPassword)
 		}
 	}
 

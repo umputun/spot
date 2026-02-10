@@ -43,13 +43,15 @@ type options struct {
 	ForwardSSHAgent bool          `long:"forward-ssh-agent" env:"SPOT_FORWARD_SSH_AGENT" description:"use forward-ssh-agent"`
 	SSHShell        string        `long:"shell" env:"SPOT_SHELL" description:"enforce non-default shell to use for ssh" default:""`
 	SSHTempDir      string        `long:"temp" env:"SPOT_TEMP" description:"temporary directory for ssh" default:""`
+	SSHPassword     string        `long:"password" env:"SPOT_SSH_PASSWORD" description:"ssh password (in addition to key/agent)"`
 
 	// overrides
-	Inventory string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
-	SSHUser   string            `short:"u" long:"user" description:"ssh user"`
-	SSHKey    string            `short:"k" long:"key" description:"ssh key"`
-	Env       map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
-	EnvFile   string            `short:"E" long:"env-file" env:"SPOT_ENV_FILE" description:"environment variables from file" default:"env.yml"`
+	Inventory    string            `short:"i" long:"inventory" description:"inventory file or url [$SPOT_INVENTORY]"`
+	SSHUser      string            `short:"u" long:"user" description:"ssh user"`
+	SSHKey       string            `short:"k" long:"key" description:"ssh key"`
+	SudoPassword string            `long:"sudo-password" env:"SPOT_SUDO_PASSWORD" description:"sudo password (plain or secret key)"`
+	Env          map[string]string `short:"e" long:"env" description:"environment variables for all commands"`
+	EnvFile      string            `short:"E" long:"env-file" env:"SPOT_ENV_FILE" description:"environment variables from file" default:"env.yml"`
 
 	// commands filter
 	Skip []string `short:"s" long:"skip" description:"skip commands"`
@@ -330,6 +332,8 @@ func makePlaybook(opts options, inventory string) (*config.PlayBook, []string, e
 		User:         opts.SSHUser,
 		AdHocCommand: opts.PositionalArgs.AdHocCmd,
 		SSHShell:     opts.SSHShell,
+		SSHTempDir:   opts.SSHTempDir,
+		SudoPassword: opts.SudoPassword,
 	}
 
 	exPlaybookFile, err := expandPath(opts.PlaybookFile)
@@ -365,7 +369,7 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
 	logs := executor.MakeLogs(len(opts.Verbose) > 0, opts.NoColor, pbook.AllSecretValues())
-	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout, logs)
+	connector, err := executor.NewConnector(sshKey, opts.SSHPassword, opts.SSHTimeout, logs)
 	if err != nil {
 		return nil, fmt.Errorf("can't create connector: %w", err)
 	}

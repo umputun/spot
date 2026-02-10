@@ -96,6 +96,7 @@ type Overrides struct {
 	AdHocCommand string
 	SSHShell     string
 	SSHTempDir   string
+	SudoPassword string
 }
 
 // InventoryData defines inventory data format
@@ -185,6 +186,10 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 			// propagate sudo_password from task to commands if not already set in command
 			if tsk.Options.SudoPassword != "" && res.Tasks[i].Commands[j].Options.SudoPassword == "" {
 				res.Tasks[i].Commands[j].Options.SudoPassword = tsk.Options.SudoPassword
+			}
+			// propagate sudo_password from overrides to commands if not already set
+			if res.overrides != nil && res.overrides.SudoPassword != "" && res.Tasks[i].Commands[j].Options.SudoPassword == "" {
+				res.Tasks[i].Commands[j].Options.SudoPassword = res.overrides.SudoPassword
 			}
 
 			log.Printf("[DEBUG] load command %q (task: %s)", c.Name, tsk.Name)

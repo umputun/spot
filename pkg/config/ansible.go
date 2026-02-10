@@ -111,6 +111,14 @@ func NewAnsible(fname string, overrides *Overrides, secProvider SecretsProvider)
 						cmds[i].Options.Sudo = true
 					}
 				}
+				// propagate sudo password from overrides
+				if res.overrides != nil && res.overrides.SudoPassword != "" {
+					for i := range cmds {
+						if cmds[i].Options.SudoPassword == "" {
+							cmds[i].Options.SudoPassword = res.overrides.SudoPassword
+						}
+					}
+				}
 
 				tsk := Task{
 					Name:     tname,
