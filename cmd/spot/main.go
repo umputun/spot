@@ -103,6 +103,11 @@ type SecretsProvider struct {
 var revision = "latest"
 
 func main() {
+	if len(os.Args) == 2 && (os.Args[1] == "-v" || os.Args[1] == "--verbose") {
+		fmt.Printf("spot %s\n", revision)
+		os.Exit(0)
+	}
+
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)
 	if _, err := p.Parse(); err != nil {
