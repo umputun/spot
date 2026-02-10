@@ -175,6 +175,13 @@
           },
           "description": "List of target names or host references to run this task on"
         },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tags for task filtering via -n flag"
+        },
         "on_error": {
           "type": "string",
           "description": "Script to execute if any command in task fails"

@@ -27,6 +27,9 @@ import (
 //			TaskFunc: func(name string) (*config.Task, error) {
 //				panic("mock out the Task method")
 //			},
+//			TasksByTagFunc: func(tag string) []string {
+//				panic("mock out the TasksByTag method")
+//			},
 //			UpdateRegisteredVarsFunc: func(vars map[string]string)  {
 //				panic("mock out the UpdateRegisteredVars method")
 //			},
@@ -52,6 +55,9 @@ type PlaybookMock struct {
 	// TaskFunc mocks the Task method.
 	TaskFunc func(name string) (*config.Task, error)
 
+	// TasksByTagFunc mocks the TasksByTag method.
+	TasksByTagFunc func(tag string) []string
+
 	// UpdateRegisteredVarsFunc mocks the UpdateRegisteredVars method.
 	UpdateRegisteredVarsFunc func(vars map[string]string)
 
@@ -76,6 +82,11 @@ type PlaybookMock struct {
 			// Name is the name argument value.
 			Name string
 		}
+		// TasksByTag holds details about calls to the TasksByTag method.
+		TasksByTag []struct {
+			// Tag is the tag argument value.
+			Tag string
+		}
 		// UpdateRegisteredVars holds details about calls to the UpdateRegisteredVars method.
 		UpdateRegisteredVars []struct {
 			// Vars is the vars argument value.
@@ -91,6 +102,7 @@ type PlaybookMock struct {
 	lockAllTasks             sync.RWMutex
 	lockTargetHosts          sync.RWMutex
 	lockTask                 sync.RWMutex
+	lockTasksByTag           sync.RWMutex
 	lockUpdateRegisteredVars sync.RWMutex
 	lockUpdateTasksTargets   sync.RWMutex
 }
@@ -210,6 +222,38 @@ func (mock *PlaybookMock) TaskCalls() []struct {
 	mock.lockTask.RLock()
 	calls = mock.calls.Task
 	mock.lockTask.RUnlock()
+	return calls
+}
+
+// TasksByTag calls TasksByTagFunc.
+func (mock *PlaybookMock) TasksByTag(tag string) []string {
+	if mock.TasksByTagFunc == nil {
+		panic("PlaybookMock.TasksByTagFunc: method is nil but Playbook.TasksByTag was just called")
+	}
+	callInfo := struct {
+		Tag string
+	}{
+		Tag: tag,
+	}
+	mock.lockTasksByTag.Lock()
+	mock.calls.TasksByTag = append(mock.calls.TasksByTag, callInfo)
+	mock.lockTasksByTag.Unlock()
+	return mock.TasksByTagFunc(tag)
+}
+
+// TasksByTagCalls gets all the calls that were made to TasksByTag.
+// Check the length with:
+//
+//	len(mockedPlaybook.TasksByTagCalls())
+func (mock *PlaybookMock) TasksByTagCalls() []struct {
+	Tag string
+} {
+	var calls []struct {
+		Tag string
+	}
+	mock.lockTasksByTag.RLock()
+	calls = mock.calls.TasksByTag
+	mock.lockTasksByTag.RUnlock()
 	return calls
 }
 

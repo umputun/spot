@@ -317,6 +317,42 @@ func TestPlayBook_Task(t *testing.T) {
 	})
 }
 
+func TestPlayBook_TasksByTag(t *testing.T) {
+	p := &PlayBook{
+		Tasks: []Task{
+			{Name: "deploy-app", Tags: []string{"deploy", "prod"}},
+			{Name: "deploy-db", Tags: []string{"deploy", "prod"}},
+			{Name: "test", Tags: []string{"test"}},
+			{Name: "no-tags"},
+		},
+	}
+
+	t.Run("matching tag", func(t *testing.T) {
+		result := p.TasksByTag("deploy")
+		assert.Equal(t, []string{"deploy-app", "deploy-db"}, result)
+	})
+
+	t.Run("single match", func(t *testing.T) {
+		result := p.TasksByTag("test")
+		assert.Equal(t, []string{"test"}, result)
+	})
+
+	t.Run("no match", func(t *testing.T) {
+		result := p.TasksByTag("nonexistent")
+		assert.Empty(t, result)
+	})
+
+	t.Run("case insensitive", func(t *testing.T) {
+		result := p.TasksByTag("DEPLOY")
+		assert.Equal(t, []string{"deploy-app", "deploy-db"}, result)
+	})
+
+	t.Run("preserves playbook order", func(t *testing.T) {
+		result := p.TasksByTag("prod")
+		assert.Equal(t, []string{"deploy-app", "deploy-db"}, result)
+	})
+}
+
 func TestPlayBook_TaskOverrideEnv(t *testing.T) {
 	c, err := New("testdata/f1.yml", nil, nil)
 	require.NoError(t, err)
