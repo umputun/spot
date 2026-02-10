@@ -138,10 +138,13 @@ Spot supports the following command-line options:
 - `--shell` - shell for remote ssh execution, default is `/bin/sh`. Users can also set the environment variable `SPOT_SHELL` to define the value.  
 - `--local-shell` - shell for local execution, default is os shell. Users can also set the environment variable `SPOT_LOCAL_SHELL` to define the value.
 - `--temp` - temporary directory for remote execution, default is `/tmp`. Users can also set the environment variable `SPOT_TEMP_DIR` to define the value.
+- `--ansible`: Parse an Ansible-like YAML playbook (see [Ansible-like playbooks](#ansible-like-playbooks)).
 - `-i`, `--inventory=`: Specifies the inventory file or URL to use for the task execution. Overrides the inventory file defined in the
   playbook file. Users can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
 - `-k`, `--key=`: Specifies the SSH key for connecting to remote hosts. Overrides the key defined in the playbook file.
+- `--password`: SSH password (used in addition to key/agent). Can also be set via `SPOT_SSH_PASSWORD`.
+- `--sudo-password`: Sudo password (plain string or a secret key). Can also be set via `SPOT_SUDO_PASSWORD`.
 - `-s`, `--skip=`: Skips the specified commands during the task execution. Providing the `-s` flag multiple times with different command names skips multiple commands.
 - `-o`, `--only=`: Runs only the specified commands during the task execution. Providing the `-o` flag multiple times with different command names runs only multiple commands.
 - `-e`, `--env=`: Sets the environment variables to be used during the task execution. Providing the `-e` flag multiple times with different environment variables sets multiple environment variables, e.g., `-e VAR1:VALUE1 -e VAR2:VALUE2`. Values could be taken from the OS environment variables as well, e.g., `-e VAR1:$ENV_VAR1` or `-e VAR1:${ENV_VAR1}`.
@@ -152,6 +155,27 @@ Spot supports the following command-line options:
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution. Setting this flag multiple times increases the verbosity level, i.e., `-vv`.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution and diagnostic messages.
 - `-h` `--help`: Displays the help message, listing all available command-line options.
+
+## SSH Authentication
+
+Spot supports multiple SSH authentication methods and can combine them:
+
+- SSH key file (`-k`, `--key`)  
+- SSH agent (`--ssh-agent`)  
+- SSH password (`--password` or `SPOT_SSH_PASSWORD`)  
+
+If both key/agent and password are provided, Spot will try all available methods.
+
+## Sudo
+
+Sudo can be enabled per-command or per-task via `options.sudo: true`.  
+To provide a sudo password:
+
+- CLI: `--sudo-password "MySudoPass"`  
+- Env: `SPOT_SUDO_PASSWORD`  
+- Secrets: `options.sudo_password: MY_SECRET_KEY` (uses secrets provider)
+
+If `sudo_password` matches a secret key, the secret value is used. Otherwise the value is treated as the literal password.
 
 ## Basic Concepts
 
@@ -233,6 +257,44 @@ tasks:
         env: {FOO: bar, BAR: qux} # set environment variables for the command
       - wait: {cmd: "curl -s localhost:8080/health", timeout: "10s", interval: "1s"} # wait for health check to pass
 ```
+
+## Ansible-like Playbooks
+
+Spot can read a subset of Ansible playbooks using `--ansible`.
+
+Example:
+
+```bash
+spot --ansible -p /path/to/playbook.yml -i /path/to/inventory -v --dbg
+```
+
+Supported subset:
+
+- **Play fields**: `hosts`, `become`, `vars`, `tasks`, `handlers`
+- **Task fields**: `name`, `when`, `register`, `changed_when`, `environment`, `ignore_errors`, `notify`, `loop`, `loop_control.loop_var`
+- **Modules**:
+  - `ansible.builtin.shell`, `ansible.builtin.command`
+  - `ansible.builtin.apt` (name/state/update_cache/upgrade/autoremove)
+  - `ansible.builtin.stat`
+  - `ansible.builtin.reboot`
+  - `ansible.builtin.dpkg_selections`
+  - `ansible.builtin.file` (state=directory, owner, group, mode)
+  - `ansible.builtin.copy` (remote_src, owner, group, mode)
+  - `ansible.builtin.template` (basic `{{ var }}` substitution)
+  - `ansible.builtin.unarchive` (remote URL via curl)
+  - `ansible.builtin.user`
+  - `ansible.builtin.systemd`, `ansible.builtin.service`
+  - `ansible.builtin.iptables`
+
+Limitations:
+
+- Jinja support is limited to simple `{{ var }}` substitutions (no filters, loops, or conditionals).
+- `notify/handlers` are executed **per host** (not globally), but without true Ansible change-tracking for all modules.
+- Inventory parsing supports Ansible INI format with `ansible_user` and `ansible_port`.
+- Host variables are read from `host_vars/<hostname>.yml` next to the playbook.
+
+If you need more Ansible features, open an issue with a concrete playbook example.
+
 
 *Alternatively, the playbook can be represented using the TOML format.*
 
@@ -1234,6 +1296,46 @@ Spot is not designed as a direct replacement for Ansible; however, in certain us
 Spot is an appealing choice for those seeking a lightweight, simple, and easy-to-use tool for deployment and configuration management, especially for smaller projects or when extensive features aren't necessary. Its single binary distribution, easy-to-comprehend structure, and minimal dependencies offer a low-maintenance solution. However, if a more comprehensive tool with a wide range of built-in modules, plugins, and integrations is needed, Ansible may be a better fit. While Ansible has advanced features and a robust ecosystem, its reliance on Python and additional libraries can sometimes be less convenient in certain environments or situations with specific constraints.
 
 </details>
+
+## Developer Guide
+
+### Build
+
+```bash
+go build -o dist/spot ./cmd/spot
+```
+
+Cross-compile for Windows:
+
+```bash
+GOOS=windows GOARCH=amd64 go build -o dist/spot.exe ./cmd/spot
+```
+
+### Run Tests
+
+```bash
+go test ./...
+```
+
+### Lint
+
+```bash
+golangci-lint run
+```
+
+### Release (manual)
+
+1. Build binaries for target platforms.
+2. Upload assets to GitHub Releases.
+3. Update README/CHANGELOG if needed.
+
+### Ansible-like Mode (development notes)
+
+The `--ansible` flag enables a limited Ansible-compatible YAML parser.
+
+Supported: `hosts`, `become`, `vars`, `tasks`, `handlers`, `when`, `register`, `notify`, `loop`.
+
+Supported modules: `apt`, `shell`, `command`, `stat`, `reboot`, `dpkg_selections`, `file`, `copy`, `template`, `unarchive`, `user`, `systemd`, `service`, `iptables`.
 
 ## Getting the latest development version
 
