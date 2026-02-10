@@ -587,7 +587,7 @@ func commandString(v any) string {
 func notifyVarName(h string) string {
 	s := strings.ToUpper(h)
 	s = regexp.MustCompile(`[^A-Z0-9]+`).ReplaceAllString(s, "_")
-	return "SPOT_NOTIFY_" + s
+	return "SPOT_NOTIFY_" + s + "_{SPOT_REMOTE_NAME_SAN}"
 }
 
 func notifyCondition(h string) string {

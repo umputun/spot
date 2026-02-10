@@ -780,6 +780,9 @@ func (tm *templater) apply(inp string) string {
 	res := inp
 	res = apply(res, "SPOT_REMOTE_HOST", tm.hostAddr)
 	res = apply(res, "SPOT_REMOTE_NAME", tm.hostName)
+	// sanitized host name for safe shell var names (replace non-alnum with underscore)
+	safeName := regexp.MustCompile(`[^a-zA-Z0-9_]`).ReplaceAllString(tm.hostName, "_")
+	res = apply(res, "SPOT_REMOTE_NAME_SAN", safeName)
 	res = apply(res, "SPOT_COMMAND", tm.command)
 	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
 	res = apply(res, "SPOT_TASK", tm.task.Name)
