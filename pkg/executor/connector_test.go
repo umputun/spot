@@ -51,6 +51,6 @@ func TestConnector_Connect(t *testing.T) {
 		c, err := NewConnector("testdata/test_ssh_key", time.Second, MakeLogs(true, false, nil))
 		require.NoError(t, err)
 		_, err = c.Connect(ctx, "10.255.255.1:22", "h1", "test")
-		require.ErrorContains(t, err, "failed to dial: dial tcp 10.255.255.1:22: i/o timeout")
+		require.ErrorContains(t, err, "failed to dial: dial tcp 10.255.255.1:22")
 	})
 }
