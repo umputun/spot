@@ -74,23 +74,21 @@ archives:
       - spot.1
 
 
-homebrew_casks:
+brews:
   -
     name: spot
     repository:
       owner: umputun
       name: homebrew-apps
       branch: master
-    directory: Casks
-    binaries:
-      - spot
-      - spot-secrets
+    directory: Formula
     commit_author:
       name: umputun
       email: umputun@gmail.com
-    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     homepage: "https://spotctl.com/"
     description: "Spot (aka spotctl) is a powerful and easy-to-use tool for effortless deployment and configuration management."
+    license: "MIT"
 
 nfpms:
   - id: spot
