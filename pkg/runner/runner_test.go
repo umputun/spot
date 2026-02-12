@@ -425,7 +425,7 @@ func TestProcess_Run(t *testing.T) {
 
 		res, err := p.Run(ctx, "test line operations", testingHostAndPort)
 		require.NoError(t, err)
-		assert.Equal(t, 18, res.Commands) // all commands in the task including verification steps
+		assert.Equal(t, 21, res.Commands) // all commands in the task including verification steps
 
 		logContent := outWriter.String()
 
@@ -438,6 +438,7 @@ func TestProcess_Run(t *testing.T) {
 		assert.Contains(t, logContent, "✓ Existing server.port line not duplicated")
 		assert.Contains(t, logContent, "✓ Protected file modified successfully with sudo")
 		assert.Contains(t, logContent, "✓ Variable substituted correctly")
+		assert.Contains(t, logContent, "✓ Anchored match replaced correctly")
 
 		// verify variable substitution
 		assert.Contains(t, logContent, "host=localhost") // SPOT_REMOTE_ADDR resolves to localhost in test

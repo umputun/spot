@@ -570,8 +570,11 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 
 	case replace != "":
 		operation = "replace"
-		// use sed to replace lines matching the pattern
-		operationCmd = fmt.Sprintf("sed -i 's|^.*%s.*$|%s|' %s", match, replace, file)
+		// use sed to replace lines matching the pattern.
+		// strip leading ^ and trailing $ from match since sed pattern already wraps with ^.* and .*$
+		sedMatch := strings.TrimPrefix(match, "^")
+		sedMatch = strings.TrimSuffix(sedMatch, "$")
+		operationCmd = fmt.Sprintf("sed -i 's|^.*%s.*$|%s|' %s", sedMatch, replace, file)
 
 	case appendLine != "":
 		operation = "append"

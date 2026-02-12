@@ -144,8 +144,32 @@ tasks:
             exit 1
           fi
 
+      # test replace with anchored match pattern (^ prefix)
+      - name: create anchored match test file
+        script: |
+          cat > /tmp/test_anchored.conf << 'EOF'
+          port=3000
+          host=old-value
+          hostname=should-not-change
+          EOF
+
+      - name: replace with anchored match
+        line: {file: "/tmp/test_anchored.conf", match: "^host=", replace: "host=new-value"}
+
+      - name: verify anchored match replacement
+        script: |
+          echo "=== Checking anchored match replacement ==="
+          if grep -q "host=new-value" /tmp/test_anchored.conf && grep -q "hostname=should-not-change" /tmp/test_anchored.conf; then
+            echo "✓ Anchored match replaced correctly"
+            cat /tmp/test_anchored.conf
+          else
+            echo "ERROR: Anchored match replacement failed"
+            cat /tmp/test_anchored.conf
+            exit 1
+          fi
+
       # cleanup
       - name: cleanup test files
         script: |
-          rm -f /tmp/test_line.txt /tmp/test_vars.conf
+          rm -f /tmp/test_line.txt /tmp/test_vars.conf /tmp/test_anchored.conf
           sudo rm -f /tmp/protected.txt
