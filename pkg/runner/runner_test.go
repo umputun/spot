@@ -1392,9 +1392,6 @@ func startTestContainerWithCustomUser(t *testing.T, user string) (hostAndPort st
 		Image:        "lscr.io/linuxserver/openssh-server:latest",
 		ExposedPorts: []string{"2222/tcp"},
 		WaitingFor:   wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 60),
-		Files: []testcontainers.ContainerFile{
-			{HostFilePath: "testdata/test_ssh_key.pub", ContainerFilePath: "/authorized_key"},
-		},
 		Env: map[string]string{
 			"PUBLIC_KEY":  string(pubKey),
 			"USER_NAME":   user,
