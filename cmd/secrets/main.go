@@ -50,7 +50,9 @@ var revision = "latest"
 var exitFunc = os.Exit
 
 func main() {
-	fmt.Printf("spot secrets %s\n", revision)
+	if os.Getenv("GO_FLAGS_COMPLETION") == "" {
+		fmt.Printf("spot secrets %s\n", revision)
+	}
 
 	var opts options
 	p := flags.NewParser(&opts, flags.PrintErrors|flags.PassDoubleDash|flags.HelpFlag)

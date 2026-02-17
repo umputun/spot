@@ -72,6 +72,7 @@ archives:
       - LICENSE
       - README.md
       - spot.1
+      - completions/*
 
 
 brews:
@@ -89,6 +90,13 @@ brews:
     homepage: "https://spotctl.com/"
     description: "Spot (aka spotctl) is a powerful and easy-to-use tool for effortless deployment and configuration management."
     license: "MIT"
+    extra_install: |
+      bash_completion.install "completions/spot.bash" => "spot"
+      bash_completion.install "completions/spot-secrets.bash" => "spot-secrets"
+      zsh_completion.install "completions/spot.zsh" => "_spot"
+      zsh_completion.install "completions/spot-secrets.zsh" => "_spot-secrets"
+      fish_completion.install "completions/spot.fish" => "spot.fish"
+      fish_completion.install "completions/spot-secrets.fish" => "spot-secrets.fish"
 
 nfpms:
   - id: spot
@@ -106,3 +114,16 @@ nfpms:
     bindir: /usr/bin
     epoch: 1
     release: 1
+    contents:
+      - src: completions/spot.bash
+        dst: /usr/share/bash-completion/completions/spot
+      - src: completions/spot-secrets.bash
+        dst: /usr/share/bash-completion/completions/spot-secrets
+      - src: completions/spot.zsh
+        dst: /usr/share/zsh/vendor-completions/_spot
+      - src: completions/spot-secrets.zsh
+        dst: /usr/share/zsh/vendor-completions/_spot-secrets
+      - src: completions/spot.fish
+        dst: /usr/share/fish/vendor_completions.d/spot.fish
+      - src: completions/spot-secrets.fish
+        dst: /usr/share/fish/vendor_completions.d/spot-secrets.fish
