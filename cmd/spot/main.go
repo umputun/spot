@@ -118,7 +118,7 @@ func main() {
 
 	setupLog(opts.Dbg) // set initial log, will be updated later with secrets
 
-	if !opts.GenEnable || opts.GenOutput != "stdout" {
+	if os.Getenv("GO_FLAGS_COMPLETION") == "" && (!opts.GenEnable || opts.GenOutput != "stdout") {
 		fmt.Printf("spot %s\n", revision) // print version only if not generating inventory to stdout
 	}
 
