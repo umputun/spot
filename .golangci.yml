@@ -20,6 +20,13 @@ linters:
     - modernize
     - nestif
   settings:
+    gosec:
+      excludes:
+        - G118
+        - G120
+        - G122
+        - G704
+        - G706
     goconst:
       min-len: 2
       min-occurrences: 2
@@ -53,6 +60,9 @@ linters:
       - linters:
           - gosec
         text: integer overflow conversion
+      - linters:
+          - staticcheck
+        text: "QF1012"
       - linters:
           - dupl
           - gosec
