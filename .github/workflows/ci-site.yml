@@ -16,18 +16,25 @@ on:
       - "README.md"
       - "Makefile"
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: setup python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: site/requirements.txt
 
       - name: install mkdocs dependencies
         run: pip install -r site/requirements.txt
