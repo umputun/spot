@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: set up go
         uses: actions/setup-go@v6
