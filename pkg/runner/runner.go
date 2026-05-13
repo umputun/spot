@@ -31,16 +31,18 @@ import (
 // Process is a struct that holds the information needed to run a process.
 // It responsible for running a task on a target hosts.
 type Process struct {
-	Concurrency int
-	Connector   Connector
-	Playbook    Playbook
-	Logs        executor.Logs
-	Verbose     bool
-	Verbose2    bool
-	Dry         bool
-	Local       bool
-	SSHShell    string
-	SSHTempDir  string
+	Concurrency  int
+	Connector    Connector
+	SSMConnector SSMConnector
+	Playbook     Playbook
+	Logs         executor.Logs
+	Verbose      bool
+	Verbose2     bool
+	Dry          bool
+	Local        bool
+	SSM          bool
+	SSHShell     string
+	SSHTempDir   string
 
 	Skip []string
 	Only []string
@@ -49,6 +51,11 @@ type Process struct {
 // Connector is an interface for connecting to a host, and returning remote executer.
 type Connector interface {
 	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
+}
+
+// SSMConnector provides factory method to create SSM executor for a given instance ID.
+type SSMConnector interface {
+	Connect(ctx context.Context, instanceID, hostName, user string) (*executor.SSM, error)
 }
 
 // Playbook is an interface for getting task and target information from playbook.
@@ -101,7 +108,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
-	var commands int32
+	var commands int32 //nolint
 	lock := sync.Mutex{}
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
@@ -111,7 +118,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 			if tsk.User != "" {
 				user = tsk.User // override user from task if any set
 			}
-			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
+			resp, e := p.runTaskOnHost(ctx, tsk, host, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
 			if i == 0 {
 				atomic.AddInt32(&commands, int32(resp.count))
 			}
@@ -145,7 +152,6 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 // Gen generates the list target hosts for a given target, applying templates.
 func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) error {
-
 	targetHosts := []config.Destination{}
 	for _, target := range targets {
 		hosts, err := p.Playbook.TargetHosts(target)
@@ -179,7 +185,7 @@ func (p *Process) Gen(targets []string, tmplRdr io.Reader, respWr io.Writer) err
 
 // runTaskOnHost executes all commands of a task on a target host. hostAddr can be a remote host or localhost with port.
 // returns number of executed commands, vars from all commands and error if any.
-func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr, hostName, user string) (taskOnHostResp, error) {
+func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host config.Destination, hostAddr, hostName, user string) (taskOnHostResp, error) {
 	report := func(hostAddr, hostName, f string, vals ...any) {
 		p.Logs.WithHost(hostAddr, hostName).Info.Printf(f, vals...)
 	}
@@ -188,9 +194,21 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 	stTask := time.Now()
 
 	var remote executor.Interface
-	if p.anyRemoteCommand(tsk) && !p.Local {
+	var err error
+	switch {
+	case p.anyRemoteCommand(tsk) && p.SSM && host.SSMId != "":
+		// use SSM executor for AWS SSM managed instances
+		remote, err = p.SSMConnector.Connect(ctx, host.SSMId, hostName, user)
+		if err != nil {
+			if hostName != "" {
+				return taskOnHostResp{}, fmt.Errorf("can't connect to %s via SSM: %w", hostName, err)
+			}
+			return taskOnHostResp{}, err
+		}
+		defer remote.Close()
+		report(hostAddr, hostName, "run task %q via SSM, commands: %d\n", tsk.Name, len(tsk.Commands))
+	case p.anyRemoteCommand(tsk) && !p.Local:
 		// make remote executor only if there is a remote command in the task and not in local mode
-		var err error
 		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
 		if err != nil {
 			if hostName != "" {
@@ -200,7 +218,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		}
 		defer remote.Close()
 		report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
-	} else {
+	default:
 		report("localhost", "", "run task %q, commands: %d (local)\n", tsk.Name, len(tsk.Commands))
 	}
 
@@ -233,8 +251,10 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		log.Printf("[INFO] %s", p.infoMessage(cmd, hostAddr, hostName))
 		stCmd := time.Now()
 
-		ec := execCmd{cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
-			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, sshTmpDir: p.SSHTempDir, onExit: cmd.OnExit}
+		ec := execCmd{
+			cmd: cmd, hostAddr: hostAddr, hostName: hostName, tsk: &activeTask, exec: remote,
+			verbose: p.Verbose, verbose2: p.Verbose2, sshShell: p.SSHShell, sshTmpDir: p.SSHTempDir, onExit: cmd.OnExit,
+		}
 		ec = p.pickCmdExecutor(cmd, ec, hostAddr, hostName) // pick executor on dry run or local command
 
 		repHostAddr, repHostName := ec.hostAddr, ec.hostName
@@ -292,7 +312,6 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 // It detects the command type based on the fields what are set.
 // Even if multiple fields for multiple commands are set, only one will be executed.
 func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp, err error) {
-
 	if ec.cmd.OnExit != "" {
 		// register on-exit command if any set
 		defer func() {
@@ -363,10 +382,9 @@ func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName
 
 // onError executes on-error command locally if any error occurred during task execution and on-error command is defined
 func (p *Process) onError(ctx context.Context, err error) {
-
 	// unwrapError unwraps error to get execCmdErr with all details about command execution
 	unwrapError := func(err error) (execCmdErr, bool) {
-		execErr := &execCmdErr{}
+		var execErr *execCmdErr
 		if errors.As(err, &execErr) {
 			return *execErr, true
 		}
@@ -408,7 +426,7 @@ func (p *Process) onError(ctx context.Context, err error) {
 	ec = p.pickCmdExecutor(ec.cmd, ec, "localhost", ec.hostName) // pick executor for local command
 	tmpl := templater{
 		hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, err: execErr,
-		env: execErr.exec.cmd.Environment,
+		env: execErr.exec.cmd.Environment, secrets: execErr.exec.cmd.Secrets,
 	}
 	ec.cmd.Script = tmpl.apply(ec.cmd.Script)
 	if _, err = ec.Script(ctx); err != nil {
@@ -466,7 +484,6 @@ func (p *Process) updateVars(vars map[string]string, cmd config.Cmd, tsk *config
 // of hosts. If the onlyOn field is empty, the command will be executed on all hosts.
 // It also checks if the command is in the 'only' or 'skip' list, and considers the 'NoAuto' option.
 func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
-
 	if len(p.Only) > 0 && !stringutils.Contains(cmd.Name, p.Only) {
 		log.Printf("[DEBUG] skip command %q, not in only list", cmd.Name)
 		return false

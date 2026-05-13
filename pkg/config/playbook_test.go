@@ -16,7 +16,6 @@ import (
 )
 
 func TestPlaybook_New(t *testing.T) {
-
 	t.Run("good file", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
@@ -146,8 +145,11 @@ func TestPlaybook_New(t *testing.T) {
 
 		assert.Len(t, c.Targets, 1)
 		assert.Empty(t, c.Targets["default"].Names)
-		assert.Equal(t, []Destination{{Host: "name1", Port: 22}, {Host: "192.168.1.1", Port: 22},
-			{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
+		assert.Equal(t, []Destination{
+			{Host: "name1", Port: 22},
+			{Host: "192.168.1.1", Port: 22},
+			{Host: "127.0.0.1", Port: 2222},
+		}, c.Targets["default"].Hosts)
 	})
 
 	t.Run("simple playbook with a single target set", func(t *testing.T) {
@@ -231,16 +233,26 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, map[string]string{"SEC1": "VAL1", "SEC11": "VAL11", "SEC12": "VAL12", "SEC2": "VAL2"}, tsk.Commands[4].Secrets)
 		assert.Equal(t, []string{"VAL1", "VAL11", "VAL12", "VAL2"}, p.AllSecretValues())
 
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
-			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[0].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
-			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[1].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: true, SudoPassword: "TASK_PASS",
-			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[2].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: true, SudoPassword: "TASK_PASS",
-			Secrets: []string{"SEC11", "SEC12"}}, p.Tasks[0].Commands[3].Options)
-		assert.Equal(t, CmdOptions{IgnoreErrors: true, NoAuto: true, Local: false, Sudo: false, SudoPassword: "CMD_PASS",
-			Secrets: []string{"SEC1", "SEC2", "SEC11", "SEC12"}}, p.Tasks[0].Commands[4].Options)
+		assert.Equal(t, CmdOptions{
+			IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
+			Secrets: []string{"SEC11", "SEC12"},
+		}, p.Tasks[0].Commands[0].Options)
+		assert.Equal(t, CmdOptions{
+			IgnoreErrors: true, NoAuto: true, SudoPassword: "TASK_PASS",
+			Secrets: []string{"SEC11", "SEC12"},
+		}, p.Tasks[0].Commands[1].Options)
+		assert.Equal(t, CmdOptions{
+			IgnoreErrors: true, NoAuto: true, Local: true, SudoPassword: "TASK_PASS",
+			Secrets: []string{"SEC11", "SEC12"},
+		}, p.Tasks[0].Commands[2].Options)
+		assert.Equal(t, CmdOptions{
+			IgnoreErrors: true, NoAuto: true, Local: false, Sudo: true, SudoPassword: "TASK_PASS",
+			Secrets: []string{"SEC11", "SEC12"},
+		}, p.Tasks[0].Commands[3].Options)
+		assert.Equal(t, CmdOptions{
+			IgnoreErrors: true, NoAuto: true, Local: false, Sudo: false, SudoPassword: "CMD_PASS",
+			Secrets: []string{"SEC1", "SEC2", "SEC11", "SEC12"},
+		}, p.Tasks[0].Commands[4].Options)
 	})
 
 	t.Run("playbook prohibited all target", func(t *testing.T) {
@@ -277,7 +289,6 @@ func TestPlaybook_New(t *testing.T) {
 }
 
 func TestPlayBook_Task(t *testing.T) {
-
 	t.Run("not-found", func(t *testing.T) {
 		c, err := New("testdata/f1.yml", nil, nil)
 		require.NoError(t, err)
@@ -377,7 +388,8 @@ func TestTargetHosts(t *testing.T) {
 		Targets: map[string]Target{
 			"target1": {Name: "target1", Hosts: []Destination{{Host: "host1.example.com", Port: 22}}},
 			"target2": {Name: "target2", Groups: []string{"group1"}},
-			"target3": {Name: "target3", Groups: []string{"group1"},
+			"target3": {
+				Name: "target3", Groups: []string{"group1"},
 				Hosts: []Destination{{Host: "host4.example.com", Port: 22, Name: "host4", Tags: []string{"tag4"}, User: "user4"}},
 			},
 			"target4":      {Name: "target4", Groups: []string{"group1"}, Names: []string{"host3"}},
@@ -425,21 +437,24 @@ func TestTargetHosts(t *testing.T) {
 			"target with both hosts and group", "target3", nil,
 			[]Destination{
 				{Name: "host4", Host: "host4.example.com", Port: 22, User: "user4", Tags: []string{"tag4"}},
-				{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}}},
+				{Host: "host2.example.com", Port: 2222, User: "defaultuser", Name: "host2", Tags: []string{"tag1"}},
+			},
 			false,
 		},
 		{
 			"target with both group and name", "target4", nil,
 			[]Destination{
 				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}},
-				{Name: "host2", Host: "host2.example.com", Port: 2222, User: "defaultuser", Tags: []string{"tag1"}}},
+				{Name: "host2", Host: "host2.example.com", Port: 2222, User: "defaultuser", Tags: []string{"tag1"}},
+			},
 			false,
 		},
 		{
 			"target with tag", "target5", nil,
 			[]Destination{
 				{Name: "host2", Host: "host2.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1"}},
-				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}}},
+				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}},
+			},
 			false,
 		},
 		{
@@ -456,7 +471,8 @@ func TestTargetHosts(t *testing.T) {
 			"target as a tag matching multiple from inventory", "tag1", nil,
 			[]Destination{
 				{Name: "host2", Host: "host2.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1"}},
-				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}}},
+				{Name: "host3", Host: "host3.example.com", Port: 22, User: "defaultuser", Tags: []string{"tag1", "tag2"}},
+			},
 			false,
 		},
 		{
@@ -490,7 +506,8 @@ func TestTargetHosts(t *testing.T) {
 			false,
 		},
 		{"invalid host:port format", "host5.example.com:invalid", nil, nil, true},
-		{"random host without a port", "host5.example.com", nil,
+		{
+			"random host without a port", "host5.example.com", nil,
 			[]Destination{{Host: "host5.example.com", Name: "host5.example.com", Port: 22, User: "defaultuser"}},
 			false,
 		},

@@ -360,8 +360,10 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 		}
 		msgs = append(msgs, fmt.Sprintf("%s %s %s", src, arrow, dst))
 		ecSingle := ec
-		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
-			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude}
+		ecSingle.cmd.Copy = config.CopyInternal{
+			Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
+			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude,
+		}
 		if _, err := ecSingle.Copy(ctx); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -745,6 +747,7 @@ type templater struct {
 	env      map[string]string
 	task     *config.Task
 	err      error
+	secrets  map[string]string
 }
 
 // apply applies templates to a string to replace predefined vars placeholders with actual values
@@ -785,7 +788,9 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	if tm.err != nil {
-		res = apply(res, "SPOT_ERROR", tm.err.Error())
+		// Escape single quotes in error message to prevent shell parsing issues
+		errStr := strings.ReplaceAll(tm.err.Error(), "'", "")
+		res = apply(res, "SPOT_ERROR", errStr)
 	} else {
 		res = apply(res, "SPOT_ERROR", "")
 	}
@@ -800,6 +805,10 @@ func (tm *templater) apply(inp string) string {
 			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
+	}
+
+	for k, v := range tm.secrets {
+		res = apply(res, k, v)
 	}
 
 	return res

@@ -31,15 +31,19 @@ func Test_main(t *testing.T) {
 	defer teardown()
 
 	t.Run("with system shell set", func(*testing.T) {
-		args := []string{"spot", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
-			"--key=testdata/test_ssh_key", "--target=" + hostAndPort, "-vv"}
+		args := []string{
+			"spot", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort, "-vv",
+		}
 		os.Args = args
 		main()
 	})
 
 	t.Run("with system shell not set", func(t *testing.T) {
-		args := []string{"spot", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
-			"--key=testdata/test_ssh_key", "--target=" + hostAndPort, "--verbose"}
+		args := []string{
+			"spot", "--dbg", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort, "--verbose",
+		}
 		os.Args = args
 		err := os.Setenv("SHELL", "")
 		require.NoError(t, err)
@@ -47,12 +51,13 @@ func Test_main(t *testing.T) {
 	})
 
 	t.Run("with system shell set, without verbose and debug", func(*testing.T) {
-		args := []string{"spot", "--playbook=testdata/conf-local.yml", "--user=test",
-			"--key=testdata/test_ssh_key", "--target=" + hostAndPort}
+		args := []string{
+			"spot", "--playbook=testdata/conf-local.yml", "--user=test",
+			"--key=testdata/test_ssh_key", "--target=" + hostAndPort,
+		}
 		os.Args = args
 		main()
 	})
-
 }
 
 func Test_runCompleted(t *testing.T) {
@@ -270,7 +275,6 @@ func Test_runCompletedAllTasks(t *testing.T) {
 	assert.Contains(t, logOut, "all good, 123")
 	assert.Contains(t, logOut, "good command 2")
 	assert.Contains(t, logOut, "all good, 123 - foo-val bar-val")
-
 }
 
 func Test_runCanceled(t *testing.T) {
@@ -359,24 +363,26 @@ func Test_runGen_goTmplFile(t *testing.T) {
 	testCases := []struct {
 		name string
 		opts options
-	}{{
-		name: "generate output for a task",
-		opts: options{
-			SSHUser:      "test",
-			SSHKey:       "testdata/test_ssh_key",
-			PlaybookFile: "testdata/conf.yml",
-			TaskNames:    []string{"task1"},
-			Targets:      []string{"dev"},
-			SecretsProvider: SecretsProvider{
-				Provider: "spot",
-				Conn:     "testdata/test-secrets.db",
-				Key:      "1234567890",
+	}{
+		{
+			name: "generate output for a task",
+			opts: options{
+				SSHUser:      "test",
+				SSHKey:       "testdata/test_ssh_key",
+				PlaybookFile: "testdata/conf.yml",
+				TaskNames:    []string{"task1"},
+				Targets:      []string{"dev"},
+				SecretsProvider: SecretsProvider{
+					Provider: "spot",
+					Conn:     "testdata/test-secrets.db",
+					Key:      "1234567890",
+				},
+				Inventory:   "testdata/inventory.yml",
+				GenEnable:   true,
+				GenOutput:   outputFilename,
+				GenTemplate: "testdata/gen.tmpl",
 			},
-			Inventory:   "testdata/inventory.yml",
-			GenEnable:   true,
-			GenOutput:   outputFilename,
-			GenTemplate: "testdata/gen.tmpl",
-		}},
+		},
 		{
 			name: "generate output for multiple tasks",
 			opts: options{
@@ -615,7 +621,6 @@ func Test_sshAgentForwarding(t *testing.T) {
 }
 
 func Test_sshUserAndKey(t *testing.T) {
-
 	osUser, err := user.Current()
 	require.NoError(t, err)
 
@@ -759,7 +764,6 @@ func (p *mockUserInfoProvider) Current() (*user.User, error) {
 }
 
 func TestAdHocConf(t *testing.T) {
-
 	t.Run("default SSH user and key", func(t *testing.T) {
 		mockUser := &user.User{
 			Username: "testuser",

@@ -67,11 +67,9 @@ type PlaybookMock struct {
 	// calls tracks calls to the methods.
 	calls struct {
 		// AllSecretValues holds details about calls to the AllSecretValues method.
-		AllSecretValues []struct {
-		}
+		AllSecretValues []struct{}
 		// AllTasks holds details about calls to the AllTasks method.
-		AllTasks []struct {
-		}
+		AllTasks []struct{}
 		// TargetHosts holds details about calls to the TargetHosts method.
 		TargetHosts []struct {
 			// Name is the name argument value.
@@ -112,8 +110,7 @@ func (mock *PlaybookMock) AllSecretValues() []string {
 	if mock.AllSecretValuesFunc == nil {
 		panic("PlaybookMock.AllSecretValuesFunc: method is nil but Playbook.AllSecretValues was just called")
 	}
-	callInfo := struct {
-	}{}
+	callInfo := struct{}{}
 	mock.lockAllSecretValues.Lock()
 	mock.calls.AllSecretValues = append(mock.calls.AllSecretValues, callInfo)
 	mock.lockAllSecretValues.Unlock()
@@ -124,10 +121,8 @@ func (mock *PlaybookMock) AllSecretValues() []string {
 // Check the length with:
 //
 //	len(mockedPlaybook.AllSecretValuesCalls())
-func (mock *PlaybookMock) AllSecretValuesCalls() []struct {
-} {
-	var calls []struct {
-	}
+func (mock *PlaybookMock) AllSecretValuesCalls() []struct{} {
+	var calls []struct{}
 	mock.lockAllSecretValues.RLock()
 	calls = mock.calls.AllSecretValues
 	mock.lockAllSecretValues.RUnlock()
@@ -139,8 +134,7 @@ func (mock *PlaybookMock) AllTasks() []config.Task {
 	if mock.AllTasksFunc == nil {
 		panic("PlaybookMock.AllTasksFunc: method is nil but Playbook.AllTasks was just called")
 	}
-	callInfo := struct {
-	}{}
+	callInfo := struct{}{}
 	mock.lockAllTasks.Lock()
 	mock.calls.AllTasks = append(mock.calls.AllTasks, callInfo)
 	mock.lockAllTasks.Unlock()
@@ -151,10 +145,8 @@ func (mock *PlaybookMock) AllTasks() []config.Task {
 // Check the length with:
 //
 //	len(mockedPlaybook.AllTasksCalls())
-func (mock *PlaybookMock) AllTasksCalls() []struct {
-} {
-	var calls []struct {
-	}
+func (mock *PlaybookMock) AllTasksCalls() []struct{} {
+	var calls []struct{}
 	mock.lockAllTasks.RLock()
 	calls = mock.calls.AllTasks
 	mock.lockAllTasks.RUnlock()

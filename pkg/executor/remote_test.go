@@ -329,7 +329,6 @@ func TestExecuter_Run(t *testing.T) {
 	})
 
 	t.Run("with secrets", func(t *testing.T) {
-
 		capturedStdout := captureStdOut(t, func() {
 			c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, []string{"data2"}))
 			require.NoError(t, err)
@@ -366,7 +365,6 @@ func TestExecuter_Run(t *testing.T) {
 		_, err := sess.Run(ctxCancel, "sh -c 'echo hello world'", nil)
 		assert.ErrorContains(t, err, "context canceled")
 	})
-
 }
 
 func TestExecuter_Sync(t *testing.T) {
@@ -441,8 +439,10 @@ func TestExecuter_Sync(t *testing.T) {
 		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		slices.Sort(out)
-		assert.Equal(t, []string{"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
-			"185 /tmp/sync.dest4/file1.txt", "61 /tmp/sync.dest4/file2.txt"}, out)
+		assert.Equal(t, []string{
+			"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
+			"185 /tmp/sync.dest4/file1.txt", "61 /tmp/sync.dest4/file2.txt",
+		}, out)
 	})
 }
 

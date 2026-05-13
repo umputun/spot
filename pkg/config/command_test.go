@@ -689,14 +689,23 @@ func TestCmd_validate(t *testing.T) {
 		{"only msync", Cmd{MSync: []SyncInternal{{Source: "source", Dest: "dest"}}}, ""},
 		{"only wait", Cmd{Wait: WaitInternal{Command: "command"}}, ""},
 		{"only line", Cmd{Line: LineInternal{File: "/etc/bashrc", Match: "^PS1=", Delete: true}}, ""},
-		{"line without operation", Cmd{Line: LineInternal{File: "/etc/bashrc", Match: "^PS1="}},
-			"one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, echo] must be set"},
-		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
-			"only one of [script, copy] is allowed"},
+		{
+			"line without operation",
+			Cmd{Line: LineInternal{File: "/etc/bashrc", Match: "^PS1="}},
+			"one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, echo] must be set",
+		},
+		{
+			"multiple fields set",
+			Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
+			"only one of [script, copy] is allowed",
+		},
 		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, echo] must be set"},
 		{"script with register", Cmd{Script: "example_script", Register: []string{"a", "b"}}, ""},
-		{"unexpected register", Cmd{Copy: CopyInternal{Source: "source", Dest: "dest"}, Register: []string{"a", "b"}},
-			"register is only allowed with script command"},
+		{
+			"unexpected register",
+			Cmd{Copy: CopyInternal{Source: "source", Dest: "dest"}, Register: []string{"a", "b"}},
+			"register is only allowed with script command",
+		},
 	}
 
 	for _, tt := range tbl {
@@ -787,7 +796,8 @@ func TestCmd_GetCondition(t *testing.T) {
 		},
 		{
 			name: "multi-line wait command",
-			cmd: &Cmd{Condition: `echo 'Hello, World!'
+			cmd: &Cmd{
+				Condition: `echo 'Hello, World!'
 echo 'Goodbye, World!'`,
 			},
 			expectedReader: strings.NewReader(`#!/bin/sh
@@ -799,7 +809,8 @@ echo 'Goodbye, World!'
 		},
 		{
 			name: "multi-line wait command inverted",
-			cmd: &Cmd{Condition: `!echo 'Hello, World!'
+			cmd: &Cmd{
+				Condition: `!echo 'Hello, World!'
 echo 'Goodbye, World!'`,
 			},
 			expectedReader: strings.NewReader(`#!/bin/sh

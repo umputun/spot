@@ -28,16 +28,7 @@ func NewLocal(logs Logs) *Local {
 
 // Run executes command on local hostAddr, inside the shell
 func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
-	shell := func() string {
-		if strings.HasPrefix(cmd, "sh -c") {
-			return "sh" // command has sh -c prefix, so use sh
-		}
-		envShell := os.Getenv("SHELL")
-		if envShell == "" {
-			return "/bin/sh" // default to /bin/sh
-		}
-		return envShell // use SHELL env var
-	}
+	shell := func() string { return "/bin/sh" }
 
 	if rest, found := strings.CutPrefix(cmd, shell()+" -c "); found {
 		// strip sh -c 'command' to just command to avoid double shell
@@ -68,7 +59,6 @@ func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, 
 
 // Upload just copy file from one place to another
 func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (err error) {
-
 	// check if the local parameter contains a glob pattern
 	matches, err := filepath.Glob(src)
 	if err != nil {
@@ -220,7 +210,6 @@ func (l *Local) syncSrcToDst(ctx context.Context, src, dst string, excl []string
 		copiedFiles = append(copiedFiles, relPath)
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -252,13 +241,12 @@ func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error 
 
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
 
 	// remove files and directories in reverse order
-	for i := len(pathsToDelete) - 1; i >= 0; i-- {
+	for i := len(pathsToDelete) - 1; i >= 0; i-- { //nolint
 		dstPath := pathsToDelete[i]
 		if e := os.RemoveAll(dstPath); e != nil {
 			return e
@@ -350,7 +338,6 @@ func (l *Local) deletePath(ctx context.Context, src string, excl []string) error
 
 		return filepath.SkipDir
 	})
-
 	if err != nil {
 		return err
 	}

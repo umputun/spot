@@ -120,7 +120,6 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 }
 
 func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, error) {
-
 	// getAuth returns a list of ssh.AuthMethod to be used for authentication.
 	// if ssh agent is enabled, it will be used, otherwise private key will be used.
 	getAuth := func() (auth []ssh.AuthMethod, err error) {
