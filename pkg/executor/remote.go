@@ -262,8 +262,9 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			pathsToDelete = append([]string{remoteFile}, pathsToDelete...)
 		}
 
-		// delete files and directories in reverse order
-		for _, p := range slices.Backward(pathsToDelete) {
+		// remove files and directories in reverse order
+		for i := len(pathsToDelete) - 1; i >= 0; i-- { // nolint
+			p := pathsToDelete[i]
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

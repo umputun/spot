@@ -31,31 +31,26 @@ import (
 // Process is a struct that holds the information needed to run a process.
 // It responsible for running a task on a target hosts.
 type Process struct {
-	Concurrency  int
-	Connector    Connector
-	SSMConnector SSMConnector
-	Playbook     Playbook
-	Logs         executor.Logs
-	Verbose      bool
-	Verbose2     bool
-	Dry          bool
-	Local        bool
-	SSM          bool
-	SSHShell     string
-	SSHTempDir   string
+	Concurrency int
+	Connector   Connector
+	Playbook    Playbook
+	Logs        executor.Logs
+	Verbose     bool
+	Verbose2    bool
+	Dry         bool
+	Local       bool
+	SSM         bool
+	SSHShell    string
+	SSHTempDir  string
 
 	Skip []string
 	Only []string
 }
 
-// Connector is an interface for connecting to a host, and returning remote executer.
+// Connector is an interface for connecting to a host, and returning an executor.
+// If ssmID is non-empty, returns an SSM executor; otherwise returns a Remote (SSH) executor.
 type Connector interface {
-	Connect(ctx context.Context, hostAddr, hostName, user string) (*executor.Remote, error)
-}
-
-// SSMConnector provides factory method to create SSM executor for a given instance ID.
-type SSMConnector interface {
-	Connect(ctx context.Context, instanceID, hostName, user string) (*executor.SSM, error)
+	Connect(ctx context.Context, hostAddr, hostName, user, ssmID string) (executor.Interface, error)
 }
 
 // Playbook is an interface for getting task and target information from playbook.
@@ -108,7 +103,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
-	var commands int32 //nolint
+	var commands int32 //nolint:gosec //gosec mangles first bit
 	lock := sync.Mutex{}
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
@@ -196,9 +191,9 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host conf
 	var remote executor.Interface
 	var err error
 	switch {
-	case p.anyRemoteCommand(tsk) && p.SSM && host.SSMId != "":
+	case p.SSM && host.SSMId != "":
 		// use SSM executor for AWS SSM managed instances
-		remote, err = p.SSMConnector.Connect(ctx, host.SSMId, hostName, user)
+		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user, host.SSMId)
 		if err != nil {
 			if hostName != "" {
 				return taskOnHostResp{}, fmt.Errorf("can't connect to %s via SSM: %w", hostName, err)
@@ -209,7 +204,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host conf
 		report(hostAddr, hostName, "run task %q via SSM, commands: %d\n", tsk.Name, len(tsk.Commands))
 	case p.anyRemoteCommand(tsk) && !p.Local:
 		// make remote executor only if there is a remote command in the task and not in local mode
-		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user)
+		remote, err = p.Connector.Connect(ctx, hostAddr, hostName, user, "")
 		if err != nil {
 			if hostName != "" {
 				return taskOnHostResp{}, fmt.Errorf("can't connect to %s, user: %s: %w", hostName, user, err)
@@ -218,6 +213,11 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, host conf
 		}
 		defer remote.Close()
 		report(hostAddr, hostName, "run task %q, commands: %d\n", tsk.Name, len(tsk.Commands))
+	case p.SSM && host.SSMId == "":
+		// SSM mode requested but host has no SSM ID
+		// Fall through to report and use local execution with a warning
+		report(hostAddr, hostName, "[WARN] --ssm set but host %q has no ssm_id, using local\n", hostName)
+		report("localhost", "", "run task %q, commands: %d (local)\n", tsk.Name, len(tsk.Commands))
 	default:
 		report("localhost", "", "run task %q, commands: %d (local)\n", tsk.Name, len(tsk.Commands))
 	}

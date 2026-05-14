@@ -36,3 +36,6 @@ pr_236_notes.md
 # compiled binary
 /spot
 progress*.txt
+MACOS.md
+.zed/settings.json
+.zed

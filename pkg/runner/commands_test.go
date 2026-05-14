@@ -221,7 +221,7 @@ func Test_execCmd(t *testing.T) {
 	ctx := context.Background()
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("copy a single file", func(t *testing.T) {
@@ -736,7 +736,7 @@ func Test_execEcho(t *testing.T) {
 	ctx := context.Background()
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("echo command", func(t *testing.T) {
@@ -864,7 +864,7 @@ func Test_execLine(t *testing.T) {
 	ctx := context.Background()
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("line command delete", func(t *testing.T) {
@@ -1110,7 +1110,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 	logs := executor.MakeLogs(false, false, nil)
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	extractTmpPath := func(log string) string {
@@ -1334,7 +1334,7 @@ func Test_execCmd_prepScript(t *testing.T) {
 	logs := executor.MakeLogs(false, false, nil)
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-host", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-host", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("single line command, no temp files", func(t *testing.T) {

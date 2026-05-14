@@ -51,8 +51,8 @@ func (c *Connector) WithAgentForwarding() *Connector {
 	return c
 }
 
-// Connect connects to a remote hostAddr and returns a remote executer, caller must close.
-func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string) (*Remote, error) {
+// Connect connects to a remote host and returns a remote executor, caller must close.
+func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string, _ string) (Interface, error) {
 	log.Printf("[DEBUG] connect to %q (%s), user %q", hostAddr, hostName, user)
 	client, err := c.sshClient(ctx, hostAddr, user)
 	if err != nil {

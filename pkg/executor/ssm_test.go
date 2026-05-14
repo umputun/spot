@@ -14,25 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/umputun/spot/pkg/executor/mocks"
 )
-
-// mockSSMClient is a mock implementation of SSMClient for testing.
-type mockSSMClient struct {
-	sendCommandFunc          func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error)
-	getCommandInvocationFunc func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error)
-}
-
-func (m *mockSSMClient) SendCommand(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
-	return m.sendCommandFunc(ctx, params, optFns...)
-}
-
-func (m *mockSSMClient) GetCommandInvocation(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
-	return m.getCommandInvocationFunc(ctx, params, optFns...)
-}
 
 func TestNewSSM(t *testing.T) {
 	t.Run("creates valid SSM executor", func(t *testing.T) {
-		client := &mockSSMClient{}
+		client := &mocks.SSMClientMock{}
 		logs := MakeLogs(false, false, nil)
 		ssmExec, err := NewSSM(client, "i-12345678", 30*time.Second, logs)
 		require.NoError(t, err)
@@ -48,7 +36,7 @@ func TestNewSSM(t *testing.T) {
 	})
 
 	t.Run("empty instance ID returns error", func(t *testing.T) {
-		client := &mockSSMClient{}
+		client := &mocks.SSMClientMock{}
 		logs := MakeLogs(false, false, nil)
 		_, err := NewSSM(client, "", 30*time.Second, logs)
 		require.Error(t, err)
@@ -60,7 +48,7 @@ func TestSSM_Run(t *testing.T) {
 	timeout := 30 * time.Second
 
 	t.Run("empty command returns nil", func(t *testing.T) {
-		client := &mockSSMClient{}
+		client := &mocks.SSMClientMock{}
 		logs := MakeLogs(false, false, nil)
 		ssmExec, err := NewSSM(client, "i-12345678", timeout, logs)
 		require.NoError(t, err)
@@ -71,15 +59,15 @@ func TestSSM_Run(t *testing.T) {
 	})
 
 	t.Run("successful command returns stdout", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status:                types.CommandInvocationStatusSuccess,
 					StandardOutputContent: aws.String("line1\nline2\nline3\n"),
@@ -98,15 +86,15 @@ func TestSSM_Run(t *testing.T) {
 	})
 
 	t.Run("failed command returns error", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status:                types.CommandInvocationStatusFailed,
 					StandardOutputContent: aws.String("output"),
@@ -128,15 +116,15 @@ func TestSSM_Run(t *testing.T) {
 	})
 
 	t.Run("timed out command returns error", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status: types.CommandInvocationStatusInProgress,
 				}, nil
@@ -155,15 +143,15 @@ func TestSSM_Run(t *testing.T) {
 	})
 
 	t.Run("context cancellation", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				time.Sleep(2 * time.Second)
 				return &ssm.GetCommandInvocationOutput{
 					Status: types.CommandInvocationStatusInProgress,
@@ -179,11 +167,11 @@ func TestSSM_Run(t *testing.T) {
 
 		_, err = ssmExec.Run(ctx, "sleep 10", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "context canceled")
+		assert.Contains(t, err.Error(), "context deadline exceeded")
 	})
 
 	t.Run("timeout zero returns nil for empty command", func(t *testing.T) {
-		client := &mockSSMClient{}
+		client := &mocks.SSMClientMock{}
 		logs := MakeLogs(false, false, nil)
 		ssmExec, err := NewSSM(client, "i-12345678", 0, logs)
 		require.NoError(t, err)
@@ -195,7 +183,7 @@ func TestSSM_Run(t *testing.T) {
 }
 
 func TestSSM_Close(t *testing.T) {
-	client := &mockSSMClient{}
+	client := &mocks.SSMClientMock{}
 	logs := MakeLogs(false, false, nil)
 	ssmExec, err := NewSSM(client, "i-12345678", 30*time.Second, logs)
 	require.NoError(t, err)
@@ -214,15 +202,15 @@ func TestSSM_Upload(t *testing.T) {
 		err := os.WriteFile(testFile, []byte("hello world"), 0o644)
 		require.NoError(t, err)
 
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status:                types.CommandInvocationStatusSuccess,
 					StandardOutputContent: aws.String(""),
@@ -263,15 +251,15 @@ func TestSSM_Upload(t *testing.T) {
 func TestSSM_Download(t *testing.T) {
 	timeout := 30 * time.Second
 
-	client := &mockSSMClient{
-		sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+	client := &mocks.SSMClientMock{
+		SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 			return &ssm.SendCommandOutput{
 				Command: &types.Command{
 					CommandId: aws.String("cmd-12345"),
 				},
 			}, nil
 		},
-		getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+		GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 			return &ssm.GetCommandInvocationOutput{
 				Status:                types.CommandInvocationStatusSuccess,
 				StandardOutputContent: aws.String("aGVsbG8gd29ybGQ="),
@@ -311,15 +299,15 @@ func TestSSM_Download(t *testing.T) {
 func TestSSM_DownloadDecodingError(t *testing.T) {
 	timeout := 30 * time.Second
 
-	client := &mockSSMClient{
-		sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+	client := &mocks.SSMClientMock{
+		SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 			return &ssm.SendCommandOutput{
 				Command: &types.Command{
 					CommandId: aws.String("cmd-12345"),
 				},
 			}, nil
 		},
-		getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+		GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 			return &ssm.GetCommandInvocationOutput{
 				Status:                types.CommandInvocationStatusSuccess,
 				StandardOutputContent: aws.String("not-valid-base64!!!"),
@@ -354,15 +342,15 @@ func TestSSM_Sync(t *testing.T) {
 		err = os.WriteFile(testFile2, []byte("world"), 0o644)
 		require.NoError(t, err)
 
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status:                types.CommandInvocationStatusSuccess,
 					StandardOutputContent: aws.String(""),
@@ -398,15 +386,15 @@ func TestSSM_Delete(t *testing.T) {
 	timeout := 30 * time.Second
 
 	t.Run("delete file successfully", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status:                types.CommandInvocationStatusSuccess,
 					StandardOutputContent: aws.String(""),
@@ -423,8 +411,8 @@ func TestSSM_Delete(t *testing.T) {
 	})
 
 	t.Run("delete non-existent file returns nil", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return nil, fmt.Errorf("No such file or directory")
 			},
 		}
@@ -437,15 +425,15 @@ func TestSSM_Delete(t *testing.T) {
 	})
 
 	t.Run("delete recursive", func(t *testing.T) {
-		client := &mockSSMClient{
-			sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+		client := &mocks.SSMClientMock{
+			SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 				return &ssm.SendCommandOutput{
 					Command: &types.Command{
 						CommandId: aws.String("cmd-12345"),
 					},
 				}, nil
 			},
-			getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+			GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 				return &ssm.GetCommandInvocationOutput{
 					Status:                types.CommandInvocationStatusSuccess,
 					StandardOutputContent: aws.String(""),
@@ -474,7 +462,7 @@ func TestSSM_UploadLargeFile(t *testing.T) {
 	err := os.WriteFile(largeFile, data, 0o644)
 	require.NoError(t, err)
 
-	client := &mockSSMClient{}
+	client := &mocks.SSMClientMock{}
 	logs := MakeLogs(false, false, nil)
 	ssmExec, err := NewSSM(client, "i-12345678", timeout, logs)
 	require.NoError(t, err)
@@ -488,15 +476,15 @@ func TestSSM_UploadLargeFile(t *testing.T) {
 func TestSSM_DownloadWithEmptyOutput(t *testing.T) {
 	timeout := 30 * time.Second
 
-	client := &mockSSMClient{
-		sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+	client := &mocks.SSMClientMock{
+		SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 			return &ssm.SendCommandOutput{
 				Command: &types.Command{
 					CommandId: aws.String("cmd-12345"),
 				},
 			}, nil
 		},
-		getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+		GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 			return &ssm.GetCommandInvocationOutput{
 				Status:                types.CommandInvocationStatusSuccess,
 				StandardOutputContent: aws.String(""),
@@ -512,14 +500,18 @@ func TestSSM_DownloadWithEmptyOutput(t *testing.T) {
 	downloadPath := filepath.Join(tmpDir, "downloaded.txt")
 
 	err = ssmExec.Download(context.Background(), "/tmp/remote.txt", downloadPath, &UpDownOpts{})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to decode base64")
+	require.NoError(t, err) // Empty output → write empty file → no error
+
+	// Verify file exists but is empty
+	data, err := os.ReadFile(downloadPath)
+	require.NoError(t, err)
+	assert.Empty(t, data)
 }
 
 func TestSSM_Cleanup(t *testing.T) {
 	timeout := 30 * time.Second
 
-	client := &mockSSMClient{}
+	client := &mocks.SSMClientMock{}
 	logs := MakeLogs(false, false, nil)
 	ssmExec, err := NewSSM(client, "i-12345678", timeout, logs)
 	require.NoError(t, err)
@@ -531,15 +523,15 @@ func TestSSM_Cleanup(t *testing.T) {
 func TestSSM_RunWithExitCode(t *testing.T) {
 	timeout := 30 * time.Second
 
-	client := &mockSSMClient{
-		sendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
+	client := &mocks.SSMClientMock{
+		SendCommandFunc: func(ctx context.Context, params *ssm.SendCommandInput, optFns ...func(*ssm.Options)) (*ssm.SendCommandOutput, error) {
 			return &ssm.SendCommandOutput{
 				Command: &types.Command{
 					CommandId: aws.String("cmd-12345"),
 				},
 			}, nil
 		},
-		getCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
+		GetCommandInvocationFunc: func(ctx context.Context, params *ssm.GetCommandInvocationInput, optFns ...func(*ssm.Options)) (*ssm.GetCommandInvocationOutput, error) {
 			return &ssm.GetCommandInvocationOutput{
 				Status:                types.CommandInvocationStatusFailed,
 				StandardOutputContent: aws.String("some output"),

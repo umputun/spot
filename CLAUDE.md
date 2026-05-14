@@ -147,7 +147,6 @@ golangci-lint run
 
 # Format code (excluding vendor)
 gofmt -s -w $(find . -type f -name "*.go" -not -path "./vendor/*")
-gofumpt -l -w $(find . -type f -name "*.go" -not -path "./vendor/*")
 
 # Run goimports (excluding vendor)
 goimports -w $(find . -type f -name "*.go" -not -path "./vendor/*")
@@ -162,7 +161,7 @@ go test -race -coverprofile=coverage.out ./... && grep -v "_mock.go" coverage.ou
 unfuck-ai-comments run --fmt --skip=mocks ./...
 
 # Run completion sequence (formatting, code generation, linting, testing)
-gofmt -s -w $(find . -type f -name "*.go" -not -path "./vendor/*") && gofumpt -l -w $(find . -type f -name "*.go" -not -path "./vendor/*") && go generate ./... && golangci-lint run && go test -race ./...
+gofmt -s -w $(find . -type f -name "*.go" -not -path "./vendor/*") && go generate ./... && golangci-lint run && go test -race ./...
 ```
 
 **IMPORTANT:** NEVER commit without running tests, formatter, comments normalizer and linters for the entire codebase!
@@ -353,10 +352,3 @@ git branch -D feature-branch-name
 ## Code Analysis Tools
 - mpt code analysis: run `mpt --openai.enabled --openai.model=gpt-4.1 -f "**/*.go" -f "*.md" -p "analyze code, check for design and security issues. make sure code is readable, maintainable and idiomatic. provide just a list of improvements"` and synthesize combined input
 - mpt diff analysis: run `mpt --git.diff --openai.enabled --google.enabled --anthropic.enabled --timeout=60s -p "Perform a comprehensive code review of these changes. Analyze the design patterns and architecture. Identify any security vulnerabilities and risks. Evaluate code readability, maintainability, and idiomatic usage. Suggest specific improvements where needed."` and synthesize combined input
-
-## Terminal Configuration for MacOS only
-- Terminal `cd` parameter must be set to `spot` (project root directory)
-- Shell: `/opt/homebrew/bin/bash` or `/opt/homebrew/bin/zsh`
-- Go: `/opt/homebrew/bin/go`
-- Docker: `/opt/homebrew/bin/docker`
-- Command format: `cd spot && <command>`

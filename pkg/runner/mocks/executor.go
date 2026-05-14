@@ -62,7 +62,8 @@ type InterfaceMock struct {
 	// calls tracks calls to the methods.
 	calls struct {
 		// Close holds details about calls to the Close method.
-		Close []struct{}
+		Close []struct {
+		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
 			// Ctx is the ctx argument value.
@@ -128,7 +129,8 @@ func (mock *InterfaceMock) Close() error {
 	if mock.CloseFunc == nil {
 		panic("InterfaceMock.CloseFunc: method is nil but Interface.Close was just called")
 	}
-	callInfo := struct{}{}
+	callInfo := struct {
+	}{}
 	mock.lockClose.Lock()
 	mock.calls.Close = append(mock.calls.Close, callInfo)
 	mock.lockClose.Unlock()
@@ -139,8 +141,10 @@ func (mock *InterfaceMock) Close() error {
 // Check the length with:
 //
 //	len(mockedInterface.CloseCalls())
-func (mock *InterfaceMock) CloseCalls() []struct{} {
-	var calls []struct{}
+func (mock *InterfaceMock) CloseCalls() []struct {
+} {
+	var calls []struct {
+	}
 	mock.lockClose.RLock()
 	calls = mock.calls.Close
 	mock.lockClose.RUnlock()

@@ -16,7 +16,7 @@ import (
 //
 //		// make and configure a mocked runner.Connector
 //		mockedConnector := &ConnectorMock{
-//			ConnectFunc: func(ctx context.Context, hostAddr string, hostName string, user string) (*executor.Remote, error) {
+//			ConnectFunc: func(ctx context.Context, hostAddr string, hostName string, user string, ssmID string) (executor.Interface, error) {
 //				panic("mock out the Connect method")
 //			},
 //		}
@@ -27,7 +27,7 @@ import (
 //	}
 type ConnectorMock struct {
 	// ConnectFunc mocks the Connect method.
-	ConnectFunc func(ctx context.Context, hostAddr string, hostName string, user string) (*executor.Remote, error)
+	ConnectFunc func(ctx context.Context, hostAddr string, hostName string, user string, ssmID string) (executor.Interface, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -41,13 +41,15 @@ type ConnectorMock struct {
 			HostName string
 			// User is the user argument value.
 			User string
+			// SsmID is the ssmID argument value.
+			SsmID string
 		}
 	}
 	lockConnect sync.RWMutex
 }
 
 // Connect calls ConnectFunc.
-func (mock *ConnectorMock) Connect(ctx context.Context, hostAddr string, hostName string, user string) (*executor.Remote, error) {
+func (mock *ConnectorMock) Connect(ctx context.Context, hostAddr string, hostName string, user string, ssmID string) (executor.Interface, error) {
 	if mock.ConnectFunc == nil {
 		panic("ConnectorMock.ConnectFunc: method is nil but Connector.Connect was just called")
 	}
@@ -56,16 +58,18 @@ func (mock *ConnectorMock) Connect(ctx context.Context, hostAddr string, hostNam
 		HostAddr string
 		HostName string
 		User     string
+		SsmID    string
 	}{
 		Ctx:      ctx,
 		HostAddr: hostAddr,
 		HostName: hostName,
 		User:     user,
+		SsmID:    ssmID,
 	}
 	mock.lockConnect.Lock()
 	mock.calls.Connect = append(mock.calls.Connect, callInfo)
 	mock.lockConnect.Unlock()
-	return mock.ConnectFunc(ctx, hostAddr, hostName, user)
+	return mock.ConnectFunc(ctx, hostAddr, hostName, user, ssmID)
 }
 
 // ConnectCalls gets all the calls that were made to Connect.
@@ -77,12 +81,14 @@ func (mock *ConnectorMock) ConnectCalls() []struct {
 	HostAddr string
 	HostName string
 	User     string
+	SsmID    string
 } {
 	var calls []struct {
 		Ctx      context.Context
 		HostAddr string
 		HostName string
 		User     string
+		SsmID    string
 	}
 	mock.lockConnect.RLock()
 	calls = mock.calls.Connect
