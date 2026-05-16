@@ -508,7 +508,7 @@ func (c *unifiedConnector) connectSSM(_ context.Context, instanceID, hostName st
 	}
 	client := ssm.NewFromConfig(cfg)
 	logs := c.logs.WithHost(instanceID, hostName)
-	return executor.NewSSM(client, instanceID, c.timeout, logs)
+	return executor.NewSSMSession(client, instanceID, c.region, c.timeout, logs)
 }
 
 func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetName string) error {

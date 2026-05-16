@@ -18,10 +18,12 @@ bin/
 .bin/
 *.gpg
 *.db
+*.bak
 private-key.asc
 spot-private*.yml
 spot-inventory-private.yml
 spot-inventory-private2.yml
+secrets
 site/public/
 site/site/
 site/.venv/
