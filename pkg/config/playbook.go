@@ -81,11 +81,12 @@ type Target struct {
 
 // Destination defines destination info
 type Destination struct {
-	Name string   `yaml:"name" toml:"name"`
-	Host string   `yaml:"host" toml:"host"`
-	Port int      `yaml:"port" toml:"port"`
-	User string   `yaml:"user" toml:"user"`
-	Tags []string `yaml:"tags" toml:"tags"`
+	Name  string   `yaml:"name" toml:"name"`
+	Host  string   `yaml:"host" toml:"host"`
+	Port  int      `yaml:"port" toml:"port"`
+	User  string   `yaml:"user" toml:"user"`
+	Tags  []string `yaml:"tags" toml:"tags"`
+	SSMId string   `yaml:"ssm_id" toml:"ssm_id"` // AWS SSM instance ID
 }
 
 // Overrides defines override for task passed from cli
@@ -231,7 +232,6 @@ func New(fname string, overrides *Overrides, secProvider SecretsProvider) (res *
 // First it will try to unmarshal to a complete PlayBook struct, if it fails,
 // it will try to unmarshal to a SimplePlayBook struct and convert it to a complete PlayBook struct.
 func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res *PlayBook) (err error) {
-
 	unmarshal := func(data []byte, v any, isFull bool) error {
 		pbookType := "simple"
 		if isFull {
@@ -335,8 +335,11 @@ func (p *PlayBook) Task(name string) (*Task, error) {
 		if name == "ad-hoc" && p.overrides.AdHocCommand != "" {
 			// special case for ad-hoc command, make a fake task with a single command from overrides.AdHocCommand
 			return &Task{Name: "ad-hoc", Commands: []Cmd{
-				{Name: "ad-hoc", Script: p.overrides.AdHocCommand,
-					SSHShell: p.remoteShell(), SSHTempDir: p.sshTempDir(), LocalShell: p.localShell()}}}, nil
+				{
+					Name: "ad-hoc", Script: p.overrides.AdHocCommand,
+					SSHShell: p.remoteShell(), SSHTempDir: p.sshTempDir(), LocalShell: p.localShell(),
+				},
+			}}, nil
 		}
 		for _, t := range tsk {
 			if strings.EqualFold(t.Name, name) {
@@ -395,7 +398,6 @@ func (p *PlayBook) TasksByTag(tag string) []string {
 
 // TargetHosts returns target hosts for given target name.
 func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
-
 	userOverride := func(u string) string {
 		// apply overrides of user
 		if p.overrides != nil && p.overrides.User != "" {
@@ -491,7 +493,6 @@ func (p *PlayBook) UpdateRegisteredVars(vars map[string]string) {
 // - It sets default port and user values for all inventory groups if not already set.
 // Returns an error if the inventory data cannot be loaded or parsed, or if the "all" group is reserved for all hosts.
 func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
-
 	reader := func(loc string) (r io.ReadCloser, err error) {
 		// get reader for inventory file or url
 		switch {
@@ -582,7 +583,6 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 // - the target set is not called "all"
 // Returns an error if any of these conditions are not met.
 func (p *PlayBook) checkConfig() error {
-
 	// check that all tasks have unique names in the playbook and no empty names
 	names := make(map[string]bool)
 	for _, t := range p.Tasks {

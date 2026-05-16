@@ -351,4 +351,4 @@ git branch -D feature-branch-name
 
 ## Code Analysis Tools
 - mpt code analysis: run `mpt --openai.enabled --openai.model=gpt-4.1 -f "**/*.go" -f "*.md" -p "analyze code, check for design and security issues. make sure code is readable, maintainable and idiomatic. provide just a list of improvements"` and synthesize combined input
-- mpt diff analysis: run `mpt --git.diff --openai.enabled --google.enabled --anthropic.enabled --timeout=60s -p "Perform a comprehensive code review of these changes. Analyze the design patterns and architecture. Identify any security vulnerabilities or risks. Evaluate code readability, maintainability, and idiomatic usage. Suggest specific improvements where needed."` and synthesize combined input
+- mpt diff analysis: run `mpt --git.diff --openai.enabled --google.enabled --anthropic.enabled --timeout=60s -p "Perform a comprehensive code review of these changes. Analyze the design patterns and architecture. Identify any security vulnerabilities and risks. Evaluate code readability, maintainability, and idiomatic usage. Suggest specific improvements where needed."` and synthesize combined input

@@ -25,7 +25,6 @@ func NewAWSSecretsProvider(accessKeyID, secretAccessKey, region string) (*AWSSec
 	cfg, err := config.LoadDefaultConfig(context.Background(),
 		config.WithRegion(region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyID, secretAccessKey, "")))
-
 	if err != nil {
 		return nil, fmt.Errorf("error creating aws config: %w", err)
 	}

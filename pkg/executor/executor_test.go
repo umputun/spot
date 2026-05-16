@@ -50,7 +50,6 @@ func Test_isExcludedSubPath(t *testing.T) {
 		excl     []string
 		expected bool
 	}{
-
 		{"sub-path excluded", "/user/docs", []string{"/user/docs/123"}, true},
 		{"sub-path with case sensitivity", "/user/docs", []string{"/user/Docs/123"}, false},
 		{"sub-path not excluded", "/user/docs", []string{"/user/docs2/123"}, false},

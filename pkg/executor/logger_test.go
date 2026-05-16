@@ -221,8 +221,10 @@ func TestColorizedWriter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var writer LogWriter
 			buffer := bytes.NewBuffer([]byte{})
-			writer = &colorizedWriter{wr: buffer, prefix: tc.prefix,
-				hostAddr: tc.hostAddr, hostName: tc.hostName, secrets: tc.secrets}
+			writer = &colorizedWriter{
+				wr: buffer, prefix: tc.prefix,
+				hostAddr: tc.hostAddr, hostName: tc.hostName, secrets: tc.secrets,
+			}
 			if tc.withHostName != "" && tc.withHostAddr != "" {
 				writer = writer.WithHost(tc.withHostAddr, tc.withHostName)
 			}
@@ -294,7 +296,6 @@ func TestMakeOutAndErrWriters(t *testing.T) {
 		t.Logf("bufOut:\n%s", out)
 		assert.Contains(t, out, "[host1 example.com]  > ****, out!", "captured stdout should contain the out message")
 		assert.Contains(t, out, "[host2 example.com]  ! ****, err!", "captured stderr should contain the err message")
-
 	})
 }
 
@@ -320,8 +321,11 @@ func TestMaskSecrets(t *testing.T) {
 		{"special!characters@in#password", []string{"special!characters@in#password"}, "****"},
 		{"token321.", []string{"token321."}, "****"},
 		// test case from the issue where the script is shown with secrets
-		{"secret=\"token321.\"; secret_special=\"password123#\"; echo \"${secret} ${secret_special}\"",
-			[]string{"token321.", "password123#"}, "secret=\"****\"; secret_special=\"****\"; echo \"${secret} ${secret_special}\""},
+		{
+			"secret=\"token321.\"; secret_special=\"password123#\"; echo \"${secret} ${secret_special}\"",
+			[]string{"token321.", "password123#"},
+			"secret=\"****\"; secret_special=\"****\"; echo \"${secret} ${secret_special}\"",
+		},
 	}
 
 	for _, tt := range tests {
@@ -340,8 +344,11 @@ func TestColorizedWriter_PrintfWithSecrets(t *testing.T) {
 	}{
 		{"myPassword is password", []string{"password"}, "[my-host localhost] myPassword is ****\n"},
 		{"password password, password withpassword", []string{"password"}, "[my-host localhost] **** ****, **** withpassword\n"},
-		{"multiple secrets mySecret and myPassword", []string{"mySecret", "myPassword"},
-			"[my-host localhost] multiple secrets **** and ****\n"},
+		{
+			"multiple secrets mySecret and myPassword",
+			[]string{"mySecret", "myPassword"},
+			"[my-host localhost] multiple secrets **** and ****\n",
+		},
 		{"no secrets here", []string{"password"}, "[my-host localhost] no secrets here\n"},
 		{"edge case:secret", []string{"secret"}, "[my-host localhost] edge case:****\n"},
 		{"", []string{"password"}, ""},
@@ -355,7 +362,7 @@ func TestColorizedWriter_PrintfWithSecrets(t *testing.T) {
 		t.Run(tt.input, func(t *testing.T) {
 			var buf bytes.Buffer
 			writer := &colorizedWriter{wr: &buf, secrets: tt.secrets, hostAddr: "localhost", hostName: "my-host"}
-			writer.Printf("%s", tt.input) //nolint
+			writer.Printf("%s", tt.input) //nolint:errcheck // buffer writer, error not checkable
 			assert.Equal(t, tt.expected, buf.String())
 		})
 	}

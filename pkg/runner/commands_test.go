@@ -221,12 +221,13 @@ func Test_execCmd(t *testing.T) {
 	ctx := context.Background()
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("copy a single file", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "push"}}}
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "push"},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
@@ -241,7 +242,8 @@ func Test_execCmd(t *testing.T) {
 		defer os.Remove(tmpFile)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "/tmp/download_test.txt", Dest: tmpFile, Direction: "pull"}}}
+			Copy: config.CopyInternal{Source: "/tmp/download_test.txt", Dest: tmpFile, Direction: "pull"},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "direction: pull")
@@ -263,7 +265,8 @@ func Test_execCmd(t *testing.T) {
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy:    config.CopyInternal{Source: "/srv/sudo_test.txt", Dest: tmpFile, Direction: "pull"},
-			Options: config.CmdOptions{Sudo: true}}}
+			Options: config.CmdOptions{Sudo: true},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "sudo: true")
@@ -286,7 +289,8 @@ func Test_execCmd(t *testing.T) {
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy:    config.CopyInternal{Source: "/srv/*.log", Dest: tmpDir, Direction: "pull", Mkdir: true},
-			Options: config.CmdOptions{Sudo: true}}}
+			Options: config.CmdOptions{Sudo: true},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "sudo: true")
@@ -311,7 +315,8 @@ func Test_execCmd(t *testing.T) {
 		// download should work and get the actual file content, not symlink
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy:    config.CopyInternal{Source: "/etc/os-release", Dest: tmpFile, Direction: "pull"},
-			Options: config.CmdOptions{Sudo: true}}}
+			Options: config.CmdOptions{Sudo: true},
+		}}
 
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
@@ -326,7 +331,8 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("copy with invalid direction", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "invalid"}}}
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Direction: "invalid"},
+		}}
 		_, err := ec.Copy(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid copy direction")
@@ -348,7 +354,8 @@ func Test_execCmd(t *testing.T) {
 
 		// download the symlink without sudo (regular download via SFTP)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "/tmp/symlink-file.txt", Dest: tmpFile, Direction: "pull"}}}
+			Copy: config.CopyInternal{Source: "/tmp/symlink-file.txt", Dest: tmpFile, Direction: "pull"},
+		}}
 
 		_, err = ec.Copy(ctx)
 		require.NoError(t, err)
@@ -363,7 +370,8 @@ func Test_execCmd(t *testing.T) {
 		localExec := executor.NewLocal(logs)
 		ec := execCmd{exec: localExec, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Copy:    config.CopyInternal{Source: "/tmp/test.txt", Dest: "./test.txt", Direction: "pull"},
-			Options: config.CmdOptions{Local: true}}}
+			Options: config.CmdOptions{Local: true},
+		}}
 		_, err := ec.Copy(ctx)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot use direction=pull with local execution")
@@ -393,7 +401,8 @@ func Test_execCmd(t *testing.T) {
 				{Source: "/tmp/mcopy_test1.txt", Dest: tmpDownload1, Direction: "pull"},
 				{Source: tmpUpload, Dest: tmpRemoteUpload, Direction: "push"},
 				{Source: "/tmp/mcopy_test2.txt", Dest: tmpDownload2, Direction: "pull"},
-			}}}
+			},
+		}}
 		resp, err := ec.Mcopy(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "<-") // pull indicator
@@ -419,7 +428,8 @@ func Test_execCmd(t *testing.T) {
 			_, _ = sess.Run(ctx, "touch /tmp/wait.done", nil)
 		})
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
-			Command: "cat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
+			Command: "cat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+		}}}
 		resp, err := ec.Wait(ctx)
 		require.NoError(t, err)
 		t.Log(resp.details)
@@ -430,7 +440,8 @@ func Test_execCmd(t *testing.T) {
 			_, _ = sess.Run(ctx, "touch /tmp/wait.done", nil)
 		})
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
-			Command: "echo this is wait\ncat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100}}}
+			Command: "echo this is wait\ncat /tmp/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+		}}}
 		resp, err := ec.Wait(ctx)
 		require.NoError(t, err)
 		t.Log(resp.details)
@@ -440,9 +451,12 @@ func Test_execCmd(t *testing.T) {
 		time.AfterFunc(time.Second, func() {
 			_, _ = sess.Run(ctx, "sudo touch /srv/wait.done", nil)
 		})
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
-			Command: "cat /srv/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100},
-			Options: config.CmdOptions{Sudo: true}}}
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Wait: config.WaitInternal{
+				Command: "cat /srv/wait.done", Timeout: 2 * time.Second, CheckDuration: time.Millisecond * 100,
+			},
+			Options: config.CmdOptions{Sudo: true},
+		}}
 		resp, err := ec.Wait(ctx)
 		require.NoError(t, err)
 		t.Log(resp.details)
@@ -450,15 +464,19 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("wait failed", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
-			Command: "cat /tmp/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100}}}
+			Command: "cat /tmp/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100,
+		}}}
 		_, err := ec.Wait(ctx)
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
 	t.Run("wait failed with sudo", func(t *testing.T) {
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
-			Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100},
-			Options: config.CmdOptions{Sudo: true}}}
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Wait: config.WaitInternal{
+				Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100,
+			},
+			Options: config.CmdOptions{Sudo: true},
+		}}
 		_, err := ec.Wait(ctx)
 		require.EqualError(t, err, "timeout exceeded")
 	})
@@ -467,7 +485,8 @@ func Test_execCmd(t *testing.T) {
 		_, err := sess.Run(ctx, "touch /tmp/delete.me", &executor.RunOpts{Verbose: true})
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
-			Location: "/tmp/delete.me"}}}
+			Location: "/tmp/delete.me",
+		}}}
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 	})
@@ -478,7 +497,8 @@ func Test_execCmd(t *testing.T) {
 		_, err = sess.Run(ctx, "ls /tmp/delete1.me", &executor.RunOpts{Verbose: true})
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MDelete: []config.DeleteInternal{
-			{Location: "/tmp/delete1.me"}, {Location: "/tmp/delete2.me"}}}}
+			{Location: "/tmp/delete1.me"}, {Location: "/tmp/delete2.me"},
+		}}}
 		_, err = ec.MDelete(ctx)
 		require.NoError(t, err)
 		_, err = sess.Run(ctx, "ls /tmp/delete1.me", &executor.RunOpts{Verbose: true})
@@ -497,7 +517,8 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
-			Location: "/tmp/delete-recursive", Recursive: true}}}
+			Location: "/tmp/delete-recursive", Recursive: true,
+		}}}
 
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
@@ -510,13 +531,15 @@ func Test_execCmd(t *testing.T) {
 		_, err := sess.Run(ctx, "sudo touch /srv/delete.me", &executor.RunOpts{Verbose: true})
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
-			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: false}}}
+			Location: "/srv/delete.me",
+		}, Options: config.CmdOptions{Sudo: false}}}
 
 		_, err = ec.Delete(ctx)
 		require.Error(t, err, "should fail because of missing sudo")
 
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
-			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: true}}}
+			Location: "/srv/delete.me",
+		}, Options: config.CmdOptions{Sudo: true}}}
 
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err, "should fail pass with sudo")
@@ -532,7 +555,8 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
-			Location: "/srv/delete-recursive", Recursive: true}, Options: config.CmdOptions{Sudo: true}}}
+			Location: "/srv/delete-recursive", Recursive: true,
+		}, Options: config.CmdOptions{Sudo: true}}}
 
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
@@ -542,8 +566,10 @@ func Test_execCmd(t *testing.T) {
 	})
 
 	t.Run("condition false", func(t *testing.T) {
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls /srv/test.condition",
-			Script: "echo 'condition false'", Name: "test"}}
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Condition: "ls /srv/test.condition",
+			Script:    "echo 'condition false'", Name: "test",
+		}}
 		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {skip: test}", resp.details)
@@ -552,8 +578,10 @@ func Test_execCmd(t *testing.T) {
 	t.Run("condition true", func(t *testing.T) {
 		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", &executor.RunOpts{Verbose: true})
 		require.NoError(t, err)
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls -la /srv/test.condition",
-			Script: "echo condition true", Name: "test"}}
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Condition: "ls -la /srv/test.condition",
+			Script:    "echo condition true", Name: "test",
+		}}
 		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {script: /bin/sh -c 'echo condition true'}", resp.details)
@@ -561,15 +589,19 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("condition true, sudo only", func(t *testing.T) {
 		// check without sudo condition on root-only file
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "cat /etc/shadow",
-			Script: "echo condition true", Name: "test"}}
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Condition: "cat /etc/shadow",
+			Script:    "echo condition true", Name: "test",
+		}}
 		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {skip: test}", resp.details)
 
 		// check with sudo condition on root-only file
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "cat /etc/shadow",
-			Script: "echo condition true", Name: "test", Options: config.CmdOptions{Sudo: true}}}
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Condition: "cat /etc/shadow",
+			Script:    "echo condition true", Name: "test", Options: config.CmdOptions{Sudo: true},
+		}}
 		resp, err = ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {script: /bin/sh -c 'echo condition true', sudo: true}", resp.details)
@@ -578,8 +610,10 @@ func Test_execCmd(t *testing.T) {
 	t.Run("condition true inverted", func(t *testing.T) {
 		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", &executor.RunOpts{Verbose: true})
 		require.NoError(t, err)
-		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "! ls -la /srv/test.condition",
-			Script: "echo condition true", Name: "test"}}
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Condition: "! ls -la /srv/test.condition",
+			Script:    "echo condition true", Name: "test",
+		}}
 		resp, err := ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {skip: test}", resp.details)
@@ -587,7 +621,8 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("sync command", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Sync: config.SyncInternal{
-			Source: "testdata", Dest: "/tmp/sync.testdata", Exclude: []string{"conf2.yml"}}, Name: "test"}}
+			Source: "testdata", Dest: "/tmp/sync.testdata", Exclude: []string{"conf2.yml"},
+		}, Name: "test"}}
 		resp, err := ec.Sync(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata}", resp.details)
@@ -608,15 +643,19 @@ func Test_execCmd(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, " {sync: testdata -> /tmp/sync.testdata_m1, testdata -> /tmp/sync.testdata_m2}", resp.details)
 
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata_m1)",
-			Name: "test"}}
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Echo: "$(ls -la /tmp/sync.testdata_m1)",
+			Name: "test",
+		}}
 		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "conf.yml")
 		assert.NotContains(t, resp.details, "conf2.yml")
 
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(ls -la /tmp/sync.testdata_m2)",
-			Name: "test"}}
+		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+			Echo: "$(ls -la /tmp/sync.testdata_m2)",
+			Name: "test",
+		}}
 		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "conf.yml")
@@ -625,7 +664,8 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("dbl-copy non-forced", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
@@ -641,7 +681,8 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("dbl-copy forced", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Force: true}}}
+			Copy: config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", Force: true},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt}", resp.details)
@@ -695,7 +736,7 @@ func Test_execEcho(t *testing.T) {
 	ctx := context.Background()
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("echo command", func(t *testing.T) {
@@ -823,7 +864,7 @@ func Test_execLine(t *testing.T) {
 	ctx := context.Background()
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("line command delete", func(t *testing.T) {
@@ -1069,7 +1110,7 @@ func Test_execCmdWithTmp(t *testing.T) {
 	logs := executor.MakeLogs(false, false, nil)
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test", "")
 	require.NoError(t, errSess)
 
 	extractTmpPath := func(log string) string {
@@ -1107,9 +1148,11 @@ func Test_execCmdWithTmp(t *testing.T) {
 		// check if tmp dir removed
 		tmpPath := extractTmpPath(wr.String())
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Options: config.CmdOptions{Sudo: true},
-			Script:  "ls -la " + tmpPath},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true},
+				Script:  "ls -la " + tmpPath,
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
@@ -1122,7 +1165,8 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Options: config.CmdOptions{Sudo: true},
-			Copy:    config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"}}}
+			Copy:    config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt"},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt, sudo: true}", resp.details)
@@ -1132,8 +1176,10 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		// check if dest contains file
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Script: "ls -la /tmp/inventory.txt"},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Script: "ls -la /tmp/inventory.txt",
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.NoError(t, err)
@@ -1142,9 +1188,11 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		// check if tmp dir removed
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Options: config.CmdOptions{Sudo: true},
-			Script:  "ls -la " + tmpPath},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true},
+				Script:  "ls -la " + tmpPath,
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
@@ -1157,7 +1205,8 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Options: config.CmdOptions{Sudo: true},
-			Copy:    config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", ChmodX: true}}}
+			Copy:    config.CopyInternal{Source: "testdata/inventory.yml", Dest: "/tmp/inventory.txt", ChmodX: true},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/inventory.yml -> /tmp/inventory.txt, sudo: true, chmod: +x}", resp.details)
@@ -1167,8 +1216,10 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		// check if dest contains file
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Script: "ls -la /tmp/inventory.txt"},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Script: "ls -la /tmp/inventory.txt",
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.NoError(t, err)
@@ -1177,9 +1228,11 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		// check if tmp dir removed
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Options: config.CmdOptions{Sudo: true},
-			Script:  "ls -la " + tmpPath},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true},
+				Script:  "ls -la " + tmpPath,
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
@@ -1196,7 +1249,8 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Options: config.CmdOptions{Sudo: true},
-			Copy:    config.CopyInternal{Source: "testdata/*.yml", Dest: "/tmp/spot-test-dest", Mkdir: true}}}
+			Copy:    config.CopyInternal{Source: "testdata/*.yml", Dest: "/tmp/spot-test-dest", Mkdir: true},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {copy: testdata/*.yml -> /tmp/spot-test-dest, sudo: true}", resp.details)
@@ -1206,8 +1260,10 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		// check if dest contains files
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Script: "ls -la /tmp/spot-test-dest"},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Script: "ls -la /tmp/spot-test-dest",
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.NoError(t, err)
@@ -1216,9 +1272,11 @@ func Test_execCmdWithTmp(t *testing.T) {
 
 		// check if tmp dir removed
 		wr.Reset()
-		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
-			Options: config.CmdOptions{Sudo: true},
-			Script:  "ls -la " + tmpPath},
+		ec = execCmd{
+			exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
+				Options: config.CmdOptions{Sudo: true},
+				Script:  "ls -la " + tmpPath,
+			},
 		}
 		resp, err = ec.Script(ctx)
 		require.Error(t, err)
@@ -1250,7 +1308,8 @@ func Test_execCmdWithTmp(t *testing.T) {
 		destFile := testDir + "/subdir/test-file.txt"
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Options: config.CmdOptions{Sudo: true},
-			Copy:    config.CopyInternal{Source: tmpSrc.Name(), Dest: destFile, Mkdir: true}}}
+			Copy:    config.CopyInternal{Source: tmpSrc.Name(), Dest: destFile, Mkdir: true},
+		}}
 		resp, err := ec.Copy(ctx)
 		require.NoError(t, err, "copy should succeed with mkdir+sudo creating parent directory")
 		assert.Contains(t, resp.details, "sudo: true")
@@ -1259,7 +1318,8 @@ func Test_execCmdWithTmp(t *testing.T) {
 		wr.Reset()
 		ec = execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{
 			Options: config.CmdOptions{Sudo: true},
-			Script:  "cat " + destFile}}
+			Script:  "cat " + destFile,
+		}}
 		_, err = ec.Script(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, wr.String(), "test content for mkdir+sudo")
@@ -1274,7 +1334,7 @@ func Test_execCmd_prepScript(t *testing.T) {
 	logs := executor.MakeLogs(false, false, nil)
 	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
 	require.NoError(t, connErr)
-	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-host", "test")
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-host", "test", "")
 	require.NoError(t, errSess)
 
 	t.Run("single line command, no temp files", func(t *testing.T) {

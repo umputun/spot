@@ -262,28 +262,28 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			pathsToDelete = append([]string{remoteFile}, pathsToDelete...)
 		}
 
-		// delete files and directories in reverse order
-		for i := len(pathsToDelete) - 1; i >= 0; i-- {
+		// remove files and directories in reverse order
+		for i := len(pathsToDelete) - 1; i >= 0; i-- { // nolint
+			p := pathsToDelete[i]
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 			}
 
-			path := pathsToDelete[i]
-			fi, stErr := sftpClient.Stat(path)
+			fi, stErr := sftpClient.Stat(p)
 			if stErr != nil {
-				return fmt.Errorf("failed to stat %s: %w", path, stErr)
+				return fmt.Errorf("failed to stat %s: %w", p, stErr)
 			}
 
 			if fi.IsDir() {
-				err = sftpClient.RemoveDirectory(path)
+				err = sftpClient.RemoveDirectory(p)
 			} else {
-				err = sftpClient.Remove(path)
+				err = sftpClient.Remove(p)
 			}
 
 			if err != nil {
-				return fmt.Errorf("failed to delete %s: %w", path, err)
+				return fmt.Errorf("failed to delete %s: %w", p, err)
 			}
 		}
 
@@ -537,7 +537,6 @@ func (ex *Remote) getLocalFilesProperties(dir string) (map[string]fileProperties
 		fileProps[relPath] = fileProperties{Size: info.Size(), Time: info.ModTime(), FileName: info.Name(), IsDir: info.IsDir()}
 		return nil
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to walk local directory %s: %w", dir, err)
 	}

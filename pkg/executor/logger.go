@@ -65,13 +65,17 @@ func (s *colorizedWriter) WithHost(hostAddr, hostName string) LogWriter {
 		// we want to prevent log prefix duplication, i.e. [dev1.umputun.dev dev1.umputun.dev:22]
 		hostName = ""
 	}
-	return &colorizedWriter{wr: s.wr, hostAddr: hostAddr, hostName: hostName,
-		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome}
+	return &colorizedWriter{
+		wr: s.wr, hostAddr: hostAddr, hostName: hostName,
+		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome,
+	}
 }
 
 func (s *colorizedWriter) WithWriter(wr io.Writer) LogWriter {
-	return &colorizedWriter{wr: wr, hostAddr: s.hostAddr, hostName: s.hostName,
-		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome}
+	return &colorizedWriter{
+		wr: wr, hostAddr: s.hostAddr, hostName: s.hostName,
+		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome,
+	}
 }
 
 // Printf writes the given text to io.Writer with the colorized hostAddr prefix.

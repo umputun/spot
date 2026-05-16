@@ -18,10 +18,12 @@ bin/
 .bin/
 *.gpg
 *.db
+*.bak
 private-key.asc
 spot-private*.yml
 spot-inventory-private.yml
 spot-inventory-private2.yml
+secrets
 site/public/
 site/site/
 site/.venv/
@@ -36,3 +38,6 @@ pr_236_notes.md
 # compiled binary
 /spot
 progress*.txt
+MACOS.md
+.zed/settings.json
+.zed

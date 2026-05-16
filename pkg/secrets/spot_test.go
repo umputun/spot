@@ -14,7 +14,6 @@ import (
 )
 
 func TestInternalProvider_EncryptionDecryption(t *testing.T) {
-
 	t.Run("good key", func(t *testing.T) {
 		p := &InternalProvider{key: []byte("test_key")}
 		er, err := p.encrypt("test_value")

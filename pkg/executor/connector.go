@@ -51,8 +51,8 @@ func (c *Connector) WithAgentForwarding() *Connector {
 	return c
 }
 
-// Connect connects to a remote hostAddr and returns a remote executer, caller must close.
-func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string) (*Remote, error) {
+// Connect connects to a remote host and returns a remote executor, caller must close.
+func (c *Connector) Connect(ctx context.Context, hostAddr, hostName, user string, _ string) (Interface, error) {
 	log.Printf("[DEBUG] connect to %q (%s), user %q", hostAddr, hostName, user)
 	client, err := c.sshClient(ctx, hostAddr, user)
 	if err != nil {
@@ -120,7 +120,6 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 }
 
 func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, error) {
-
 	// getAuth returns a list of ssh.AuthMethod to be used for authentication.
 	// if ssh agent is enabled, it will be used, otherwise private key will be used.
 	getAuth := func() (auth []ssh.AuthMethod, err error) {

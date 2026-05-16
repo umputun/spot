@@ -75,6 +75,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		task:     ec.tsk,
 		command:  ec.cmd.Name,
 		env:      ec.cmd.Environment,
+		secrets:  ec.cmd.Secrets,
 	}
 
 	// create a copy of the command with processed register variable names
@@ -173,7 +174,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 // if sudo option is set, it will make a temporary directory and upload the files there,
 // then move it to the final destination with sudo script execution.
 func (ec *execCmd) Copy(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 
 	src := tmpl.apply(ec.cmd.Copy.Source)
 	dst := tmpl.apply(ec.cmd.Copy.Dest)
@@ -350,7 +351,7 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 // Mcopy uploads or downloads multiple files to/from a target host. It calls copy function for each file.
 func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 	for _, c := range ec.cmd.MCopy {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
@@ -360,8 +361,10 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 		}
 		msgs = append(msgs, fmt.Sprintf("%s %s %s", src, arrow, dst))
 		ecSingle := ec
-		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
-			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude}
+		ecSingle.cmd.Copy = config.CopyInternal{
+			Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
+			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude,
+		}
 		if _, err := ecSingle.Copy(ctx); err != nil {
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
@@ -372,7 +375,7 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 
 // Sync synchronizes files from a source to a destination on a target host.
 func (ec *execCmd) Sync(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	resp.details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
@@ -386,7 +389,7 @@ func (ec *execCmd) Sync(ctx context.Context) (resp execCmdResp, err error) {
 // Msync synchronizes multiple locations from a source to a destination on a target host.
 func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 	for _, c := range ec.cmd.MSync {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
@@ -403,7 +406,7 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 
 // Delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
 func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 	loc := tmpl.apply(ec.cmd.Delete.Location)
 
 	if !ec.cmd.Options.Sudo {
@@ -433,7 +436,7 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 // MDelete deletes multiple locations on a target host.
 func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 	for _, c := range ec.cmd.MDelete {
 		loc := tmpl.apply(c.Location)
 		ecSingle := ec
@@ -516,7 +519,7 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	// only proceed with echo if there was no condition or condition passed
-	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment, secrets: ec.cmd.Secrets}
 	echoCmd := tmpl.apply(ec.cmd.Echo)
 	if !strings.HasPrefix(echoCmd, "echo ") {
 		echoCmd = fmt.Sprintf("echo %q", echoCmd)
@@ -552,6 +555,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		task:     ec.tsk,
 		command:  ec.cmd.Name,
 		env:      ec.cmd.Environment,
+		secrets:  ec.cmd.Secrets,
 	}
 	file := tmpl.apply(ec.cmd.Line.File)
 	match := tmpl.apply(ec.cmd.Line.Match)
@@ -662,7 +666,8 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		hostName: ec.hostName,
 		task:     ec.tsk,
 		command:  ec.cmd.Name,
-		env:      ec.cmd.Environment, // include environment variables for variable expansion
+		env:      ec.cmd.Environment,
+		secrets:  ec.cmd.Secrets,
 	}
 
 	if s != "" { // single command, nothing to do just apply templates
@@ -745,6 +750,7 @@ type templater struct {
 	env      map[string]string
 	task     *config.Task
 	err      error
+	secrets  map[string]string
 }
 
 // apply applies templates to a string to replace predefined vars placeholders with actual values
@@ -785,7 +791,9 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	if tm.err != nil {
-		res = apply(res, "SPOT_ERROR", tm.err.Error())
+		// escape single quotes in error message to prevent shell parsing issues
+		errStr := strings.ReplaceAll(tm.err.Error(), "'", "'\\''")
+		res = apply(res, "SPOT_ERROR", errStr)
 	} else {
 		res = apply(res, "SPOT_ERROR", "")
 	}
@@ -800,6 +808,10 @@ func (tm *templater) apply(inp string) string {
 			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
+	}
+
+	for k, v := range tm.secrets {
+		res = apply(res, k, v)
 	}
 
 	return res

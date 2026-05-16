@@ -52,5 +52,4 @@ func TestAnsibleVaultProvider_Create(t *testing.T) {
 		_, err := NewAnsibleVaultProvider(vaultPathInvalidYaml, vaultSecret)
 		require.EqualError(t, err, "error during unmarshaling yaml file")
 	})
-
 }

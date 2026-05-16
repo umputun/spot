@@ -22,6 +22,7 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 - Catch errors and execute a command hook on the local host.
 - Debug mode to print out the commands to be executed, the output of the commands, and all the other details.
 - Dry-run mode to print out the commands to be executed without executing them.
+- [AWS SSM Session Manager](#aws-ssm-session-manager) support for executing commands on EC2 instances without SSH access.
 - [Ad-hoc mode](#ad-hoc-commands) to execute a single command on a list of hosts.
 - A [single binary](https://github.com/umputun/spot/releases) with no external dependencies.
 ----
@@ -148,6 +149,7 @@ Spot supports the following command-line options:
 - `-E`, `--env-file=`: Sets the environment variables from the file to be used during the task execution. The file can have values from the OS environment variables as well. The default is env.yml. Can also be set with the environment variable `SPOT_ENV_FILE`.
 - `--no-color`: disable the colorized output. It can also be set with the environment variable `SPOT_NO_COLOR`.
 - `--local`: Forces all commands to run locally without SSH connections. Useful for running playbooks on the control machine without SSH setup, for testing, or in CI/CD environments.
+- `--ssm`: Runs all commands via AWS SSM Session Manager instead of SSH. When enabled, hosts with `ssm_id` set in the inventory will use SSM to execute commands. This is useful for managing AWS instances where you want to avoid SSH access and use IAM-based authentication instead. Requires the AWS SSM agent to be installed on the target instances.
 - `--dry`: Enables dry-run mode, which prints out the commands to be executed without actually executing them.
 - `-v`, `--verbose`: Enables verbose mode, providing more detailed output and error messages during the task execution. Setting this flag multiple times increases the verbosity level, i.e., `-vv`.
 - `--dbg`: Enables debug mode, providing even more detailed output and error messages during the task execution and diagnostic messages.
@@ -907,6 +909,7 @@ groups:
 - user: the ssh user of the remote host. Optional, default is the user defined in the playbook file or `--user` flag.
 - name: the name of the remote host. Optional.
 - tags: the list of tags of the remote host. Optional.
+- ssm_id: the AWS SSM instance ID. Optional. When set, this host will be executed via SSM Session Manager when `--ssm` flag is used instead of SSH.
 
 In case if port is not defined, the default port 22 will be used. If the user is not defined, the playbook's user will be used. 
 
@@ -977,6 +980,101 @@ tasks:
         delete: {"loc": "/tmp/things/{SPOT_REMOTE_USER}", "recur": true}
 
 ```
+
+## AWS SSM Session Manager
+
+Spot supports executing commands on AWS instances via [AWS Systems Manager (SSM) Session Manager](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager.html). Session Manager provides secure, auditable instance management without requiring open inbound ports, SSH access, or the maintenance of SSH keys.
+
+### When to Use SSM
+
+SSM Session Manager is ideal for:
+- Managing EC2 instances without public IPs or open inbound SSH ports
+- Environments where you want to avoid SSH key management
+- Compliant environments requiring audit trails of all commands executed
+- Instances that are not always reachable via traditional SSH
+
+### Prerequisites
+
+- The [SSM Agent](https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html) must be installed and running on the target instances
+- The instance must have an IAM role with permissions for SSM actions (`ssm:StartSession`, `ssm:DescribeSession`, etc.)
+- AWS credentials must be configured (via environment variables, AWS profile, or instance role)
+
+### Configuration
+
+#### Inventory
+
+Add `ssm_id` to hosts in your inventory file that should be managed via SSM:
+
+```yaml
+groups:
+  dev:
+      - {host: "h1.example.com", name: "h1", ssm_id: "i-1234567890abcdef0"}
+      - {host: "h2.example.com", port: 2233, name: "h2"}
+```
+
+Only hosts with `ssm_id` set will use SSM. Hosts without `ssm_id` will still use SSH even when `--ssm` is set.
+
+#### CLI
+
+Use the `--ssm` flag to run commands via SSM:
+
+```bash
+spot --ssm
+```
+
+AWS credentials are loaded automatically using the standard AWS credential chain:
+- Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`)
+- AWS shared credentials file (`~/.aws/credentials`)
+- IAM role for EC2 instances
+- Other AWS SDK credential providers
+
+You can also explicitly set the AWS region:
+
+```bash
+spot --ssm --region us-east-1
+```
+
+And provide explicit AWS credentials if needed:
+
+```bash
+spot --ssm --aws-access-key AKIA... --aws-secret-key secret...
+```
+
+### How It Works
+
+When `--ssm` is enabled, Spot connects to each host using SSM Session Manager:
+
+1. The `StartSession` API is called to establish a WebSocket connection to the instance
+2. Commands are executed through the SSM JSON-over-WebSocket protocol
+3. Output is streamed back in real-time
+
+For file operations (upload/download/sync), Spot uses base64 encoding through the SSM session. This works well for small files but has size limitations. For large file transfers, use S3 as an intermediary.
+
+### Limitations
+
+- **File size limits**: File transfers via SSM use base64 encoding and are limited to approximately 8KB per command. For larger files, use S3.
+- **No SFTP**: Unlike SSH, SSM Session Manager does not support SFTP for large file transfers
+- **No SSH agent forwarding**: SSH agent forwarding is not available via SSM
+- **AWS credentials required**: The target instances must have SSM agent installed and proper IAM permissions
+
+### SSM-Specific Options
+
+| Option | Description |
+|--------|-------------|
+| `--ssm` | Run all commands via AWS SSM Session Manager |
+| `--aws-access-key` | AWS access key for SSM authentication |
+| `--aws-secret-key` | AWS secret key for SSM authentication |
+| `--region` | AWS region for SSM connections |
+
+### Error Handling
+
+When `--ssm` is set but a host has no `ssm_id`, Spot will fall through to local execution with a warning message:
+
+```
+[WARN] --ssm set but host "h1.example.com" has no ssm_id, using local
+```
+
+This allows for hybrid environments where some hosts use SSH and others use SSM.
 
 ## Ad-hoc commands
 

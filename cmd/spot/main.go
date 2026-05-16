@@ -15,6 +15,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/fatih/color"
 	"github.com/go-pkgz/lgr"
 	"github.com/hashicorp/go-multierror"
@@ -55,6 +58,7 @@ type options struct {
 	Only []string `long:"only" description:"run only commands"`
 
 	Local bool `long:"local" description:"run all commands locally without SSH"`
+	SSM   bool `long:"ssm" description:"run commands via AWS SSM"`
 
 	// secrets
 	SecretsProvider SecretsProvider `group:"secrets" namespace:"secrets" env-namespace:"SPOT_SECRETS"`
@@ -137,6 +141,9 @@ func run(opts options) error {
 	}
 	if opts.Local {
 		printLocalRunWarn(opts.Dbg)
+	}
+	if opts.SSM {
+		printSSMRWarn(opts.Dbg)
 	}
 
 	st := time.Now()
@@ -333,6 +340,15 @@ func printLocalRunWarn(dbg bool) {
 	fmt.Print(msg)
 }
 
+func printSSMRWarn(dbg bool) {
+	if dbg {
+		log.Printf("[WARN] SSM mode enabled - all commands will run via AWS SSM")
+		return
+	}
+	msg := color.New(color.FgHiBlue).SprintfFunc()("SSM mode - all commands will run via AWS SSM\n")
+	fmt.Print(msg)
+}
+
 func inventoryFile(inventory string) (string, error) {
 	exInventory, err := expandPath(inventory)
 	if err != nil {
@@ -412,21 +428,29 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		return nil, fmt.Errorf("can't get ssh key: %w", err)
 	}
 	logs := executor.MakeLogs(len(opts.Verbose) > 0, opts.NoColor, pbook.AllSecretValues())
-	connector, err := executor.NewConnector(sshKey, opts.SSHTimeout, logs)
+	sshConnector, err := executor.NewConnector(sshKey, opts.SSHTimeout, logs)
 	if err != nil {
 		return nil, fmt.Errorf("can't create connector: %w", err)
 	}
 	if opts.SSHAgent {
-		connector = connector.WithAgent()
+		sshConnector = sshConnector.WithAgent()
+	}
+	if opts.ForwardSSHAgent {
+		sshConnector = sshConnector.WithAgentForwarding()
 	}
 
-	if opts.ForwardSSHAgent {
-		connector = connector.WithAgentForwarding()
+	unified := &unifiedConnector{
+		sshConnector: sshConnector,
+		region:       opts.SecretsProvider.Aws.Region,
+		accessKey:    opts.SecretsProvider.Aws.AccessKey,
+		secretKey:    opts.SecretsProvider.Aws.SecretKey,
+		timeout:      opts.SSHTimeout,
+		logs:         logs,
 	}
 
 	r := runner.Process{
 		Concurrency: opts.Concurrent,
-		Connector:   connector,
+		Connector:   unified,
 		Playbook:    pbook,
 		Only:        opts.Only,
 		Skip:        opts.Skip,
@@ -435,13 +459,56 @@ func makeRunner(opts options, pbook *config.PlayBook) (*runner.Process, error) {
 		Verbose2:    len(opts.Verbose) > 1,
 		Dry:         opts.Dry,
 		Local:       opts.Local,
+		SSM:         opts.SSM,
 		SSHShell:    opts.SSHShell,
 		SSHTempDir:  opts.SSHTempDir,
 	}
-	log.Printf("[DEBUG] runner created: concurrency:%d, connector: %s, ssh_shell:%q, verbose:%v, dry:%v, only:%v, skip:%v",
-		r.Concurrency, r.Connector, r.SSHShell, r.Verbose, r.Dry, r.Only, r.Skip)
+	log.Printf("[DEBUG] runner created: concurrency:%d, connector: %s, ssh_shell:%q, verbose:%v, dry:%v, only:%v, skip:%v, ssm:%v",
+		r.Concurrency, r.Connector, r.SSHShell, r.Verbose, r.Dry, r.Only, r.Skip, r.SSM)
 
 	return &r, nil
+}
+
+// unifiedConnector implements runner.Connector interface for both SSH and SSM.
+// If ssmID is non-empty, returns an SSM executor; otherwise returns a Remote (SSH) executor.
+type unifiedConnector struct {
+	sshConnector *executor.Connector
+	region       string
+	accessKey    string
+	secretKey    string
+	timeout      time.Duration
+	logs         executor.Logs
+}
+
+// Connect creates either an SSH or SSM executor based on ssmID.
+// If ssmID is non-empty, returns an SSM executor for the given instance ID.
+// Otherwise returns an SSH executor for the given host address.
+func (c *unifiedConnector) Connect(_ context.Context, hostAddr, hostName, user, ssmID string) (executor.Interface, error) {
+	if ssmID != "" {
+		return c.connectSSM(context.Background(), ssmID, hostName)
+	}
+	return c.sshConnector.Connect(context.Background(), hostAddr, hostName, user, "")
+}
+
+// connectSSM creates an SSM executor for the given instance ID.
+func (c *unifiedConnector) connectSSM(_ context.Context, instanceID, hostName string) (executor.Interface, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(c.region),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config for %s: %w", instanceID, err)
+	}
+	if c.accessKey != "" && c.secretKey != "" {
+		cfg.Credentials = aws.CredentialsProviderFunc(func(_ context.Context) (aws.Credentials, error) {
+			return aws.Credentials{
+				AccessKeyID:     c.accessKey,
+				SecretAccessKey: c.secretKey,
+			}, nil
+		})
+	}
+	client := ssm.NewFromConfig(cfg)
+	logs := c.logs.WithHost(instanceID, hostName)
+	return executor.NewSSMSession(client, instanceID, c.region, c.timeout, logs)
 }
 
 func runTaskForTarget(ctx context.Context, r *runner.Process, taskName, targetName string) error {

@@ -23,6 +23,7 @@ type Interface interface {
 // RunOpts is a struct for run options.
 type RunOpts struct {
 	Verbose bool // print more info to primary stdout
+	NoLog   bool // suppress logging for sensitive commands
 }
 
 // UpDownOpts is a struct for upload and download options.

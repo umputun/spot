@@ -26,7 +26,7 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("single line with sh -c, success", func(t *testing.T) {
-		out, e := l.Run(ctx, "sh -c echo hello world", &RunOpts{Verbose: true})
+		out, e := l.Run(ctx, "sh -c 'echo hello world'", &RunOpts{Verbose: true})
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
@@ -345,7 +345,6 @@ func TestUploadDownloadWithExclude(t *testing.T) {
 			excl:  []string{"data1.*"},
 		},
 	} {
-
 		t.Run(fmt.Sprintf("%s#%s", tc.name, tc.name), func(t *testing.T) {
 			tmpDir := t.TempDir()
 
@@ -385,12 +384,10 @@ func TestUploadDownloadWithExclude(t *testing.T) {
 				assert.Equal(t, content, string(dstContent), "uploaded content should match source content")
 			}
 		})
-
 	}
 }
 
 func TestLocal_Sync(t *testing.T) {
-
 	testCases := []struct {
 		name         string
 		srcStructure map[string]string
