@@ -581,12 +581,11 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		// first check if the pattern exists in the file
 		checkCmd := fmt.Sprintf("grep -q '%s' %s", match, file)
 		checkCmd = ec.wrapWithSudo(checkCmd)
-		if _, err := ec.exec.Run(ctx, checkCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		if _, err := ec.exec.Run(ctx, checkCmd, &executor.RunOpts{Verbose: ec.verbose, RequestPty: true}); err != nil {
 			// pattern not found, append the line using tee -a for proper sudo support
+			operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", appendLine, file)
 			if ec.cmd.Options.Sudo {
-				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", appendLine, file)
-			} else {
-				operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", appendLine, file)
+				operationCmd = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), operationCmd))
 			}
 		} else {
 			// pattern found, skip
@@ -604,7 +603,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	// execute the operation
-	_, err = ec.exec.Run(ctx, operationCmd, &executor.RunOpts{Verbose: ec.verbose})
+	_, err = ec.exec.Run(ctx, operationCmd, &executor.RunOpts{Verbose: ec.verbose, RequestPty: true})
 	if err != nil {
 		return resp, ec.errorFmt("can't execute line %s on %s: %w", operation, ec.hostAddr, err)
 	}

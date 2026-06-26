@@ -35,13 +35,13 @@ func (ex *Remote) Close() error {
 }
 
 // Run command on remote server.
-func (ex *Remote) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
+func (ex *Remote) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
 	log.Printf("[DEBUG] run %s", cmd)
 
-	return ex.sshRun(ctx, ex.client, cmd)
+	return ex.sshRun(ctx, ex.client, cmd, opts)
 }
 
 // Upload file to remote server with scp
@@ -308,13 +308,19 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to the remote process.
-func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
+func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string, opts *RunOpts) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 	defer session.Close()
+
+	if opts != nil && opts.RequestPty {
+		if err := session.RequestPty("xterm", 80, 40, ssh.TerminalModes{}); err != nil {
+			return nil, fmt.Errorf("failed to request pty: %w", err)
+		}
+	}
 
 	ex.logs.Out.Write([]byte(command)) // nolint
 
@@ -340,6 +346,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 
 	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
+		line = strings.TrimSuffix(line, "\r")
 		if line != "" {
 			out = append(out, line)
 		}
