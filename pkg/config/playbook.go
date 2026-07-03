@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,7 +62,8 @@ type SimplePlayBook struct {
 
 // Task defines multiple commands runs together
 type Task struct {
-	Name     string     `yaml:"name" toml:"name"` // name of task, mandatory
+	Import   string     `yaml:"import" toml:"import"`             // path to external task file to import
+	Name     string     `yaml:"name" toml:"name"`                 // name of task, mandatory
 	User     string     `yaml:"user" toml:"user"`
 	Commands []Cmd      `yaml:"commands" toml:"commands"`
 	OnError  string     `yaml:"on_error" toml:"on_error"`
@@ -269,7 +271,12 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 
 	errs := new(multierror.Error)
 	if err = unmarshal(data, res, true); err == nil && len(res.Tasks) > 0 {
-		return nil // success, this is full PlayBook config
+		tasks, err := resolveImports(res.Tasks, filepath.Dir(fname), nil)
+		if err != nil {
+			return err
+		}
+		res.Tasks = tasks
+		return nil
 	}
 	errs = multierror.Append(errs, err)
 
@@ -318,6 +325,90 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	}
 
 	return errs.ErrorOrNil()
+}
+
+// resolveImports walks the task list and expands any import directives inline.
+// Imports are resolved recursively with cycle detection via the visited set.
+// Paths are resolved relative to the baseDir of the importing file.
+func resolveImports(tasks []Task, baseDir string, visited map[string]bool) ([]Task, error) {
+	if visited == nil {
+		visited = make(map[string]bool)
+	}
+
+	var result []Task
+	for _, t := range tasks {
+		if t.Import != "" {
+			tasks, err := resolveImport(t, baseDir, visited)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, tasks...)
+		} else {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}
+
+// resolveImport resolves a single import directive.
+func resolveImport(t Task, baseDir string, visited map[string]bool) ([]Task, error) {
+	absPath := t.Import
+	if !filepath.IsAbs(absPath) {
+		absPath = filepath.Join(baseDir, absPath)
+	}
+
+	if visited[absPath] {
+		return nil, fmt.Errorf("circular import detected: %s", t.Import)
+	}
+
+	data, err := os.ReadFile(absPath) // nolint
+	if err != nil {
+		return nil, fmt.Errorf("can't read import %q: %w", t.Import, err)
+	}
+
+	imported, err := parseImportFile(absPath, data)
+	if err != nil {
+		return nil, err
+	}
+
+	visited[absPath] = true
+	resolved, err := resolveImports(imported, filepath.Dir(absPath), visited)
+	delete(visited, absPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolved, nil
+}
+
+// parseImportFile reads an import file and returns the list of tasks.
+// The file must contain a top-level "tasks" key with a list of task definitions.
+// Format is detected by file extension (YAML or TOML).
+func parseImportFile(fname string, data []byte) ([]Task, error) {
+	var imp struct {
+		Tasks []Task `yaml:"tasks" toml:"tasks"`
+	}
+
+	switch {
+	case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
+		yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
+		yamlDecoder.KnownFields(true)
+		if err := yamlDecoder.Decode(&imp); err != nil {
+			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
+		}
+	case strings.HasSuffix(fname, ".toml"):
+		if err := toml.Unmarshal(data, &imp); err != nil {
+			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
+		}
+	default:
+		return nil, fmt.Errorf("unknown format for import file %s", fname)
+	}
+
+	if len(imp.Tasks) == 0 {
+		return nil, fmt.Errorf("import file %s has no tasks", fname)
+	}
+
+	return imp.Tasks, nil
 }
 
 // AllTasks returns the playbook's list of tasks.

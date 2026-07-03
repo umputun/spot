@@ -1,0 +1,12 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - import: tasks/prepare.yml
+  - name: inline-task
+    commands:
+      - name: hello
+        script: echo hello
+  - import: tasks/deploy.yml

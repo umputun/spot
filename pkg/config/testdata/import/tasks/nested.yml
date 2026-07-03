@@ -1,0 +1,5 @@
+tasks:
+  - name: nested-task
+    commands:
+      - name: check
+        script: echo "nested import works"

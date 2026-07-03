@@ -1,0 +1,12 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - import: tasks/prepare.yml
+  - import: tasks/nested.yml
+  - name: final-check
+    commands:
+      - name: done
+        script: echo done

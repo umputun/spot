@@ -1,0 +1,14 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - name: dup-task
+    commands:
+      - name: cmd1
+        script: echo first
+  - name: dup-task
+    commands:
+      - name: cmd2
+        script: echo second

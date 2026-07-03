@@ -887,6 +887,91 @@ func TestPlayBook_AllTasks(t *testing.T) {
 	assert.Equal(t, []string{"target2", "target3"}, p.AllTasks()[1].Targets)
 }
 
+func TestPlaybook_Import_BasicYAML(t *testing.T) {
+	p, err := New("testdata/import/main.yml", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p.Tasks, 3)
+	assert.Equal(t, "install-deps", p.Tasks[0].Name)
+	assert.Equal(t, "setup-user", p.Tasks[1].Name)
+	assert.Equal(t, "deploy-app", p.Tasks[2].Name)
+	assert.Equal(t, "restart", p.Tasks[2].Commands[1].Name)
+	assert.Equal(t, "docker pull app:latest", p.Tasks[2].Commands[0].Script)
+}
+
+func TestPlaybook_Import_BasicTOML(t *testing.T) {
+	p, err := New("testdata/import/main.toml", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p.Tasks, 3)
+	assert.Equal(t, "install-deps", p.Tasks[0].Name)
+	assert.Equal(t, "setup-user", p.Tasks[1].Name)
+	assert.Equal(t, "deploy-app", p.Tasks[2].Name)
+}
+
+func TestPlaybook_Import_MixedWithInline(t *testing.T) {
+	p, err := New("testdata/import/mixed.yml", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p.Tasks, 4)
+	assert.Equal(t, "install-deps", p.Tasks[0].Name)
+	assert.Equal(t, "setup-user", p.Tasks[1].Name)
+	assert.Equal(t, "inline-task", p.Tasks[2].Name)
+	assert.Equal(t, "deploy-app", p.Tasks[3].Name)
+	assert.Equal(t, "restart", p.Tasks[3].Commands[1].Name)
+}
+
+func TestPlaybook_Import_Recursive(t *testing.T) {
+	p, err := New("testdata/import/recursive.yml", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p.Tasks, 4)
+	assert.Equal(t, "install-deps", p.Tasks[0].Name)
+	assert.Equal(t, "setup-user", p.Tasks[1].Name)
+	assert.Equal(t, "nested-task", p.Tasks[2].Name)
+	assert.Equal(t, "final-check", p.Tasks[3].Name)
+}
+
+func TestPlaybook_Import_CircularDetection(t *testing.T) {
+	_, err := New("testdata/import/circular-main.yml", nil, nil)
+	require.ErrorContains(t, err, "circular import detected")
+}
+
+func TestPlaybook_Import_MissingFile(t *testing.T) {
+	_, err := New("testdata/import/missing-import.yml", nil, nil)
+	require.ErrorContains(t, err, "can't read import")
+	require.ErrorContains(t, err, "tasks/nonexistent.yml")
+}
+
+func TestPlaybook_Import_EmptyTasks(t *testing.T) {
+	_, err := New("testdata/import/empty-import.yml", nil, nil)
+	require.ErrorContains(t, err, "has no tasks")
+}
+
+func TestPlaybook_Import_InvalidContent(t *testing.T) {
+	_, err := New("testdata/import/bad-format-import.yml", nil, nil)
+	require.ErrorContains(t, err, "can't parse import file")
+}
+
+func TestPlaybook_Import_BadYAML(t *testing.T) {
+	_, err := New("testdata/bad-format.yml", nil, nil)
+	require.ErrorContains(t, err, "can't unmarshal yaml playbook (full mode)")
+}
+
+func TestPlaybook_Import_DuplicateTaskName(t *testing.T) {
+	_, err := New("testdata/import/dup-task-import.yml", nil, nil)
+	require.ErrorContains(t, err, `duplicate task name "dup-task"`)
+}
+
+func TestPlaybook_Import_CrossFormat(t *testing.T) {
+	p, err := New("testdata/import/cross-format.yml", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p.Tasks, 2)
+	assert.Equal(t, "from-toml", p.Tasks[0].Name)
+	assert.Equal(t, "inline-after-toml", p.Tasks[1].Name)
+}
+
+func TestPlaybook_Import_SimpleFormatNotSupported(t *testing.T) {
+	_, err := New("testdata/import/main.yml", &Overrides{AdHocCommand: "echo test"}, nil)
+	require.NoError(t, err, "adhoc override should not affect import parsing")
+}
+
 func TestPlayBook_SSHTempDir(t *testing.T) {
 	tests := []struct {
 		name        string

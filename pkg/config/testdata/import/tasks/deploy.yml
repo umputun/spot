@@ -1,0 +1,7 @@
+tasks:
+  - name: deploy-app
+    commands:
+      - name: pull
+        script: docker pull app:latest
+      - name: restart
+        script: docker restart app
