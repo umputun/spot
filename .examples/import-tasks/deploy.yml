@@ -1,0 +1,12 @@
+user: deploy
+
+targets:
+  prod:
+    groups: ["production"]
+  staging:
+    groups: ["staging"]
+
+tasks:
+  - import: tasks/prepare.yml
+  - import: tasks/deploy-app.yml
+  - import: tasks/verify.yml

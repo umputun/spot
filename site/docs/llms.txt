@@ -110,6 +110,42 @@ tasks:
       ...
 ```
 
+### Task Import
+
+Tasks can be imported from external files using the `import` directive:
+
+```yaml
+tasks:
+  - import: tasks/setup.yml    # imports all tasks from this file
+  - name: inline-task          # can mix with inline tasks
+    commands:
+      - name: hello
+        script: echo hello
+```
+
+Import file format (same as playbook `tasks:` structure):
+
+```yaml
+tasks:
+  - name: install-deps
+    commands:
+      - name: apt
+        script: apt-get update
+```
+
+**Import rules:**
+- Import files must have a `tasks:` key with a list of task definitions.
+- Paths resolve relative to the importing file's directory.
+- Recursive imports are supported with cycle detection.
+- Both YAML and TOML supported (detected by extension).
+- Only works with full playbook format, not simplified.
+
+TOML example:
+```toml
+[[tasks]]
+import = "tasks/config.toml"
+```
+
 ### Simplified Playbook Format (Single Task)
 
 ```yaml
