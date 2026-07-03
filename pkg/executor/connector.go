@@ -70,6 +70,12 @@ func (c *Connector) forwardAgent(client *ssh.Client) error {
 	if err != nil {
 		return fmt.Errorf("unable to connect to ssh agent: %w", err)
 	}
+	// agent.NewClient starts a background reader on the connection; close it when the ssh client
+	// is done to release the socket and stop the reader
+	go func() {
+		_ = client.Wait()
+		_ = aconn.Close()
+	}()
 
 	aclient := agent.NewClient(aconn)
 	if err = agent.ForwardToAgent(client, aclient); err != nil {
@@ -101,17 +107,25 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 		return nil, fmt.Errorf("failed to dial: %w", err)
 	}
 
-	conf, err := c.sshConfig(user, c.privateKey)
+	conf, agentConn, err := c.sshConfig(user, c.privateKey)
 	if err != nil {
+		_ = conn.Close() // release the dialed connection, the handshake never started
 		return nil, fmt.Errorf("failed to create ssh config: %w", err)
 	}
 	ncc, chans, reqs, err := ssh.NewClientConn(conn, host, conf)
+	if agentConn != nil {
+		// the agent connection is only needed for the handshake; close it to release
+		// the socket and the background reader started by agent.NewClient
+		_ = agentConn.Close()
+	}
 	if err != nil {
+		// NewClientConn already closes conn on handshake failure, no need to close it here
 		return nil, fmt.Errorf("failed to create client connection to %s: %v", host, err)
 	}
 	client := ssh.NewClient(ncc, chans, reqs)
 
 	if err := c.forwardAgent(client); err != nil {
+		_ = client.Close() // release the connection and the agent cleanup goroutine waiting on it
 		return nil, fmt.Errorf("failed to forward agent to %s: %v", host, err)
 	}
 
@@ -119,36 +133,38 @@ func (c *Connector) sshClient(ctx context.Context, host, user string) (session *
 	return client, nil
 }
 
-func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, error) {
+// sshConfig makes ssh client config for the given user and private key. If the ssh agent is used for
+// authentication, the returned connection to the agent should be closed by the caller after the handshake.
+func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, net.Conn, error) {
 
 	// getAuth returns a list of ssh.AuthMethod to be used for authentication.
 	// if ssh agent is enabled, it will be used, otherwise private key will be used.
-	getAuth := func() (auth []ssh.AuthMethod, err error) {
+	getAuth := func() (auth []ssh.AuthMethod, agentConn net.Conn, err error) {
 		if privateKeyPath == "" || c.enableAgent {
-			if aconn, e := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK")); e == nil {
-				auth = append(auth, ssh.PublicKeysCallback(agent.NewClient(aconn).Signers))
-				log.Printf("[DEBUG] ssh agent found at %s", os.Getenv("SSH_AUTH_SOCK"))
-			} else {
-				return nil, fmt.Errorf("unable to connect to ssh agent: %w", e)
+			aconn, e := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+			if e != nil {
+				return nil, nil, fmt.Errorf("unable to connect to ssh agent: %w", e)
 			}
-			return auth, nil
+			auth = append(auth, ssh.PublicKeysCallback(agent.NewClient(aconn).Signers))
+			log.Printf("[DEBUG] ssh agent found at %s", os.Getenv("SSH_AUTH_SOCK"))
+			return auth, aconn, nil
 		}
 
 		key, err := os.ReadFile(privateKeyPath) // nolint
 		if err != nil {
-			return nil, fmt.Errorf("unable to read private key: %w", err)
+			return nil, nil, fmt.Errorf("unable to read private key: %w", err)
 		}
 		signer, err := ssh.ParsePrivateKey(key)
 		if err != nil {
-			return nil, fmt.Errorf("unable to parse private key: %w", err)
+			return nil, nil, fmt.Errorf("unable to parse private key: %w", err)
 		}
 		auth = append(auth, ssh.PublicKeys(signer))
-		return auth, nil
+		return auth, nil, nil
 	}
 
-	auth, err := getAuth()
+	auth, agentConn, err := getAuth()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ssh auth: %w", err)
+		return nil, nil, fmt.Errorf("failed to get ssh auth: %w", err)
 	}
 
 	sshConfig := &ssh.ClientConfig{
@@ -157,7 +173,7 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, e
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // nolint
 	}
 
-	return sshConfig, nil
+	return sshConfig, agentConn, nil
 }
 
 func (c *Connector) String() string {
