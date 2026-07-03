@@ -436,7 +436,7 @@ Deletes a file or directory on the remote host(s), optionally can remove recursi
   delete: {"path": "/tmp/things", "recur": true, "exclude": ["*.txt", "*.yml"]}
 ```
 
-Delete also supports a list format to remove multiple paths at once.
+Delete also supports a list format to remove multiple paths at once. Note: `exclude` cannot be combined with the `sudo` option, as sudo deletion is performed with a plain shell command that cannot honour exclusion patterns.
 
 #### `wait`
 
@@ -507,6 +507,7 @@ The same options can be set for the whole task as well. In this case, the option
 
 ```yaml
   - name: deploy-things
+    tags: ["deploy"]                                          # tags for task filtering via -n flag
     on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
     options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
     commands:

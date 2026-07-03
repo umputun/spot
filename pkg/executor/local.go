@@ -98,19 +98,18 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 		if e != nil {
 			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
-		if isExcluded(relPath, exclude) {
+		// check source file info
+		srcInfo, err := os.Stat(match)
+		if err != nil {
+			return fmt.Errorf("failed to stat source file %s: %w", match, err)
+		}
+		if isExcluded(relPath, srcInfo.IsDir(), exclude) {
 			continue
 		}
 
 		destination := dst
 		if len(matches) > 1 {
 			destination = filepath.Join(dst, filepath.Base(match))
-		}
-
-		// check source file info
-		srcInfo, err := os.Stat(match)
-		if err != nil {
-			return fmt.Errorf("failed to stat source file %s: %w", match, err)
 		}
 
 		// check destination file info
@@ -196,7 +195,7 @@ func (l *Local) syncSrcToDst(ctx context.Context, src, dst string, excl []string
 		if err != nil {
 			return err
 		}
-		if isExcluded(relPath, excl) {
+		if isExcluded(relPath, info.IsDir(), excl) {
 			return nil
 		}
 
@@ -330,7 +329,7 @@ func (l *Local) deletePath(ctx context.Context, src string, excl []string) error
 			return nil
 		}
 
-		if isExcluded(relPath, excl) {
+		if isExcluded(relPath, info.IsDir(), excl) {
 			hasExclusion = true
 			if info.IsDir() {
 				return filepath.SkipDir
@@ -355,8 +354,10 @@ func (l *Local) deletePath(ctx context.Context, src string, excl []string) error
 		return err
 	}
 
-	// remove the whole directory if there are no actual exclusions
+	// remove the whole directory if there are no actual exclusions. warn first, a mistyped
+	// exclude pattern that matches nothing would otherwise delete the whole tree silently.
 	if !hasExclusion {
+		log.Printf("[WARN] no exclude pattern matched anything under %s, removing it entirely", src)
 		return os.RemoveAll(src)
 	}
 

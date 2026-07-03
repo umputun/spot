@@ -77,7 +77,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 		if e != nil {
 			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
-		if isExcluded(relPath, exclude) {
+		if isExcluded(relPath, false, exclude) { // upload operates on files, directory upload is unsupported
 			continue
 		}
 
@@ -228,7 +228,8 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 		hasExclusion := false
 		walker := sftpClient.Walk(remoteFile)
 
-		var pathsToDelete []string
+		var pathsToDelete []string // paths to delete when some exclusion actually matched
+		var allPaths []string      // all walked paths, used when no exclusion matched
 		for walker.Step() {
 			if walker.Err() != nil {
 				continue
@@ -239,27 +240,36 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 			if e != nil {
 				return e
 			}
+			isDir := walker.Stat().IsDir()
 
-			// skip parent directories of the excluded files
-			if walker.Stat().IsDir() && (relPath == "." || isExcludedSubPath(relPath, exclude)) {
+			if isDir && relPath == "." {
 				continue
 			}
 
-			if isExcluded(relPath, exclude) {
+			if isExcluded(relPath, isDir, exclude) {
 				hasExclusion = true
-				if walker.Stat().IsDir() {
+				if isDir {
 					walker.SkipDir()
 				}
 
 				continue
 			}
 
-			pathsToDelete = append(pathsToDelete, walker.Path())
+			allPaths = append(allPaths, path)
+
+			// skip parent directories of the excluded files, they should survive if the exclusion matches
+			if isDir && isExcludedSubPath(relPath, exclude) {
+				continue
+			}
+
+			pathsToDelete = append(pathsToDelete, path)
 		}
 
-		// there is no actual exclusions
+		// no exclusion matched anything, delete the whole tree including parent dirs of the excluded paths.
+		// warn first, a mistyped exclude pattern that matches nothing would otherwise delete the whole tree silently.
 		if !hasExclusion {
-			pathsToDelete = append([]string{remoteFile}, pathsToDelete...)
+			log.Printf("[WARN] no exclude pattern matched anything under %s, removing it entirely", remoteFile)
+			pathsToDelete = append([]string{remoteFile}, allPaths...)
 		}
 
 		// delete files and directories in reverse order
@@ -585,7 +595,7 @@ func (ex *Remote) getRemoteFilesProperties(ctx context.Context, dir string, excl
 				continue
 			}
 
-			if isExcluded(relPath, excl) {
+			if isExcluded(relPath, entry.IsDir(), excl) {
 				continue
 			}
 
@@ -617,7 +627,7 @@ func (ex *Remote) findUnmatchedFiles(local, remote map[string]fileProperties, ex
 		if localProps.IsDir {
 			continue // don't put directories to unmatched files, no need to upload them
 		}
-		if isExcluded(localPath, excl) {
+		if isExcluded(localPath, false, excl) { // directories are already skipped above
 			continue // don't put excluded files to unmatched files, no need to upload them
 		}
 		remoteProps, exists := remote[localPath]
@@ -657,7 +667,7 @@ func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, erro
 		if e != nil {
 			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
-		if isExcluded(relPath, excl) {
+		if isExcluded(relPath, false, excl) { // download operates on files, directory download is unsupported
 			continue
 		}
 
