@@ -25,7 +25,8 @@ type Cmd struct {
 	Delete      DeleteInternal    `yaml:"delete" toml:"delete"`
 	MDelete     []DeleteInternal  `yaml:"mdelete" toml:"mdelete"` // multiple delete commands, implemented internally
 	Wait        WaitInternal      `yaml:"wait" toml:"wait"`
-	Line        LineInternal      `yaml:"line" toml:"line"` // line manipulation command
+	Line        LineInternal      `yaml:"line" toml:"line"`         // line manipulation command
+	Template    TemplateInternal  `yaml:"template" toml:"template"` // template rendering command
 	Script      string            `yaml:"script" toml:"script,multiline"`
 	Echo        string            `yaml:"echo" toml:"echo"`
 	Environment map[string]string `yaml:"env" toml:"env"`
@@ -92,6 +93,15 @@ type LineInternal struct {
 	Delete  bool   `yaml:"delete" toml:"delete"`   // delete matching lines
 	Replace string `yaml:"replace" toml:"replace"` // replace matching lines with this
 	Append  string `yaml:"append" toml:"append"`   // append this line if pattern not found
+}
+
+// TemplateInternal defines template command, implemented internally
+type TemplateInternal struct {
+	Source string `yaml:"src" toml:"src"`         // local template file path
+	Dest   string `yaml:"dst" toml:"dst"`         // remote destination file path
+	Mkdir  bool   `yaml:"mkdir" toml:"mkdir"`     // create destination directory if it does not exist
+	Force  bool   `yaml:"force" toml:"force"`     // force copy even if destination exists
+	ChmodX bool   `yaml:"chmod+x" toml:"chmod+x"` // chmod +x on destination file
 }
 
 // GetScript returns a script string and an io.Reader based on the command being single line or multiline.
@@ -435,6 +445,7 @@ func (cmd *Cmd) validate() error {
 			return cmd.Line.File != "" && cmd.Line.Match != "" &&
 				(cmd.Line.Delete || cmd.Line.Replace != "" || cmd.Line.Append != "")
 		}},
+		{"template", func() bool { return cmd.Template.Source != "" && cmd.Template.Dest != "" }},
 		{"echo", func() bool { return cmd.Echo != "" }},
 	}
 

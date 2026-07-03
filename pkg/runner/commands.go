@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/umputun/spot/pkg/config"
@@ -610,6 +611,105 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	resp.details = fmt.Sprintf(" {line: %s, %s: %s}", file, operation, match)
+	return resp, nil
+}
+
+// Template renders a local Go text/template file with the command environment and SPOT_* variables,
+// then uploads the result to a remote host. It supports mkdir, force and chmod+x options, and works
+// with sudo the same way as the copy command.
+func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
+	cond, err := ec.checkCondition(ctx)
+	if err != nil {
+		return resp, err
+	}
+	if !cond {
+		resp.details = fmt.Sprintf(" {skip: %s}", ec.cmd.Name)
+		return resp, nil
+	}
+
+	// resolve src/dst paths via spot's variable substitution
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	src := tmpl.apply(ec.cmd.Template.Source)
+	dst := tmpl.apply(ec.cmd.Template.Dest)
+
+	// read template file from local filesystem
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return resp, ec.errorFmt("can't read template %q: %w", src, err)
+	}
+
+	// build template data: SPOT_* variables, environment and secrets
+	host, port, _ := net.SplitHostPort(ec.hostAddr)
+	if host == "" {
+		host = ec.hostAddr
+		port = "22"
+	}
+	tplData := map[string]string{
+		"SPOT_REMOTE_HOST": ec.hostAddr,
+		"SPOT_REMOTE_NAME": ec.hostName,
+		"SPOT_REMOTE_ADDR": host,
+		"SPOT_REMOTE_PORT": port,
+		"SPOT_REMOTE_USER": ec.tsk.User,
+		"SPOT_COMMAND":     ec.cmd.Name,
+		"SPOT_TASK":        ec.tsk.Name,
+	}
+	for k, v := range ec.cmd.Environment {
+		tplData[k] = v
+	}
+	for _, k := range ec.cmd.Options.Secrets {
+		if v, ok := ec.cmd.Secrets[k]; ok {
+			tplData[k] = v
+		}
+	}
+
+	// parse and execute template
+	parsed, err := template.New(filepath.Base(src)).Option("missingkey=zero").Parse(string(data))
+	if err != nil {
+		return resp, ec.errorFmt("can't parse template %q: %w", src, err)
+	}
+	var rendered bytes.Buffer
+	if err = parsed.Execute(&rendered, tplData); err != nil {
+		return resp, ec.errorFmt("can't execute template %q: %w", src, err)
+	}
+
+	// write rendered output to a temp file for upload
+	tmp, err := os.CreateTemp("", "spot-template")
+	if err != nil {
+		return resp, ec.errorFmt("can't create temp file for rendered template: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if rErr := os.Remove(tmpName); rErr != nil {
+			log.Printf("[WARN] can't remove temp template file %s: %v", tmpName, rErr)
+		}
+	}()
+	if _, err = tmp.Write(rendered.Bytes()); err != nil {
+		tmp.Close()
+		return resp, ec.errorFmt("can't write rendered template to temp file: %w", err)
+	}
+	if err = tmp.Close(); err != nil {
+		return resp, ec.errorFmt("can't close temp file for rendered template: %w", err)
+	}
+
+	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command
+	ecCopy := *ec
+	ecCopy.cmd.Copy = config.CopyInternal{
+		Source:    tmpName,
+		Dest:      dst,
+		Direction: "push",
+		Mkdir:     ec.cmd.Template.Mkdir,
+		Force:     ec.cmd.Template.Force,
+		ChmodX:    ec.cmd.Template.ChmodX,
+	}
+	pushResp, err := ecCopy.copyPush(ctx, tmpName, dst)
+	if err != nil {
+		return resp, err
+	}
+	resp = pushResp
+	// rewrite details prefix to reflect template command
+	if strings.HasPrefix(resp.details, " {copy:") {
+		resp.details = " {template:" + strings.TrimPrefix(resp.details, " {copy:")
+	}
 	return resp, nil
 }
 

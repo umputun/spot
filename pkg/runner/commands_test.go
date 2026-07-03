@@ -7,7 +7,9 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1596,5 +1598,186 @@ func TestProcessRegisterWithTemplateVars(t *testing.T) {
 
 		assert.Equal(t, "env-value", resp.vars["VAR_production"])
 		assert.Equal(t, "env-value", resp.registered["VAR_production"], "Should match processed register var with ENV substitution")
+	})
+}
+
+func Test_execTemplate(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+	logs := executor.MakeLogs(false, false, nil)
+	ctx := context.Background()
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, errSess)
+
+	cleanup := func(path string) {
+		sess.Run(ctx, "rm -f "+path, nil)      // nolint
+		sess.Run(ctx, "sudo rm -f "+path, nil) // nolint
+	}
+
+	t.Run("basic template render and upload", func(t *testing.T) {
+		dst := "/tmp/spot_template_basic_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render basic",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+		assert.Contains(t, resp.details, dst)
+
+		_, testPort, _ := net.SplitHostPort(testingHostAndPort)
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"hello, " + testingHostAndPort,
+			"port=" + testPort,
+			"user=deploy",
+			"task=task1",
+			"name=myhost",
+			"cmd=render basic",
+			"msg=",
+			"secret=",
+		}, out)
+	})
+
+	t.Run("template with environment and secrets", func(t *testing.T) {
+		dst := "/tmp/spot_template_env_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:        "render with env",
+				Template:    config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+				Environment: map[string]string{"GREETING": "hi-from-env"},
+				Secrets:     map[string]string{"MY_SECRET": "s3cret-value"},
+				Options:     config.CmdOptions{Secrets: []string{"MY_SECRET"}},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		_, testPort, _ := net.SplitHostPort(testingHostAndPort)
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"hello, " + testingHostAndPort,
+			"port=" + testPort,
+			"user=deploy",
+			"task=task1",
+			"name=myhost",
+			"cmd=render with env",
+			"msg=hi-from-env",
+			"secret=s3cret-value",
+		}, out)
+	})
+
+	t.Run("template with mkdir, force, chmod+x", func(t *testing.T) {
+		testDir := "/tmp/spot_template_mkdir_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		dst := testDir + "/script.sh"
+		defer sess.Run(ctx, "rm -rf "+testDir, nil) // nolint
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render script",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mkdir: true, Force: true, ChmodX: true},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "chmod: +x")
+
+		// verify file is executable
+		out, err := sess.Run(ctx, "ls -la "+dst, nil)
+		require.NoError(t, err)
+		assert.Regexp(t, "-rwx[r-][w-]x[r-][w-]x", out[0])
+	})
+
+	t.Run("template with sudo", func(t *testing.T) {
+		testDir := "/srv/spot_template_sudo_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		dst := testDir + "/conf.txt"
+		defer sess.Run(ctx, "sudo rm -rf "+testDir, nil) // nolint
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render with sudo",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mkdir: true},
+				Options:  config.CmdOptions{Sudo: true},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+
+		out, err := sess.Run(ctx, "sudo cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("template file not found", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render missing",
+				Template: config.TemplateInternal{Source: "testdata/does_not_exist.tmpl", Dest: "/tmp/nope.txt"},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't read template")
+	})
+
+	t.Run("template syntax error", func(t *testing.T) {
+		badPath := filepath.Join(t.TempDir(), "bad.tmpl")
+		require.NoError(t, os.WriteFile(badPath, []byte("hello {{ .X"), 0o600))
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render bad",
+				Template: config.TemplateInternal{Source: badPath, Dest: "/tmp/nope.txt"},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't parse template")
+	})
+
+	t.Run("template condition skip", func(t *testing.T) {
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:      "render with cond",
+				Template:  config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: "/tmp/should_not_exist.txt"},
+				Condition: "test -f /tmp/never_existing_condition_file",
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: render with cond}", resp.details)
 	})
 }
