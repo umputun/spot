@@ -12,7 +12,7 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 - Support for remote hosts specified directly or through [inventory](#inventory) files or URLs.
 - Everything can be defined in a [simple YAML](#full-playbook-example) or TOML file.
 - Run [scripts](#script-execution) on remote hosts and the localhost.
-- Built-in [commands](#command-types): script, copy, sync, delete, echo, and wait.
+- Built-in [commands](#command-types): script, copy, sync, delete, echo, wait, line, and template.
 - [Concurrent](#rolling-updates) execution of a task on multiple hosts.
 - Ability to wait for a specific condition before executing the next command.
 - Customizable environment variables.
@@ -158,7 +158,7 @@ Spot supports the following command-line options:
 
 - **Task** is a named set of commands that can be executed on one or more target hosts. Tasks can be defined in a playbook and executed concurrently on multiple hosts.
 
-- **Command** is an action that can be executed on a target host. Spot supports several built-in commands, including copy, sync, delete, script, echo, and wait. 
+- **Command** is an action that can be executed on a target host. Spot supports several built-in commands, including copy, sync, delete, script, echo, wait, line, and template. 
 
 - **Target** is a host or group of hosts on which a task can be executed. Targets can be specified directly in a playbook or defined in an inventory file. Spot supports several inventory file formats.
 
@@ -400,6 +400,66 @@ Copy file and making it executable is also supported:
     - {"src": "/remote/logs/app.log", "dst": "./logs/app.log", "direction": "pull"}
     - {"src": "/remote/data/results.csv", "dst": "./data/results.csv", "direction": "pull", "force": true}
 ```
+
+
+#### `template`
+
+Renders a local [Go text/template](https://pkg.go.dev/text/template) file with the command's environment and the standard `SPOT_*` variables, then uploads the result to a remote host. Useful for generating config files, init scripts and similar artifacts on the target host. The render is performed on the spot runner (not on the remote host), so the template file must be present locally.
+
+Parameters:
+
+| field | description |
+|---|---|
+| `src` | local template file path |
+| `dst` | remote destination file path |
+| `mkdir` | create destination directory if it does not exist |
+| `force` | upload even if destination already has the same content |
+| `chmod+x` | make the destination file executable after upload |
+
+Available template variables:
+
+- All `SPOT_*` variables: `SPOT_REMOTE_HOST`, `SPOT_REMOTE_ADDR`, `SPOT_REMOTE_PORT`, `SPOT_REMOTE_NAME`, `SPOT_REMOTE_USER`, `SPOT_COMMAND`, `SPOT_TASK`
+- All entries from the command's `env:` map
+- All values for keys listed in the command's `options.secrets` (only if loaded)
+- Variables captured by `register` from previous commands in the same task are exposed as regular `env` entries, so they are also available
+
+Template syntax follows Go's [text/template](https://pkg.go.dev/text/template) — for example `{{ .Name }}`, `{{ if .X }}...{{ end }}`, `{{ range .List }}...{{ end }}`.
+
+```yaml
+- name: render nginx config
+  template: {src: "testdata/nginx.conf.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
+
+- name: render a script and make it executable
+  template: {"src": "scripts/run.sh.tmpl", "dst": "/opt/app/run.sh", "mkdir": true, "chmod+x": true}
+
+- name: render with environment variables
+  template: {"src": "templates/app.conf.tmpl", "dst": "/etc/app/app.conf", "mkdir": true}
+  env:
+    APP_ENV: production
+    APP_PORT: "8080"
+
+- name: render with a loaded secret
+  template: {"src": "templates/db.conf.tmpl", "dst": "/etc/app/db.conf", "mkdir": true}
+  options:
+    secrets: [db_password]
+```
+
+Example template file `testdata/nginx.conf.tmpl`:
+
+```
+worker_processes {{ .SPOT_REMOTE_PORT }};
+# generated for {{ .SPOT_REMOTE_HOST }} ({{ .SPOT_REMOTE_NAME }})
+server {
+  listen {{ .APP_PORT }};
+  server_name {{ .SPOT_REMOTE_NAME }};
+{{- if eq .APP_ENV "production" }}
+  # production-only settings
+  client_max_body_size 50m;
+{{- end }}
+}
+```
+
+`template` supports the same `mkdir`, `force`, `chmod+x` and `sudo` semantics as the `copy` command, and respects the `cond` condition field like every other command.
 
 
 #### `sync`

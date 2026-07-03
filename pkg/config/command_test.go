@@ -679,6 +679,33 @@ copy:
 `,
 			expectedErr: true,
 		},
+		{
+			name: "simple template",
+			yamlInput: `
+name: render nginx config
+template: {src: "testdata/nginx.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
+`,
+			expectedCmd: Cmd{
+				Name:     "render nginx config",
+				Template: TemplateInternal{Source: "testdata/nginx.tmpl", Dest: "/etc/nginx/nginx.conf", Mkdir: true},
+			},
+		},
+		{
+			name: "template with all options",
+			yamlInput: `
+name: render script
+template:
+  src: "testdata/script.tmpl"
+  dst: "/opt/app/run.sh"
+  mkdir: true
+  force: true
+  chmod+x: true
+`,
+			expectedCmd: Cmd{
+				Name:     "render script",
+				Template: TemplateInternal{Source: "testdata/script.tmpl", Dest: "/opt/app/run.sh", Mkdir: true, Force: true, ChmodX: true},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -711,13 +738,26 @@ func TestCmd_validate(t *testing.T) {
 		{"only wait", Cmd{Wait: WaitInternal{Command: "command"}}, ""},
 		{"only line", Cmd{Line: LineInternal{File: "/etc/bashrc", Match: "^PS1=", Delete: true}}, ""},
 		{"line without operation", Cmd{Line: LineInternal{File: "/etc/bashrc", Match: "^PS1="}},
-			"one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, echo] must be set"},
+			"one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, template, echo] must be set"},
 		{"multiple fields set", Cmd{Script: "example_script", Copy: CopyInternal{Source: "source", Dest: "dest"}},
 			"only one of [script, copy] is allowed"},
-		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, echo] must be set"},
+		{"nothing set", Cmd{}, "one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, template, echo] must be set"},
 		{"script with register", Cmd{Script: "example_script", Register: []string{"a", "b"}}, ""},
 		{"unexpected register", Cmd{Copy: CopyInternal{Source: "source", Dest: "dest"}, Register: []string{"a", "b"}},
 			"register is only allowed with script command"},
+		{"only template", Cmd{Template: TemplateInternal{Source: "in.tmpl", Dest: "/etc/out.conf"}}, ""},
+		{"template with only src", Cmd{Template: TemplateInternal{Source: "in.tmpl"}},
+			"one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, template, echo] must be set"},
+		{"template with only dst", Cmd{Template: TemplateInternal{Dest: "/etc/out.conf"}},
+			"one of [script, copy, mcopy, delete, mdelete, sync, msync, wait, line, template, echo] must be set"},
+		{"template and copy together", Cmd{
+			Template: TemplateInternal{Source: "in.tmpl", Dest: "/etc/out.conf"},
+			Copy:     CopyInternal{Source: "a", Dest: "b"},
+		}, "only one of [copy, template] is allowed"},
+		{"template with register", Cmd{
+			Template: TemplateInternal{Source: "in.tmpl", Dest: "/etc/out.conf"},
+			Register: []string{"a"},
+		}, "register is only allowed with script command"},
 	}
 
 	for _, tt := range tbl {

@@ -236,6 +236,59 @@ Copy files between local and remote. Supports globs, mkdir, chmod.
 - `exclude`: list of filenames to exclude
 - `direction`: "push" (default) or "pull"
 
+### template
+
+Render a local Go text/template file and upload the result to a remote host. Useful for generating config files, init scripts, etc. The render happens on the spot runner (the template file must be present locally).
+
+Fields:
+- `src`: local template file path
+- `dst`: remote destination file path
+- `mkdir`: create destination directory if missing (default: false)
+- `force`: upload even if destination content is identical (default: false)
+- `chmod+x`: make destination executable (default: false)
+
+Available template variables:
+- All `SPOT_*` vars: `SPOT_REMOTE_HOST`, `SPOT_REMOTE_ADDR`, `SPOT_REMOTE_PORT`, `SPOT_REMOTE_NAME`, `SPOT_REMOTE_USER`, `SPOT_COMMAND`, `SPOT_TASK`
+- All entries from the command's `env:` map
+- All values for keys listed in `options.secrets` (if loaded)
+- Variables captured by `register` from previous commands in the same task are exposed as `env` entries, so they are also available
+
+Template syntax follows Go's [text/template](https://pkg.go.dev/text/template).
+
+```yaml
+- name: render nginx config
+  template: {src: "templates/nginx.conf.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
+
+- name: render with environment variables
+  template: {src: "templates/app.conf.tmpl", dst: "/etc/app/app.conf", mkdir: true}
+  env:
+    APP_ENV: production
+    APP_PORT: "8080"
+
+- name: render a script and make it executable
+  template: {src: "scripts/run.sh.tmpl", dst: "/opt/app/run.sh", mkdir: true, chmod+x: true}
+
+- name: render to a sudo-protected path
+  template: {src: "templates/secret.conf.tmpl", dst: "/etc/app/secret.conf", mkdir: true}
+  options: {sudo: true}
+```
+
+Example template `templates/nginx.conf.tmpl`:
+
+```
+worker_processes {{ .SPOT_REMOTE_PORT }};
+# generated for {{ .SPOT_REMOTE_HOST }} ({{ .SPOT_REMOTE_NAME }})
+server {
+  listen {{ .APP_PORT }};
+  server_name {{ .SPOT_REMOTE_NAME }};
+{{- if eq .APP_ENV "production" }}
+  client_max_body_size 50m;
+{{- end }}
+}
+```
+
+`template` supports the same `mkdir`, `force`, `chmod+x` and `sudo` semantics as `copy`, and respects the `cond` condition field.
+
 ### sync
 
 Synchronize directories (like rsync).

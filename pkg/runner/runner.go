@@ -336,6 +336,9 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 	case ec.cmd.Line.File != "" && ec.cmd.Line.Match != "":
 		log.Printf("[DEBUG] line manipulation on %s", ec.hostAddr)
 		return ec.Line(ctx)
+	case ec.cmd.Template.Source != "" && ec.cmd.Template.Dest != "":
+		log.Printf("[DEBUG] template render+copy on %s", ec.hostAddr)
+		return ec.Template(ctx)
 	default:
 		return execCmdResp{}, fmt.Errorf("unknown command %q", ec.cmd.Name)
 	}
