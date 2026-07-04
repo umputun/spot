@@ -75,7 +75,7 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 	for _, match := range matches {
 		relPath, e := filepath.Rel(filepath.Dir(local), match)
 		if e != nil {
-			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
+			return fmt.Errorf("failed to build relative path for %s: %w", match, e)
 		}
 		// matches are local paths, stat them so directory excludes (e.g. "subdir/*") skip a matched directory
 		matchInfo, statErr := os.Stat(match)
@@ -674,7 +674,7 @@ func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, erro
 	for _, match := range matches {
 		relPath, e := filepath.Rel(filepath.Dir(remote), match)
 		if e != nil {
-			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, err)
+			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, e)
 		}
 		// matches are remote paths, stat them so directory excludes (e.g. "subdir/*") skip a matched directory
 		matchInfo, statErr := sftpClient.Stat(match)

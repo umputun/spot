@@ -96,7 +96,7 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 	for _, match := range matches {
 		relPath, e := filepath.Rel(filepath.Dir(src), match)
 		if e != nil {
-			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
+			return fmt.Errorf("failed to build relative path for %s: %w", match, e)
 		}
 		// check source file info; check exclusion before the stat error so an excluded broken symlink
 		// is skipped instead of failing the whole upload
