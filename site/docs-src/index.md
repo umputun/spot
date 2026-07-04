@@ -436,7 +436,14 @@ Deletes a file or directory on the remote host(s), optionally can remove recursi
   delete: {"path": "/tmp/things", "recur": true, "exclude": ["*.txt", "*.yml"]}
 ```
 
-Delete also supports a list format to remove multiple paths at once. Note: `exclude` cannot be combined with the `sudo` option, as sudo deletion is performed with a plain shell command that cannot honour exclusion patterns.
+Delete also supports a list format to remove multiple paths at once.
+
+Notes on `exclude`:
+- It requires `recur: true`, as it filters the contents of a directory tree.
+- It cannot be combined with the `sudo` option, as sudo deletion is performed with a plain shell command that cannot apply exclusion patterns.
+- Patterns are matched with forward slashes on all platforms; a backslash is treated as a path separator, so it cannot be used to escape glob metacharacters.
+- A pattern ending in `/*` (e.g. `logs/*` or `data*/*`) also protects the matching directory itself, keeping it and its contents.
+- If no pattern matches anything, the whole tree is removed (a mistyped pattern will not silently preserve files); a `[WARN]` is logged in that case.
 
 #### `wait`
 

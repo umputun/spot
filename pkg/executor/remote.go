@@ -77,8 +77,14 @@ func (ex *Remote) Upload(ctx context.Context, local, remote string, opts *UpDown
 		if e != nil {
 			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
-		if isExcluded(relPath, false, exclude) { // upload operates on files, directory upload is unsupported
-			continue
+		// matches are local paths, stat them so directory excludes (e.g. "subdir/*") skip a matched directory
+		matchInfo, statErr := os.Stat(match)
+		isDir := statErr == nil && matchInfo.IsDir()
+		if isExcluded(relPath, isDir, exclude) {
+			continue // excluded, including a broken symlink we were told to exclude
+		}
+		if statErr != nil {
+			return fmt.Errorf("failed to stat source file %s: %w", match, statErr)
 		}
 
 		remoteFile := remote
@@ -266,9 +272,12 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 		}
 
 		// no exclusion matched anything, delete the whole tree including parent dirs of the excluded paths.
-		// warn first, a mistyped exclude pattern that matches nothing would otherwise delete the whole tree silently.
+		// warn only when excludes were actually provided, a mistyped pattern that matches nothing would
+		// otherwise delete the whole tree silently; an exclude-free delete (e.g. temp-dir cleanup) is normal.
 		if !hasExclusion {
-			log.Printf("[WARN] no exclude pattern matched anything under %s, removing it entirely", remoteFile)
+			if len(exclude) > 0 {
+				log.Printf("[WARN] no exclude pattern matched anything under %s, removing it entirely", remoteFile)
+			}
 			pathsToDelete = append([]string{remoteFile}, allPaths...)
 		}
 
@@ -667,8 +676,14 @@ func (ex *Remote) findMatchedFiles(remote string, excl []string) ([]string, erro
 		if e != nil {
 			return nil, fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
-		if isExcluded(relPath, false, excl) { // download operates on files, directory download is unsupported
+		// matches are remote paths, stat them so directory excludes (e.g. "subdir/*") skip a matched directory
+		matchInfo, statErr := sftpClient.Stat(match)
+		isDir := statErr == nil && matchInfo.IsDir()
+		if isExcluded(relPath, isDir, excl) {
 			continue
+		}
+		if statErr != nil {
+			return nil, fmt.Errorf("failed to stat remote file %s: %w", match, statErr)
 		}
 
 		files = append(files, match)

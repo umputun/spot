@@ -98,13 +98,15 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 		if e != nil {
 			return fmt.Errorf("failed to build relative path for %s: %w", match, err)
 		}
-		// check source file info
-		srcInfo, err := os.Stat(match)
-		if err != nil {
-			return fmt.Errorf("failed to stat source file %s: %w", match, err)
-		}
-		if isExcluded(relPath, srcInfo.IsDir(), exclude) {
+		// check source file info; check exclusion before the stat error so an excluded broken symlink
+		// is skipped instead of failing the whole upload
+		srcInfo, statErr := os.Stat(match)
+		isDir := statErr == nil && srcInfo.IsDir()
+		if isExcluded(relPath, isDir, exclude) {
 			continue
+		}
+		if statErr != nil {
+			return fmt.Errorf("failed to stat source file %s: %w", match, statErr)
 		}
 
 		destination := dst
