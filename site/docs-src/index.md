@@ -438,6 +438,13 @@ Deletes a file or directory on the remote host(s), optionally can remove recursi
 
 Delete also supports a list format to remove multiple paths at once.
 
+Notes on `exclude`:
+- It requires `recur: true`, as it filters the contents of a directory tree.
+- It cannot be combined with the `sudo` option, as sudo deletion is performed with a plain shell command that cannot apply exclusion patterns.
+- Patterns are matched with forward slashes on all platforms; a backslash is treated as a path separator, so it cannot be used to escape glob metacharacters.
+- A pattern ending in `/*` (e.g. `logs/*` or `data*/*`) also protects the matching directory itself, keeping it and its contents.
+- If no pattern matches anything, the whole tree is removed (a mistyped pattern will not silently preserve files); a `[WARN]` is logged in that case.
+
 #### `wait`
 
 Waits for the specified command to finish on the remote host(s) with 0 error code. This command is useful when a user needs to wait for a service to start before executing the next command. Allows to specify the timeout as well as check interval.
@@ -507,6 +514,7 @@ The same options can be set for the whole task as well. In this case, the option
 
 ```yaml
   - name: deploy-things
+    tags: ["deploy"]                                          # tags for task filtering via -n flag
     on_error: "curl -s localhost:8080/error?msg={SPOT_ERROR}" # call hook on error
     options: {ignore_errors: true, no_auto: true, only_on: [host1, host2]}
     commands:

@@ -4,7 +4,7 @@ package executor
 
 import (
 	"context"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 )
@@ -47,35 +47,72 @@ type DeleteOpts struct {
 	Exclude   []string // exclude files matching the given patterns
 }
 
-func isExcluded(path string, excl []string) bool {
-	pathSegments := strings.Split(path, string(filepath.Separator))
+// normalizeSlashes converts windows separators to forward slashes,
+// exclude patterns and remote paths always use forward slashes.
+func normalizeSlashes(s string) string { return strings.ReplaceAll(s, `\`, "/") }
+
+// isExcluded reports whether fpath matches any of the exclude patterns. A pattern ending in "/*"
+// also matches the directory it names, so the whole subtree is protected, but this directory match
+// only applies when fpath is itself a directory. This prevents a pattern like "dir*/*" from
+// excluding a plain file such as "data.txt". Patterns and paths are compared with forward slashes.
+func isExcluded(fpath string, isDir bool, excl []string) bool {
+	pathSegments := strings.Split(normalizeSlashes(fpath), "/")
+
+	// normalize the patterns once, splitting off the optional "/*" directory suffix
+	type exPattern struct {
+		full, dir    string
+		isDirPattern bool
+	}
+	patterns := make([]exPattern, 0, len(excl))
+	for _, ex := range excl {
+		ex = normalizeSlashes(ex)
+		dir, isDirPattern := strings.CutSuffix(ex, "/*")
+		patterns = append(patterns, exPattern{full: ex, dir: dir, isDirPattern: isDirPattern})
+	}
+
 	for i := range pathSegments {
-		subpath := filepath.Join(pathSegments[:i+1]...)
-		for _, ex := range excl {
-			match, err := filepath.Match(ex, subpath)
-			if err != nil {
-				continue
-			}
-			if match {
+		subpath := strings.Join(pathSegments[:i+1], "/")
+		for _, p := range patterns {
+			if match, err := path.Match(p.full, subpath); err == nil && match {
 				return true
 			}
-			// treat directory in exclusion list as excluding all of its contents
-			if strings.TrimSuffix(ex, "/*") == subpath {
-				return true
+			// a "dir/*" pattern also protects the named directory itself, so the walker can skip
+			// it; restricted to directories so a file matching the glob prefix is not excluded
+			if isDir && p.isDirPattern {
+				if match, err := path.Match(p.dir, subpath); err == nil && match {
+					return true
+				}
 			}
 		}
 	}
 	return false
 }
 
-func isExcludedSubPath(path string, excl []string) bool {
-	subpath := filepath.Join(path, "*")
+// isExcludedSubPath checks if the path is a proper ancestor of any excluded path,
+// i.e. removing the path recursively would also remove an excluded entry.
+func isExcludedSubPath(fpath string, excl []string) bool {
+	var pathSegments []string
+	if fpath != "." {
+		pathSegments = strings.Split(normalizeSlashes(fpath), "/")
+	}
 	for _, ex := range excl {
-		match, err := filepath.Match(subpath, strings.TrimSuffix(ex, "/*"))
-		if err != nil {
+		exTrimmed := strings.TrimSuffix(normalizeSlashes(ex), "/*")
+		if exTrimmed == "" {
 			continue
 		}
-		if match {
+		exSegments := strings.Split(exTrimmed, "/")
+		if len(pathSegments) >= len(exSegments) {
+			continue // path is not a proper ancestor of the excluded path
+		}
+		matched := true
+		for i, seg := range pathSegments {
+			ok, err := path.Match(exSegments[i], seg)
+			if err != nil || !ok {
+				matched = false
+				break
+			}
+		}
+		if matched {
 			return true
 		}
 	}

@@ -401,14 +401,36 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 	return resp, nil
 }
 
+// checkDeleteExclude validates the exclude option against the other delete flags for the given location.
+// Exclude requires a recursive delete (it filters directory contents) and cannot be combined with sudo,
+// as sudo deletion runs a plain rm that cannot apply exclusion patterns. Returns an error naming the
+// offending location, or nil if the combination is valid.
+func (ec *execCmd) checkDeleteExclude(loc string, del config.DeleteInternal) error {
+	if len(del.Exclude) == 0 {
+		return nil
+	}
+	if !del.Recursive {
+		return ec.errorFmt("delete with exclude requires recursive delete (recur: true) for %q", loc)
+	}
+	if ec.cmd.Options.Sudo {
+		return ec.errorFmt("delete with exclude is not supported with sudo for %q", loc)
+	}
+	return nil
+}
+
 // Delete deletes files on a target host. If sudo option is set, it will execute a sudo rm commands.
 func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	loc := tmpl.apply(ec.cmd.Delete.Location)
 
+	if e := ec.checkDeleteExclude(loc, ec.cmd.Delete); e != nil {
+		return resp, e
+	}
+
 	if !ec.cmd.Options.Sudo {
 		// if sudo is not set, we can delete the file directly
-		if err := ec.exec.Delete(ctx, loc, &executor.DeleteOpts{Recursive: ec.cmd.Delete.Recursive}); err != nil {
+		opts := &executor.DeleteOpts{Recursive: ec.cmd.Delete.Recursive, Exclude: ec.cmd.Delete.Exclude}
+		if err := ec.exec.Delete(ctx, loc, opts); err != nil {
 			return resp, ec.errorFmt("can't delete files on %s: %w", ec.hostAddr, err)
 		}
 		resp.details = fmt.Sprintf(" {delete: %s, recursive: %v}", loc, ec.cmd.Delete.Recursive)
@@ -434,10 +456,18 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 	msgs := []string{}
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+
+	// validate all locations upfront, before any of them is deleted
+	for _, c := range ec.cmd.MDelete {
+		if e := ec.checkDeleteExclude(tmpl.apply(c.Location), c); e != nil {
+			return resp, e
+		}
+	}
+
 	for _, c := range ec.cmd.MDelete {
 		loc := tmpl.apply(c.Location)
 		ecSingle := ec
-		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive}
+		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive, Exclude: c.Exclude}
 		if _, err := ecSingle.Delete(ctx); err != nil {
 			return resp, ec.errorFmt("can't delete %s on %s: %w", loc, ec.hostAddr, err)
 		}
@@ -459,8 +489,11 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 		if teardown == nil {
 			return
 		}
-		if err = teardown(); err != nil {
-			log.Printf("[WARN] can't teardown script on %s: %v", ec.hostAddr, err)
+		if tErr := teardown(); tErr != nil {
+			log.Printf("[WARN] can't teardown script on %s: %v", ec.hostAddr, tErr)
+			if err == nil { // don't overwrite the primary error with teardown error
+				err = ec.error(tErr)
+			}
 		}
 	}()
 

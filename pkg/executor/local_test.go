@@ -752,6 +752,56 @@ func TestDeleteWithExclude(t *testing.T) {
 				"file1.txt",
 			},
 		},
+		{
+			name:  "successful delete with only nested exclusions",
+			isDir: true,
+			srcStructure: map[string]bool{
+				"file1.txt":             false,
+				"logs/archive/keep.log": false,
+				"logs/archive/drop.log": false,
+				"logs/other.log":        false,
+				"data/file2.txt":        false,
+			},
+			dstStructure: map[string]bool{
+				"logs/archive/keep.log": false,
+			},
+			recursive: true,
+			exclude: []string{
+				"logs/archive/keep.log",
+			},
+		},
+		{
+			name:  "successful delete with glob directory exclusion",
+			isDir: true,
+			srcStructure: map[string]bool{
+				"file1.txt":      false,
+				"dir1/keep.txt":  false,
+				"other/drop.txt": false,
+			},
+			dstStructure: map[string]bool{
+				"dir1/keep.txt": false,
+			},
+			recursive: true,
+			exclude: []string{
+				"dir*/*",
+			},
+		},
+		{
+			name:  "glob directory exclusion does not protect same-prefix file",
+			isDir: true,
+			srcStructure: map[string]bool{
+				"dir1/keep.txt": false, // directory contents protected by dir*/*
+				"dir9.txt":      false, // plain file matching the dir* glob prefix, must be deleted
+				"plain.txt":     false,
+			},
+			dstStructure: map[string]bool{
+				"dir1/keep.txt": false,
+			},
+			recursive: true,
+			exclude: []string{
+				"dir*/*",
+			},
+		},
 	}
 
 	initTestCase := func(tc testCase) (string, error) {

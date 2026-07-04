@@ -162,6 +162,33 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	}
 }
 
+func TestExecuter_UploadGlobExcludeDirectory(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// local source with a file and a subdirectory; the glob matches both
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "keep.txt"), []byte("keep"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "subdir", "inner.txt"), []byte("inner"), 0o644))
+
+	// excluding the matched directory must skip it instead of feeding it into sftpUpload and failing
+	err = sess.Upload(ctx, filepath.Join(srcDir, "*"), "/tmp/globex", &UpDownOpts{Mkdir: true, Exclude: []string{"subdir/*"}})
+	require.NoError(t, err)
+
+	out, e := sess.Run(ctx, "ls -1 /tmp/globex", &RunOpts{Verbose: true})
+	require.NoError(t, e)
+	assert.Contains(t, out, "keep.txt", out)
+	assert.NotContains(t, out, "subdir", "excluded directory should not be uploaded")
+}
+
 func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
 	ctx := t.Context()
 	hostAndPort, teardown := startTestContainer(t)
@@ -496,6 +523,20 @@ func TestExecuter_Delete(t *testing.T) {
 		assert.NotContains(t, out, "empty", out)
 	})
 
+	t.Run("delete dir recursive without exclude does not warn", func(t *testing.T) {
+		_, err = sess.Run(ctx, "mkdir -p /tmp/nowarn/sub && touch /tmp/nowarn/a /tmp/nowarn/sub/b", &RunOpts{Verbose: true})
+		require.NoError(t, err)
+
+		buff := bytes.NewBuffer(nil)
+		log.SetOutput(buff)
+		defer log.SetOutput(os.Stderr)
+
+		err = sess.Delete(ctx, "/tmp/nowarn", &DeleteOpts{Recursive: true})
+		require.NoError(t, err)
+		assert.NotContains(t, buff.String(), "no exclude pattern matched",
+			"exclude-free recursive delete should not warn")
+	})
+
 	t.Run("delete no-such-file", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-file", nil)
 		assert.NoError(t, err)
@@ -545,6 +586,22 @@ func TestExecuter_DeleteWithExclude(t *testing.T) {
 		require.NoError(t, e)
 		assert.Contains(t, out, "file21.txt", out)
 		assert.NotContains(t, out, "file22.txt", out)
+	})
+
+	t.Run("exclude matching nothing warns and removes tree", func(t *testing.T) {
+		_, err = sess.Run(ctx, "mkdir -p /tmp/warn.dest && touch /tmp/warn.dest/a /tmp/warn.dest/b", &RunOpts{Verbose: true})
+		require.NoError(t, err)
+
+		buff := bytes.NewBuffer(nil)
+		log.SetOutput(buff)
+		defer log.SetOutput(os.Stderr)
+
+		err = sess.Delete(ctx, "/tmp/warn.dest", &DeleteOpts{Recursive: true, Exclude: []string{"no-such-file"}})
+		require.NoError(t, err)
+		assert.Contains(t, buff.String(), "no exclude pattern matched", "a non-matching exclude should warn")
+		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.NotContains(t, out, "warn.dest", "tree should be removed when exclude matches nothing")
 	})
 }
 
