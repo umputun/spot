@@ -189,6 +189,32 @@ func TestExecuter_UploadGlobExcludeDirectory(t *testing.T) {
 	assert.NotContains(t, out, "subdir", "excluded directory should not be uploaded")
 }
 
+func TestExecuter_DownloadGlobExcludeDirectory(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// remote source with a file and a subdirectory; the glob matches both
+	_, e := sess.Run(ctx, "mkdir -p /tmp/dlex/subdir && echo keep > /tmp/dlex/keep.txt && echo inner > /tmp/dlex/subdir/inner.txt",
+		&RunOpts{Verbose: true})
+	require.NoError(t, e)
+
+	// excluding the matched directory must skip it instead of feeding it into sftpDownload and failing
+	dstDir := t.TempDir()
+	err = sess.Download(ctx, "/tmp/dlex/*", dstDir, &UpDownOpts{Mkdir: true, Exclude: []string{"subdir/*"}})
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(dstDir, "keep.txt"))
+	_, statErr := os.Stat(filepath.Join(dstDir, "subdir"))
+	assert.True(t, os.IsNotExist(statErr), "excluded directory should not be downloaded at all")
+}
+
 func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
 	ctx := t.Context()
 	hostAndPort, teardown := startTestContainer(t)
