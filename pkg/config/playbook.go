@@ -275,10 +275,18 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 
 	simple := &SimplePlayBook{}
 	if err := unmarshal(data, simple, false); err == nil && len(simple.Task) > 0 {
-		// success, this is SimplePlayBook config, convert it to full PlayBook config
+		// success, this is SimplePlayBook config, convert it to full PlayBook config.
+		// copy the top-level fields explicitly instead of relying on the partial decode of the failed
+		// full-parse attempt above, which is fragile and undefined for the toml path
 		res.Inventory = simple.Inventory
-		res.Tasks = []Task{{Commands: simple.Task}} // simple playbook has just a list of commands as the task
-		res.Tasks[0].Name = "default"               // we have only one task, set it as default
+		res.User = simple.User
+		res.SSHKey = simple.SSHKey
+		res.SSHShell = simple.SSHShell
+		res.SSHTempDir = simple.SSHTempDir
+		res.LocalShell = simple.LocalShell
+		// simple playbook is a single task; carry its options so they propagate to all commands
+		res.Tasks = []Task{{Commands: simple.Task, Options: simple.Options}}
+		res.Tasks[0].Name = "default" // we have only one task, set it as default
 
 		hasInventory := simple.Inventory != "" || (overrides != nil && overrides.Inventory != "") || os.Getenv(inventoryEnv) != ""
 

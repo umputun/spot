@@ -279,6 +279,27 @@ func TestCmd_getScriptCommand(t *testing.T) {
 	})
 }
 
+func TestCmd_scriptCommandComments(t *testing.T) {
+	tbl := []struct {
+		name   string
+		script string
+		expect string
+	}{
+		{"trailing comment stripped", "echo hi # a greeting", `/bin/sh -c 'echo hi'`},
+		{"param expansion preserved", "echo ${VAR#prefix}", `/bin/sh -c 'echo ${VAR#prefix}'`},
+		{"double-quoted hash kept in token", `git commit -m "fix #1"`, `/bin/sh -c 'git commit -m "fix #1"'`},
+		{"single-quoted hash kept in assembled string", `echo 'a # b'`, `/bin/sh -c 'echo 'a # b''`},
+		{"mid-token hash preserved", "printf a#b", `/bin/sh -c 'printf a#b'`},
+		{"multiline comment does not swallow next", "echo a # c\necho b", `/bin/sh -c 'echo a; echo b'`},
+	}
+	cmd := &Cmd{}
+	for _, tc := range tbl {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expect, cmd.scriptCommand(tc.script))
+		})
+	}
+}
+
 func TestCmd_getScriptCommandCustomShell(t *testing.T) {
 	c, err := New("testdata/f1.yml", &Overrides{SSHShell: "/bin/bash"}, nil)
 	require.NoError(t, err)
