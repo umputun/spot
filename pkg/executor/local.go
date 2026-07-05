@@ -67,7 +67,7 @@ func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, 
 }
 
 // Upload just copy file from one place to another
-func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (err error) {
+func (l *Local) Upload(ctx context.Context, src, dst string, opts *UpDownOpts) (err error) {
 
 	// check if the local parameter contains a glob pattern
 	matches, err := filepath.Glob(src)
@@ -88,12 +88,20 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 	}
 
 	if mkdir {
-		if err = os.MkdirAll(filepath.Dir(dst), 0o750); err != nil {
-			return fmt.Errorf("can't create local dir %s: %w", filepath.Dir(dst), err)
+		// with multiple matches dst is treated as a directory, so create it; otherwise create its parent
+		mkdirTarget := filepath.Dir(dst)
+		if len(matches) > 1 {
+			mkdirTarget = dst
+		}
+		if err = os.MkdirAll(mkdirTarget, 0o750); err != nil {
+			return fmt.Errorf("can't create local dir %s: %w", mkdirTarget, err)
 		}
 	}
 
 	for _, match := range matches {
+		if err := ctx.Err(); err != nil { // honor cancellation between files
+			return err
+		}
 		relPath, e := filepath.Rel(filepath.Dir(src), match)
 		if e != nil {
 			return fmt.Errorf("failed to build relative path for %s: %w", match, e)
@@ -139,8 +147,8 @@ func (l *Local) Upload(_ context.Context, src, dst string, opts *UpDownOpts) (er
 }
 
 // Download just copy file from one place to another
-func (l *Local) Download(_ context.Context, src, dst string, opts *UpDownOpts) (err error) {
-	return l.Upload(context.Background(), src, dst, opts) // same as upload for local
+func (l *Local) Download(ctx context.Context, src, dst string, opts *UpDownOpts) (err error) {
+	return l.Upload(ctx, src, dst, opts) // same as upload for local
 }
 
 // Sync directories from src to dst

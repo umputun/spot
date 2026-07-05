@@ -341,7 +341,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	mwr := io.MultiWriter(ex.logs.Out, &stdoutBuf)
 	session.Stdout, session.Stderr = mwr, ex.logs.Err
 
-	done := make(chan error)
+	done := make(chan error, 1) // buffered so the goroutine can finish and exit even if we return on ctx.Done
 	go func() {
 		done <- session.Run(command)
 	}()
@@ -376,17 +376,74 @@ type sftpReq struct {
 	client     *ssh.Client
 }
 
+// newSftpSession opens a per-call sftp client over its own ssh session and returns both. Closing the
+// returned ssh session tears down the channel from outside the sftp mutex, which aborts an in-flight
+// transfer even when a write is stalled with the mutex held; closing the sftp client would instead block
+// on that same mutex. The caller must close both (the sftp client first, then the session).
+// sftpCancelGrace bounds how long a canceled transfer waits for its copy goroutine to unblock after the
+// ssh session is closed. A responsive peer aborts in milliseconds; this grace bounds an app-level wedge
+// (a peer that stops draining the window and ignores the channel close) so it cannot hang the deploy, and
+// past it we return and leave cleanup to the connection teardown. A transport-level wedge (send buffer
+// full, peer host gone, no write deadline) can still block session.Close itself before the grace starts;
+// fully bounding that needs a net.Conn write deadline or ssh keepalive and is left to a follow-up.
+const sftpCancelGrace = 5 * time.Second
+
+func newSftpSession(client *ssh.Client, opts ...sftp.ClientOption) (*sftp.Client, *ssh.Session, error) {
+	session, err := client.NewSession()
+	if err != nil {
+		return nil, nil, err
+	}
+	wr, err := session.StdinPipe()
+	if err != nil {
+		_ = session.Close()
+		return nil, nil, err
+	}
+	rd, err := session.StdoutPipe()
+	if err != nil {
+		_ = session.Close()
+		return nil, nil, err
+	}
+	// drain stderr in the background. for a subsystem session RequestSubsystem never calls session.start,
+	// which is what wires up Session.Stderr, so setting that field does nothing; unread stderr would fill
+	// the channel's extended-data window and stall the transfer. mirror sftp.NewClient, which drains it.
+	perr, err := session.StderrPipe()
+	if err != nil {
+		_ = session.Close()
+		return nil, nil, err
+	}
+	go func() { _, _ = io.Copy(io.Discard, perr) }()
+
+	if err := session.RequestSubsystem("sftp"); err != nil {
+		_ = session.Close()
+		return nil, nil, err
+	}
+	sc, err := sftp.NewClientPipe(rd, wr, opts...)
+	if err != nil {
+		_ = session.Close()
+		return nil, nil, err
+	}
+	return sc, session, nil
+}
+
 func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	log.Printf("[DEBUG] upload %s to %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) {
 		log.Printf("[INFO] uploaded %s to %s:%s in %s", req.localFile, req.remoteHost, req.remoteFile, time.Since(st))
 	}(time.Now())
 
-	sftpClient, err := sftp.NewClient(req.client, sftp.UseConcurrentWrites(true))
+	sftpClient, session, err := newSftpSession(req.client, sftp.UseConcurrentWrites(true))
 	if err != nil {
 		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
-	defer sftpClient.Close()
+	// session.Close is ssh-level and always safe; the sftp client/file closes take the shared sftp
+	// mutex, so they are skipped when a wedged transfer leaves it held (see the ctx.Done branch below).
+	skipSftpClose := false
+	defer func() {
+		if !skipSftpClose {
+			_ = sftpClient.Close()
+		}
+		_ = session.Close()
+	}()
 
 	inpFh, err := os.Open(req.localFile)
 	if err != nil {
@@ -422,7 +479,11 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 	if err != nil {
 		return fmt.Errorf("failed to create remote file %q: %v", req.remoteFile, err)
 	}
-	defer remoteFh.Close()
+	defer func() {
+		if !skipSftpClose {
+			_ = remoteFh.Close()
+		}
+	}()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -432,6 +493,16 @@ func (ex *Remote) sftpUpload(ctx context.Context, req sftpReq) error {
 
 	select {
 	case <-ctx.Done():
+		// close the ssh session to abort the in-flight transfer from outside the sftp mutex, then wait
+		// for the copy goroutine so the deferred Close does not race the io.Copy. bound the wait so an
+		// app-level wedge cannot hang the deploy (see sftpCancelGrace): past the grace we skip the
+		// sftp-mutex closes and return (the goroutine is freed when the ssh client is closed).
+		_ = session.Close()
+		select {
+		case <-errCh:
+		case <-time.After(sftpCancelGrace):
+			skipSftpClose = true
+		}
 		return fmt.Errorf("failed to copy file %q: %v", req.remoteFile, ctx.Err())
 	case err = <-errCh:
 		if err != nil {
@@ -454,17 +525,29 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 	log.Printf("[INFO] download %s from %s:%s", req.localFile, req.remoteHost, req.remoteFile)
 	defer func(st time.Time) { log.Printf("[DEBUG] download done for %q in %s", req.localFile, time.Since(st)) }(time.Now())
 
-	sftpClient, err := sftp.NewClient(req.client)
+	sftpClient, session, err := newSftpSession(req.client)
 	if err != nil {
 		return fmt.Errorf("failed to create sftp client: %v", err)
 	}
-	defer sftpClient.Close()
+	// session.Close is ssh-level and always safe; the sftp client/file closes take the shared sftp
+	// mutex, so they are skipped when a wedged transfer leaves it held (see the ctx.Done branch below).
+	skipSftpClose := false
+	defer func() {
+		if !skipSftpClose {
+			_ = sftpClient.Close()
+		}
+		_ = session.Close()
+	}()
 
 	remoteFh, err := sftpClient.Open(req.remoteFile)
 	if err != nil {
 		return fmt.Errorf("failed to open remote file: %v", err)
 	}
-	defer remoteFh.Close() // nolint
+	defer func() {
+		if !skipSftpClose {
+			_ = remoteFh.Close()
+		}
+	}()
 
 	remoteFi, err := remoteFh.Stat()
 	if err != nil {
@@ -479,11 +562,8 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		}
 	}
 
-	// check if local file exists and should be skipped
-	fileExists := false
+	// if the local file exists and matches size+modtime, skip the download (force overrides)
 	if localFi, err := os.Stat(req.localFile); err == nil {
-		fileExists = true
-		// if the local file size and mod time are the same as the remote file, don't download. Force flag overrides this.
 		if !req.force && localFi.Size() == remoteFi.Size() && isWithinOneSecond(localFi.ModTime(), remoteFi.ModTime()) {
 			log.Printf("[INFO] local file %s is up-to-date, skipping download", req.localFile)
 			return nil
@@ -492,25 +572,46 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		return fmt.Errorf("failed to stat local file: %v", err)
 	}
 
-	// open local file for writing (create if doesn't exist, truncate if exists)
-	openFlags := os.O_WRONLY | os.O_CREATE
-	if fileExists {
-		openFlags |= os.O_TRUNC
-	}
-	localFh, err := os.OpenFile(req.localFile, openFlags, 0o600) // nolint:gosec // req.localFile comes from user config
+	// download into a temp file in the same directory and rename over the destination only after the copy
+	// succeeds, so a cancel or error mid-copy leaves any existing destination file intact
+	tmpFh, err := os.CreateTemp(filepath.Dir(req.localFile), "."+filepath.Base(req.localFile)+".spot-*")
 	if err != nil {
-		return fmt.Errorf("failed to open local file: %v", err)
+		return fmt.Errorf("failed to create temp file: %v", err)
 	}
-	defer localFh.Close() // nolint
+	tmpName := tmpFh.Name()
+	renamed := false
+	defer func() {
+		// skipSftpClose means the copy goroutine is wedged and still owns tmpFh, so don't close it here;
+		// unlinking the temp is safe regardless and leaves the destination untouched
+		if !skipSftpClose {
+			_ = tmpFh.Close()
+		}
+		if !renamed {
+			_ = os.Remove(tmpName)
+		}
+	}()
 
 	errCh := make(chan error, 1)
 	go func() {
-		_, e := io.Copy(localFh, remoteFh)
+		_, e := io.Copy(tmpFh, remoteFh)
 		errCh <- e
 	}()
 
 	select {
 	case <-ctx.Done():
+		// close the ssh session to abort the in-flight remote read from outside the sftp mutex, then wait
+		// for the copy goroutine so the deferred Close does not race the io.Copy. bound the wait so an
+		// app-level wedge cannot hang the deploy (see sftpCancelGrace): past the grace we skip the
+		// sftp-mutex closes and return (the goroutine is freed when the ssh client is closed).
+		_ = session.Close()
+		select {
+		case <-errCh:
+		case <-time.After(sftpCancelGrace):
+			skipSftpClose = true
+			// the copy goroutine is wedged and still owns tmpFh; close the fd once it finally unblocks
+			// (when the ssh client is closed) so it is not leaked until process exit
+			go func() { <-errCh; _ = tmpFh.Close() }()
+		}
 		return ctx.Err()
 	case err = <-errCh:
 		if err != nil {
@@ -518,14 +619,24 @@ func (ex *Remote) sftpDownload(ctx context.Context, req sftpReq) error {
 		}
 	}
 
-	if err = localFh.Sync(); err != nil {
+	if err = tmpFh.Sync(); err != nil {
 		return fmt.Errorf("failed to sync local file: %v", err)
 	}
+	if err = tmpFh.Close(); err != nil {
+		return fmt.Errorf("failed to close local file: %v", err)
+	}
 
-	// set local file's modtime to match remote file's modtime for proper comparison in future downloads
-	if err = os.Chtimes(req.localFile, remoteFi.ModTime(), remoteFi.ModTime()); err != nil {
+	// set the temp file's modtime to match the remote file, so the up-to-date check matches after the rename
+	if err = os.Chtimes(tmpName, remoteFi.ModTime(), remoteFi.ModTime()); err != nil {
 		return fmt.Errorf("failed to set modification time of local file %q: %v", req.localFile, err)
 	}
+
+	// same-dir rename replaces the destination atomically on unix (a best-effort replace elsewhere); either
+	// way the existing file is only touched here, after a fully successful download
+	if err = os.Rename(tmpName, req.localFile); err != nil {
+		return fmt.Errorf("failed to move downloaded file into place: %v", err)
+	}
+	renamed = true
 
 	return nil
 }

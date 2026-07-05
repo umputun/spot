@@ -68,7 +68,6 @@ type SyncInternal struct {
 	Dest    string   `yaml:"dst" toml:"dst"`         // destination must be a directory
 	Delete  bool     `yaml:"delete" toml:"delete"`   // delete files in destination that are not in source
 	Exclude []string `yaml:"exclude" toml:"exclude"` // exclude files matching these patterns
-	Force   bool     `yaml:"force" toml:"force"`     // force sync even if source and destination are the same
 }
 
 // DeleteInternal defines delete command, implemented internally

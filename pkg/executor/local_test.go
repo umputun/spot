@@ -866,6 +866,52 @@ func TestDeleteWithExclude(t *testing.T) {
 	}
 }
 
+func TestLocal_UploadMultiGlobMkdir(t *testing.T) {
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "a.txt"), []byte("a"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "b.txt"), []byte("b"), 0o644))
+
+	// dst directory does not exist yet; with multiple matches it must be created as a directory
+	dst := filepath.Join(t.TempDir(), "sub", "dest")
+	l := &Local{}
+	err := l.Upload(context.Background(), filepath.Join(srcDir, "*.txt"), dst, &UpDownOpts{Mkdir: true})
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(dst, "a.txt"))
+	assert.FileExists(t, filepath.Join(dst, "b.txt"))
+}
+
+func TestLocal_UploadCanceledContext(t *testing.T) {
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "a.txt"), []byte("a"), 0o644))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // already canceled
+
+	l := &Local{}
+	err := l.Upload(ctx, filepath.Join(srcDir, "*.txt"), t.TempDir(), &UpDownOpts{Mkdir: true})
+	require.ErrorIs(t, err, context.Canceled, "upload should honor a canceled context")
+}
+
+func TestLocal_UploadMultiFileCanceled(t *testing.T) {
+	srcDir := t.TempDir()
+	for _, n := range []string{"a.txt", "b.txt", "c.txt"} {
+		require.NoError(t, os.WriteFile(filepath.Join(srcDir, n), []byte(n), 0o644))
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // canceled before the per-file loop runs
+
+	dst := t.TempDir()
+	l := &Local{}
+	err := l.Upload(ctx, filepath.Join(srcDir, "*.txt"), dst, &UpDownOpts{Mkdir: true})
+	require.ErrorIs(t, err, context.Canceled, "multi-file upload should honor a canceled context")
+
+	entries, err := os.ReadDir(dst)
+	require.NoError(t, err)
+	assert.Empty(t, entries, "no files should be copied once the context is canceled")
+}
+
 func TestClose(t *testing.T) {
 	l := &Local{}
 	err := l.Close()
