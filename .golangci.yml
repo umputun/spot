@@ -55,9 +55,6 @@ linters:
           - staticcheck
         text: at least one file in a package should have a package comment
       - linters:
-          - golint
-        text: should have a package comment, unless it's in another file for this package
-      - linters:
           - gosec
         text: integer overflow conversion
       - linters:

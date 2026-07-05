@@ -6,11 +6,11 @@
   "type": "object",
   "anyOf": [
     {
-      "required": ["user", "task"],
+      "required": ["task"],
       "description": "Simplified playbook with single task"
     },
     {
-      "required": ["user", "tasks"],
+      "required": ["tasks"],
       "description": "Full playbook with multiple tasks"
     }
   ],
@@ -503,12 +503,12 @@
         },
         "timeout": {
           "type": "string",
-          "default": "30s",
+          "default": "24h",
           "description": "Maximum time to wait (e.g., '30s', '5m')"
         },
         "interval": {
           "type": "string",
-          "default": "1s",
+          "default": "5s",
           "description": "Time between checks (e.g., '1s', '5s')"
         }
       }

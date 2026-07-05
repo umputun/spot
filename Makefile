@@ -17,7 +17,7 @@ build:
 
 release:
 	@echo release to .bin
-	goreleaser --snapshot --skip-publish --clean
+	goreleaser --snapshot --skip=publish --clean
 	ls -l .bin
 
 test:

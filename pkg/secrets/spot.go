@@ -250,7 +250,7 @@ func (p *InternalProvider) decrypt(encodedData string) (string, error) {
 // and generates a derived key using the Argon2id key derivation function.
 // Argon2id is recommended for password hashing and provides a good balance between
 // security and performance. The function uses the following parameters:
-// - Time cost: 2 iterations, which increases the time required for key derivation.
+// - Time cost: 1 iteration, which increases the time required for key derivation.
 // - Memory cost: 64 MiB, which increases the memory required for key derivation.
 // - Parallelism: 4, which adjusts the number of threads used for key derivation.
 // - Key length: 32 bytes, which is the length of the derived key.
