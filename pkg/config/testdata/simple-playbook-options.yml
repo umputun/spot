@@ -1,0 +1,16 @@
+user: deploy
+ssh_key: /keys/id_rsa
+ssh_shell: /bin/bash
+ssh_temp: /var/tmp
+local_shell: /bin/zsh
+
+targets: ["127.0.0.1:2222"]
+
+options: {sudo: true, ignore_errors: true}
+
+task:
+  - name: one
+    script: echo hello
+
+  - name: two
+    script: echo world
