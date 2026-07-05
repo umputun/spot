@@ -1461,6 +1461,29 @@ func TestProcess_pickCmdExecutor(t *testing.T) {
 	})
 }
 
+func TestProcess_Run_CommandCountAcrossHosts(t *testing.T) {
+	// two local commands; the second only runs on host-b via only_on, so host-a runs 1 command and
+	// host-b runs 2. host-a is index 0, so the old host-0-only count would report 1 - the fix reports 2.
+	tsk := config.Task{Name: "t", Commands: []config.Cmd{
+		{Name: "c1", Script: "echo one", Options: config.CmdOptions{Local: true}},
+		{Name: "c2", Script: "echo two", Options: config.CmdOptions{Local: true, OnlyOn: []string{"host-b"}}},
+	}}
+	pbook := &mocks.PlaybookMock{
+		TaskFunc: func(string) (*config.Task, error) { return &tsk, nil },
+		TargetHostsFunc: func(string) ([]config.Destination, error) {
+			return []config.Destination{
+				{Host: "host-a", Name: "host-a", Port: 22},
+				{Host: "host-b", Name: "host-b", Port: 22},
+			}, nil
+		},
+	}
+	p := &Process{Concurrency: 1, Playbook: pbook, Logs: executor.MakeLogs(false, false, nil)}
+	res, err := p.Run(context.Background(), "t", "all")
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Hosts)
+	assert.Equal(t, 2, res.Commands, "should report the fuller host's command count, not host 0's")
+}
+
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	return startTestContainerWithCustomUser(t, "test")
 }

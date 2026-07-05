@@ -14,7 +14,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -102,22 +101,21 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
-	var commands int32
+	maxCommands := 0
 	lock := sync.Mutex{}
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
-	for i, host := range targetHosts {
+	for _, host := range targetHosts {
 		wg.Go(func() error {
 			user := host.User // default user from target
 			if tsk.User != "" {
 				user = tsk.User // override user from task if any set
 			}
 			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
-			if i == 0 {
-				atomic.AddInt32(&commands, int32(resp.count))
-			}
 
 			lock.Lock()
+			// report the fullest run across hosts, since a host may skip or fail some commands
+			maxCommands = max(maxCommands, resp.count)
 			if e != nil {
 				errLog := p.Logs.WithHost(host.Host, host.Name).Err
 				errLog.Write([]byte(e.Error())) // nolint
@@ -138,7 +136,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 	return ProcResp{
 		Hosts:      len(targetHosts),
-		Commands:   int(atomic.LoadInt32(&commands)),
+		Commands:   maxCommands,
 		Vars:       allVars,
 		Registered: allRegistered,
 	}, err

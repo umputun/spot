@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"testing"
@@ -32,6 +33,22 @@ func TestInternalProvider_EncryptionDecryption(t *testing.T) {
 		t.Logf("encrypted value: %s", er)
 		p.key = []byte("bad_key")
 		_, err = p.decrypt(er)
+		require.Error(t, err)
+	})
+
+	t.Run("short ciphertext returns error, not panic", func(t *testing.T) {
+		p := &InternalProvider{key: []byte("test_key")}
+		// valid base64 that decodes to fewer than 40 bytes (nonce+salt)
+		short := base64.StdEncoding.EncodeToString([]byte("too short"))
+		var err error
+		assert.NotPanics(t, func() { _, err = p.decrypt(short) })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid ciphertext")
+	})
+
+	t.Run("invalid base64 returns error", func(t *testing.T) {
+		p := &InternalProvider{key: []byte("test_key")}
+		_, err := p.decrypt("not-valid-base64!!!")
 		require.Error(t, err)
 	})
 }
