@@ -230,6 +230,9 @@ func (p *InternalProvider) decrypt(encodedData string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if len(sealed) < 40 { // 24-byte nonce + 16-byte salt, guard before slicing to avoid a panic
+		return "", errors.New("invalid ciphertext: too short")
+	}
 
 	nonce := new([24]byte)
 	copy(nonce[:], sealed[:24])
