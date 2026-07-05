@@ -295,6 +295,64 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 	require.EqualError(t, err, "failed to copy file \"/tmp/data1.txt\": context canceled")
 }
 
+func TestExecuter_TransferCancellation(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	t.Run("upload aborts mid-transfer, never hangs", func(t *testing.T) {
+		// large enough that the transfer is still in flight when we cancel shortly after starting
+		big := filepath.Join(t.TempDir(), "big.bin")
+		require.NoError(t, os.WriteFile(big, make([]byte, 16*1024*1024), 0o644))
+
+		upCtx, cancel := context.WithCancel(ctx)
+		time.AfterFunc(15*time.Millisecond, cancel)
+
+		done := make(chan error, 1)
+		go func() { done <- sess.Upload(upCtx, big, "/tmp/big.bin", &UpDownOpts{Mkdir: true}) }()
+
+		select {
+		case err := <-done:
+			t.Logf("upload returned after cancel: %v", err)
+		case <-time.After(30 * time.Second):
+			t.Fatal("upload did not return after cancellation - transfer was not aborted")
+		}
+	})
+
+	t.Run("canceled download preserves the existing file", func(t *testing.T) {
+		// a remote file large enough that the copy is still in flight when the (already canceled) select runs
+		_, e := sess.Run(ctx, "head -c 16777216 /dev/zero > /tmp/big.remote", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+
+		// an existing local file with known content that a canceled overwrite must not destroy
+		dst := filepath.Join(t.TempDir(), "dest.bin")
+		orig := []byte("original important content that must survive a canceled download")
+		require.NoError(t, os.WriteFile(dst, orig, 0o644))
+
+		dlCtx, cancel := context.WithCancel(ctx)
+		cancel() // canceled before the copy can complete
+
+		err := sess.Download(dlCtx, "/tmp/big.remote", dst, &UpDownOpts{Force: true})
+		require.Error(t, err, "canceled download should return an error")
+
+		got, rerr := os.ReadFile(dst)
+		require.NoError(t, rerr)
+		assert.Equal(t, orig, got, "canceled download must leave the existing file intact, not truncated")
+
+		entries, rerr := os.ReadDir(filepath.Dir(dst))
+		require.NoError(t, rerr)
+		for _, en := range entries {
+			assert.NotContains(t, en.Name(), ".spot-", "no temp download file should be left behind")
+		}
+	})
+}
+
 func TestUpload_UploadOverwriteWithAndWithoutForce(t *testing.T) {
 	ctx := context.Background()
 	hostAndPort, teardown := startTestContainer(t)

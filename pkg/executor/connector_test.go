@@ -5,8 +5,30 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConnector_String(t *testing.T) {
+	tests := []struct {
+		name       string
+		key        string
+		wantSubstr string
+	}{
+		{"agent-only empty key", "", "private key .., "},
+		{"short key", "abc", "private key abc.., "},
+		{"exactly eight", "12345678", "private key 12345678.., "},
+		{"long key path", "/home/user/.ssh/id_rsa", "private key /home/us.., "},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Connector{privateKey: tc.key, timeout: time.Second}
+			var got string
+			assert.NotPanics(t, func() { got = c.String() }, "String must not panic on short or empty keys")
+			assert.Contains(t, got, tc.wantSubstr, "String must show at most the first 8 key chars")
+		})
+	}
+}
 
 func TestConnector_Connect(t *testing.T) {
 	ctx := context.Background()

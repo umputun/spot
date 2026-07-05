@@ -461,11 +461,6 @@
             "type": "string"
           },
           "description": "Patterns to exclude from sync"
-        },
-        "force": {
-          "type": "boolean",
-          "default": false,
-          "description": "Force sync even if files are identical"
         }
       }
     },

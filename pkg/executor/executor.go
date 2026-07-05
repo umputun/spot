@@ -27,18 +27,15 @@ type RunOpts struct {
 
 // UpDownOpts is a struct for upload and download options.
 type UpDownOpts struct {
-	Mkdir    bool     // create remote directory if it does not exist
-	Checksum bool     // compare checksums of local and remote files, default is size and modtime
-	Force    bool     // overwrite existing files on remote
-	Exclude  []string // exclude files matching the given patterns
+	Mkdir   bool     // create remote directory if it does not exist
+	Force   bool     // overwrite existing files on remote
+	Exclude []string // exclude files matching the given patterns
 }
 
 // SyncOpts is a struct for sync options.
 type SyncOpts struct {
-	Delete   bool     // delete extra files on remote
-	Exclude  []string // exclude files matching the given patterns
-	Checksum bool     // compare checksums of local and remote files, default is size and modtime
-	Force    bool     // overwrite existing files on remote
+	Delete  bool     // delete extra files on remote
+	Exclude []string // exclude files matching the given patterns
 }
 
 // DeleteOpts is a struct for delete options.

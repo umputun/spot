@@ -376,7 +376,7 @@ func (ec *execCmd) Sync(ctx context.Context) (resp execCmdResp, err error) {
 	src := tmpl.apply(ec.cmd.Sync.Source)
 	dst := tmpl.apply(ec.cmd.Sync.Dest)
 	resp.details = fmt.Sprintf(" {sync: %s -> %s}", src, dst)
-	opts := &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude, Force: ec.cmd.Sync.Force}
+	opts := &executor.SyncOpts{Delete: ec.cmd.Sync.Delete, Exclude: ec.cmd.Sync.Exclude}
 	if _, err := ec.exec.Sync(ctx, src, dst, opts); err != nil {
 		return resp, ec.errorFmt("can't sync files on %s: %w", ec.hostAddr, err)
 	}
@@ -392,7 +392,7 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
 		ecSingle := ec
-		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete, Force: c.Force}
+		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete}
 		if _, err := ecSingle.Sync(ctx); err != nil {
 			return resp, ec.errorFmt("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
 		}
