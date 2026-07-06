@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -721,6 +722,14 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	}
 	if err = tmp.Close(); err != nil {
 		return resp, ec.errorFmt("can't close temp file for rendered template: %w", err)
+	}
+
+	// set mtime from content hash so unchanged renders produce the same (size, mtime, mode)
+	// tuple as the remote file, making upload idempotent under force: false
+	sum := sha256.Sum256(rendered.Bytes())
+	contentTime := time.Unix(int64(binary.BigEndian.Uint64(sum[:8])&(1<<63-1)), 0)
+	if err = os.Chtimes(tmpName, contentTime, contentTime); err != nil {
+		return resp, ec.errorFmt("can't set mtime on temp template file: %w", err)
 	}
 
 	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command
