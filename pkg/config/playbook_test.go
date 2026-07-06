@@ -673,7 +673,6 @@ hosts:
 	}))
 	defer ts.Close()
 
-	// create test cases
 	testCases := []struct {
 		name        string
 		loc         string
@@ -689,7 +688,6 @@ hosts:
 		{"file not found", "nonexistent-file.yaml", true},
 	}
 
-	// run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := &PlayBook{User: "testuser"}
@@ -855,7 +853,7 @@ func TestPlayBook_loadSecrets(t *testing.T) {
 		p := PlayBook{Tasks: []Task{{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"secret1"}}}}}}}
 		err := p.loadSecrets()
 		require.Error(t, err)
-		assert.Equal(t, "secrets are defined in playbook (1 secrets), but provider is not set", err.Error())
+		assert.Equal(t, "secrets are defined in playbook, but provider is not set", err.Error())
 	})
 
 	t.Run("provider retrieval failure", func(t *testing.T) {

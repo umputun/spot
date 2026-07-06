@@ -62,8 +62,8 @@ type SimplePlayBook struct {
 
 // Task defines multiple commands runs together
 type Task struct {
-	Import   string     `yaml:"import" toml:"import"`             // path to external task file to import
-	Name     string     `yaml:"name" toml:"name"`                 // name of task, mandatory
+	Import   string     `yaml:"import" toml:"import"` // path to external task file to import
+	Name     string     `yaml:"name" toml:"name"`     // name of task, mandatory
 	User     string     `yaml:"user" toml:"user"`
 	Commands []Cmd      `yaml:"commands" toml:"commands"`
 	OnError  string     `yaml:"on_error" toml:"on_error"`
@@ -284,7 +284,8 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	errs = multierror.Append(errs, err)
 
 	simple := &SimplePlayBook{}
-	if err := unmarshal(data, simple, false); err == nil && len(simple.Task) > 0 {
+	err = unmarshal(data, simple, false)
+	if err == nil && len(simple.Task) > 0 {
 		// success, this is SimplePlayBook config, convert it to full PlayBook config.
 		// copy the top-level fields explicitly instead of relying on the partial decode of the failed
 		// full-parse attempt above, which is fragile and undefined for the toml path
@@ -323,9 +324,8 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		}
 		res.Targets = map[string]Target{"default": target}
 		return nil
-	} else { // nolint
-		errs = multierror.Append(errs, err)
 	}
+	errs = multierror.Append(errs, err)
 
 	return errs.ErrorOrNil()
 }
@@ -736,29 +736,24 @@ func (p *PlayBook) checkConfig() error {
 
 // loadSecrets loads secrets from secrets provider and stores them in secrets map
 func (p *PlayBook) loadSecrets() error {
-	// check if secrets are defined in playbook
-	secretsCount := 0
-	for _, t := range p.Tasks {
-		for _, c := range t.Commands {
-			if c.Options.NoAuto {
-				continue // skip commands with noauto flag
+	if p.secretsProvider == nil {
+		for _, t := range p.Tasks {
+			for _, c := range t.Commands {
+				if c.Options.NoAuto {
+					continue
+				}
+				if len(c.Options.Secrets) > 0 {
+					return fmt.Errorf("secrets are defined in playbook, but provider is not set")
+				}
 			}
-			secretsCount += len(c.Options.Secrets)
 		}
-	}
-
-	if p.secretsProvider == nil && secretsCount == 0 {
 		return nil
-	}
-	if p.secretsProvider == nil && secretsCount > 0 {
-		return fmt.Errorf("secrets are defined in playbook (%d secrets), but provider is not set", secretsCount)
 	}
 
 	if p.secrets == nil {
 		p.secrets = make(map[string]string)
 	}
 
-	// collect Secrets from all command's, retrieve them from provider and store in the secrets map
 	for _, t := range p.Tasks {
 		for i, c := range t.Commands {
 			for _, key := range c.Options.Secrets {
@@ -766,11 +761,11 @@ func (p *PlayBook) loadSecrets() error {
 				if err != nil {
 					return fmt.Errorf("can't get secret %q defined in task %q, command %q: %w", key, t.Name, c.Name, err)
 				}
-				p.secrets[key] = val // store secret in the secrets map of playbook
+				p.secrets[key] = val
 				if c.Secrets == nil {
 					c.Secrets = make(map[string]string)
 				}
-				c.Secrets[key] = val // store secret in the secrets map of command
+				c.Secrets[key] = val
 			}
 			t.Commands[i] = c
 		}
