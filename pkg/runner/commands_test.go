@@ -1723,8 +1723,6 @@ func Test_execTemplate(t *testing.T) {
 			"task=task1",
 			"name=myhost",
 			"cmd=render basic",
-			"msg=",
-			"secret=",
 		}, out)
 	})
 
@@ -1736,7 +1734,7 @@ func Test_execTemplate(t *testing.T) {
 			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
 			cmd: config.Cmd{
 				Name:        "render with env",
-				Template:    config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+				Template:    config.TemplateInternal{Source: "testdata/template_env.tmpl", Dest: dst},
 				Environment: map[string]string{"GREETING": "hi-from-env"},
 				Secrets:     map[string]string{"MY_SECRET": "s3cret-value"},
 				Options:     config.CmdOptions{Secrets: []string{"MY_SECRET"}},
@@ -1771,8 +1769,8 @@ func Test_execTemplate(t *testing.T) {
 			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
 			cmd: config.Cmd{
 				Name:        "render sq",
-				Template:    config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
-				Environment: map[string]string{"GREETING": "__SQ__:hi-from-sq-env"},
+				Template:    config.TemplateInternal{Source: "testdata/template_env.tmpl", Dest: dst},
+				Environment: map[string]string{"GREETING": "__SQ__:hi-from-sq-env", "MY_SECRET": ""},
 			},
 			hostAddr: testingHostAndPort,
 			hostName: "myhost",
@@ -1928,6 +1926,25 @@ func Test_execTemplate(t *testing.T) {
 		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
 	})
 
+	t.Run("template undefined key fails", func(t *testing.T) {
+		badPath := filepath.Join(t.TempDir(), "undefined.tmpl")
+		require.NoError(t, os.WriteFile(badPath, []byte("hello {{.UNDEFINED_VAR}}"), 0o600))
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render undefined",
+				Template: config.TemplateInternal{Source: badPath, Dest: "/tmp/nope.txt"},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't execute template")
+		assert.Contains(t, err.Error(), "UNDEFINED_VAR")
+	})
+
 	t.Run("template with var substitution in dst path", func(t *testing.T) {
 		host, _, _ := net.SplitHostPort(testingHostAndPort)
 		base := "/tmp/spot_template_vardst_" + fmt.Sprintf("%d", time.Now().UnixNano())
@@ -1979,8 +1996,6 @@ func Test_execTemplate(t *testing.T) {
 			"task=task1",
 			"name=ipv6host",
 			"cmd=render ipv6",
-			"msg=",
-			"secret=",
 		}, out)
 	})
 
@@ -2009,5 +2024,24 @@ func Test_execTemplate(t *testing.T) {
 		out, err = sess.Run(ctx, "cat "+dst, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("template undefined key fails", func(t *testing.T) {
+		badPath := filepath.Join(t.TempDir(), "undefined.tmpl")
+		require.NoError(t, os.WriteFile(badPath, []byte("hello {{.UNDEFINED_VAR}}"), 0o600))
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render undefined",
+				Template: config.TemplateInternal{Source: badPath, Dest: "/tmp/nope.txt"},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't execute template")
+		assert.Contains(t, err.Error(), "UNDEFINED_VAR")
 	})
 }

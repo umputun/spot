@@ -681,7 +681,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	// parse and execute template
-	parsed, err := template.New(filepath.Base(src)).Option("missingkey=zero").Parse(string(data))
+	parsed, err := template.New(filepath.Base(src)).Option("missingkey=error").Parse(string(data))
 	if err != nil {
 		return resp, ec.errorFmt("can't parse template %q: %w", src, err)
 	}
