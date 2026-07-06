@@ -1763,6 +1763,29 @@ func Test_execTemplate(t *testing.T) {
 		}, out)
 	})
 
+	t.Run("template with single-quoted env var", func(t *testing.T) {
+		dst := "/tmp/spot_template_sq_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:        "render sq",
+				Template:    config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+				Environment: map[string]string{"GREETING": "__SQ__:hi-from-sq-env"},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "msg=hi-from-sq-env", out[6])
+	})
+
 	t.Run("template with mkdir, force, chmod+x", func(t *testing.T) {
 		testDir := "/tmp/spot_template_mkdir_" + fmt.Sprintf("%d", time.Now().UnixNano())
 		dst := testDir + "/script.sh"

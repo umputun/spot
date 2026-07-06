@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"maps"
 	"math"
 	mr "math/rand"
 	"net"
@@ -688,7 +687,13 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		"SPOT_COMMAND":     ec.cmd.Name,
 		"SPOT_TASK":        ec.tsk.Name,
 	}
-	maps.Copy(tplData, ec.cmd.Environment)
+	for k, v := range ec.cmd.Environment {
+		if strings.HasPrefix(v, "__SQ__:") {
+			tplData[k] = v[7:]
+		} else {
+			tplData[k] = v
+		}
+	}
 	for _, k := range ec.cmd.Options.Secrets {
 		if v, ok := ec.cmd.Secrets[k]; ok {
 			tplData[k] = v
