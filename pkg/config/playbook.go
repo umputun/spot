@@ -241,7 +241,7 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		}
 		// try to unmarshal yml first and then toml
 		switch {
-		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
+		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || filepath.Ext(fname) == "":
 			yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 			yamlDecoder.KnownFields(true) // strict mode, fail on unknown fields
 			if err = yamlDecoder.Decode(v); err != nil {

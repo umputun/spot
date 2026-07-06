@@ -1,6 +1,0 @@
-tasks:
-  - import: circular-a.yml
-  - name: task-from-b
-    commands:
-      - name: echo
-        script: echo "from b"

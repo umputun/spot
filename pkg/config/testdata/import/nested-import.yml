@@ -4,4 +4,4 @@ targets:
     groups: ["production"]
 
 tasks:
-  - import: circular-a.yml
+  - import: tasks/a.yml
