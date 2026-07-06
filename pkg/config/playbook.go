@@ -271,6 +271,9 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 
 	errs := new(multierror.Error)
 	if err = unmarshal(data, res, true); err == nil && len(res.Tasks) > 0 {
+		if err = checkUniqueTaskNames(res.Tasks); err != nil {
+			return fmt.Errorf("can't parse config %s: %w", fname, err)
+		}
 		tasks, err := resolveImports(res.Tasks, filepath.Dir(fname), nil)
 		if err != nil {
 			return err
@@ -381,6 +384,22 @@ func resolveImport(t Task, baseDir string, visited map[string]bool) ([]Task, err
 	return resolved, nil
 }
 
+// checkUniqueTaskNames validates that no two tasks in the list share the same name.
+// Empty names are skipped (checked elsewhere).
+func checkUniqueTaskNames(tasks []Task) error {
+	names := make(map[string]bool)
+	for _, t := range tasks {
+		if t.Name == "" {
+			continue
+		}
+		if names[t.Name] {
+			return fmt.Errorf("duplicate task name %q", t.Name)
+		}
+		names[t.Name] = true
+	}
+	return nil
+}
+
 // parseImportFile reads an import file and returns the list of tasks.
 // The file must contain a top-level "tasks" key with a list of task definitions.
 // Format is detected by file extension (YAML or TOML).
@@ -406,6 +425,10 @@ func parseImportFile(fname string, data []byte) ([]Task, error) {
 
 	if len(imp.Tasks) == 0 {
 		return nil, fmt.Errorf("import file %s has no tasks", fname)
+	}
+
+	if err := checkUniqueTaskNames(imp.Tasks); err != nil {
+		return nil, fmt.Errorf("import file %s: %w", fname, err)
 	}
 
 	return imp.Tasks, nil
@@ -676,22 +699,17 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 }
 
 // checkConfig validates the PlayBook configuration by ensuring that:
-// - all tasks have unique names and no empty names
+// - no empty task names
 // - all commands have a single type set
 // - the target set is not called "all"
 // Returns an error if any of these conditions are not met.
 func (p *PlayBook) checkConfig() error {
 
-	// check that all tasks have unique names in the playbook and no empty names
-	names := make(map[string]bool)
+	// check that all tasks have non-empty names
 	for _, t := range p.Tasks {
 		if t.Name == "" { // task name is required
 			return fmt.Errorf("task name is required")
 		}
-		if names[t.Name] { // task name must be unique
-			return fmt.Errorf("duplicate task name %q", t.Name)
-		}
-		names[t.Name] = true
 	}
 
 	// check what all commands have a single type set

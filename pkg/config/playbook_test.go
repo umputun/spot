@@ -787,16 +787,7 @@ func TestPlayBook_checkConfig(t *testing.T) {
 			},
 			expectedErr: "task name is required",
 		},
-		{
-			name: "duplicate task name",
-			playbook: PlayBook{
-				Tasks: []Task{
-					{Name: "task1"},
-					{Name: "task1"},
-				},
-			},
-			expectedErr: `duplicate task name "task1"`,
-		},
+
 		{
 			name: "invalid command",
 			playbook: PlayBook{
@@ -949,7 +940,7 @@ func TestPlaybook_Import_InvalidContent(t *testing.T) {
 	require.ErrorContains(t, err, "can't parse import file")
 }
 
-func TestPlaybook_Import_BadYAML(t *testing.T) {
+func TestPlaybook_BadYAML(t *testing.T) {
 	_, err := New("testdata/bad-format.yml", nil, nil)
 	require.ErrorContains(t, err, "can't unmarshal yaml playbook (full mode)")
 }
@@ -967,9 +958,19 @@ func TestPlaybook_Import_CrossFormat(t *testing.T) {
 	assert.Equal(t, "inline-after-toml", p.Tasks[1].Name)
 }
 
-func TestPlaybook_Import_SimpleFormatNotSupported(t *testing.T) {
+func TestPlaybook_Import_WithAdHocOverride(t *testing.T) {
 	_, err := New("testdata/import/main.yml", &Overrides{AdHocCommand: "echo test"}, nil)
 	require.NoError(t, err, "adhoc override should not affect import parsing")
+}
+
+func TestPlaybook_Import_Diamond(t *testing.T) {
+	p, err := New("testdata/import/diamond.yml", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, p.Tasks, 4)
+	assert.Equal(t, "common", p.Tasks[0].Name)
+	assert.Equal(t, "a-task", p.Tasks[1].Name)
+	assert.Equal(t, "common", p.Tasks[2].Name)
+	assert.Equal(t, "b-task", p.Tasks[3].Name)
 }
 
 func TestPlayBook_SSHTempDir(t *testing.T) {

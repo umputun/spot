@@ -1,0 +1,6 @@
+tasks:
+  - import: common.yml
+  - name: b-task
+    commands:
+      - name: b
+        script: echo b

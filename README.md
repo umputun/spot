@@ -362,7 +362,7 @@ tasks:
 - Recursive imports are supported with automatic cycle detection.
 - Imports can be mixed with inline task definitions.
 - Both YAML and TOML formats are supported for main and imported files.
-- Imported tasks are validated just like inline tasks (strict parsing, duplicate name checks).
+- Imported tasks are validated just like inline tasks (strict parsing).
 
 **Limitations:**
 
