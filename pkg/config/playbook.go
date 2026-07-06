@@ -274,9 +274,9 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		if err = checkUniqueTaskNames(res.Tasks); err != nil {
 			return fmt.Errorf("can't parse config %s: %w", fname, err)
 		}
-		tasks, err := resolveImports(res.Tasks, filepath.Dir(fname), nil)
+		tasks, err := resolveImports(res.Tasks, filepath.Dir(fname))
 		if err != nil {
-			return err
+			return fmt.Errorf("can't parse config %s: %w", fname, err)
 		}
 		res.Tasks = tasks
 		return nil
@@ -330,18 +330,17 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 	return errs.ErrorOrNil()
 }
 
-// resolveImports walks the task list and expands any import directives inline.
-// Imports are resolved recursively with cycle detection via the visited set.
+// resolveImports walks the task list and expands any top-level import directives inline.
+// Imported files must be flat task lists; nested imports are rejected.
 // Paths are resolved relative to the baseDir of the importing file.
-func resolveImports(tasks []Task, baseDir string, visited map[string]bool) ([]Task, error) {
-	if visited == nil {
-		visited = make(map[string]bool)
-	}
-
+func resolveImports(tasks []Task, baseDir string) ([]Task, error) {
 	var result []Task
 	for _, t := range tasks {
 		if t.Import != "" {
-			imported, err := resolveImport(t, baseDir, visited)
+			if err := checkImportEntry(t); err != nil {
+				return nil, err
+			}
+			imported, err := resolveImport(t, baseDir)
 			if err != nil {
 				return nil, err
 			}
@@ -353,13 +352,20 @@ func resolveImports(tasks []Task, baseDir string, visited map[string]bool) ([]Ta
 	return result, nil
 }
 
-// resolveImport resolves a single import directive.
-func resolveImport(t Task, baseDir string, visited map[string]bool) ([]Task, error) {
-	absPath := filepath.Join(baseDir, t.Import)
-
-	if visited[absPath] {
-		return nil, fmt.Errorf("circular import detected: %s", t.Import)
+// checkImportEntry verifies that a task entry with import does not carry other task fields.
+func checkImportEntry(t Task) error {
+	if t.Name != "" || t.User != "" || t.OnError != "" ||
+		len(t.Commands) > 0 || len(t.Targets) > 0 || len(t.Tags) > 0 ||
+		t.Options.IgnoreErrors || t.Options.NoAuto || t.Options.Local || t.Options.Sudo ||
+		t.Options.SudoPassword != "" || len(t.Options.Secrets) > 0 || len(t.Options.OnlyOn) > 0 {
+		return fmt.Errorf("import %q must not include other task fields", t.Import)
 	}
+	return nil
+}
+
+// resolveImport resolves a single import directive.
+func resolveImport(t Task, baseDir string) ([]Task, error) {
+	absPath := filepath.Join(baseDir, t.Import)
 
 	data, err := os.ReadFile(absPath) // nolint
 	if err != nil {
@@ -371,27 +377,27 @@ func resolveImport(t Task, baseDir string, visited map[string]bool) ([]Task, err
 		return nil, err
 	}
 
-	visited[absPath] = true
-	resolved, err := resolveImports(imported, filepath.Dir(absPath), visited)
-	delete(visited, absPath)
-	if err != nil {
-		return nil, err
+	for _, importedTask := range imported {
+		if importedTask.Import != "" {
+			return nil, fmt.Errorf("import file %s contains nested import directive", absPath)
+		}
 	}
 
-	return resolved, nil
+	return imported, nil
 }
 
-// checkUniqueTaskNames returns an error if any two tasks share the same name.
+// checkUniqueTaskNames returns an error if any two tasks share the same name (case-insensitive).
 func checkUniqueTaskNames(tasks []Task) error {
 	names := make(map[string]bool)
 	for _, t := range tasks {
 		if t.Name == "" {
 			continue
 		}
-		if names[t.Name] {
+		lower := strings.ToLower(t.Name)
+		if names[lower] {
 			return fmt.Errorf("duplicate task name %q", t.Name)
 		}
-		names[t.Name] = true
+		names[lower] = true
 	}
 	return nil
 }
@@ -405,7 +411,7 @@ func parseImportFile(fname string, data []byte) ([]Task, error) {
 	}
 
 	switch {
-	case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
+	case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || filepath.Ext(fname) == "":
 		yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 		yamlDecoder.KnownFields(true)
 		if err := yamlDecoder.Decode(&imp); err != nil {
@@ -695,17 +701,23 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 }
 
 // checkConfig validates the PlayBook configuration by ensuring that:
-// - no empty task names
+// - all tasks have unique names and no empty names
 // - all commands have a single type set
 // - the target set is not called "all"
 // Returns an error if any of these conditions are not met.
 func (p *PlayBook) checkConfig() error {
 
-	// check that all tasks have non-empty names
+	// check that all tasks have unique names in the playbook and no empty names
+	names := make(map[string]bool)
 	for _, t := range p.Tasks {
 		if t.Name == "" { // task name is required
 			return fmt.Errorf("task name is required")
 		}
+		lower := strings.ToLower(t.Name)
+		if names[lower] { // task name must be unique
+			return fmt.Errorf("duplicate task name %q", t.Name)
+		}
+		names[lower] = true
 	}
 
 	// check what all commands have a single type set
@@ -732,18 +744,22 @@ func (p *PlayBook) checkConfig() error {
 
 // loadSecrets loads secrets from secrets provider and stores them in secrets map
 func (p *PlayBook) loadSecrets() error {
-	if p.secretsProvider == nil {
-		for _, t := range p.Tasks {
-			for _, c := range t.Commands {
-				if c.Options.NoAuto {
-					continue
-				}
-				if len(c.Options.Secrets) > 0 {
-					return fmt.Errorf("secrets are defined in playbook, but provider is not set")
-				}
+	// check if secrets are defined in playbook
+	secretsCount := 0
+	for _, t := range p.Tasks {
+		for _, c := range t.Commands {
+			if c.Options.NoAuto {
+				continue // skip commands with noauto flag
 			}
+			secretsCount += len(c.Options.Secrets)
 		}
+	}
+
+	if p.secretsProvider == nil && secretsCount == 0 {
 		return nil
+	}
+	if p.secretsProvider == nil && secretsCount > 0 {
+		return fmt.Errorf("secrets are defined in playbook (%d secrets), but provider is not set", secretsCount)
 	}
 
 	if p.secrets == nil {

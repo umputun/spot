@@ -801,6 +801,26 @@ func TestPlayBook_checkConfig(t *testing.T) {
 			expectedErr: `task "task1" rejected, invalid command "c1": only one of [script, delete] is allowed`,
 		},
 		{
+			name: "duplicate task names",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{Name: "task1", Commands: []Cmd{{Script: "echo 1"}}},
+					{Name: "task1", Commands: []Cmd{{Script: "echo 2"}}},
+				},
+			},
+			expectedErr: `duplicate task name "task1"`,
+		},
+		{
+			name: "duplicate task names case-insensitive",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{Name: "Deploy", Commands: []Cmd{{Script: "echo 1"}}},
+					{Name: "deploy", Commands: []Cmd{{Script: "echo 2"}}},
+				},
+			},
+			expectedErr: `duplicate task name "deploy"`,
+		},
+		{
 			name: "no commands",
 			playbook: PlayBook{
 				Tasks: []Task{
@@ -853,7 +873,7 @@ func TestPlayBook_loadSecrets(t *testing.T) {
 		p := PlayBook{Tasks: []Task{{Commands: []Cmd{{Options: CmdOptions{Secrets: []string{"secret1"}}}}}}}
 		err := p.loadSecrets()
 		require.Error(t, err)
-		assert.Equal(t, "secrets are defined in playbook, but provider is not set", err.Error())
+		assert.Equal(t, "secrets are defined in playbook (1 secrets), but provider is not set", err.Error())
 	})
 
 	t.Run("provider retrieval failure", func(t *testing.T) {
@@ -917,9 +937,9 @@ func TestPlaybook_Import_Recursive(t *testing.T) {
 	assert.Equal(t, "final-check", p.Tasks[3].Name)
 }
 
-func TestPlaybook_Import_CircularDetection(t *testing.T) {
-	_, err := New("testdata/import/circular-main.yml", nil, nil)
-	require.ErrorContains(t, err, "circular import detected")
+func TestPlaybook_Import_NestedRejected(t *testing.T) {
+	_, err := New("testdata/import/nested-import.yml", nil, nil)
+	require.ErrorContains(t, err, "contains nested import directive")
 }
 
 func TestPlaybook_Import_MissingFile(t *testing.T) {
@@ -962,13 +982,8 @@ func TestPlaybook_Import_WithAdHocOverride(t *testing.T) {
 }
 
 func TestPlaybook_Import_Diamond(t *testing.T) {
-	p, err := New("testdata/import/diamond.yml", nil, nil)
-	require.NoError(t, err)
-	require.Len(t, p.Tasks, 4)
-	assert.Equal(t, "common", p.Tasks[0].Name)
-	assert.Equal(t, "a-task", p.Tasks[1].Name)
-	assert.Equal(t, "common", p.Tasks[2].Name)
-	assert.Equal(t, "b-task", p.Tasks[3].Name)
+	_, err := New("testdata/import/diamond.yml", nil, nil)
+	require.ErrorContains(t, err, "contains nested import directive")
 }
 
 func TestPlayBook_SSHTempDir(t *testing.T) {
