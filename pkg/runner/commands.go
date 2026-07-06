@@ -672,28 +672,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, ec.errorFmt("can't read template %q: %w", src, err)
 	}
 
-	// build template data: SPOT_* variables, environment and secrets
-	host, port, _ := net.SplitHostPort(ec.hostAddr)
-	if host == "" {
-		host = ec.hostAddr
-		port = "22"
-	}
-	tplData := map[string]string{
-		"SPOT_REMOTE_HOST": ec.hostAddr,
-		"SPOT_REMOTE_NAME": ec.hostName,
-		"SPOT_REMOTE_ADDR": host,
-		"SPOT_REMOTE_PORT": port,
-		"SPOT_REMOTE_USER": ec.tsk.User,
-		"SPOT_COMMAND":     ec.cmd.Name,
-		"SPOT_TASK":        ec.tsk.Name,
-	}
-	for k, v := range ec.cmd.Environment {
-		if strings.HasPrefix(v, "__SQ__:") {
-			tplData[k] = v[7:]
-		} else {
-			tplData[k] = v
-		}
-	}
+	tplData := tmpl.vars()
 	for _, k := range ec.cmd.Options.Secrets {
 		if v, ok := ec.cmd.Secrets[k]; ok {
 			tplData[k] = v
@@ -891,6 +870,41 @@ type templater struct {
 	err      error
 }
 
+// vars builds a map of all template variables: SPOT_* built-ins and environment variables.
+// environment values with the __SQ__: marker (single-quoted) have the prefix stripped.
+func (tm *templater) vars() map[string]string {
+	host, port, _ := net.SplitHostPort(tm.hostAddr)
+	if host == "" {
+		host = tm.hostAddr
+		port = "22"
+	}
+
+	vars := map[string]string{
+		"SPOT_REMOTE_HOST": tm.hostAddr,
+		"SPOT_REMOTE_NAME": tm.hostName,
+		"SPOT_REMOTE_ADDR": host,
+		"SPOT_REMOTE_PORT": port,
+		"SPOT_REMOTE_USER": tm.task.User,
+		"SPOT_COMMAND":     tm.command,
+		"SPOT_TASK":        tm.task.Name,
+	}
+	if tm.err != nil {
+		vars["SPOT_ERROR"] = tm.err.Error()
+	} else {
+		vars["SPOT_ERROR"] = ""
+	}
+
+	for k, v := range tm.env {
+		if strings.HasPrefix(v, "__SQ__:") {
+			vars[k] = v[7:]
+		} else {
+			vars[k] = v
+		}
+	}
+
+	return vars
+}
+
 // apply applies templates to a string to replace predefined vars placeholders with actual values
 // it also applies the task environment variables to strings
 func (tm *templater) apply(inp string) string {
@@ -912,36 +926,11 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	res := inp
-	res = apply(res, "SPOT_REMOTE_HOST", tm.hostAddr)
-	res = apply(res, "SPOT_REMOTE_NAME", tm.hostName)
-	res = apply(res, "SPOT_COMMAND", tm.command)
-	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
-	res = apply(res, "SPOT_TASK", tm.task.Name)
-
-	// split hostAddr to SPOT_REMOTE_ADDR and SPOT_REMOTE_PORT
-	host, port, err := net.SplitHostPort(tm.hostAddr)
-	if err == nil {
-		res = apply(res, "SPOT_REMOTE_ADDR", host)
-		res = apply(res, "SPOT_REMOTE_PORT", port)
-	} else {
-		res = apply(res, "SPOT_REMOTE_ADDR", tm.hostAddr)
-		res = apply(res, "SPOT_REMOTE_PORT", "22") // set to default ssh port
-	}
-
-	if tm.err != nil {
-		res = apply(res, "SPOT_ERROR", tm.err.Error())
-	} else {
-		res = apply(res, "SPOT_ERROR", "")
-	}
-
-	for k, v := range tm.env {
+	for k, v := range tm.vars() {
 		actualValue := v
-		// check if this value was originally single-quoted
-		if strings.HasPrefix(v, "__SQ__:") {
-			// remove the marker and escape dollar signs
-			actualValue = v[7:] // skip "__SQ__:"
-			// single quotes prevented expansion, so we need to escape $ to preserve literal values
-			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
+		// for env vars that were single-quoted, escape $ to prevent further expansion
+		if orig, ok := tm.env[k]; ok && strings.HasPrefix(orig, "__SQ__:") {
+			actualValue = strings.ReplaceAll(v, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
 	}

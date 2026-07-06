@@ -1786,6 +1786,28 @@ func Test_execTemplate(t *testing.T) {
 		assert.Equal(t, "msg=hi-from-sq-env", out[6])
 	})
 
+	t.Run("template exposes SPOT_ERROR", func(t *testing.T) {
+		dst := "/tmp/spot_template_error_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render error",
+				Template: config.TemplateInternal{Source: "testdata/template_error.tmpl", Dest: dst},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"error="}, out)
+	})
+
 	t.Run("template with mkdir, force, chmod+x", func(t *testing.T) {
 		testDir := "/tmp/spot_template_mkdir_" + fmt.Sprintf("%d", time.Now().UnixNano())
 		dst := testDir + "/script.sh"
