@@ -379,7 +379,7 @@ func resolveImport(t Task, baseDir string) ([]Task, error) {
 
 	for _, importedTask := range imported {
 		if importedTask.Import != "" {
-			return nil, fmt.Errorf("import file %s contains nested import directive", absPath)
+			return nil, fmt.Errorf("import file %s contains nested import of %q", absPath, importedTask.Import)
 		}
 	}
 
@@ -707,17 +707,13 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 // Returns an error if any of these conditions are not met.
 func (p *PlayBook) checkConfig() error {
 
-	// check that all tasks have unique names in the playbook and no empty names
-	names := make(map[string]bool)
 	for _, t := range p.Tasks {
-		if t.Name == "" { // task name is required
+		if t.Name == "" {
 			return fmt.Errorf("task name is required")
 		}
-		lower := strings.ToLower(t.Name)
-		if names[lower] { // task name must be unique
-			return fmt.Errorf("duplicate task name %q", t.Name)
-		}
-		names[lower] = true
+	}
+	if err := checkUniqueTaskNames(p.Tasks); err != nil {
+		return err
 	}
 
 	// check what all commands have a single type set

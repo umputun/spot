@@ -927,7 +927,7 @@ func TestPlaybook_Import_MixedWithInline(t *testing.T) {
 	assert.Equal(t, "restart", p.Tasks[3].Commands[1].Name)
 }
 
-func TestPlaybook_Import_Recursive(t *testing.T) {
+func TestPlaybook_Import_MultiFile(t *testing.T) {
 	p, err := New("testdata/import/recursive.yml", nil, nil)
 	require.NoError(t, err)
 	require.Len(t, p.Tasks, 4)
@@ -939,7 +939,7 @@ func TestPlaybook_Import_Recursive(t *testing.T) {
 
 func TestPlaybook_Import_NestedRejected(t *testing.T) {
 	_, err := New("testdata/import/nested-import.yml", nil, nil)
-	require.ErrorContains(t, err, "contains nested import directive")
+	require.ErrorContains(t, err, "contains nested import of")
 }
 
 func TestPlaybook_Import_MissingFile(t *testing.T) {
@@ -981,9 +981,9 @@ func TestPlaybook_Import_WithAdHocOverride(t *testing.T) {
 	require.NoError(t, err, "adhoc override should not affect import parsing")
 }
 
-func TestPlaybook_Import_Diamond(t *testing.T) {
+func TestPlaybook_Import_DiamondRejected(t *testing.T) {
 	_, err := New("testdata/import/diamond.yml", nil, nil)
-	require.ErrorContains(t, err, "contains nested import directive")
+	require.ErrorContains(t, err, "contains nested import of")
 }
 
 func TestPlayBook_SSHTempDir(t *testing.T) {
