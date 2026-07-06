@@ -354,10 +354,11 @@ func resolveImports(tasks []Task, baseDir string) ([]Task, error) {
 
 // checkImportEntry verifies that a task entry with import does not carry other task fields.
 func checkImportEntry(t Task) error {
-	if t.Name != "" || t.User != "" || t.OnError != "" ||
-		len(t.Commands) > 0 || len(t.Targets) > 0 || len(t.Tags) > 0 ||
-		t.Options.IgnoreErrors || t.Options.NoAuto || t.Options.Local || t.Options.Sudo ||
-		t.Options.SudoPassword != "" || len(t.Options.Secrets) > 0 || len(t.Options.OnlyOn) > 0 {
+	hasFields := t.Name != "" || t.User != "" || t.OnError != "" ||
+		len(t.Commands) > 0 || len(t.Targets) > 0 || len(t.Tags) > 0
+	hasOptions := t.Options.IgnoreErrors || t.Options.NoAuto || t.Options.Local || t.Options.Sudo ||
+		t.Options.SudoPassword != "" || len(t.Options.Secrets) > 0 || len(t.Options.OnlyOn) > 0
+	if hasFields || hasOptions {
 		return fmt.Errorf("import %q must not include other task fields", t.Import)
 	}
 	return nil
