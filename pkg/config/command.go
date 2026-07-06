@@ -183,7 +183,7 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	}
 
 	elems := strings.Split(inp, "\n")
-	var parts []string // nolint
+	var parts []string
 	for _, el := range elems {
 		c := strings.TrimSpace(el)
 		if len(c) < 2 {

@@ -80,16 +80,11 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		env:      ec.cmd.Environment,
 	}
 
-	// create a copy of the command with processed register variable names
-	cmdCopy := ec.cmd
 	processedRegister := make([]string, 0, len(ec.cmd.Register))
 	for _, regVar := range ec.cmd.Register {
 		processed := tmpl.apply(regVar)
 		processedRegister = append(processedRegister, processed)
 	}
-	cmdCopy.Register = processedRegister
-	ecCopy := *ec
-	ecCopy.cmd = cmdCopy
 
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
@@ -695,6 +690,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	if err != nil {
 		return resp, ec.errorFmt("can't create temp file for rendered template: %w", err)
 	}
+	defer tmp.Close()
 	tmpName := tmp.Name()
 	defer func() {
 		if rErr := os.Remove(tmpName); rErr != nil {
@@ -702,11 +698,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		}
 	}()
 	if _, err = tmp.Write(rendered.Bytes()); err != nil {
-		tmp.Close() // nolint:gosec // close best-effort before returning error
 		return resp, ec.errorFmt("can't write rendered template to temp file: %w", err)
-	}
-	if err = tmp.Close(); err != nil {
-		return resp, ec.errorFmt("can't close temp file for rendered template: %w", err)
 	}
 
 	// determine file mode for the rendered file. defaults to 0600 so secret-bearing
@@ -906,11 +898,10 @@ func (tm *templater) vars() map[string]string {
 		"SPOT_REMOTE_USER": tm.task.User,
 		"SPOT_COMMAND":     tm.command,
 		"SPOT_TASK":        tm.task.Name,
+		"SPOT_ERROR":       "",
 	}
 	if tm.err != nil {
 		vars["SPOT_ERROR"] = tm.err.Error()
-	} else {
-		vars["SPOT_ERROR"] = ""
 	}
 
 	for k, v := range tm.env {
