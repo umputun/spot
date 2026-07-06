@@ -428,7 +428,7 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template) â
 
 ```yaml
 - name: render nginx config
-  template: {src: "testdata/nginx.conf.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
+  template: {src: "templates/nginx.conf.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
 
 - name: render a script and make it executable
   template: {"src": "scripts/run.sh.tmpl", "dst": "/opt/app/run.sh", "mkdir": true, "chmod+x": true}
@@ -445,7 +445,7 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template) â
     secrets: [db_password]
 ```
 
-Example template file `testdata/nginx.conf.tmpl`:
+Example template file `templates/nginx.conf.tmpl`:
 
 ```
 worker_processes {{ .SPOT_REMOTE_PORT }};
@@ -460,7 +460,7 @@ server {
 }
 ```
 
-`template` supports the same `mkdir`, `force`, `chmod+x` and `sudo` semantics as the `copy` command, and respects the `cond` condition field like every other command.
+`template` supports the same `mkdir`, `force`, `chmod+x` and `sudo` semantics as the `copy` command, and supports the `cond` condition field.
 
 
 #### `sync`

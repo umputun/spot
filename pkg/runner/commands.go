@@ -719,8 +719,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	if err != nil {
 		return resp, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
 	}
-	fileMode := os.FileMode(modeVal)
-	if err = os.Chmod(tmpName, fileMode); err != nil {
+	if err = os.Chmod(tmpName, os.FileMode(modeVal)); err != nil {
 		return resp, ec.errorFmt("can't chmod temp template file to %s: %w", modeStr, err)
 	}
 
@@ -750,8 +749,9 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, err
 	}
 	resp = pushResp
-	// rewrite details prefix to reflect template command
+	// rewrite details prefix and source path to reflect template command
 	resp.details = strings.Replace(resp.details, " {copy:", " {template:", 1)
+	resp.details = strings.Replace(resp.details, tmpName, src, 1)
 	return resp, nil
 }
 

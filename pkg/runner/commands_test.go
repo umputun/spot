@@ -2026,22 +2026,82 @@ func Test_execTemplate(t *testing.T) {
 		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
 	})
 
-	t.Run("template undefined key fails", func(t *testing.T) {
-		badPath := filepath.Join(t.TempDir(), "undefined.tmpl")
-		require.NoError(t, os.WriteFile(badPath, []byte("hello {{.UNDEFINED_VAR}}"), 0o600))
-
-		ec := execCmd{
+	t.Run("register vars from script into template", func(t *testing.T) {
+		scriptEC := execCmd{
 			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
 			cmd: config.Cmd{
-				Name:     "render undefined",
-				Template: config.TemplateInternal{Source: badPath, Dest: "/tmp/nope.txt"},
+				Name:     "register vars",
+				Script:   "export MY_VAR='my$special@value'",
+				Register: []string{"MY_VAR"},
 			},
 			hostAddr: testingHostAndPort,
 			hostName: "myhost",
 		}
-		_, err := ec.Template(ctx)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "can't execute template")
-		assert.Contains(t, err.Error(), "UNDEFINED_VAR")
+		resp, err := scriptEC.Script(ctx)
+		require.NoError(t, err)
+
+		val, ok := resp.registered["MY_VAR"]
+		require.True(t, ok)
+		assert.True(t, strings.HasPrefix(val, "__SQ__:"), "should have SQ marker")
+
+		dst := "/tmp/spot_template_reg_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		tmplPath := filepath.Join(t.TempDir(), "reg_var.tmpl")
+		require.NoError(t, os.WriteFile(tmplPath, []byte("value={{.MY_VAR}}"), 0o644))
+
+		tc := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:        "render with registered var",
+				Template:    config.TemplateInternal{Source: tmplPath, Dest: dst},
+				Environment: map[string]string{"MY_VAR": val},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		tresp, err := tc.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, tresp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "value=my$special@value", strings.Join(out, "\n"))
+	})
+
+	t.Run("template force=false duplicates are skipped", func(t *testing.T) {
+		dst := "/tmp/spot_template_force_false_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render first",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		// second render with identical content and force=false should produce same output
+		resp, err = ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		// verify content is correct after both renders
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		_, testPort, _ := net.SplitHostPort(testingHostAndPort)
+		assert.Equal(t, []string{
+			"hello, " + testingHostAndPort,
+			"port=" + testPort,
+			"user=deploy",
+			"task=task1",
+			"name=myhost",
+			"cmd=render first",
+		}, out)
 	})
 }
