@@ -240,14 +240,14 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 			pbookType = "full"
 		}
 		// try to unmarshal yml first and then toml
-		switch {
-		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || filepath.Ext(fname) == "":
+		switch filepath.Ext(fname) {
+		case ".yml", ".yaml", "":
 			yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 			yamlDecoder.KnownFields(true) // strict mode, fail on unknown fields
 			if err = yamlDecoder.Decode(v); err != nil {
 				return fmt.Errorf("can't unmarshal yaml playbook (%s mode) %s: %w", pbookType, fname, err)
 			}
-		case strings.HasSuffix(fname, ".toml"):
+		case ".toml":
 			if err = toml.Unmarshal(data, v); err != nil {
 				return fmt.Errorf("can't unmarshal toml playbook %s: %w", fname, err)
 			}
@@ -411,14 +411,14 @@ func parseImportFile(fname string, data []byte) ([]Task, error) {
 		Tasks []Task `yaml:"tasks" toml:"tasks"`
 	}
 
-	switch {
-	case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || filepath.Ext(fname) == "":
+	switch filepath.Ext(fname) {
+	case ".yml", ".yaml", "":
 		yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 		yamlDecoder.KnownFields(true)
 		if err := yamlDecoder.Decode(&imp); err != nil {
 			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
 		}
-	case strings.HasSuffix(fname, ".toml"):
+	case ".toml":
 		if err := toml.Unmarshal(data, &imp); err != nil {
 			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
 		}
