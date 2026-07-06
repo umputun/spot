@@ -357,7 +357,7 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 			arrow = "<-"
 		}
 		msgs = append(msgs, fmt.Sprintf("%s %s %s", src, arrow, dst))
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
 			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude}
 		if _, err := ecSingle.Copy(ctx); err != nil {
@@ -389,7 +389,7 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete}
 		if _, err := ecSingle.Sync(ctx); err != nil {
 			return resp, ec.errorFmt("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
@@ -464,7 +464,7 @@ func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 
 	for _, c := range ec.cmd.MDelete {
 		loc := tmpl.apply(c.Location)
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive, Exclude: c.Exclude}
 		if _, err := ecSingle.Delete(ctx); err != nil {
 			return resp, ec.errorFmt("can't delete %s on %s: %w", loc, ec.hostAddr, err)
