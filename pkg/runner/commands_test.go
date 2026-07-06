@@ -7,7 +7,9 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -1675,5 +1677,358 @@ func TestProcessRegisterWithTemplateVars(t *testing.T) {
 
 		assert.Equal(t, "env-value", resp.vars["VAR_production"])
 		assert.Equal(t, "env-value", resp.registered["VAR_production"], "Should match processed register var with ENV substitution")
+	})
+}
+
+func Test_execTemplate(t *testing.T) {
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+	logs := executor.MakeLogs(false, false, nil)
+	ctx := context.Background()
+	connector, connErr := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, connErr)
+	sess, errSess := connector.Connect(ctx, testingHostAndPort, "my-hostAddr", "test")
+	require.NoError(t, errSess)
+
+	cleanup := func(path string) {
+		sess.Run(ctx, "rm -f "+path, nil)      // nolint
+		sess.Run(ctx, "sudo rm -f "+path, nil) // nolint
+	}
+
+	testHost, testPort, _ := net.SplitHostPort(testingHostAndPort)
+	makeEC := func(cmd config.Cmd) execCmd {
+		return execCmd{
+			exec:     sess,
+			tsk:      &config.Task{Name: "task1", User: "deploy"},
+			cmd:      cmd,
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+	}
+
+	t.Run("basic template render and upload", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_basic_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render basic",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+		assert.Contains(t, resp.details, dst)
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"hello, " + testingHostAndPort,
+			"port=" + testPort,
+			"user=deploy",
+			"task=task1",
+			"name=myhost",
+			"cmd=render basic",
+		}, out)
+	})
+
+	t.Run("template with environment and secrets", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_env_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:        "render with env",
+			Template:    config.TemplateInternal{Source: "testdata/template_env.tmpl", Dest: dst},
+			Environment: map[string]string{"GREETING": "hi-from-env"},
+			Secrets:     map[string]string{"MY_SECRET": "s3cret-value"},
+			Options:     config.CmdOptions{Secrets: []string{"MY_SECRET"}},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"hello, " + testingHostAndPort,
+			"port=" + testPort,
+			"user=deploy",
+			"task=task1",
+			"name=myhost",
+			"cmd=render with env",
+			"msg=hi-from-env",
+			"secret=s3cret-value",
+		}, out)
+	})
+
+	t.Run("template with single-quoted env var", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_sq_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:        "render sq",
+			Template:    config.TemplateInternal{Source: "testdata/template_env.tmpl", Dest: dst},
+			Environment: map[string]string{"GREETING": "__SQ__:hi-from-sq-env", "MY_SECRET": ""},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "msg=hi-from-sq-env", out[6])
+	})
+
+	t.Run("template exposes SPOT_ERROR", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_error_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render error",
+			Template: config.TemplateInternal{Source: "testdata/template_error.tmpl", Dest: dst},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"error="}, out)
+	})
+
+	t.Run("template with mkdir, force, chmod+x", func(t *testing.T) {
+		testDir := fmt.Sprintf("/tmp/spot_template_mkdir_%d", time.Now().UnixNano())
+		dst := testDir + "/script.sh"
+		defer sess.Run(ctx, "rm -rf "+testDir, nil) // nolint
+
+		ec := makeEC(config.Cmd{
+			Name:     "render script",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mkdir: true, Force: true, ChmodX: true},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "chmod: +x")
+
+		// verify file is executable
+		out, err := sess.Run(ctx, "ls -la "+dst, nil)
+		require.NoError(t, err)
+		assert.Regexp(t, "-rwx[r-][w-]x[r-][w-]x", out[0])
+	})
+
+	t.Run("template with sudo", func(t *testing.T) {
+		testDir := fmt.Sprintf("/srv/spot_template_sudo_%d", time.Now().UnixNano())
+		dst := testDir + "/conf.txt"
+		defer sess.Run(ctx, "sudo rm -rf "+testDir, nil) // nolint
+
+		ec := makeEC(config.Cmd{
+			Name:     "render with sudo",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mkdir: true},
+			Options:  config.CmdOptions{Sudo: true},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "sudo: true")
+
+		out, err := sess.Run(ctx, "sudo cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("template file not found", func(t *testing.T) {
+		ec := makeEC(config.Cmd{
+			Name:     "render missing",
+			Template: config.TemplateInternal{Source: "testdata/does_not_exist.tmpl", Dest: "/tmp/nope.txt"},
+		})
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't read template")
+	})
+
+	t.Run("template syntax error", func(t *testing.T) {
+		badPath := filepath.Join(t.TempDir(), "bad.tmpl")
+		require.NoError(t, os.WriteFile(badPath, []byte("hello {{ .X"), 0o600))
+
+		ec := makeEC(config.Cmd{
+			Name:     "render bad",
+			Template: config.TemplateInternal{Source: badPath, Dest: "/tmp/nope.txt"},
+		})
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't parse template")
+	})
+
+	t.Run("template condition skip", func(t *testing.T) {
+		ec := makeEC(config.Cmd{
+			Name:      "render with cond",
+			Template:  config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: "/tmp/should_not_exist.txt"},
+			Condition: "test -f /tmp/never_existing_condition_file",
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: render with cond}", resp.details)
+	})
+
+	t.Run("template condition passes", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_cond_pass_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:      "render with cond pass",
+			Template:  config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+			Condition: "test -d /tmp",
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("template undefined key fails", func(t *testing.T) {
+		badPath := filepath.Join(t.TempDir(), "undefined.tmpl")
+		require.NoError(t, os.WriteFile(badPath, []byte("hello {{.UNDEFINED_VAR}}"), 0o600))
+
+		ec := makeEC(config.Cmd{
+			Name:     "render undefined",
+			Template: config.TemplateInternal{Source: badPath, Dest: "/tmp/nope.txt"},
+		})
+		_, err := ec.Template(ctx)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "can't execute template")
+		assert.Contains(t, err.Error(), "UNDEFINED_VAR")
+	})
+
+	t.Run("template with var substitution in dst path", func(t *testing.T) {
+		base := fmt.Sprintf("/tmp/spot_template_vardst_%d", time.Now().UnixNano())
+		dst := base + "/{SPOT_REMOTE_ADDR}/config.txt"
+		expectedFile := base + "/" + testHost + "/config.txt"
+		defer sess.Run(ctx, "rm -rf "+base, nil) // nolint
+
+		ec := makeEC(config.Cmd{
+			Name:     "render dst vars",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mkdir: true},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+expectedFile, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("template with ipv6 host", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_ipv6_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render ipv6",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+			},
+			hostAddr: "[2001:db8::1]:2222",
+			hostName: "ipv6host",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"hello, [2001:db8::1]:2222",
+			"port=2222",
+			"user=deploy",
+			"task=task1",
+			"name=ipv6host",
+			"cmd=render ipv6",
+		}, out)
+	})
+
+	t.Run("template with mode", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_mode_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render mode",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mode: "0644"},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "644", out[0])
+
+		// verify content is correct
+		out, err = sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("register vars from script into template", func(t *testing.T) {
+		scriptEC := makeEC(config.Cmd{
+			Name:     "register vars",
+			Script:   "export MY_VAR='my$special@value'",
+			Register: []string{"MY_VAR"},
+		})
+		resp, err := scriptEC.Script(ctx)
+		require.NoError(t, err)
+
+		val, ok := resp.registered["MY_VAR"]
+		require.True(t, ok)
+		assert.True(t, strings.HasPrefix(val, "__SQ__:"), "should have SQ marker")
+
+		dst := fmt.Sprintf("/tmp/spot_template_reg_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		tmplPath := filepath.Join(t.TempDir(), "reg_var.tmpl")
+		require.NoError(t, os.WriteFile(tmplPath, []byte("value={{.MY_VAR}}"), 0o644))
+
+		tc := makeEC(config.Cmd{
+			Name:        "render with registered var",
+			Template:    config.TemplateInternal{Source: tmplPath, Dest: dst},
+			Environment: map[string]string{"MY_VAR": val},
+		})
+		tresp, err := tc.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, tresp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "value=my$special@value", strings.Join(out, "\n"))
+	})
+
+	t.Run("template force=false duplicates are skipped", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_force_false_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render first",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		// second render with identical content and force=false should produce same output
+		resp, err = ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		// verify content is correct after both renders
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"hello, " + testingHostAndPort,
+			"port=" + testPort,
+			"user=deploy",
+			"task=task1",
+			"name=myhost",
+			"cmd=render first",
+		}, out)
 	})
 }

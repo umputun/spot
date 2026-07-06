@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -14,7 +15,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/umputun/spot/pkg/config"
@@ -77,16 +80,11 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		env:      ec.cmd.Environment,
 	}
 
-	// create a copy of the command with processed register variable names
-	cmdCopy := ec.cmd
 	processedRegister := make([]string, 0, len(ec.cmd.Register))
 	for _, regVar := range ec.cmd.Register {
 		processed := tmpl.apply(regVar)
 		processedRegister = append(processedRegister, processed)
 	}
-	cmdCopy.Register = processedRegister
-	ecCopy := *ec
-	ecCopy.cmd = cmdCopy
 
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
@@ -359,7 +357,7 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 			arrow = "<-"
 		}
 		msgs = append(msgs, fmt.Sprintf("%s %s %s", src, arrow, dst))
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
 			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude}
 		if _, err := ecSingle.Copy(ctx); err != nil {
@@ -391,7 +389,7 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete}
 		if _, err := ecSingle.Sync(ctx); err != nil {
 			return resp, ec.errorFmt("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
@@ -466,7 +464,7 @@ func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 
 	for _, c := range ec.cmd.MDelete {
 		loc := tmpl.apply(c.Location)
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive, Exclude: c.Exclude}
 		if _, err := ecSingle.Delete(ctx); err != nil {
 			return resp, ec.errorFmt("can't delete %s on %s: %w", loc, ec.hostAddr, err)
@@ -646,6 +644,107 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	return resp, nil
 }
 
+// Template renders a local Go text/template file with the command environment and SPOT_* variables,
+// then uploads the result to a remote host. It supports mkdir, force and chmod+x options, and works
+// with sudo the same way as the copy command.
+func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
+	cond, err := ec.checkCondition(ctx)
+	if err != nil {
+		return resp, err
+	}
+	if !cond {
+		resp.details = fmt.Sprintf(" {skip: %s}", ec.cmd.Name)
+		return resp, nil
+	}
+
+	// resolve src/dst paths via spot's variable substitution
+	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
+	src := tmpl.apply(ec.cmd.Template.Source)
+	dst := tmpl.apply(ec.cmd.Template.Dest)
+
+	// read template file from local filesystem
+	data, err := os.ReadFile(src) // nolint:gosec // user-configured template path
+	if err != nil {
+		return resp, ec.errorFmt("can't read template %q: %w", src, err)
+	}
+
+	tplData := tmpl.vars()
+	for _, k := range ec.cmd.Options.Secrets {
+		if v, ok := ec.cmd.Secrets[k]; ok {
+			tplData[k] = v
+		}
+	}
+
+	// parse and execute template
+	parsed, err := template.New(filepath.Base(src)).Option("missingkey=error").Parse(string(data))
+	if err != nil {
+		return resp, ec.errorFmt("can't parse template %q: %w", src, err)
+	}
+	var rendered bytes.Buffer
+	if err = parsed.Execute(&rendered, tplData); err != nil {
+		return resp, ec.errorFmt("can't execute template %q: %w", src, err)
+	}
+
+	// write rendered output to a temp file for upload
+	tmp, err := os.CreateTemp("", "spot-template")
+	if err != nil {
+		return resp, ec.errorFmt("can't create temp file for rendered template: %w", err)
+	}
+	defer tmp.Close()
+	tmpName := tmp.Name()
+	defer func() {
+		if rErr := os.Remove(tmpName); rErr != nil {
+			log.Printf("[WARN] can't remove temp template file %s: %v", tmpName, rErr)
+		}
+	}()
+	if _, err = tmp.Write(rendered.Bytes()); err != nil {
+		return resp, ec.errorFmt("can't write rendered template to temp file: %w", err)
+	}
+
+	// determine file mode for the rendered file. defaults to 0600 so secret-bearing
+	// renders stay locked down; users can set 0644 for plain configs.
+	modeStr := ec.cmd.Template.Mode
+	if modeStr == "" {
+		modeStr = "0600"
+	}
+	modeVal, err := strconv.ParseUint(modeStr, 8, 32)
+	if err != nil {
+		return resp, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
+	}
+	if err = os.Chmod(tmpName, os.FileMode(modeVal)); err != nil {
+		return resp, ec.errorFmt("can't chmod temp template file to %s: %w", modeStr, err)
+	}
+
+	// set mtime from content hash so unchanged renders produce the same (size, mtime, mode)
+	// tuple as the remote file, making upload idempotent under force: false
+	sum := sha256.Sum256(rendered.Bytes())
+	contentTime := time.Unix(int64(binary.BigEndian.Uint64(sum[:8])&(1<<63-1)), 0)
+	if err = os.Chtimes(tmpName, contentTime, contentTime); err != nil {
+		return resp, ec.errorFmt("can't set mtime on temp template file: %w", err)
+	}
+
+	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command.
+	// if mode is explicitly set, the user controls exact permissions; chmod+x is only meaningful
+	// with the default 0600 mode.
+	chmodX := ec.cmd.Template.ChmodX && ec.cmd.Template.Mode == ""
+	ecCopy := *ec
+	ecCopy.cmd.Copy = config.CopyInternal{
+		Source:    tmpName,
+		Dest:      dst,
+		Direction: "push",
+		Mkdir:     ec.cmd.Template.Mkdir,
+		Force:     ec.cmd.Template.Force,
+		ChmodX:    chmodX,
+	}
+	pushResp, err := ecCopy.copyPush(ctx, tmpName, dst)
+	if err != nil {
+		return resp, err
+	}
+	resp.details = strings.Replace(pushResp.details, " {copy:", " {template:", 1)
+	resp.details = strings.Replace(resp.details, tmpName, src, 1)
+	return resp, nil
+}
+
 func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	if ec.cmd.Condition == "" {
 		return true, nil // no condition, always allow
@@ -780,6 +879,40 @@ type templater struct {
 	err      error
 }
 
+// vars builds a map of all template variables: SPOT_* built-ins and environment variables.
+// environment values with the __SQ__: marker (single-quoted) have the prefix stripped.
+func (tm *templater) vars() map[string]string {
+	host, port, _ := net.SplitHostPort(tm.hostAddr)
+	if host == "" {
+		host = tm.hostAddr
+		port = "22"
+	}
+
+	vars := map[string]string{
+		"SPOT_REMOTE_HOST": tm.hostAddr,
+		"SPOT_REMOTE_NAME": tm.hostName,
+		"SPOT_REMOTE_ADDR": host,
+		"SPOT_REMOTE_PORT": port,
+		"SPOT_REMOTE_USER": tm.task.User,
+		"SPOT_COMMAND":     tm.command,
+		"SPOT_TASK":        tm.task.Name,
+		"SPOT_ERROR":       "",
+	}
+	if tm.err != nil {
+		vars["SPOT_ERROR"] = tm.err.Error()
+	}
+
+	for k, v := range tm.env {
+		if strings.HasPrefix(v, "__SQ__:") {
+			vars[k] = v[7:]
+		} else {
+			vars[k] = v
+		}
+	}
+
+	return vars
+}
+
 // apply applies templates to a string to replace predefined vars placeholders with actual values
 // it also applies the task environment variables to strings
 func (tm *templater) apply(inp string) string {
@@ -801,36 +934,11 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	res := inp
-	res = apply(res, "SPOT_REMOTE_HOST", tm.hostAddr)
-	res = apply(res, "SPOT_REMOTE_NAME", tm.hostName)
-	res = apply(res, "SPOT_COMMAND", tm.command)
-	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
-	res = apply(res, "SPOT_TASK", tm.task.Name)
-
-	// split hostAddr to SPOT_REMOTE_ADDR and SPOT_REMOTE_PORT
-	host, port, err := net.SplitHostPort(tm.hostAddr)
-	if err == nil {
-		res = apply(res, "SPOT_REMOTE_ADDR", host)
-		res = apply(res, "SPOT_REMOTE_PORT", port)
-	} else {
-		res = apply(res, "SPOT_REMOTE_ADDR", tm.hostAddr)
-		res = apply(res, "SPOT_REMOTE_PORT", "22") // set to default ssh port
-	}
-
-	if tm.err != nil {
-		res = apply(res, "SPOT_ERROR", tm.err.Error())
-	} else {
-		res = apply(res, "SPOT_ERROR", "")
-	}
-
-	for k, v := range tm.env {
+	for k, v := range tm.vars() {
 		actualValue := v
-		// check if this value was originally single-quoted
-		if strings.HasPrefix(v, "__SQ__:") {
-			// remove the marker and escape dollar signs
-			actualValue = v[7:] // skip "__SQ__:"
-			// single quotes prevented expansion, so we need to escape $ to preserve literal values
-			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
+		// for env vars that were single-quoted, escape $ to prevent further expansion
+		if orig, ok := tm.env[k]; ok && strings.HasPrefix(orig, "__SQ__:") {
+			actualValue = strings.ReplaceAll(v, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
 	}

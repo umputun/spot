@@ -290,6 +290,10 @@
           "$ref": "#/definitions/lineSpec",
           "description": "File line manipulation"
         },
+        "template": {
+          "$ref": "#/definitions/templateSpec",
+          "description": "Template rendering: render a local Go text/template file and upload it to a remote host"
+        },
         "env": {
           "type": "object",
           "additionalProperties": {
@@ -347,6 +351,9 @@
         },
         {
           "required": ["line"]
+        },
+        {
+          "required": ["template"]
         }
       ]
     },
@@ -551,6 +558,40 @@
           "required": ["append"]
         }
       ]
+    },
+    "templateSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["src", "dst"],
+      "properties": {
+        "src": {
+          "type": "string",
+          "description": "Local template file path (Go text/template format)"
+        },
+        "dst": {
+          "type": "string",
+          "description": "Remote destination file path"
+        },
+        "mkdir": {
+          "type": "boolean",
+          "default": false,
+          "description": "Create destination directory if it doesn't exist"
+        },
+        "force": {
+          "type": "boolean",
+          "default": false,
+          "description": "Force copy even if destination file is identical"
+        },
+        "chmod+x": {
+          "type": "boolean",
+          "default": false,
+          "description": "Make destination file executable after upload"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Destination file mode in octal (default: \"0600\")"
+        }
+      }
     }
   }
 }
