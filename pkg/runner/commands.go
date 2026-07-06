@@ -740,9 +740,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	if err != nil {
 		return resp, err
 	}
-	resp = pushResp
-	// rewrite details prefix and source path to reflect template command
-	resp.details = strings.Replace(resp.details, " {copy:", " {template:", 1)
+	resp.details = strings.Replace(pushResp.details, " {copy:", " {template:", 1)
 	resp.details = strings.Replace(resp.details, tmpName, src, 1)
 	return resp, nil
 }

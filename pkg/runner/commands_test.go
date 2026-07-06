@@ -1696,7 +1696,7 @@ func Test_execTemplate(t *testing.T) {
 	}
 
 	t.Run("basic template render and upload", func(t *testing.T) {
-		dst := "/tmp/spot_template_basic_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_basic_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -1727,7 +1727,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template with environment and secrets", func(t *testing.T) {
-		dst := "/tmp/spot_template_env_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_env_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -1762,7 +1762,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template with single-quoted env var", func(t *testing.T) {
-		dst := "/tmp/spot_template_sq_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_sq_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -1785,7 +1785,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template exposes SPOT_ERROR", func(t *testing.T) {
-		dst := "/tmp/spot_template_error_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_error_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -1807,7 +1807,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template with mkdir, force, chmod+x", func(t *testing.T) {
-		testDir := "/tmp/spot_template_mkdir_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		testDir := fmt.Sprintf("/tmp/spot_template_mkdir_%d", time.Now().UnixNano())
 		dst := testDir + "/script.sh"
 		defer sess.Run(ctx, "rm -rf "+testDir, nil) // nolint
 
@@ -1831,7 +1831,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template with sudo", func(t *testing.T) {
-		testDir := "/srv/spot_template_sudo_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		testDir := fmt.Sprintf("/srv/spot_template_sudo_%d", time.Now().UnixNano())
 		dst := testDir + "/conf.txt"
 		defer sess.Run(ctx, "sudo rm -rf "+testDir, nil) // nolint
 
@@ -1904,7 +1904,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template condition passes", func(t *testing.T) {
-		dst := "/tmp/spot_template_cond_pass_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_cond_pass_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -1947,7 +1947,7 @@ func Test_execTemplate(t *testing.T) {
 
 	t.Run("template with var substitution in dst path", func(t *testing.T) {
 		host, _, _ := net.SplitHostPort(testingHostAndPort)
-		base := "/tmp/spot_template_vardst_" + fmt.Sprintf("%d", time.Now().UnixNano())
+		base := fmt.Sprintf("/tmp/spot_template_vardst_%d", time.Now().UnixNano())
 		dst := base + "/{SPOT_REMOTE_ADDR}/config.txt"
 		expectedFile := base + "/" + host + "/config.txt"
 		defer sess.Run(ctx, "rm -rf "+base, nil) // nolint
@@ -1971,7 +1971,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template with ipv6 host", func(t *testing.T) {
-		dst := "/tmp/spot_template_ipv6_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_ipv6_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -2000,7 +2000,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template with mode", func(t *testing.T) {
-		dst := "/tmp/spot_template_mode_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_mode_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
@@ -2044,7 +2044,7 @@ func Test_execTemplate(t *testing.T) {
 		require.True(t, ok)
 		assert.True(t, strings.HasPrefix(val, "__SQ__:"), "should have SQ marker")
 
-		dst := "/tmp/spot_template_reg_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_reg_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		tmplPath := filepath.Join(t.TempDir(), "reg_var.tmpl")
@@ -2070,7 +2070,7 @@ func Test_execTemplate(t *testing.T) {
 	})
 
 	t.Run("template force=false duplicates are skipped", func(t *testing.T) {
-		dst := "/tmp/spot_template_force_false_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		dst := fmt.Sprintf("/tmp/spot_template_force_false_%d.txt", time.Now().UnixNano())
 		defer cleanup(dst)
 
 		ec := execCmd{
