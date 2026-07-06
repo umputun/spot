@@ -159,8 +159,20 @@
       "type": "object",
       "additionalProperties": false,
       "oneOf": [
-        {"required": ["import"]},
-        {"required": ["name", "commands"]}
+        {
+          "required": ["import"],
+          "properties": {
+            "import": {
+              "type": "string",
+              "description": "Path to external task file to import"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "required": ["name", "commands"],
+          "not": {"required": ["import"]}
+        }
       ],
       "properties": {
         "import": {
@@ -203,6 +215,7 @@
         },
         "options": {
           "$ref": "#/definitions/options",
+          "default": {},
           "description": "Default options for all commands in this task"
         }
       }

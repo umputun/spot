@@ -359,7 +359,6 @@ tasks:
 
 - Import files use the same `tasks:` structure as playbooks.
 - Paths are resolved relative to the importing file's directory.
-- Recursive imports are supported with automatic cycle detection.
 - Imports can be mixed with inline task definitions.
 - Both YAML and TOML formats are supported for main and imported files.
 - Imported tasks are validated just like inline tasks (strict parsing, duplicate name checks).
@@ -367,6 +366,9 @@ tasks:
 **Limitations:**
 
 - Import directives are only supported in the full playbook format, not the simplified format.
+- Imported files must be flat task lists; nested imports are rejected.
+- Empty import files (`tasks: []`) produce a hard error.
+- An import entry must not carry other task fields (e.g. `targets`, `tags`, `options`).
 
 ## Tasks and Commands
 
