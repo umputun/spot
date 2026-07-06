@@ -341,11 +341,11 @@ func resolveImports(tasks []Task, baseDir string, visited map[string]bool) ([]Ta
 	var result []Task
 	for _, t := range tasks {
 		if t.Import != "" {
-			tasks, err := resolveImport(t, baseDir, visited)
+			imported, err := resolveImport(t, baseDir, visited)
 			if err != nil {
 				return nil, err
 			}
-			result = append(result, tasks...)
+			result = append(result, imported...)
 		} else {
 			result = append(result, t)
 		}
@@ -355,10 +355,7 @@ func resolveImports(tasks []Task, baseDir string, visited map[string]bool) ([]Ta
 
 // resolveImport resolves a single import directive.
 func resolveImport(t Task, baseDir string, visited map[string]bool) ([]Task, error) {
-	absPath := t.Import
-	if !filepath.IsAbs(absPath) {
-		absPath = filepath.Join(baseDir, absPath)
-	}
+	absPath := filepath.Join(baseDir, t.Import)
 
 	if visited[absPath] {
 		return nil, fmt.Errorf("circular import detected: %s", t.Import)
@@ -384,8 +381,7 @@ func resolveImport(t Task, baseDir string, visited map[string]bool) ([]Task, err
 	return resolved, nil
 }
 
-// checkUniqueTaskNames validates that no two tasks in the list share the same name.
-// Empty names are skipped (checked elsewhere).
+// checkUniqueTaskNames returns an error if any two tasks share the same name.
 func checkUniqueTaskNames(tasks []Task) error {
 	names := make(map[string]bool)
 	for _, t := range tasks {
