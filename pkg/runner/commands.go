@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -708,6 +709,21 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, ec.errorFmt("can't close temp file for rendered template: %w", err)
 	}
 
+	// determine file mode for the rendered file. defaults to 0600 so secret-bearing
+	// renders stay locked down; users can set 0644 for plain configs.
+	modeStr := ec.cmd.Template.Mode
+	if modeStr == "" {
+		modeStr = "0600"
+	}
+	modeVal, err := strconv.ParseUint(modeStr, 8, 32)
+	if err != nil {
+		return resp, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
+	}
+	fileMode := os.FileMode(modeVal)
+	if err = os.Chmod(tmpName, fileMode); err != nil {
+		return resp, ec.errorFmt("can't chmod temp template file to %s: %w", modeStr, err)
+	}
+
 	// set mtime from content hash so unchanged renders produce the same (size, mtime, mode)
 	// tuple as the remote file, making upload idempotent under force: false
 	sum := sha256.Sum256(rendered.Bytes())
@@ -716,7 +732,10 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, ec.errorFmt("can't set mtime on temp template file: %w", err)
 	}
 
-	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command
+	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command.
+	// if mode is explicitly set, the user controls exact permissions; chmod+x is only meaningful
+	// with the default 0600 mode.
+	chmodX := ec.cmd.Template.ChmodX && ec.cmd.Template.Mode == ""
 	ecCopy := *ec
 	ecCopy.cmd.Copy = config.CopyInternal{
 		Source:    tmpName,
@@ -724,7 +743,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		Direction: "push",
 		Mkdir:     ec.cmd.Template.Mkdir,
 		Force:     ec.cmd.Template.Force,
-		ChmodX:    ec.cmd.Template.ChmodX,
+		ChmodX:    chmodX,
 	}
 	pushResp, err := ecCopy.copyPush(ctx, tmpName, dst)
 	if err != nil {

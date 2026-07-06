@@ -586,6 +586,10 @@
           "type": "boolean",
           "default": false,
           "description": "Make destination file executable after upload"
+        },
+        "mode": {
+          "type": "string",
+          "description": "Destination file mode in octal (default: \"0600\")"
         }
       }
     }

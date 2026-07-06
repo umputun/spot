@@ -415,6 +415,7 @@ Parameters:
 | `mkdir` | create destination directory if it does not exist |
 | `force` | upload even if destination already has the same content |
 | `chmod+x` | make the destination file executable after upload |
+| `mode` | destination file mode in octal (default `0600`) |
 
 Available template variables:
 

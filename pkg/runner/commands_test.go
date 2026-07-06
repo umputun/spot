@@ -1983,4 +1983,31 @@ func Test_execTemplate(t *testing.T) {
 			"secret=",
 		}, out)
 	})
+
+	t.Run("template with mode", func(t *testing.T) {
+		dst := "/tmp/spot_template_mode_" + fmt.Sprintf("%d", time.Now().UnixNano()) + ".txt"
+		defer cleanup(dst)
+
+		ec := execCmd{
+			exec: sess, tsk: &config.Task{Name: "task1", User: "deploy"},
+			cmd: config.Cmd{
+				Name:     "render mode",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mode: "0644"},
+			},
+			hostAddr: testingHostAndPort,
+			hostName: "myhost",
+		}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "644", out[0])
+
+		// verify content is correct
+		out, err = sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
 }

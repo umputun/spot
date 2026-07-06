@@ -706,6 +706,20 @@ template:
 				Template: TemplateInternal{Source: "testdata/script.tmpl", Dest: "/opt/app/run.sh", Mkdir: true, Force: true, ChmodX: true},
 			},
 		},
+		{
+			name: "template with mode",
+			yamlInput: `
+name: render config
+template:
+  src: "testdata/config.tmpl"
+  dst: "/etc/app.conf"
+  mode: "0644"
+`,
+			expectedCmd: Cmd{
+				Name:     "render config",
+				Template: TemplateInternal{Source: "testdata/config.tmpl", Dest: "/etc/app.conf", Mode: "0644"},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

@@ -101,6 +101,7 @@ type TemplateInternal struct {
 	Mkdir  bool   `yaml:"mkdir" toml:"mkdir"`     // create destination directory if it does not exist
 	Force  bool   `yaml:"force" toml:"force"`     // force copy even if destination exists
 	ChmodX bool   `yaml:"chmod+x" toml:"chmod+x"` // chmod +x on destination file
+	Mode   string `yaml:"mode" toml:"mode"`       // octal permission mode, e.g. "0644"; default "0600"
 }
 
 // GetScript returns a script string and an io.Reader based on the command being single line or multiline.
