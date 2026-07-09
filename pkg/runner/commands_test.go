@@ -455,6 +455,13 @@ func Test_execCmd(t *testing.T) {
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
+	t.Run("wait multiline failed", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
+			Command: "echo this is wait\ncat /tmp/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100}}}
+		_, err := ec.Wait(ctx)
+		require.EqualError(t, err, "timeout exceeded")
+	})
+
 	t.Run("wait failed with sudo", func(t *testing.T) {
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
 			Command: "cat /srv/wait.never-done", Timeout: 1 * time.Second, CheckDuration: time.Millisecond * 100},
@@ -504,6 +511,78 @@ func Test_execCmd(t *testing.T) {
 
 		_, err = sess.Run(ctx, "ls /tmp/delete-recursive", &executor.RunOpts{Verbose: true})
 		require.Error(t, err, "should not exist")
+	})
+
+	t.Run("delete files recursive with exclude", func(t *testing.T) {
+		var err error
+		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-exclude/keep", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "touch /tmp/delete-exclude/delete1.me /tmp/delete-exclude/keep/keep.me", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
+			Location: "/tmp/delete-exclude", Recursive: true, Exclude: []string{"keep/keep.me"}}}}
+
+		_, err = ec.Delete(ctx)
+		require.NoError(t, err)
+
+		_, err = sess.Run(ctx, "ls /tmp/delete-exclude/delete1.me", &executor.RunOpts{Verbose: true})
+		require.Error(t, err, "should be deleted")
+		_, err = sess.Run(ctx, "ls /tmp/delete-exclude/keep/keep.me", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err, "excluded file should survive")
+	})
+
+	t.Run("delete with exclude and sudo rejected", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
+			Location: "/srv/delete-exclude", Recursive: true, Exclude: []string{"keep.me"}},
+			Options: config.CmdOptions{Sudo: true}}}
+		_, err := ec.Delete(ctx)
+		require.ErrorContains(t, err, "not supported with sudo")
+		require.ErrorContains(t, err, "/srv/delete-exclude", "error should name the offending location")
+	})
+
+	t.Run("delete with exclude without recur rejected", func(t *testing.T) {
+		_, err := sess.Run(ctx, "mkdir -p /tmp/delete-norecur", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "touch /tmp/delete-norecur/keep.me", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
+			Location: "/tmp/delete-norecur", Exclude: []string{"keep.me"}}}}
+		_, err = ec.Delete(ctx)
+		require.ErrorContains(t, err, "requires recursive")
+		require.ErrorContains(t, err, "/tmp/delete-norecur", "error should name the offending location")
+		_, err = sess.Run(ctx, "ls /tmp/delete-norecur/keep.me", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err, "nothing should be deleted when validation fails")
+	})
+
+	t.Run("delete files recursive with non-matching nested exclude", func(t *testing.T) {
+		var err error
+		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-exclude2/logs/archive", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+		_, err = sess.Run(ctx, "touch /tmp/delete-exclude2/logs/archive/drop.log", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
+			Location: "/tmp/delete-exclude2", Recursive: true, Exclude: []string{"logs/archive/keep.log"}}}}
+
+		_, err = ec.Delete(ctx)
+		require.NoError(t, err)
+
+		_, err = sess.Run(ctx, "ls /tmp/delete-exclude2", &executor.RunOpts{Verbose: true})
+		require.Error(t, err, "directory should be fully removed when exclusion matches nothing")
+	})
+
+	t.Run("mdelete with exclude and sudo rejected before deleting", func(t *testing.T) {
+		_, err := sess.Run(ctx, "touch /tmp/mdelete-first.me", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MDelete: []config.DeleteInternal{
+			{Location: "/tmp/mdelete-first.me"}, {Location: "/tmp/whatever", Recursive: true, Exclude: []string{"keep.me"}}},
+			Options: config.CmdOptions{Sudo: true}}}
+		_, err = ec.MDelete(ctx)
+		require.ErrorContains(t, err, "not supported with sudo")
+		require.ErrorContains(t, err, "/tmp/whatever", "error should name the offending location")
+		_, err = sess.Run(ctx, "ls /tmp/mdelete-first.me", &executor.RunOpts{Verbose: true})
+		require.NoError(t, err, "first location should not be deleted")
 	})
 
 	t.Run("delete file with sudo", func(t *testing.T) {

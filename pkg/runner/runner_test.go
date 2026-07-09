@@ -1112,6 +1112,87 @@ func Test_shouldRunCmd(t *testing.T) {
 			skip:     []string{},
 			expected: false,
 		},
+		{
+			name:     "exclusion-only list allows non-excluded host",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!host1", "!host2"}}},
+			hostName: "host3",
+			hostAddr: "192.168.1.3",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "exclusion-only list skips excluded host",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!host1", "!host2"}}},
+			hostName: "host2",
+			hostAddr: "192.168.1.2",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "bare ip address matches host:port address",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"192.168.1.1"}}},
+			hostName: "",
+			hostAddr: "192.168.1.1:22",
+			only:     []string{},
+			skip:     []string{},
+			expected: true,
+		},
+		{
+			name:     "bare ip exclusion matches host:port address",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!192.168.1.1"}}},
+			hostName: "",
+			hostAddr: "192.168.1.1:22",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "host:port address not matching different bare ip",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"192.168.1.2"}}},
+			hostName: "",
+			hostAddr: "192.168.1.1:22",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "mixed list, host matching neither inclusion nor exclusion",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!host1", "host2"}}},
+			hostName: "host3",
+			hostAddr: "192.168.1.3",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "bare ip does not match different port on same host",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"1.2.3.4:22"}}},
+			hostName: "",
+			hostAddr: "1.2.3.4:2222",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "exclusion wins over inclusion, inclusion first",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"host1", "!host1"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
+		{
+			name:     "exclusion wins over inclusion, exclusion first",
+			cmd:      config.Cmd{Name: "echo", Options: config.CmdOptions{OnlyOn: []string{"!host1", "host1"}}},
+			hostName: "host1",
+			hostAddr: "192.168.1.1",
+			only:     []string{},
+			skip:     []string{},
+			expected: false,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -1378,6 +1459,29 @@ func TestProcess_pickCmdExecutor(t *testing.T) {
 		// verify executor unchanged
 		assert.Equal(t, mockExec, result.exec)
 	})
+}
+
+func TestProcess_Run_CommandCountAcrossHosts(t *testing.T) {
+	// two local commands; the second only runs on host-b via only_on, so host-a runs 1 command and
+	// host-b runs 2. host-a is index 0, so the old host-0-only count would report 1 - the fix reports 2.
+	tsk := config.Task{Name: "t", Commands: []config.Cmd{
+		{Name: "c1", Script: "echo one", Options: config.CmdOptions{Local: true}},
+		{Name: "c2", Script: "echo two", Options: config.CmdOptions{Local: true, OnlyOn: []string{"host-b"}}},
+	}}
+	pbook := &mocks.PlaybookMock{
+		TaskFunc: func(string) (*config.Task, error) { return &tsk, nil },
+		TargetHostsFunc: func(string) ([]config.Destination, error) {
+			return []config.Destination{
+				{Host: "host-a", Name: "host-a", Port: 22},
+				{Host: "host-b", Name: "host-b", Port: 22},
+			}, nil
+		},
+	}
+	p := &Process{Concurrency: 1, Playbook: pbook, Logs: executor.MakeLogs(false, false, nil)}
+	res, err := p.Run(context.Background(), "t", "all")
+	require.NoError(t, err)
+	assert.Equal(t, 2, res.Hosts)
+	assert.Equal(t, 2, res.Commands, "should report the fuller host's command count, not host 0's")
 }
 
 func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {

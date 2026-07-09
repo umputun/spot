@@ -68,7 +68,6 @@ type SyncInternal struct {
 	Dest    string   `yaml:"dst" toml:"dst"`         // destination must be a directory
 	Delete  bool     `yaml:"delete" toml:"delete"`   // delete files in destination that are not in source
 	Exclude []string `yaml:"exclude" toml:"exclude"` // exclude files matching these patterns
-	Force   bool     `yaml:"force" toml:"force"`     // force sync even if source and destination are the same
 }
 
 // DeleteInternal defines delete command, implemented internally
@@ -179,13 +178,30 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 		if len(c) < 2 {
 			continue
 		}
-		if i := strings.Index(c, "#"); i > 0 {
-			c = strings.TrimSpace(c[:i])
-		}
+		c = strings.TrimSpace(cmd.stripTrailingComment(c))
 		parts = append(parts, c)
 	}
 	res += strings.Join(parts, "; ") + "'"
 	return res
+}
+
+// stripTrailingComment removes a trailing shell comment from a single line so the lines can be
+// joined with "; " without the comment swallowing the next command. A '#' starts a comment only
+// at the beginning of a word (preceded by whitespace) and outside quotes, so '#' inside a token
+// such as ${VAR#prefix} or inside a quoted string like "fix #1" is preserved.
+func (cmd *Cmd) stripTrailingComment(s string) string {
+	var inSingle, inDouble bool
+	for i := 0; i < len(s); i++ {
+		switch ch := s[i]; {
+		case ch == '\'' && !inDouble:
+			inSingle = !inSingle
+		case ch == '"' && !inSingle:
+			inDouble = !inDouble
+		case ch == '#' && !inSingle && !inDouble && i > 0 && (s[i-1] == ' ' || s[i-1] == '\t'):
+			return s[:i]
+		}
+	}
+	return s
 }
 
 // scriptFile returns a reader for script file. All the lines in the command used as a script, with hashbang,

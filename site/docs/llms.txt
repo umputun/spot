@@ -45,8 +45,7 @@ sudo apk add spot_v<VERSION>_linux_amd64.apk
     --ssh-agent          Use SSH agent (env: $SPOT_SSH_AGENT)
     --forward-ssh-agent  Forward SSH agent to remote (env: $SPOT_FORWARD_SSH_AGENT)
     --shell=PATH         Remote shell (default: /bin/sh, env: $SPOT_SHELL)
-    --local-shell=PATH   Local shell (default: OS shell, env: $SPOT_LOCAL_SHELL)
-    --temp=DIR           Remote temp directory (default: /tmp, env: $SPOT_TEMP_DIR)
+    --temp=DIR           Remote temp directory (default: /tmp, env: $SPOT_TEMP)
 -i, --inventory=FILE     Inventory file or URL (env: $SPOT_INVENTORY)
 -u, --user=USER          SSH user override
 -k, --key=PATH           SSH key override

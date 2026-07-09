@@ -162,6 +162,59 @@ func TestExecuter_UploadGlobAndDownload(t *testing.T) {
 	}
 }
 
+func TestExecuter_UploadGlobExcludeDirectory(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// local source with a file and a subdirectory; the glob matches both
+	srcDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "keep.txt"), []byte("keep"), 0o644))
+	require.NoError(t, os.MkdirAll(filepath.Join(srcDir, "subdir"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(srcDir, "subdir", "inner.txt"), []byte("inner"), 0o644))
+
+	// excluding the matched directory must skip it instead of feeding it into sftpUpload and failing
+	err = sess.Upload(ctx, filepath.Join(srcDir, "*"), "/tmp/globex", &UpDownOpts{Mkdir: true, Exclude: []string{"subdir/*"}})
+	require.NoError(t, err)
+
+	out, e := sess.Run(ctx, "ls -1 /tmp/globex", &RunOpts{Verbose: true})
+	require.NoError(t, e)
+	assert.Contains(t, out, "keep.txt", out)
+	assert.NotContains(t, out, "subdir", "excluded directory should not be uploaded")
+}
+
+func TestExecuter_DownloadGlobExcludeDirectory(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	// remote source with a file and a subdirectory; the glob matches both
+	_, e := sess.Run(ctx, "mkdir -p /tmp/dlex/subdir && echo keep > /tmp/dlex/keep.txt && echo inner > /tmp/dlex/subdir/inner.txt",
+		&RunOpts{Verbose: true})
+	require.NoError(t, e)
+
+	// excluding the matched directory must skip it instead of feeding it into sftpDownload and failing
+	dstDir := t.TempDir()
+	err = sess.Download(ctx, "/tmp/dlex/*", dstDir, &UpDownOpts{Mkdir: true, Exclude: []string{"subdir/*"}})
+	require.NoError(t, err)
+
+	assert.FileExists(t, filepath.Join(dstDir, "keep.txt"))
+	_, statErr := os.Stat(filepath.Join(dstDir, "subdir"))
+	assert.True(t, os.IsNotExist(statErr), "excluded directory should not be downloaded at all")
+}
+
 func TestExecuter_Upload_FailedSourceNotFound(t *testing.T) {
 	ctx := t.Context()
 	hostAndPort, teardown := startTestContainer(t)
@@ -240,6 +293,64 @@ func TestExecuter_UploadCanceledWithoutMkdir(t *testing.T) {
 
 	err = sess.Upload(ctx, "testdata/data1.txt", "/tmp/data1.txt", nil)
 	require.EqualError(t, err, "failed to copy file \"/tmp/data1.txt\": context canceled")
+}
+
+func TestExecuter_TransferCancellation(t *testing.T) {
+	ctx := context.Background()
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	c, err := NewConnector("testdata/test_ssh_key", time.Second*10, MakeLogs(true, false, nil))
+	require.NoError(t, err)
+	sess, err := c.Connect(ctx, hostAndPort, "h1", "test")
+	require.NoError(t, err)
+	defer sess.Close()
+
+	t.Run("upload aborts mid-transfer, never hangs", func(t *testing.T) {
+		// large enough that the transfer is still in flight when we cancel shortly after starting
+		big := filepath.Join(t.TempDir(), "big.bin")
+		require.NoError(t, os.WriteFile(big, make([]byte, 16*1024*1024), 0o644))
+
+		upCtx, cancel := context.WithCancel(ctx)
+		time.AfterFunc(15*time.Millisecond, cancel)
+
+		done := make(chan error, 1)
+		go func() { done <- sess.Upload(upCtx, big, "/tmp/big.bin", &UpDownOpts{Mkdir: true}) }()
+
+		select {
+		case err := <-done:
+			t.Logf("upload returned after cancel: %v", err)
+		case <-time.After(30 * time.Second):
+			t.Fatal("upload did not return after cancellation - transfer was not aborted")
+		}
+	})
+
+	t.Run("canceled download preserves the existing file", func(t *testing.T) {
+		// a remote file large enough that the copy is still in flight when the (already canceled) select runs
+		_, e := sess.Run(ctx, "head -c 16777216 /dev/zero > /tmp/big.remote", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+
+		// an existing local file with known content that a canceled overwrite must not destroy
+		dst := filepath.Join(t.TempDir(), "dest.bin")
+		orig := []byte("original important content that must survive a canceled download")
+		require.NoError(t, os.WriteFile(dst, orig, 0o644))
+
+		dlCtx, cancel := context.WithCancel(ctx)
+		cancel() // canceled before the copy can complete
+
+		err := sess.Download(dlCtx, "/tmp/big.remote", dst, &UpDownOpts{Force: true})
+		require.Error(t, err, "canceled download should return an error")
+
+		got, rerr := os.ReadFile(dst)
+		require.NoError(t, rerr)
+		assert.Equal(t, orig, got, "canceled download must leave the existing file intact, not truncated")
+
+		entries, rerr := os.ReadDir(filepath.Dir(dst))
+		require.NoError(t, rerr)
+		for _, en := range entries {
+			assert.NotContains(t, en.Name(), ".spot-", "no temp download file should be left behind")
+		}
+	})
 }
 
 func TestUpload_UploadOverwriteWithAndWithoutForce(t *testing.T) {
@@ -496,6 +607,20 @@ func TestExecuter_Delete(t *testing.T) {
 		assert.NotContains(t, out, "empty", out)
 	})
 
+	t.Run("delete dir recursive without exclude does not warn", func(t *testing.T) {
+		_, err = sess.Run(ctx, "mkdir -p /tmp/nowarn/sub && touch /tmp/nowarn/a /tmp/nowarn/sub/b", &RunOpts{Verbose: true})
+		require.NoError(t, err)
+
+		buff := bytes.NewBuffer(nil)
+		log.SetOutput(buff)
+		defer log.SetOutput(os.Stderr)
+
+		err = sess.Delete(ctx, "/tmp/nowarn", &DeleteOpts{Recursive: true})
+		require.NoError(t, err)
+		assert.NotContains(t, buff.String(), "no exclude pattern matched",
+			"exclude-free recursive delete should not warn")
+	})
+
 	t.Run("delete no-such-file", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest/no-such-file", nil)
 		assert.NoError(t, err)
@@ -545,6 +670,22 @@ func TestExecuter_DeleteWithExclude(t *testing.T) {
 		require.NoError(t, e)
 		assert.Contains(t, out, "file21.txt", out)
 		assert.NotContains(t, out, "file22.txt", out)
+	})
+
+	t.Run("exclude matching nothing warns and removes tree", func(t *testing.T) {
+		_, err = sess.Run(ctx, "mkdir -p /tmp/warn.dest && touch /tmp/warn.dest/a /tmp/warn.dest/b", &RunOpts{Verbose: true})
+		require.NoError(t, err)
+
+		buff := bytes.NewBuffer(nil)
+		log.SetOutput(buff)
+		defer log.SetOutput(os.Stderr)
+
+		err = sess.Delete(ctx, "/tmp/warn.dest", &DeleteOpts{Recursive: true, Exclude: []string{"no-such-file"}})
+		require.NoError(t, err)
+		assert.Contains(t, buff.String(), "no exclude pattern matched", "a non-matching exclude should warn")
+		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
+		require.NoError(t, e)
+		assert.NotContains(t, out, "warn.dest", "tree should be removed when exclude matches nothing")
 	})
 }
 

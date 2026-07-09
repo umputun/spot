@@ -746,6 +746,25 @@ func Test_sshUserAndKey(t *testing.T) {
 	}
 }
 
+func Test_sshUserNilPlaybook(t *testing.T) {
+	t.Run("nil playbook, cli user wins", func(t *testing.T) {
+		var got string
+		var err error
+		assert.NotPanics(t, func() { got, err = sshUser("cliuser", nil) })
+		require.NoError(t, err)
+		assert.Equal(t, "cliuser", got)
+	})
+
+	t.Run("nil playbook without cli user falls back to os user", func(t *testing.T) {
+		orig := userProvider
+		defer func() { userProvider = orig }()
+		userProvider = &mockUserInfoProvider{user: &user.User{Username: "osuser"}}
+		got, err := sshUser("", nil)
+		require.NoError(t, err)
+		assert.Equal(t, "osuser", got)
+	})
+}
+
 type mockUserInfoProvider struct {
 	user *user.User
 	err  error

@@ -505,8 +505,8 @@ func sshKey(sshAgent bool, sshKey string, pbook *config.PlayBook) (key string, e
 
 // get ssh user from cli or playbook. if no user is provided, use current user from os
 func sshUser(sshUser string, pbook *config.PlayBook) (string, error) {
-	if sshUser == "" && (pbook == nil || pbook.User != "") { // no user provided in cli
-		sshUser = pbook.User // use playbook's user
+	if sshUser == "" && pbook != nil && pbook.User != "" { // no user provided in cli, use playbook's user
+		sshUser = pbook.User
 	}
 	if sshUser == "" { // no user provided in cli or playbook
 		u, err := userProvider.Current()

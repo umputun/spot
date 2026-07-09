@@ -136,8 +136,7 @@ Spot supports the following command-line options:
 - `--ssh-agent`: Enables using the SSH agent for authentication. Defaults to `false`. Users can also set the environment variable `SPOT_SSH_AGENT` to define the value.
 - `--forward-ssh-agent`: Enables forwarding of connections from an authentication agent. Defaults to `false`. Users can also set the environment variable `SPOT_FORWARD_SSH_AGENT` to define the value.
 - `--shell` - shell for remote ssh execution, default is `/bin/sh`. Users can also set the environment variable `SPOT_SHELL` to define the value.  
-- `--local-shell` - shell for local execution, default is os shell. Users can also set the environment variable `SPOT_LOCAL_SHELL` to define the value.
-- `--temp` - temporary directory for remote execution, default is `/tmp`. Users can also set the environment variable `SPOT_TEMP_DIR` to define the value.
+- `--temp` - temporary directory for remote execution, default is `/tmp`. Users can also set the environment variable `SPOT_TEMP` to define the value.
 - `-i`, `--inventory=`: Specifies the inventory file or URL to use for the task execution. Overrides the inventory file defined in the
   playbook file. Users can also set the environment variable `$SPOT_INVENTORY` to define the default inventory file path or url.
 - `-u`, `--user=`: Specifies the SSH user to use when connecting to remote hosts. Overrides the user defined in the playbook file .
@@ -437,6 +436,13 @@ Deletes a file or directory on the remote host(s), optionally can remove recursi
 ```
 
 Delete also supports a list format to remove multiple paths at once.
+
+Notes on `exclude`:
+- It requires `recur: true`, as it filters the contents of a directory tree.
+- It cannot be combined with the `sudo` option, as sudo deletion is performed with a plain shell command that cannot apply exclusion patterns.
+- Patterns are matched with forward slashes on all platforms; a backslash is treated as a path separator, so it cannot be used to escape glob metacharacters.
+- A pattern ending in `/*` (e.g. `logs/*` or `data*/*`) also protects the matching directory itself, keeping it and its contents.
+- If no pattern matches anything, the whole tree is removed (a mistyped pattern will not silently preserve files); a `[WARN]` is logged in that case.
 
 #### `wait`
 
@@ -974,7 +980,7 @@ tasks:
           ls -laR /tmp/${SPOT_COMMAND}
         env: { FOO: bar, BAR: "{SPOT_COMMAND}-blah" }
       - name: delete things
-        delete: {"loc": "/tmp/things/{SPOT_REMOTE_USER}", "recur": true}
+        delete: {"path": "/tmp/things/{SPOT_REMOTE_USER}", "recur": true}
 
 ```
 

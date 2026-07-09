@@ -162,6 +162,42 @@ func TestPlaybook_New(t *testing.T) {
 		assert.Equal(t, []Destination{{Host: "127.0.0.1", Port: 2222}}, c.Targets["default"].Hosts)
 	})
 
+	assertSimpleOptions := func(t *testing.T, c *PlayBook) {
+		t.Helper()
+		require.Len(t, c.Tasks, 1, "1 task")
+		require.Len(t, c.Tasks[0].Commands, 2, "2 commands")
+		assert.Equal(t, "deploy", c.User, "top-level user carried through")
+		assert.Equal(t, "/keys/id_rsa", c.SSHKey, "top-level ssh_key carried through")
+		for _, cmd := range c.Tasks[0].Commands {
+			assert.True(t, cmd.Options.Sudo, "sudo propagated to %q", cmd.Name)
+			assert.True(t, cmd.Options.IgnoreErrors, "ignore_errors propagated to %q", cmd.Name)
+			assert.Equal(t, "/bin/bash", cmd.SSHShell, "ssh_shell carried through to %q", cmd.Name)
+			assert.Equal(t, "/var/tmp", cmd.SSHTempDir, "ssh_temp carried through to %q", cmd.Name)
+			assert.Equal(t, "/bin/zsh", cmd.LocalShell, "local_shell carried through to %q", cmd.Name)
+		}
+	}
+
+	t.Run("simple playbook with top-level options and shell fields (yaml)", func(t *testing.T) {
+		c, err := New("testdata/simple-playbook-options.yml", nil, nil)
+		require.NoError(t, err)
+		assertSimpleOptions(t, c)
+	})
+
+	t.Run("simple playbook with top-level options and shell fields (toml)", func(t *testing.T) {
+		c, err := New("testdata/simple-playbook-options.toml", nil, nil)
+		require.NoError(t, err)
+		assertSimpleOptions(t, c)
+	})
+
+	t.Run("simple playbook overrides still win over copied top-level values", func(t *testing.T) {
+		c, err := New("testdata/simple-playbook-options.yml", &Overrides{SSHShell: "/bin/dash"}, nil)
+		require.NoError(t, err)
+		require.Len(t, c.Tasks, 1)
+		for _, cmd := range c.Tasks[0].Commands {
+			assert.Equal(t, "/bin/dash", cmd.SSHShell, "override ssh_shell should win over the playbook value")
+		}
+	})
+
 	t.Run("playbook with secrets", func(t *testing.T) {
 		secProvider := &mocks.SecretsProviderMock{
 			GetFunc: func(key string) (string, error) {

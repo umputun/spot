@@ -202,7 +202,7 @@ gofmt -s -w $(find . -type f -name "*.go" -not -path "./vendor/*") && go generat
 - AWS SDK: `github.com/aws/aws-sdk-go-v2/*` (for AWS Secrets Manager)
 - Vault: `github.com/hashicorp/vault/api` (for HashiCorp Vault integration)
 - Container testing: `github.com/testcontainers/testcontainers-go`
-- Encryption: `golang.org/x/crypto/scrypt` and `crypto/aes`
+- Encryption: `golang.org/x/crypto/argon2` (key derivation) and `golang.org/x/crypto/nacl/secretbox`
 
 ## Code Style Guidelines
 

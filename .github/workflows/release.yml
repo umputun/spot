@@ -26,8 +26,6 @@ jobs:
       - name: import gpg key
         run: |
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import
-        env:
-          GPG_TTY: $(tty)
 
       - name: run goreleaser
         uses: goreleaser/goreleaser-action@v7

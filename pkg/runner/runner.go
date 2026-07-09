@@ -10,10 +10,10 @@ import (
 	"io"
 	"log"
 	"maps"
+	"net"
 	"regexp"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"text/template"
 	"time"
 
@@ -101,22 +101,21 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 	}
 	log.Printf("[DEBUG] target hosts (%d) %+v", len(targetHosts), targetHosts)
 
-	var commands int32
+	maxCommands := 0
 	lock := sync.Mutex{}
 
 	wg := syncs.NewErrSizedGroup(p.Concurrency, syncs.Context(ctx), syncs.Preemptive)
-	for i, host := range targetHosts {
+	for _, host := range targetHosts {
 		wg.Go(func() error {
 			user := host.User // default user from target
 			if tsk.User != "" {
 				user = tsk.User // override user from task if any set
 			}
 			resp, e := p.runTaskOnHost(ctx, tsk, fmt.Sprintf("%s:%d", host.Host, host.Port), host.Name, user)
-			if i == 0 {
-				atomic.AddInt32(&commands, int32(resp.count))
-			}
 
 			lock.Lock()
+			// report the fullest run across hosts, since a host may skip or fail some commands
+			maxCommands = max(maxCommands, resp.count)
 			if e != nil {
 				errLog := p.Logs.WithHost(host.Host, host.Name).Err
 				errLog.Write([]byte(e.Error())) // nolint
@@ -137,7 +136,7 @@ func (p *Process) Run(ctx context.Context, task, target string) (s ProcResp, err
 
 	return ProcResp{
 		Hosts:      len(targetHosts),
-		Commands:   int(atomic.LoadInt32(&commands)),
+		Commands:   maxCommands,
 		Vars:       allVars,
 		Registered: allRegistered,
 	}, err
@@ -461,9 +460,12 @@ func (p *Process) updateVars(vars map[string]string, cmd config.Cmd, tsk *config
 // shouldRunCmd checks if the command should be executed on the host. If the command has no restrictions
 // (onlyOn field), it will be executed on all hosts. If the command has restrictions, it will be executed
 // only on the hosts that match the restrictions.
-// The onlyOn field can contain hostnames or IP addresses. If the hostname starts with "!", it will be
-// excluded from the list of hosts. If the hostname doesn't start with "!", it will be included in the list
-// of hosts. If the onlyOn field is empty, the command will be executed on all hosts.
+// The onlyOn field can contain hostnames or IP addresses. An entry starting with "!" excludes the host;
+// an entry without "!" includes it. Comparison is against the host name, the full host:port address, and
+// the bare host part of that address, so a bare address entry (e.g. "1.2.3.4") matches a "1.2.3.4:22" host.
+// If the onlyOn field is empty, the command runs on all hosts. If it contains only exclusions (all entries
+// start with "!"), every host not explicitly excluded runs the command; if it contains any inclusion, only
+// hosts matching an inclusion (and not an exclusion) run it.
 // It also checks if the command is in the 'only' or 'skip' list, and considers the 'NoAuto' option.
 func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 
@@ -484,17 +486,34 @@ func (p *Process) shouldRunCmd(cmd config.Cmd, hostName, hostAddr string) bool {
 		return true
 	}
 
+	// hostAddr may be in host:port form, compare on the bare host part as well
+	bareAddr := hostAddr
+	if h, _, err := net.SplitHostPort(hostAddr); err == nil {
+		bareAddr = h
+	}
+	matches := func(host string) bool {
+		return hostName == host || hostAddr == host || bareAddr == host
+	}
+
+	// scan the whole list so an exclusion wins even if an inclusion also matches, regardless of order
+	hasInclusions, included := false, false
 	for _, host := range cmd.Options.OnlyOn {
 		if strings.HasPrefix(host, "!") { // exclude host
-			if hostName == host[1:] || hostAddr == host[1:] {
+			if matches(host[1:]) {
 				log.Printf("[DEBUG] skip command %q, excluded host %q", cmd.Name, host[1:])
 				return false
 			}
 			continue
 		}
-		if hostName == host || hostAddr == host { // include host
-			return true
+		hasInclusions = true
+		if matches(host) { // include host
+			included = true
 		}
+	}
+
+	// exclusion-only list allows all hosts which are not explicitly excluded
+	if !hasInclusions || included {
+		return true
 	}
 
 	log.Printf("[DEBUG] skip command %q, not in only_on list", cmd.Name)
