@@ -22,8 +22,8 @@ type Interface interface {
 
 // RunOpts is a struct for run options.
 type RunOpts struct {
-	Verbose    bool // print more info to primary stdout
-	RequestPty bool // allocate a pseudo-terminal (TTY) for the session
+	Verbose bool // print more info to primary stdout
+
 }
 
 // UpDownOpts is a struct for upload and download options.
