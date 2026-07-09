@@ -359,6 +359,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 	}
 
 	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
+
 		if line != "" {
 			out = append(out, line)
 		}
