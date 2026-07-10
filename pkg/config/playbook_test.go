@@ -896,119 +896,72 @@ func TestPlayBook_AllTasks(t *testing.T) {
 	assert.Equal(t, []string{"target2", "target3"}, p.AllTasks()[1].Targets)
 }
 
-func TestPlayBook_Import_BasicYAML(t *testing.T) {
-	p, err := New("testdata/import/main.yml", nil, nil)
-	require.NoError(t, err)
-	require.Len(t, p.Tasks, 3)
-	assert.Equal(t, "install-deps", p.Tasks[0].Name)
-	assert.Equal(t, "setup-user", p.Tasks[1].Name)
-	assert.Equal(t, "deploy-app", p.Tasks[2].Name)
-	assert.Equal(t, "restart", p.Tasks[2].Commands[1].Name)
-	assert.Equal(t, "docker pull app:latest", p.Tasks[2].Commands[0].Script)
+func TestPlayBook_Import_Success(t *testing.T) {
+	tbl := []struct {
+		name      string
+		file      string
+		overrides *Overrides
+		wantTasks []string
+		check     func(t *testing.T, p *PlayBook)
+	}{
+		{"basic yaml", "testdata/import/main.yml", nil, []string{"install-deps", "setup-user", "deploy-app"},
+			func(t *testing.T, p *PlayBook) {
+				assert.Equal(t, "restart", p.Tasks[2].Commands[1].Name)
+				assert.Equal(t, "docker pull app:latest", p.Tasks[2].Commands[0].Script)
+			}},
+		{"basic toml", "testdata/import/main.toml", nil, []string{"install-deps", "setup-user", "deploy-app"}, nil},
+		{"mixed with inline", "testdata/import/mixed.yml", nil, []string{"install-deps", "setup-user", "inline-task", "deploy-app"},
+			func(t *testing.T, p *PlayBook) {
+				assert.Equal(t, "restart", p.Tasks[3].Commands[1].Name)
+			}},
+		{"multi file", "testdata/import/multi-import.yml", nil, []string{"install-deps", "setup-user", "check-task", "final-check"}, nil},
+		{"cross format", "testdata/import/cross-format.yml", nil, []string{"from-toml", "inline-after-toml"}, nil},
+		{"with adhoc override", "testdata/import/main.yml", &Overrides{AdHocCommand: "echo test"}, []string{"install-deps", "setup-user", "deploy-app"}, nil},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := New(tt.file, tt.overrides, nil)
+			require.NoError(t, err)
+			require.Len(t, p.Tasks, len(tt.wantTasks))
+			for i, name := range tt.wantTasks {
+				assert.Equal(t, name, p.Tasks[i].Name)
+			}
+			if tt.check != nil {
+				tt.check(t, p)
+			}
+		})
+	}
 }
 
-func TestPlayBook_Import_BasicTOML(t *testing.T) {
-	p, err := New("testdata/import/main.toml", nil, nil)
-	require.NoError(t, err)
-	require.Len(t, p.Tasks, 3)
-	assert.Equal(t, "install-deps", p.Tasks[0].Name)
-	assert.Equal(t, "setup-user", p.Tasks[1].Name)
-	assert.Equal(t, "deploy-app", p.Tasks[2].Name)
-}
+func TestPlayBook_Import_Error(t *testing.T) {
+	tbl := []struct {
+		name string
+		file string
+		want []string
+	}{
+		{"nested rejected", "testdata/import/nested-import.yml", []string{"contains nested import of"}},
+		{"missing file", "testdata/import/missing-import.yml", []string{"can't read import", "tasks/nonexistent.yml"}},
+		{"empty tasks", "testdata/import/empty-import.yml", []string{"has no tasks"}},
+		{"invalid content", "testdata/import/bad-format-import.yml", []string{"can't parse import file"}},
+		{"unknown format", "testdata/import/unknown-format.yml", []string{"unknown format for import file"}},
+		{"dup task name in file", "testdata/import/dup-task-import.yml", []string{"import file", `duplicate task name "dup-task"`}},
+		{"cross file dup", "testdata/import/cross-file-dup.yml", []string{"duplicate task name", "shared-task", "tasks/a.yml", "tasks/b.yml"}},
+		{"inline collision", "testdata/import/collision-inline.yml", []string{`duplicate task name "install-deps"`}},
+		{"entry with extra fields", "testdata/import/import-with-name.yml", []string{"must not include other task fields"}},
+		{"absolute path rejected", "testdata/import/absolute-path.yml", []string{"must be relative"}},
+		{"toml unknown fields", "testdata/import/toml-unknown-fields.yml", []string{"can't parse import file"}},
+	}
 
-func TestPlayBook_Import_MixedWithInline(t *testing.T) {
-	p, err := New("testdata/import/mixed.yml", nil, nil)
-	require.NoError(t, err)
-	require.Len(t, p.Tasks, 4)
-	assert.Equal(t, "install-deps", p.Tasks[0].Name)
-	assert.Equal(t, "setup-user", p.Tasks[1].Name)
-	assert.Equal(t, "inline-task", p.Tasks[2].Name)
-	assert.Equal(t, "deploy-app", p.Tasks[3].Name)
-	assert.Equal(t, "restart", p.Tasks[3].Commands[1].Name)
-}
-
-func TestPlayBook_Import_MultiFile(t *testing.T) {
-	p, err := New("testdata/import/multi-import.yml", nil, nil)
-	require.NoError(t, err)
-	require.Len(t, p.Tasks, 4)
-	assert.Equal(t, "install-deps", p.Tasks[0].Name)
-	assert.Equal(t, "setup-user", p.Tasks[1].Name)
-	assert.Equal(t, "check-task", p.Tasks[2].Name)
-	assert.Equal(t, "final-check", p.Tasks[3].Name)
-}
-
-func TestPlayBook_Import_NestedRejected(t *testing.T) {
-	_, err := New("testdata/import/nested-import.yml", nil, nil)
-	require.ErrorContains(t, err, "contains nested import of")
-}
-
-func TestPlayBook_Import_MissingFile(t *testing.T) {
-	_, err := New("testdata/import/missing-import.yml", nil, nil)
-	require.ErrorContains(t, err, "can't read import")
-	require.ErrorContains(t, err, "tasks/nonexistent.yml")
-}
-
-func TestPlayBook_Import_EmptyTasks(t *testing.T) {
-	_, err := New("testdata/import/empty-import.yml", nil, nil)
-	require.ErrorContains(t, err, "has no tasks")
-}
-
-func TestPlayBook_Import_InvalidContent(t *testing.T) {
-	_, err := New("testdata/import/bad-format-import.yml", nil, nil)
-	require.ErrorContains(t, err, "can't parse import file")
-}
-
-func TestPlayBook_Import_UnknownFormat(t *testing.T) {
-	_, err := New("testdata/import/unknown-format.yml", nil, nil)
-	require.ErrorContains(t, err, "unknown format for import file")
-}
-
-func TestPlayBook_Import_DuplicateTaskNameInFile(t *testing.T) {
-	_, err := New("testdata/import/dup-task-import.yml", nil, nil)
-	require.ErrorContains(t, err, `import file`)
-	require.ErrorContains(t, err, `duplicate task name "dup-task"`)
-}
-
-func TestPlayBook_Import_CrossFormat(t *testing.T) {
-	p, err := New("testdata/import/cross-format.yml", nil, nil)
-	require.NoError(t, err)
-	require.Len(t, p.Tasks, 2)
-	assert.Equal(t, "from-toml", p.Tasks[0].Name)
-	assert.Equal(t, "inline-after-toml", p.Tasks[1].Name)
-}
-
-func TestPlayBook_Import_WithAdHocOverride(t *testing.T) {
-	p, err := New("testdata/import/main.yml", &Overrides{AdHocCommand: "echo test"}, nil)
-	require.NoError(t, err, "adhoc override should not affect import parsing")
-	require.Len(t, p.Tasks, 3)
-}
-
-func TestPlayBook_Import_CrossFileDuplicate(t *testing.T) {
-	_, err := New("testdata/import/cross-file-dup.yml", nil, nil)
-	require.ErrorContains(t, err, `duplicate task name`)
-	require.ErrorContains(t, err, `shared-task`)
-	require.ErrorContains(t, err, `tasks/a.yml`)
-	require.ErrorContains(t, err, `tasks/b.yml`)
-}
-
-func TestPlayBook_Import_InlineCollision(t *testing.T) {
-	_, err := New("testdata/import/collision-inline.yml", nil, nil)
-	require.ErrorContains(t, err, `duplicate task name "install-deps"`)
-}
-
-func TestPlayBook_Import_EntryWithExtraFields(t *testing.T) {
-	_, err := New("testdata/import/import-with-name.yml", nil, nil)
-	require.ErrorContains(t, err, "must not include other task fields")
-}
-
-func TestPlayBook_Import_AbsolutePathRejected(t *testing.T) {
-	_, err := New("testdata/import/absolute-path.yml", nil, nil)
-	require.ErrorContains(t, err, "must be relative")
-}
-
-func TestPlayBook_Import_TOMLUnknownFields(t *testing.T) {
-	_, err := New("testdata/import/toml-unknown-fields.yml", nil, nil)
-	require.ErrorContains(t, err, "can't parse import file")
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := New(tt.file, nil, nil)
+			require.Error(t, err)
+			for _, substr := range tt.want {
+				require.ErrorContains(t, err, substr)
+			}
+		})
+	}
 }
 
 func TestPlayBook_SSHTempDir(t *testing.T) {
