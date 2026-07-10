@@ -1,0 +1,11 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - import: tasks/prepare.yml
+  - name: install-deps
+    commands:
+      - name: clash
+        script: echo clash

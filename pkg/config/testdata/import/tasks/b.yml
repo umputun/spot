@@ -1,6 +1,5 @@
 tasks:
-  - import: common.yml
-  - name: b-task
+  - name: shared-task
     commands:
-      - name: b
-        script: echo b
+      - name: beta
+        script: echo beta

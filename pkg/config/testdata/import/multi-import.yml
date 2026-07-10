@@ -5,7 +5,7 @@ targets:
 
 tasks:
   - import: tasks/prepare.yml
-  - import: tasks/nested.yml
+  - import: tasks/check-task.yml
   - name: final-check
     commands:
       - name: done

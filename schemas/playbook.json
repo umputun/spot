@@ -215,7 +215,6 @@
         },
         "options": {
           "$ref": "#/definitions/options",
-          "default": {},
           "description": "Default options for all commands in this task"
         }
       }

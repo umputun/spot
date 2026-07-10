@@ -4,4 +4,5 @@ targets:
     groups: ["production"]
 
 tasks:
-  - import: tasks/nested-source.yml
+  - import: tasks/prepare.yml
+    name: bad-name

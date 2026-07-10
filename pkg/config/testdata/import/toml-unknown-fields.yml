@@ -4,4 +4,4 @@ targets:
     groups: ["production"]
 
 tasks:
-  - import: tasks/nested-source.yml
+  - import: tasks/toml-bogus.toml

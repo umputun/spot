@@ -136,8 +136,11 @@ tasks:
 **Import rules:**
 - Import files must have a `tasks:` key with a list of task definitions.
 - Paths resolve relative to the importing file's directory.
-- Recursive imports are supported with cycle detection.
-- Both YAML and TOML supported (detected by extension).
+- Absolute paths are rejected; only relative paths allowed.
+- Nested imports (importing a file that itself imports) are rejected.
+- Import entries must not carry other task fields (`name`, `commands`, `targets`, `options`, etc.).
+- Empty import files (`tasks: []` or equivalent) produce a hard error.
+- Both YAML and TOML supported (detected by file extension).
 - Only works with full playbook format, not simplified.
 
 TOML example:

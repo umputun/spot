@@ -928,7 +928,7 @@ func TestPlaybook_Import_MixedWithInline(t *testing.T) {
 }
 
 func TestPlaybook_Import_MultiFile(t *testing.T) {
-	p, err := New("testdata/import/recursive.yml", nil, nil)
+	p, err := New("testdata/import/multi-import.yml", nil, nil)
 	require.NoError(t, err)
 	require.Len(t, p.Tasks, 4)
 	assert.Equal(t, "install-deps", p.Tasks[0].Name)
@@ -983,7 +983,27 @@ func TestPlaybook_Import_WithAdHocOverride(t *testing.T) {
 
 func TestPlaybook_Import_DiamondRejected(t *testing.T) {
 	_, err := New("testdata/import/diamond.yml", nil, nil)
-	require.ErrorContains(t, err, "contains nested import of")
+	require.ErrorContains(t, err, `duplicate task name "shared-task"`)
+}
+
+func TestPlaybook_Import_InlineCollision(t *testing.T) {
+	_, err := New("testdata/import/collision-inline.yml", nil, nil)
+	require.ErrorContains(t, err, `duplicate task name "install-deps"`)
+}
+
+func TestPlaybook_Import_EntryWithExtraFields(t *testing.T) {
+	_, err := New("testdata/import/import-with-name.yml", nil, nil)
+	require.ErrorContains(t, err, "must not include other task fields")
+}
+
+func TestPlaybook_Import_AbsolutePathRejected(t *testing.T) {
+	_, err := New("testdata/import/absolute-path.yml", nil, nil)
+	require.ErrorContains(t, err, "must be relative")
+}
+
+func TestPlaybook_Import_TOMLUnknownFields(t *testing.T) {
+	_, err := New("testdata/import/toml-unknown-fields.yml", nil, nil)
+	require.ErrorContains(t, err, "can't parse import file")
 }
 
 func TestPlayBook_SSHTempDir(t *testing.T) {

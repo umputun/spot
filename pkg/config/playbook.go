@@ -271,9 +271,6 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 
 	errs := new(multierror.Error)
 	if err = unmarshal(data, res, true); err == nil && len(res.Tasks) > 0 {
-		if err = checkUniqueTaskNames(res.Tasks); err != nil {
-			return fmt.Errorf("can't parse config %s: %w", fname, err)
-		}
 		tasks, err := resolveImports(res.Tasks, filepath.Dir(fname))
 		if err != nil {
 			return fmt.Errorf("can't parse config %s: %w", fname, err)
@@ -336,18 +333,18 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 func resolveImports(tasks []Task, baseDir string) ([]Task, error) {
 	var result []Task
 	for _, t := range tasks {
-		if t.Import != "" {
-			if err := checkImportEntry(t); err != nil {
-				return nil, err
-			}
-			imported, err := resolveImport(t, baseDir)
-			if err != nil {
-				return nil, err
-			}
-			result = append(result, imported...)
-		} else {
+		if t.Import == "" {
 			result = append(result, t)
+			continue
 		}
+		if err := checkImportEntry(t); err != nil {
+			return nil, err
+		}
+		imported, err := resolveImport(t, baseDir)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, imported...)
 	}
 	return result, nil
 }
@@ -366,6 +363,9 @@ func checkImportEntry(t Task) error {
 
 // resolveImport resolves a single import directive.
 func resolveImport(t Task, baseDir string) ([]Task, error) {
+	if filepath.IsAbs(t.Import) {
+		return nil, fmt.Errorf("import path %q must be relative", t.Import)
+	}
 	absPath := filepath.Join(baseDir, t.Import)
 
 	data, err := os.ReadFile(absPath) // nolint
@@ -394,11 +394,12 @@ func checkUniqueTaskNames(tasks []Task) error {
 		if t.Name == "" {
 			continue
 		}
-		lower := strings.ToLower(t.Name)
-		if names[lower] {
-			return fmt.Errorf("duplicate task name %q", t.Name)
+		for n := range names {
+			if strings.EqualFold(t.Name, n) {
+				return fmt.Errorf("duplicate task name %q", t.Name)
+			}
 		}
-		names[lower] = true
+		names[t.Name] = true
 	}
 	return nil
 }
@@ -419,7 +420,7 @@ func parseImportFile(fname string, data []byte) ([]Task, error) {
 			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
 		}
 	case ".toml":
-		if err := toml.Unmarshal(data, &imp); err != nil {
+		if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&imp); err != nil {
 			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
 		}
 	default:
