@@ -1,9 +1,0 @@
-tasks:
-  - name: copy-config
-    commands:
-      - name: copy app
-        copy: {src: "/local/app.conf", dst: "/srv/app.conf"}
-  - name: setup-env
-    commands:
-      - name: env
-        script: echo "APP_ENV=production" >> /etc/environment

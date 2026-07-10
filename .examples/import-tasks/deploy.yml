@@ -2,9 +2,11 @@ user: deploy
 
 targets:
   prod:
-    groups: ["production"]
+    hosts:
+      - {host: "example.com", name: "server1"}
   staging:
-    groups: ["staging"]
+    hosts:
+      - {host: "staging.example.com", name: "server2"}
 
 tasks:
   - import: tasks/prepare.yml

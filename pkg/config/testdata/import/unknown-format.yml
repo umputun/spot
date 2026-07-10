@@ -4,4 +4,4 @@ targets:
     groups: ["production"]
 
 tasks:
-  - import: tasks/dup-source.yml
+  - import: tasks/data.xyz

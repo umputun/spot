@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,6 +71,8 @@ type Task struct {
 	Targets  []string   `yaml:"targets" toml:"targets"`           // optional list of targets to run task on, names or groups
 	Tags     []string   `yaml:"tags" toml:"tags"`                 // optional tags for task filtering
 	Options  CmdOptions `yaml:"options" toml:"options,omitempty"` // options for all commands
+
+	sourceFile string // populated by resolveImport to track which file a task came from
 }
 
 // Target defines hosts to run commands on
@@ -351,11 +354,8 @@ func resolveImports(tasks []Task, baseDir string) ([]Task, error) {
 
 // checkImportEntry verifies that a task entry with import does not carry other task fields.
 func checkImportEntry(t Task) error {
-	hasFields := t.Name != "" || t.User != "" || t.OnError != "" ||
-		len(t.Commands) > 0 || len(t.Targets) > 0 || len(t.Tags) > 0
-	hasOptions := t.Options.IgnoreErrors || t.Options.NoAuto || t.Options.Local || t.Options.Sudo ||
-		t.Options.SudoPassword != "" || len(t.Options.Secrets) > 0 || len(t.Options.OnlyOn) > 0
-	if hasFields || hasOptions {
+	t.sourceFile = "" // zero out internal fields before comparison
+	if !reflect.DeepEqual(t, Task{Import: t.Import}) {
 		return fmt.Errorf("import %q must not include other task fields", t.Import)
 	}
 	return nil
@@ -366,40 +366,47 @@ func resolveImport(t Task, baseDir string) ([]Task, error) {
 	if filepath.IsAbs(t.Import) {
 		return nil, fmt.Errorf("import path %q must be relative", t.Import)
 	}
-	absPath := filepath.Join(baseDir, t.Import)
+	importPath := filepath.Join(baseDir, t.Import)
 
-	data, err := os.ReadFile(absPath) // nolint
+	data, err := os.ReadFile(importPath) // nolint
 	if err != nil {
 		return nil, fmt.Errorf("can't read import %q: %w", t.Import, err)
 	}
 
-	imported, err := parseImportFile(absPath, data)
+	imported, err := parseImportFile(importPath, data)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, importedTask := range imported {
 		if importedTask.Import != "" {
-			return nil, fmt.Errorf("import file %s contains nested import of %q", absPath, importedTask.Import)
+			return nil, fmt.Errorf("import file %s contains nested import of %q", importPath, importedTask.Import)
 		}
+	}
+
+	for i := range imported {
+		imported[i].sourceFile = importPath
 	}
 
 	return imported, nil
 }
 
 // checkUniqueTaskNames returns an error if any two tasks share the same name (case-insensitive).
+// If tasks have sourceFile set, the error includes file names.
 func checkUniqueTaskNames(tasks []Task) error {
-	names := make(map[string]bool)
+	seen := make(map[string]string) // lowercased name -> sourceFile
 	for _, t := range tasks {
 		if t.Name == "" {
 			continue
 		}
-		for n := range names {
-			if strings.EqualFold(t.Name, n) {
-				return fmt.Errorf("duplicate task name %q", t.Name)
+		key := strings.ToLower(t.Name)
+		if f, ok := seen[key]; ok {
+			if f != "" && t.sourceFile != "" && f != t.sourceFile {
+				return fmt.Errorf("duplicate task name %q (files: %s, %s)", t.Name, f, t.sourceFile)
 			}
+			return fmt.Errorf("duplicate task name %q", t.Name)
 		}
-		names[t.Name] = true
+		seen[key] = t.sourceFile
 	}
 	return nil
 }
@@ -742,7 +749,7 @@ func (p *PlayBook) checkConfig() error {
 
 // loadSecrets loads secrets from secrets provider and stores them in secrets map
 func (p *PlayBook) loadSecrets() error {
-	// check if secrets are defined in playbook
+	// collect Secrets from all command's options and count them
 	secretsCount := 0
 	for _, t := range p.Tasks {
 		for _, c := range t.Commands {
@@ -771,10 +778,12 @@ func (p *PlayBook) loadSecrets() error {
 				if err != nil {
 					return fmt.Errorf("can't get secret %q defined in task %q, command %q: %w", key, t.Name, c.Name, err)
 				}
+				// store secret in the secrets map of playbook
 				p.secrets[key] = val
 				if c.Secrets == nil {
 					c.Secrets = make(map[string]string)
 				}
+				// store secret in the secrets map of command
 				c.Secrets[key] = val
 			}
 			t.Commands[i] = c
