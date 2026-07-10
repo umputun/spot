@@ -1,0 +1,10 @@
+tasks:
+  - name: verify-deployment
+    commands:
+      - name: check process
+        script: pgrep -x myapp && echo "app is running" || echo "app is not running"
+
+  - name: health-check
+    commands:
+      - name: curl health endpoint
+        script: curl -sf http://localhost:8080/health && echo "healthy" || echo "unhealthy"

@@ -1,0 +1,9 @@
+tasks:
+  - name: dup-task
+    commands:
+      - name: first
+        script: echo first
+  - name: dup-task
+    commands:
+      - name: second
+        script: echo second

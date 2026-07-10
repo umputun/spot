@@ -158,8 +158,27 @@
     "task": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "commands"],
+      "oneOf": [
+        {
+          "required": ["import"],
+          "properties": {
+            "import": {
+              "type": "string",
+              "description": "Path to external task file to import"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "required": ["name", "commands"],
+          "not": {"required": ["import"]}
+        }
+      ],
       "properties": {
+        "import": {
+          "type": "string",
+          "description": "Path to external task file to import"
+        },
         "name": {
           "type": "string",
           "description": "Unique task name"

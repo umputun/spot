@@ -1,0 +1,6 @@
+tasks:
+  - import: common.yml
+  - name: nested-task
+    commands:
+      - name: check
+        script: echo nested

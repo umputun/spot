@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -61,13 +63,16 @@ type SimplePlayBook struct {
 
 // Task defines multiple commands runs together
 type Task struct {
-	Name     string     `yaml:"name" toml:"name"` // name of task, mandatory
+	Import   string     `yaml:"import" toml:"import"` // path to external task file to import
+	Name     string     `yaml:"name" toml:"name"`     // name of task, mandatory
 	User     string     `yaml:"user" toml:"user"`
 	Commands []Cmd      `yaml:"commands" toml:"commands"`
 	OnError  string     `yaml:"on_error" toml:"on_error"`
 	Targets  []string   `yaml:"targets" toml:"targets"`           // optional list of targets to run task on, names or groups
 	Tags     []string   `yaml:"tags" toml:"tags"`                 // optional tags for task filtering
 	Options  CmdOptions `yaml:"options" toml:"options,omitempty"` // options for all commands
+
+	sourceFile string // populated by resolveImport to track which file a task came from
 }
 
 // Target defines hosts to run commands on
@@ -238,14 +243,14 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 			pbookType = "full"
 		}
 		// try to unmarshal yml first and then toml
-		switch {
-		case strings.HasSuffix(fname, ".yml") || strings.HasSuffix(fname, ".yaml") || !strings.Contains(fname, "."):
+		switch filepath.Ext(fname) {
+		case ".yml", ".yaml", "":
 			yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 			yamlDecoder.KnownFields(true) // strict mode, fail on unknown fields
 			if err = yamlDecoder.Decode(v); err != nil {
 				return fmt.Errorf("can't unmarshal yaml playbook (%s mode) %s: %w", pbookType, fname, err)
 			}
-		case strings.HasSuffix(fname, ".toml"):
+		case ".toml":
 			if err = toml.Unmarshal(data, v); err != nil {
 				return fmt.Errorf("can't unmarshal toml playbook %s: %w", fname, err)
 			}
@@ -269,12 +274,18 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 
 	errs := new(multierror.Error)
 	if err = unmarshal(data, res, true); err == nil && len(res.Tasks) > 0 {
-		return nil // success, this is full PlayBook config
+		tasks, err := resolveImports(res.Tasks, filepath.Dir(fname))
+		if err != nil {
+			return fmt.Errorf("can't parse config %s: %w", fname, err)
+		}
+		res.Tasks = tasks
+		return nil
 	}
 	errs = multierror.Append(errs, err)
 
 	simple := &SimplePlayBook{}
-	if err := unmarshal(data, simple, false); err == nil && len(simple.Task) > 0 {
+	err = unmarshal(data, simple, false)
+	if err == nil && len(simple.Task) > 0 {
 		// success, this is SimplePlayBook config, convert it to full PlayBook config.
 		// copy the top-level fields explicitly instead of relying on the partial decode of the failed
 		// full-parse attempt above, which is fragile and undefined for the toml path
@@ -313,11 +324,125 @@ func unmarshalPlaybookFile(fname string, data []byte, overrides *Overrides, res 
 		}
 		res.Targets = map[string]Target{"default": target}
 		return nil
-	} else { // nolint
-		errs = multierror.Append(errs, err)
 	}
+	errs = multierror.Append(errs, err)
 
 	return errs.ErrorOrNil()
+}
+
+// resolveImports walks the task list and expands any top-level import directives inline.
+// Imported files must be flat task lists; nested imports are rejected.
+// Paths are resolved relative to the baseDir of the importing file.
+func resolveImports(tasks []Task, baseDir string) ([]Task, error) {
+	var result []Task
+	for _, t := range tasks {
+		if t.Import == "" {
+			result = append(result, t)
+			continue
+		}
+		if err := checkImportEntry(t); err != nil {
+			return nil, err
+		}
+		imported, err := resolveImport(t, baseDir)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, imported...)
+	}
+	return result, nil
+}
+
+// checkImportEntry verifies that a task entry with import does not carry other task fields.
+func checkImportEntry(t Task) error {
+	t.sourceFile = "" // zero out internal fields before comparison
+	if !reflect.DeepEqual(t, Task{Import: t.Import}) {
+		return fmt.Errorf("import %q must not include other task fields", t.Import)
+	}
+	return nil
+}
+
+// resolveImport resolves a single import directive.
+func resolveImport(t Task, baseDir string) ([]Task, error) {
+	if filepath.IsAbs(t.Import) {
+		return nil, fmt.Errorf("import path %q must be relative", t.Import)
+	}
+	importPath := filepath.Join(baseDir, t.Import)
+
+	data, err := os.ReadFile(importPath) // nolint
+	if err != nil {
+		return nil, fmt.Errorf("can't read import %q: %w", t.Import, err)
+	}
+
+	imported, err := parseImportFile(importPath, data)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, importedTask := range imported {
+		if importedTask.Import != "" {
+			return nil, fmt.Errorf("import file %s contains nested import of %q", importPath, importedTask.Import)
+		}
+	}
+
+	for i := range imported {
+		imported[i].sourceFile = importPath
+	}
+
+	return imported, nil
+}
+
+// checkUniqueTaskNames returns an error if any two tasks share the same name (case-insensitive).
+// If tasks have sourceFile set, the error includes file names.
+func checkUniqueTaskNames(tasks []Task) error {
+	seen := make(map[string]string) // lowercased name -> sourceFile
+	for _, t := range tasks {
+		if t.Name == "" {
+			continue
+		}
+		key := strings.ToLower(t.Name)
+		if f, ok := seen[key]; ok {
+			if f != "" && t.sourceFile != "" && f != t.sourceFile {
+				return fmt.Errorf("duplicate task name %q (files: %s, %s)", t.Name, f, t.sourceFile)
+			}
+			return fmt.Errorf("duplicate task name %q", t.Name)
+		}
+		seen[key] = t.sourceFile
+	}
+	return nil
+}
+
+// parseImportFile reads an import file and returns the list of tasks.
+// The file must contain a top-level "tasks" key with a list of task definitions.
+// Format is detected by file extension (YAML or TOML).
+func parseImportFile(fname string, data []byte) ([]Task, error) {
+	var imp struct {
+		Tasks []Task `yaml:"tasks" toml:"tasks"`
+	}
+
+	switch filepath.Ext(fname) {
+	case ".yml", ".yaml", "":
+		yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
+		yamlDecoder.KnownFields(true)
+		if err := yamlDecoder.Decode(&imp); err != nil {
+			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
+		}
+	case ".toml":
+		if err := toml.NewDecoder(bytes.NewReader(data)).DisallowUnknownFields().Decode(&imp); err != nil {
+			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
+		}
+	default:
+		return nil, fmt.Errorf("unknown format for import file %s", fname)
+	}
+
+	if len(imp.Tasks) == 0 {
+		return nil, fmt.Errorf("import file %s has no tasks", fname)
+	}
+
+	if err := checkUniqueTaskNames(imp.Tasks); err != nil {
+		return nil, fmt.Errorf("import file %s: %w", fname, err)
+	}
+
+	return imp.Tasks, nil
 }
 
 // AllTasks returns the playbook's list of tasks.
@@ -591,16 +716,13 @@ func (p *PlayBook) loadInventory(loc string) (*InventoryData, error) {
 // Returns an error if any of these conditions are not met.
 func (p *PlayBook) checkConfig() error {
 
-	// check that all tasks have unique names in the playbook and no empty names
-	names := make(map[string]bool)
 	for _, t := range p.Tasks {
-		if t.Name == "" { // task name is required
+		if t.Name == "" {
 			return fmt.Errorf("task name is required")
 		}
-		if names[t.Name] { // task name must be unique
-			return fmt.Errorf("duplicate task name %q", t.Name)
-		}
-		names[t.Name] = true
+	}
+	if err := checkUniqueTaskNames(p.Tasks); err != nil {
+		return err
 	}
 
 	// check what all commands have a single type set
@@ -627,7 +749,7 @@ func (p *PlayBook) checkConfig() error {
 
 // loadSecrets loads secrets from secrets provider and stores them in secrets map
 func (p *PlayBook) loadSecrets() error {
-	// check if secrets are defined in playbook
+	// collect Secrets from all command's options and count them
 	secretsCount := 0
 	for _, t := range p.Tasks {
 		for _, c := range t.Commands {
@@ -649,7 +771,6 @@ func (p *PlayBook) loadSecrets() error {
 		p.secrets = make(map[string]string)
 	}
 
-	// collect Secrets from all command's, retrieve them from provider and store in the secrets map
 	for _, t := range p.Tasks {
 		for i, c := range t.Commands {
 			for _, key := range c.Options.Secrets {
@@ -657,11 +778,13 @@ func (p *PlayBook) loadSecrets() error {
 				if err != nil {
 					return fmt.Errorf("can't get secret %q defined in task %q, command %q: %w", key, t.Name, c.Name, err)
 				}
-				p.secrets[key] = val // store secret in the secrets map of playbook
+				// store secret in the secrets map of playbook
+				p.secrets[key] = val
 				if c.Secrets == nil {
 					c.Secrets = make(map[string]string)
 				}
-				c.Secrets[key] = val // store secret in the secrets map of command
+				// store secret in the secrets map of command
+				c.Secrets[key] = val
 			}
 			t.Commands[i] = c
 		}

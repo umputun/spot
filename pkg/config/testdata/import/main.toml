@@ -1,0 +1,11 @@
+user = "testuser"
+
+[targets]
+[targets.prod]
+groups = ["production"]
+
+[[tasks]]
+import = "tasks/prepare.yml"
+
+[[tasks]]
+import = "tasks/deploy.yml"

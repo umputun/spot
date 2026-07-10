@@ -1,0 +1,7 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - import: /etc/hosts

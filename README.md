@@ -23,6 +23,7 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 - Debug mode to print out the commands to be executed, the output of the commands, and all the other details.
 - Dry-run mode to print out the commands to be executed without executing them.
 - [Ad-hoc mode](#ad-hoc-commands) to execute a single command on a list of hosts.
+- [Import tasks](#importing-tasks-from-external-files) from external files to organize large playbooks.
 - A [single binary](https://github.com/umputun/spot/releases) with no external dependencies.
 ----
 
@@ -308,6 +309,68 @@ Here are the main differences between the two types of playbooks:
 - The simplified playbook also has `target` field (in addition to `targets`) that allows setting a single host/name only. This is useful when users want to run the playbook on a single host only. The full playbook does not have this field.
 
 Both types of playbooks support the remaining fields and options.
+
+### Importing Tasks from External Files
+
+Large playbooks can be split into multiple files using the `import` directive in the tasks list.
+This allows organizing related tasks into separate files and reusing them across different playbooks.
+
+**Syntax:**
+
+```yaml
+# main.yml
+tasks:
+  - import: tasks/setup.yml
+  - import: tasks/deploy.yml
+  - name: inline-task
+    commands:
+      - name: hello
+        script: echo hello
+```
+
+```toml
+# main.toml
+[[tasks]]
+import = "tasks/setup.yml"
+
+[[tasks]]
+name = "inline-task"
+[[tasks.commands]]
+name = "hello"
+script = "echo hello"
+```
+
+**Import file format:**
+
+```yaml
+# tasks/setup.yml
+tasks:
+  - name: install-deps
+    commands:
+      - name: apt
+        script: apt-get update && apt-get install -y curl
+  - name: configure
+    commands:
+      - name: config
+        script: echo "configured"
+```
+
+**Key features:**
+
+- Import files use the same `tasks:` structure as playbooks.
+- Paths are resolved relative to the importing file's directory.
+- Imports can be mixed with inline task definitions.
+- Both YAML and TOML formats are supported for main and imported files.
+- Imported tasks are validated with duplicate name checks and strict top-level field validation (errors on unknown keys at the task level). TOML import files also enforce strict field checking inside commands.
+
+**Limitations:**
+
+- Import directives are only supported in the full playbook format, not the simplified format.
+- Imported files must be flat task lists; nested imports are rejected.
+- Absolute import paths are rejected; only relative paths are allowed.
+- Empty import files (`tasks: []`) produce a hard error.
+- An import entry must not carry other task fields (e.g. `targets`, `tags`, `options`).
+- Case-insensitive task name checking: `Deploy` and `deploy` are treated as duplicate and rejected at load time.
 
 ## Tasks and Commands
 

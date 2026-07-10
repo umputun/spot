@@ -673,7 +673,6 @@ hosts:
 	}))
 	defer ts.Close()
 
-	// create test cases
 	testCases := []struct {
 		name        string
 		loc         string
@@ -689,7 +688,6 @@ hosts:
 		{"file not found", "nonexistent-file.yaml", true},
 	}
 
-	// run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := &PlayBook{User: "testuser"}
@@ -787,16 +785,7 @@ func TestPlayBook_checkConfig(t *testing.T) {
 			},
 			expectedErr: "task name is required",
 		},
-		{
-			name: "duplicate task name",
-			playbook: PlayBook{
-				Tasks: []Task{
-					{Name: "task1"},
-					{Name: "task1"},
-				},
-			},
-			expectedErr: `duplicate task name "task1"`,
-		},
+
 		{
 			name: "invalid command",
 			playbook: PlayBook{
@@ -810,6 +799,26 @@ func TestPlayBook_checkConfig(t *testing.T) {
 				},
 			},
 			expectedErr: `task "task1" rejected, invalid command "c1": only one of [script, delete] is allowed`,
+		},
+		{
+			name: "duplicate task names",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{Name: "task1", Commands: []Cmd{{Script: "echo 1"}}},
+					{Name: "task1", Commands: []Cmd{{Script: "echo 2"}}},
+				},
+			},
+			expectedErr: `duplicate task name "task1"`,
+		},
+		{
+			name: "duplicate task names case-insensitive",
+			playbook: PlayBook{
+				Tasks: []Task{
+					{Name: "Deploy", Commands: []Cmd{{Script: "echo 1"}}},
+					{Name: "deploy", Commands: []Cmd{{Script: "echo 2"}}},
+				},
+			},
+			expectedErr: `duplicate task name "deploy"`,
 		},
 		{
 			name: "no commands",
@@ -885,6 +894,74 @@ func TestPlayBook_AllTasks(t *testing.T) {
 	assert.Equal(t, "task2", p.AllTasks()[1].Name)
 	assert.Equal(t, []string{"target1"}, p.AllTasks()[0].Targets)
 	assert.Equal(t, []string{"target2", "target3"}, p.AllTasks()[1].Targets)
+}
+
+func TestPlayBook_Import_Success(t *testing.T) {
+	tbl := []struct {
+		name      string
+		file      string
+		overrides *Overrides
+		wantTasks []string
+		check     func(t *testing.T, p *PlayBook)
+	}{
+		{"basic yaml", "testdata/import/main.yml", nil, []string{"install-deps", "setup-user", "deploy-app"},
+			func(t *testing.T, p *PlayBook) {
+				assert.Equal(t, "restart", p.Tasks[2].Commands[1].Name)
+				assert.Equal(t, "docker pull app:latest", p.Tasks[2].Commands[0].Script)
+			}},
+		{"basic toml", "testdata/import/main.toml", nil, []string{"install-deps", "setup-user", "deploy-app"}, nil},
+		{"mixed with inline", "testdata/import/mixed.yml", nil, []string{"install-deps", "setup-user", "inline-task", "deploy-app"},
+			func(t *testing.T, p *PlayBook) {
+				assert.Equal(t, "restart", p.Tasks[3].Commands[1].Name)
+			}},
+		{"multi file", "testdata/import/multi-import.yml", nil, []string{"install-deps", "setup-user", "check-task", "final-check"}, nil},
+		{"cross format", "testdata/import/cross-format.yml", nil, []string{"from-toml", "inline-after-toml"}, nil},
+		{"with adhoc override", "testdata/import/main.yml", &Overrides{AdHocCommand: "echo test"}, []string{"install-deps", "setup-user", "deploy-app"}, nil},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			p, err := New(tt.file, tt.overrides, nil)
+			require.NoError(t, err)
+			require.Len(t, p.Tasks, len(tt.wantTasks))
+			for i, name := range tt.wantTasks {
+				assert.Equal(t, name, p.Tasks[i].Name)
+			}
+			if tt.check != nil {
+				tt.check(t, p)
+			}
+		})
+	}
+}
+
+func TestPlayBook_Import_Error(t *testing.T) {
+	tbl := []struct {
+		name string
+		file string
+		want []string
+	}{
+		{"nested rejected", "testdata/import/nested-import.yml", []string{"contains nested import of"}},
+		{"missing file", "testdata/import/missing-import.yml", []string{"can't read import", "tasks/nonexistent.yml"}},
+		{"empty tasks", "testdata/import/empty-import.yml", []string{"has no tasks"}},
+		{"invalid content", "testdata/import/bad-format-import.yml", []string{"can't parse import file"}},
+		{"unknown format", "testdata/import/unknown-format.yml", []string{"unknown format for import file"}},
+		{"dup task name in file", "testdata/import/dup-task-import.yml", []string{"import file", `duplicate task name "dup-task"`}},
+		{"cross file dup", "testdata/import/cross-file-dup.yml", []string{"duplicate task name", "shared-task", "tasks/a.yml", "tasks/b.yml"}},
+		{"inline collision", "testdata/import/collision-inline.yml", []string{`duplicate task name "install-deps"`}},
+		{"entry with extra fields", "testdata/import/import-with-name.yml", []string{"must not include other task fields"}},
+		{"absolute path rejected", "testdata/import/absolute-path.yml", []string{"must be relative"}},
+		{"toml unknown fields", "testdata/import/toml-unknown-fields.yml", []string{"can't parse import file"}},
+	}
+
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := New(tt.file, nil, nil)
+			require.Error(t, err)
+			for _, substr := range tt.want {
+				require.ErrorContains(t, err, substr)
+			}
+		})
+	}
 }
 
 func TestPlayBook_SSHTempDir(t *testing.T) {

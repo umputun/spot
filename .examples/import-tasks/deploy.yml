@@ -1,0 +1,14 @@
+user: deploy
+
+targets:
+  prod:
+    hosts:
+      - {host: "example.com", name: "server1"}
+  staging:
+    hosts:
+      - {host: "staging.example.com", name: "server2"}
+
+tasks:
+  - import: tasks/prepare.yml
+  - import: tasks/deploy-app.yml
+  - import: tasks/verify.yml

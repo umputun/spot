@@ -1,0 +1,8 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - import: tasks/prepare.yml
+    name: bad-name
