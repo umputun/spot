@@ -48,6 +48,22 @@ type DeleteOpts struct {
 // exclude patterns and remote paths always use forward slashes.
 func normalizeSlashes(s string) string { return strings.ReplaceAll(s, `\`, "/") }
 
+// splitOutputLines splits captured command output into lines the same way bufio.ScanLines does, i.e. dropping
+// a trailing \r and the empty element after the final newline, but without the scanner's token size limit.
+// All executors share it, so the same stdout produces the same lines regardless of the implementation.
+// The output is already fully buffered, so a single line of any length is returned as is.
+func splitOutputLines(s string) []string {
+	if s == "" {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	res := make([]string, 0, len(lines))
+	for _, line := range lines {
+		res = append(res, strings.TrimSuffix(line, "\r"))
+	}
+	return res
+}
+
 // isExcluded reports whether fpath matches any of the exclude patterns. A pattern ending in "/*"
 // also matches the directory it names, so the whole subtree is protected, but this directory match
 // only applies when fpath is itself a directory. This prevents a pattern like "dir*/*" from

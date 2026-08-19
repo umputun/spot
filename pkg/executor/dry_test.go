@@ -14,10 +14,19 @@ import (
 func TestDry_Run(t *testing.T) {
 	ctx := context.Background()
 	dry := NewDry(MakeLogs(true, false, nil))
-	res, err := dry.Run(ctx, "ls -la /srv", &RunOpts{Verbose: true})
-	require.NoError(t, err)
-	require.Len(t, res, 1)
-	require.Equal(t, "ls -la /srv", res[0])
+
+	t.Run("single line", func(t *testing.T) {
+		res, err := dry.Run(ctx, "ls -la /srv", &RunOpts{Verbose: true})
+		require.NoError(t, err)
+		require.Len(t, res, 1)
+		require.Equal(t, "ls -la /srv", res[0])
+	})
+
+	t.Run("multi line with blank line", func(t *testing.T) {
+		res, err := dry.Run(ctx, "ls -la /srv\n\ndf -h\n", &RunOpts{Verbose: true})
+		require.NoError(t, err)
+		require.Equal(t, []string{"ls -la /srv", "", "df -h"}, res)
+	})
 }
 
 func TestDryUpload(t *testing.T) {

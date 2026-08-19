@@ -431,6 +431,12 @@ func TestExecuter_Run(t *testing.T) {
 		assert.Equal(t, "data2.txt", out[1])
 	})
 
+	t.Run("blank lines and crlf preserved as local does", func(t *testing.T) {
+		out, e := sess.Run(ctx, "sh -c 'printf \"line1\\n\\nline2\\r\\n\"'", nil)
+		require.NoError(t, e)
+		assert.Equal(t, []string{"line1", "", "line2"}, out)
+	})
+
 	t.Run("find out", func(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
 		out, e := sess.Run(ctx, cmd, &RunOpts{Verbose: true})

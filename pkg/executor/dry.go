@@ -27,12 +27,7 @@ func (ex *Dry) Run(_ context.Context, cmd string, _ *RunOpts) (out []string, err
 	var stdoutBuf bytes.Buffer
 	mwr := io.MultiWriter(ex.logs.Out, &stdoutBuf)
 	mwr.Write([]byte(cmd)) // nolint
-	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out, nil
+	return splitOutputLines(stdoutBuf.String()), nil
 }
 
 // Upload doesn't actually upload, just prints the command
