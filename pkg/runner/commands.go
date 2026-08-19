@@ -716,7 +716,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		if strings.TrimSpace(l) == "" {
 			continue
 		}
-		scr += fmt.Sprintf(" + %s\n", strings.ReplaceAll(l, "%", "%%"))
+		scr += fmt.Sprintf(" + %s\n", l)
 	}
 
 	// make a temporary file and copy the script to it

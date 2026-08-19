@@ -1,0 +1,10 @@
+user: test
+
+tasks:
+  - name: default
+    commands:
+      - name: percent in script
+        script: |
+          echo "progress 50% done"
+          echo "format %s %d"
+        options: {local: true}
