@@ -384,3 +384,14 @@ func TestIsAlphanumeric(t *testing.T) {
 		})
 	}
 }
+
+func TestColorizedWriter_LineOverScannerLimit(t *testing.T) {
+	var buf bytes.Buffer
+	wr := &colorizedWriter{wr: &buf, prefix: " >", hostAddr: "h1", monochrome: true}
+
+	line := strings.Repeat("x", 100000)
+	n, err := wr.Write([]byte(line + "\n"))
+	require.NoError(t, err)
+	assert.Equal(t, len(line)+1, n)
+	assert.Contains(t, buf.String(), line)
+}

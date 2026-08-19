@@ -3,8 +3,10 @@ package executor
 import (
 	"bytes"
 	"context"
+	"io"
 	"log"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -107,4 +109,42 @@ func TestDryOperations(t *testing.T) {
 			assert.Contains(t, stdout, tc.expectedLog, "expected log entry not found")
 		})
 	}
+}
+
+func TestDryUpload_LineOverScannerLimit(t *testing.T) {
+	tempFile, err := os.CreateTemp("", "spot-script")
+	require.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	line := strings.Repeat("x", 100000)
+	_, err = tempFile.WriteString(line + "\n")
+	require.NoError(t, err)
+	tempFile.Close()
+
+	// not captureStdOut: it writes to an unread os.Pipe and would block past the pipe buffer
+	var buf bytes.Buffer
+	logs := MakeLogs(true, true, nil).WithHost("host1.example.com", "host1")
+	logs.Out = logs.Out.WithWriter(&buf)
+
+	dry := NewDry(logs)
+	err = dry.Upload(context.Background(), tempFile.Name(), "remote/path/spot-script", &UpDownOpts{Mkdir: true})
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), line)
+}
+
+func TestDry_RunLineOverScannerLimit(t *testing.T) {
+	defer log.SetOutput(os.Stderr)
+	log.SetOutput(io.Discard)
+
+	// MultiWriter returns on the first writer's error, so a colorizedWriter failure used to leave
+	// stdoutBuf empty and Run silently returned no lines
+	var buf bytes.Buffer
+	logs := MakeLogs(true, true, nil)
+	logs.Out = logs.Out.WithWriter(&buf)
+
+	cmd := strings.Repeat("x", 100000)
+	res, err := NewDry(logs).Run(context.Background(), cmd, &RunOpts{Verbose: true})
+	require.NoError(t, err)
+	require.Len(t, res, 1)
+	assert.Equal(t, cmd, res[0])
 }

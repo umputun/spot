@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"io"
@@ -45,18 +44,12 @@ func (ex *Dry) Upload(_ context.Context, local, remote string, opts *UpDownOpts)
 		// this is a temp script created by spot to perform script execution on remote host
 		ex.logs.Err.Write([]byte("command script " + remote)) // nolint
 		// read local file and write it to outLog
-		f, err := os.Open(local) // nolint
+		content, err := os.ReadFile(local) // nolint
 		if err != nil {
 			return err
 		}
-		defer f.Close() // nolint ro file
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			ex.logs.Out.Write([]byte(scanner.Text())) // nolint
-		}
-		if err := scanner.Err(); err != nil {
-			return err
+		for _, line := range splitOutputLines(string(content)) {
+			ex.logs.Out.Write([]byte(line)) // nolint
 		}
 	}
 	return nil

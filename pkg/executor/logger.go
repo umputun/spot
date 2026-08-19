@@ -1,8 +1,6 @@
 package executor
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -84,9 +82,7 @@ func (s *colorizedWriter) Printf(format string, v ...any) {
 // Write writes the given byte slice to stdout with the colorized hostAddr prefix for each line.
 // If the input does not end with a newline, one is added.
 func (s *colorizedWriter) Write(p []byte) (n int, err error) {
-	scanner := bufio.NewScanner(bytes.NewReader(p))
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range splitOutputLines(string(p)) {
 		hostID := s.hostAddr
 		if s.hostName != "" {
 			hostID = s.hostName + " " + s.hostAddr
@@ -105,9 +101,6 @@ func (s *colorizedWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return 0, err
-	}
 	return len(p), nil
 }
 
