@@ -794,6 +794,20 @@ func Test_execEcho(t *testing.T) {
 		assert.Equal(t, " {echo: foo welcome back}", resp.details)
 	})
 
+	t.Run("echo command with blank line in output", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(echo first; echo; echo second)", Name: "test"}}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: first; second}", resp.details)
+	})
+
+	t.Run("echo command with whitespace-only line in output", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(echo first; echo '   '; echo second)", Name: "test"}}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: first;    ; second}", resp.details)
+	})
+
 	t.Run("echo command with condition true", func(t *testing.T) {
 		defer os.Remove("/tmp/test.condition")
 		_, err := sess.Run(ctx, "touch /tmp/test.condition", nil)

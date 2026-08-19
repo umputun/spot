@@ -561,7 +561,13 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	if err != nil {
 		return resp, ec.errorFmt("can't run echo command on %s: %w", ec.hostAddr, err)
 	}
-	resp.details = fmt.Sprintf(" {echo: %s}", strings.Join(out, "; "))
+	printed := make([]string, 0, len(out))
+	for _, line := range out { // empty lines carry nothing for the report and would show up as empty segments
+		if line != "" {
+			printed = append(printed, line)
+		}
+	}
+	resp.details = fmt.Sprintf(" {echo: %s}", strings.Join(printed, "; "))
 	return resp, nil
 }
 

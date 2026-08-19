@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -357,12 +356,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 		return nil, fmt.Errorf("canceled: %w", ctx.Err())
 	}
 
-	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out, nil
+	return splitOutputLines(stdoutBuf.String()), nil
 }
 
 type sftpReq struct {

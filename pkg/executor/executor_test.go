@@ -123,3 +123,25 @@ func captureStdOut(t *testing.T, f func()) string {
 	io.Copy(&buf, r)
 	return buf.String()
 }
+
+func TestSplitOutputLines(t *testing.T) {
+	tbl := []struct {
+		name string
+		in   string
+		res  []string
+	}{
+		{"empty", "", nil},
+		{"single line, no trailing newline", "hello", []string{"hello"}},
+		{"single line with trailing newline", "hello\n", []string{"hello"}},
+		{"multiple lines", "line1\nline2\nline3\n", []string{"line1", "line2", "line3"}},
+		{"blank line in the middle", "line1\n\nline2\n", []string{"line1", "", "line2"}},
+		{"single newline", "\n", []string{""}},
+		{"trailing blank line", "line1\n\n", []string{"line1", ""}},
+		{"crlf line endings", "line1\r\nline2\r\n", []string{"line1", "line2"}},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.res, splitOutputLines(tt.in))
+		})
+	}
+}
