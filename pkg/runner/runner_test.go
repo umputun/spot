@@ -738,6 +738,25 @@ func TestProcess_RunVerbose(t *testing.T) {
 func TestProcess_RunLocal(t *testing.T) {
 	ctx := context.Background()
 
+	t.Run("script with percent verbs in verbose2 output", func(t *testing.T) {
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(os.Stderr)
+
+		stdout := captureStdOut(t, func() {
+			logs := executor.MakeLogs(true, false, nil)
+			conf, err := config.New("testdata/conf-local-percent.yml", nil, nil)
+			require.NoError(t, err)
+			p := Process{Concurrency: 1, Playbook: conf, Logs: logs, Verbose: true, Verbose2: true}
+			_, err = p.Run(ctx, "default", "localhost")
+			require.NoError(t, err)
+		})
+
+		t.Log(stdout)
+		assert.Contains(t, stdout, `echo "progress 50% done"`)
+		assert.Contains(t, stdout, `echo "format %s %d"`)
+		assert.NotContains(t, stdout, "%!")
+	})
+
 	t.Run("command with local option", func(t *testing.T) {
 		var buf bytes.Buffer
 		log.SetOutput(&buf)

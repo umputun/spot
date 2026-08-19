@@ -5,7 +5,7 @@ Package `fileutils` provides useful, high-level file operations.
 ## Details
 
 - `IsFile` & `IsDir` checks if file/directory exists
-- `CopyFile` copies a file from source to destination, preserving mode
+- `CopyFile` copies a file from source to destination, preserving mode, and refuses to copy a file onto itself
 - `CopyDir` copies all files recursively from the source to destination directory
 - `MoveFile` moves a file, using atomic rename when possible with copy+delete fallback
 - `ListFiles` returns sorted slice of file paths in directory

@@ -262,7 +262,7 @@ func (p *Process) runTaskOnHost(ctx context.Context, tsk *config.Task, hostAddr,
 		p.updateVars(exResp.vars, cmd, &activeTask)   // set variables from command output to all commands env in task
 		maps.Copy(resp.registered, exResp.registered) // store registered variables from command output
 		if exResp.verbose != "" && ec.verbose2 {
-			report(repHostAddr, repHostName, exResp.verbose)
+			report(repHostAddr, repHostName, "%s", exResp.verbose)
 		}
 
 		// we don't want to print multiline script name in logs

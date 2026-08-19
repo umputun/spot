@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/go-pkgz/fileutils"
@@ -267,8 +268,7 @@ func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error 
 	}
 
 	// remove files and directories in reverse order
-	for i := len(pathsToDelete) - 1; i >= 0; i-- {
-		dstPath := pathsToDelete[i]
+	for _, dstPath := range slices.Backward(pathsToDelete) {
 		if e := os.RemoveAll(dstPath); e != nil {
 			return e
 		}

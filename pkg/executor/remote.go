@@ -282,14 +282,13 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 		}
 
 		// delete files and directories in reverse order
-		for i := len(pathsToDelete) - 1; i >= 0; i-- {
+		for _, path := range slices.Backward(pathsToDelete) {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 			}
 
-			path := pathsToDelete[i]
 			fi, stErr := sftpClient.Stat(path)
 			if stErr != nil {
 				return fmt.Errorf("failed to stat %s: %w", path, stErr)
