@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -59,11 +58,22 @@ func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, 
 		return nil, err
 	}
 
-	scanner := bufio.NewScanner(&stdoutBuf)
-	for scanner.Scan() {
-		out = append(out, scanner.Text())
+	return splitOutputLines(stdoutBuf.String()), nil
+}
+
+// splitOutputLines splits captured command output into lines the same way bufio.ScanLines does, i.e. dropping
+// a trailing \r and the empty element after the final newline, but without the scanner's token size limit.
+// The output is already fully buffered, so a single line of any length is returned as is.
+func splitOutputLines(s string) []string {
+	if s == "" {
+		return nil
 	}
-	return out, scanner.Err()
+	lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	res := make([]string, 0, len(lines))
+	for _, line := range lines {
+		res = append(res, strings.TrimSuffix(line, "\r"))
+	}
+	return res
 }
 
 // Upload just copy file from one place to another

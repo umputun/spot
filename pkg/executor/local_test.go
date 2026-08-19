@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -71,6 +72,17 @@ func TestRun(t *testing.T) {
 		assert.Contains(t, out, "/tmp/st/data2.txt")
 	})
 
+	t.Run("line over the scanner buffer limit", func(t *testing.T) {
+		quiet := NewLocal(MakeLogs(false, false, nil)) // non-verbose logs go to the std logger, muted below
+		defer log.SetOutput(os.Stderr)
+		log.SetOutput(io.Discard)
+
+		out, e := quiet.Run(ctx, "head -c 100000 /dev/zero | tr '\\0' 'x'", nil)
+		require.NoError(t, e)
+		require.Len(t, out, 1)
+		assert.Len(t, out[0], 100000)
+	})
+
 	t.Run("with secrets", func(t *testing.T) {
 		stdout := captureStdOut(t, func() {
 			l := NewLocal(MakeLogs(true, false, []string{"data2"}))
@@ -84,6 +96,28 @@ func TestRun(t *testing.T) {
 		assert.NotContains(t, stdout, "data2", "captured stdout should not contain secrets")
 		assert.Contains(t, stdout, "****", "captured stdout should contain masked secrets")
 	})
+}
+
+func TestSplitOutputLines(t *testing.T) {
+	tbl := []struct {
+		name string
+		in   string
+		res  []string
+	}{
+		{"empty", "", nil},
+		{"single line, no trailing newline", "hello", []string{"hello"}},
+		{"single line with trailing newline", "hello\n", []string{"hello"}},
+		{"multiple lines", "line1\nline2\nline3\n", []string{"line1", "line2", "line3"}},
+		{"blank line in the middle", "line1\n\nline2\n", []string{"line1", "", "line2"}},
+		{"single newline", "\n", []string{""}},
+		{"trailing blank line", "line1\n\n", []string{"line1", ""}},
+		{"crlf line endings", "line1\r\nline2\r\n", []string{"line1", "line2"}},
+	}
+	for _, tt := range tbl {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.res, splitOutputLines(tt.in))
+		})
+	}
 }
 
 func TestUploadAndDownload(t *testing.T) {
