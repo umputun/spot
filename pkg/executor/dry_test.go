@@ -18,14 +18,14 @@ func TestDry_Run(t *testing.T) {
 	dry := NewDry(MakeLogs(true, false, nil))
 
 	t.Run("single line", func(t *testing.T) {
-		res, err := dry.Run(ctx, "ls -la /srv", &RunOpts{Verbose: true})
+		res, err := dry.Run(ctx, "ls -la /srv", nil)
 		require.NoError(t, err)
 		require.Len(t, res, 1)
 		require.Equal(t, "ls -la /srv", res[0])
 	})
 
 	t.Run("multi line with blank line", func(t *testing.T) {
-		res, err := dry.Run(ctx, "ls -la /srv\n\ndf -h\n", &RunOpts{Verbose: true})
+		res, err := dry.Run(ctx, "ls -la /srv\n\ndf -h\n", nil)
 		require.NoError(t, err)
 		require.Equal(t, []string{"ls -la /srv", "", "df -h"}, res)
 	})
@@ -143,7 +143,7 @@ func TestDry_RunLineOverScannerLimit(t *testing.T) {
 	logs.Out = logs.Out.WithWriter(&buf)
 
 	cmd := strings.Repeat("x", 100000)
-	res, err := NewDry(logs).Run(context.Background(), cmd, &RunOpts{Verbose: true})
+	res, err := NewDry(logs).Run(context.Background(), cmd, nil)
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 	assert.Equal(t, cmd, res[0])

@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -27,7 +26,7 @@ func NewLocal(logs Logs) *Local {
 }
 
 // Run executes command on local hostAddr, inside the shell
-func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
+func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	shell := func() string {
 		if strings.HasPrefix(cmd, "sh -c") {
 			return "sh" // command has sh -c prefix, so use sh
@@ -51,15 +50,15 @@ func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, 
 	errLog := l.logs.Err.WithHost("localhost", "")
 	outLog.Write([]byte(cmd)) // nolint
 
-	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(outLog, &stdoutBuf)
+	capture := newLineCapture(opts)
+	mwr := io.MultiWriter(outLog, capture)
 	command.Stdout, command.Stderr = mwr, errLog
 	err = command.Run()
 	if err != nil {
 		return nil, err
 	}
 
-	return splitOutputLines(stdoutBuf.String()), nil
+	return capture.result(), nil
 }
 
 // Upload just copy file from one place to another

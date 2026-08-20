@@ -183,7 +183,7 @@ func TestExecuter_UploadGlobExcludeDirectory(t *testing.T) {
 	err = sess.Upload(ctx, filepath.Join(srcDir, "*"), "/tmp/globex", &UpDownOpts{Mkdir: true, Exclude: []string{"subdir/*"}})
 	require.NoError(t, err)
 
-	out, e := sess.Run(ctx, "ls -1 /tmp/globex", &RunOpts{Verbose: true})
+	out, e := sess.Run(ctx, "ls -1 /tmp/globex", nil)
 	require.NoError(t, e)
 	assert.Contains(t, out, "keep.txt", out)
 	assert.NotContains(t, out, "subdir", "excluded directory should not be uploaded")
@@ -202,7 +202,7 @@ func TestExecuter_DownloadGlobExcludeDirectory(t *testing.T) {
 
 	// remote source with a file and a subdirectory; the glob matches both
 	_, e := sess.Run(ctx, "mkdir -p /tmp/dlex/subdir && echo keep > /tmp/dlex/keep.txt && echo inner > /tmp/dlex/subdir/inner.txt",
-		&RunOpts{Verbose: true})
+		nil)
 	require.NoError(t, e)
 
 	// excluding the matched directory must skip it instead of feeding it into sftpDownload and failing
@@ -327,7 +327,7 @@ func TestExecuter_TransferCancellation(t *testing.T) {
 
 	t.Run("canceled download preserves the existing file", func(t *testing.T) {
 		// a remote file large enough that the copy is still in flight when the (already canceled) select runs
-		_, e := sess.Run(ctx, "head -c 16777216 /dev/zero > /tmp/big.remote", &RunOpts{Verbose: true})
+		_, e := sess.Run(ctx, "head -c 16777216 /dev/zero > /tmp/big.remote", nil)
 		require.NoError(t, e)
 
 		// an existing local file with known content that a canceled overwrite must not destroy
@@ -439,7 +439,7 @@ func TestExecuter_Run(t *testing.T) {
 
 	t.Run("find out", func(t *testing.T) {
 		cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
-		out, e := sess.Run(ctx, cmd, &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, cmd, nil)
 		require.NoError(t, e)
 		slices.Sort(out)
 		assert.Equal(t, []string{"/tmp/st/data1.txt:13", "/tmp/st/data2.txt:13"}, out)
@@ -460,7 +460,7 @@ func TestExecuter_Run(t *testing.T) {
 			require.NoError(t, err)
 
 			cmd := fmt.Sprintf("find %s -type f -exec stat -c '%%n:%%s' {} \\;", "/tmp/")
-			out, e := session.Run(ctx, cmd, &RunOpts{Verbose: true})
+			out, e := session.Run(ctx, cmd, nil)
 			require.NoError(t, e)
 			t.Logf("out: %v", out)
 			slices.Sort(out)
@@ -502,7 +502,7 @@ func TestExecuter_Sync(t *testing.T) {
 		require.NoError(t, e)
 		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "find /tmp/sync.dest -type f -exec stat -c '%s %n' {} \\;", nil)
 		require.NoError(t, e)
 		slices.Sort(out)
 		assert.Equal(t, []string{"17 /tmp/sync.dest/d1/file11.txt", "185 /tmp/sync.dest/file1.txt", "61 /tmp/sync.dest/file2.txt"}, out)
@@ -519,43 +519,43 @@ func TestExecuter_Sync(t *testing.T) {
 	})
 
 	t.Run("sync with empty dir on remote to delete", func(t *testing.T) {
-		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest2/empty", &RunOpts{Verbose: true})
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest2/empty", nil)
 		require.NoError(t, e)
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest2", &SyncOpts{Delete: true})
 		require.NoError(t, e)
 		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest2 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "find /tmp/sync.dest2 -type f -exec stat -c '%s %n' {} \\;", nil)
 		require.NoError(t, e)
 		slices.Sort(out)
 		assert.Equal(t, []string{"17 /tmp/sync.dest2/d1/file11.txt", "185 /tmp/sync.dest2/file1.txt", "61 /tmp/sync.dest2/file2.txt"}, out)
 	})
 
 	t.Run("sync with non-empty dir on remote to delete", func(t *testing.T) {
-		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest3/empty", &RunOpts{Verbose: true})
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest3/empty", nil)
 		require.NoError(t, e)
-		_, e = sess.Run(ctx, "touch /tmp/sync.dest3/empty/afile1.txt", &RunOpts{Verbose: true})
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest3/empty/afile1.txt", nil)
 		require.NoError(t, e)
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest3", &SyncOpts{Delete: true})
 		require.NoError(t, e)
 		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest3 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "find /tmp/sync.dest3 -type f -exec stat -c '%s %n' {} \\;", nil)
 		require.NoError(t, e)
 		slices.Sort(out)
 		assert.Equal(t, []string{"17 /tmp/sync.dest3/d1/file11.txt", "185 /tmp/sync.dest3/file1.txt", "61 /tmp/sync.dest3/file2.txt"}, out)
 	})
 
 	t.Run("sync  with non-empty dir on remote to keep", func(t *testing.T) {
-		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest4/empty", &RunOpts{Verbose: true})
+		_, e := sess.Run(ctx, "mkdir -p /tmp/sync.dest4/empty", nil)
 		require.NoError(t, e)
-		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", &RunOpts{Verbose: true})
+		_, e = sess.Run(ctx, "touch /tmp/sync.dest4/empty/afile1.txt", nil)
 		require.NoError(t, e)
 		res, e := sess.Sync(ctx, "testdata/sync", "/tmp/sync.dest4", nil)
 		require.NoError(t, e)
 		slices.Sort(res)
 		assert.Equal(t, []string{"d1/file11.txt", "file1.txt", "file2.txt"}, res)
-		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "find /tmp/sync.dest4 -type f -exec stat -c '%s %n' {} \\;", nil)
 		require.NoError(t, e)
 		slices.Sort(out)
 		assert.Equal(t, []string{"0 /tmp/sync.dest4/empty/afile1.txt", "17 /tmp/sync.dest4/d1/file11.txt",
@@ -595,26 +595,26 @@ func TestExecuter_Delete(t *testing.T) {
 	t.Run("delete dir", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/sync.dest", &DeleteOpts{Recursive: true})
 		require.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "ls -1 /tmp/", nil)
 		require.NoError(t, e)
 		assert.NotContains(t, out, "file2.txt", out)
 	})
 
 	t.Run("delete empty dir", func(t *testing.T) {
-		_, err = sess.Run(ctx, "mkdir -p /tmp/sync.dest/empty", &RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "mkdir -p /tmp/sync.dest/empty", nil)
 		require.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "ls -1 /tmp/sync.dest", nil)
 		require.NoError(t, e)
 		assert.Contains(t, out, "empty", out)
 		err = sess.Delete(ctx, "/tmp/sync.dest/empty", nil)
 		require.NoError(t, err)
-		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", &RunOpts{Verbose: true})
+		out, e = sess.Run(ctx, "ls -1 /tmp/sync.dest", nil)
 		require.NoError(t, e)
 		assert.NotContains(t, out, "empty", out)
 	})
 
 	t.Run("delete dir recursive without exclude does not warn", func(t *testing.T) {
-		_, err = sess.Run(ctx, "mkdir -p /tmp/nowarn/sub && touch /tmp/nowarn/a /tmp/nowarn/sub/b", &RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "mkdir -p /tmp/nowarn/sub && touch /tmp/nowarn/a /tmp/nowarn/sub/b", nil)
 		require.NoError(t, err)
 
 		buff := bytes.NewBuffer(nil)
@@ -657,29 +657,29 @@ func TestExecuter_DeleteWithExclude(t *testing.T) {
 	t.Run("delete dir with excluded files", func(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/delete.dest", &DeleteOpts{Recursive: true, Exclude: []string{"file2.*", "d1/*", "d2/file21.txt"}})
 		require.NoError(t, err)
-		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "ls -1 /tmp/", nil)
 		require.NoError(t, e)
 		assert.Contains(t, out, "delete.dest", out)
 
-		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest", &RunOpts{Verbose: true})
+		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest", nil)
 		require.NoError(t, e)
 		assert.Contains(t, out, "d1", out)
 		assert.Contains(t, out, "d2", out)
 		assert.Contains(t, out, "file2.txt", out)
 		assert.NotContains(t, out, "file3.txt", out)
 
-		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest/d1", &RunOpts{Verbose: true})
+		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest/d1", nil)
 		require.NoError(t, e)
 		assert.Contains(t, out, "file12.txt", out)
 
-		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest/d2", &RunOpts{Verbose: true})
+		out, e = sess.Run(ctx, "ls -1 /tmp/delete.dest/d2", nil)
 		require.NoError(t, e)
 		assert.Contains(t, out, "file21.txt", out)
 		assert.NotContains(t, out, "file22.txt", out)
 	})
 
 	t.Run("exclude matching nothing warns and removes tree", func(t *testing.T) {
-		_, err = sess.Run(ctx, "mkdir -p /tmp/warn.dest && touch /tmp/warn.dest/a /tmp/warn.dest/b", &RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "mkdir -p /tmp/warn.dest && touch /tmp/warn.dest/a /tmp/warn.dest/b", nil)
 		require.NoError(t, err)
 
 		buff := bytes.NewBuffer(nil)
@@ -689,7 +689,7 @@ func TestExecuter_DeleteWithExclude(t *testing.T) {
 		err = sess.Delete(ctx, "/tmp/warn.dest", &DeleteOpts{Recursive: true, Exclude: []string{"no-such-file"}})
 		require.NoError(t, err)
 		assert.Contains(t, buff.String(), "no exclude pattern matched", "a non-matching exclude should warn")
-		out, e := sess.Run(ctx, "ls -1 /tmp/", &RunOpts{Verbose: true})
+		out, e := sess.Run(ctx, "ls -1 /tmp/", nil)
 		require.NoError(t, e)
 		assert.NotContains(t, out, "warn.dest", "tree should be removed when exclude matches nothing")
 	})
@@ -817,7 +817,7 @@ func Test_getRemoteFilesProperties(t *testing.T) {
 	defer sess.Close()
 
 	// create some test data on the remote host.
-	_, err = sess.Run(ctx, "mkdir -p /tmp/testdata/dir1 /tmp/testdata/dir2 && echo 'Hello' > /tmp/testdata/dir1/file1.txt && echo 'World' > /tmp/testdata/dir2/file2.txt", &RunOpts{Verbose: true})
+	_, err = sess.Run(ctx, "mkdir -p /tmp/testdata/dir1 /tmp/testdata/dir2 && echo 'Hello' > /tmp/testdata/dir1/file1.txt && echo 'World' > /tmp/testdata/dir2/file2.txt", nil)
 	require.NoError(t, err)
 
 	props, err := sess.getRemoteFilesProperties(ctx, "/tmp/testdata", nil)

@@ -2,8 +2,10 @@ package executor
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -143,5 +145,82 @@ func TestSplitOutputLines(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.res, splitOutputLines(tt.in))
 		})
+	}
+}
+
+func TestLineCapture(t *testing.T) {
+	tbl := []struct {
+		name string
+		in   string
+		res  []string
+	}{
+		{"empty", "", nil},
+		{"single line, no trailing newline", "hello", []string{"hello"}},
+		{"single line with trailing newline", "hello\n", []string{"hello"}},
+		{"multiple lines", "line1\nline2\nline3\n", []string{"line1", "line2", "line3"}},
+		{"blank line in the middle", "line1\n\nline2\n", []string{"line1", "", "line2"}},
+		{"single newline", "\n", []string{""}},
+		{"trailing blank line", "line1\n\n", []string{"line1", ""}},
+		{"crlf line endings", "line1\r\nline2\r\n", []string{"line1", "line2"}},
+	}
+
+	// a nil predicate reproduces splitOutputLines whatever the write boundaries are, including a
+	// chunk size that splits a line, a crlf pair or a run of newlines
+	for _, tt := range tbl {
+		for _, chunk := range []int{0, 1, 2, 3, 7} {
+			t.Run(fmt.Sprintf("%s/chunk %d", tt.name, chunk), func(t *testing.T) {
+				lc := &lineCapture{}
+				writeInChunks(t, lc, tt.in, chunk)
+				assert.Equal(t, tt.res, lc.result())
+				assert.Equal(t, splitOutputLines(tt.in), lc.result(), "result is idempotent and matches the batch split")
+			})
+		}
+	}
+}
+
+func TestLineCaptureKeepLine(t *testing.T) {
+	t.Run("keeps only accepted lines", func(t *testing.T) {
+		lc := &lineCapture{keep: func(line string) bool { return strings.HasPrefix(line, "setvar ") }}
+		writeInChunks(t, lc, "noise\nsetvar a=1\nmore noise\nsetvar b=2\n", 3)
+		assert.Equal(t, []string{"setvar a=1", "setvar b=2"}, lc.result())
+	})
+
+	t.Run("rejecting everything retains nothing", func(t *testing.T) {
+		lc := &lineCapture{keep: func(string) bool { return false }}
+		writeInChunks(t, lc, "one\ntwo\nthree", 0)
+		assert.Nil(t, lc.result())
+	})
+
+	t.Run("predicate sees an unterminated final line", func(t *testing.T) {
+		var seen []string
+		lc := &lineCapture{keep: func(line string) bool { seen = append(seen, line); return true }}
+		writeInChunks(t, lc, "first\nlast-no-newline", 4)
+		assert.Equal(t, []string{"first"}, seen, "the final line is only offered once result is called")
+		assert.Equal(t, []string{"first", "last-no-newline"}, lc.result())
+	})
+
+	t.Run("line longer than a scanner token limit survives", func(t *testing.T) {
+		long := strings.Repeat("x", 1<<20)
+		lc := &lineCapture{}
+		writeInChunks(t, lc, long+"\nshort\n", 4096)
+		require.Len(t, lc.result(), 2)
+		assert.Equal(t, long, lc.result()[0])
+		assert.Equal(t, "short", lc.result()[1])
+	})
+}
+
+// writeInChunks feeds s to w in fixed-size pieces, or in one write when size is 0, so a test can
+// pin behavior across the write boundaries a real command produces.
+func writeInChunks(t *testing.T, w io.Writer, s string, size int) {
+	t.Helper()
+	if size <= 0 {
+		_, err := w.Write([]byte(s))
+		require.NoError(t, err)
+		return
+	}
+	for i := 0; i < len(s); i += size {
+		end := min(i+size, len(s))
+		_, err := w.Write([]byte(s[i:end]))
+		require.NoError(t, err)
 	}
 }
