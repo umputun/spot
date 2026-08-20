@@ -92,10 +92,22 @@ func (lc *lineCapture) Write(p []byte) (n int, err error) {
 		} else {
 			lc.partial = append(lc.partial, p[:i]...)
 			lc.take(lc.partial)
-			lc.partial = lc.partial[:0]
+			lc.reset()
 		}
 		p = p[i+1:]
 	}
+}
+
+// reset readies the staging buffer for the next line. A buffer that stayed small is kept, sparing an
+// allocation per line, but a large one is released: holding it would pin the longest line for the rest
+// of the command, which is the retention this type exists to avoid.
+func (lc *lineCapture) reset() {
+	const maxStageReuse = 64 << 10
+	if cap(lc.partial) > maxStageReuse {
+		lc.partial = nil
+		return
+	}
+	lc.partial = lc.partial[:0]
 }
 
 // take converts one line and keeps it if the predicate accepts. The string conversion copies, so

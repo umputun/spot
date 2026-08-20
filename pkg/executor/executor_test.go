@@ -224,3 +224,15 @@ func writeInChunks(t *testing.T, w io.Writer, s string, size int) {
 		require.NoError(t, err)
 	}
 }
+
+func TestLineCaptureReleasesLargeStagingBuffer(t *testing.T) {
+	// a long line arriving in pieces has to be staged, but once it is consumed the buffer must go:
+	// keeping it would pin the longest line for as long as the command runs, which is the retention
+	// this type exists to remove
+	lc := &lineCapture{keep: func(string) bool { return false }}
+	writeInChunks(t, lc, strings.Repeat("x", 4<<20)+"\n", 4096)
+	assert.LessOrEqual(t, cap(lc.partial), 64<<10, "the staging buffer is released once the line is consumed")
+
+	writeInChunks(t, lc, "short\n", 2) // still usable for the output that follows
+	assert.Nil(t, lc.result())
+}
