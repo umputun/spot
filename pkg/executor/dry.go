@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"log"
@@ -21,12 +20,12 @@ func NewDry(logs Logs) *Dry {
 }
 
 // Run shows the command content, doesn't execute it
-func (ex *Dry) Run(_ context.Context, cmd string, _ *RunOpts) (out []string, err error) {
+func (ex *Dry) Run(_ context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	log.Printf("[DEBUG] run %s", cmd)
-	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(ex.logs.Out, &stdoutBuf)
+	capture := newLineCapture(opts)
+	mwr := io.MultiWriter(ex.logs.Out, capture)
 	mwr.Write([]byte(cmd)) // nolint
-	return splitOutputLines(stdoutBuf.String()), nil
+	return capture.result(), nil
 }
 
 // Upload doesn't actually upload, just prints the command
