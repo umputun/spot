@@ -737,8 +737,9 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	// apply the wanted mode on dst. on Windows the staging stat does not carry unix perms, so the
-	// chmod always runs to make the result exact regardless of what sftpUpload inferred.
-	chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod %o %s", mode.Perm(), shellQuote(dst)))
+	// chmod always runs to make the result exact regardless of what sftpUpload inferred. the full
+	// mode value is used so setuid/setgid/sticky bits survive, not just the 0o777 perm mask.
+	chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod %o %s", mode, shellQuote(dst)))
 	if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
 		return resp, ec.errorFmt("can't chmod %s on %s: %w", dst, ec.hostAddr, err)
 	}
@@ -760,10 +761,22 @@ func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, d
 	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))
 	out, err := ec.exec.Run(ctx, ec.wrapWithSudo(fmt.Sprintf("sha256sum %s", qDst)), &executor.RunOpts{Verbose: ec.verbose})
 	if err != nil || len(out) == 0 || !strings.HasPrefix(out[0], renderedSum) {
+		if err != nil {
+			// the remote read failed (missing file, missing sha256sum, permission), so idempotence
+			// degrades to a plain upload; keep it visible instead of silent
+			log.Printf("[DEBUG] can't compare %s with rendered content, will re-upload: %v", dst, err)
+		}
 		return false
 	}
 	out, err = ec.exec.Run(ctx, ec.wrapWithSudo(fmt.Sprintf("stat -c %%a %s", qDst)), &executor.RunOpts{Verbose: ec.verbose})
-	return err == nil && len(out) > 0 && out[0] == fmt.Sprintf("%o", mode.Perm())
+	if err != nil || len(out) == 0 {
+		if err != nil {
+			log.Printf("[DEBUG] can't stat %s, will re-upload: %v", dst, err)
+		}
+		return false
+	}
+	// the full mode value, not just the perm mask, so a remote setuid/setgid/sticky bit matches
+	return out[0] == fmt.Sprintf("%o", mode)
 }
 
 // shellQuote wraps a path for safe use in a shell command, escaping embedded single quotes.
@@ -929,6 +942,9 @@ func (tm *templater) vars() map[string]string {
 	}
 
 	for k, v := range tm.env {
+		if _, ok := vars[k]; ok {
+			continue // built-ins win over env keys, same invariant as apply()
+		}
 		if strings.HasPrefix(v, "__SQ__:") {
 			vars[k] = v[7:]
 		} else {

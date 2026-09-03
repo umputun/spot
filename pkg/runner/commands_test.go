@@ -238,6 +238,20 @@ func Test_templaterApply(t *testing.T) {
 	}
 }
 
+func Test_templaterVars(t *testing.T) {
+	tm := templater{
+		hostAddr: "example.com",
+		hostName: "example",
+		command:  "ls",
+		task:     &config.Task{Name: "deploy", User: "user"},
+		env:      map[string]string{"SPOT_TASK": "shadowed", "MY_VAR": "__SQ__:my$val"},
+	}
+	vars := tm.vars()
+	assert.Equal(t, "deploy", vars["SPOT_TASK"], "env must not shadow a built-in")
+	assert.Equal(t, "example.com", vars["SPOT_REMOTE_HOST"])
+	assert.Equal(t, "my$val", vars["MY_VAR"], "SQ marker must be stripped")
+}
+
 func Test_execCmd(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
@@ -1858,6 +1872,29 @@ func Test_execTemplate(t *testing.T) {
 		out, err := sess.Run(ctx, "sudo cat "+dst, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
+	})
+
+	t.Run("template with setuid mode", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_setuid_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render setuid",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mode: "4755"},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		// the setuid bit must survive, not be masked to 0755
+		out, err := sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "4755", out[0])
+
+		// second render with identical content and mode must skip
+		resp, err = ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "skip: identical")
 	})
 
 	t.Run("template file not found", func(t *testing.T) {
