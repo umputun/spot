@@ -645,8 +645,8 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 }
 
 // Template renders a local Go text/template file with the command environment and SPOT_* variables,
-// then uploads the result to a remote host. It supports mkdir, force and chmod+x options, and works
-// with sudo the same way as the copy command.
+// then uploads the result to a remote host. It supports mkdir, force, chmod+x and mode options, and
+// works with sudo the same way as the copy command.
 func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	cond, err := ec.checkCondition(ctx)
 	if err != nil {
@@ -685,24 +685,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, ec.errorFmt("can't execute template %q: %w", src, err)
 	}
 
-	// write rendered output to a temp file for upload
-	tmp, err := os.CreateTemp("", "spot-template")
-	if err != nil {
-		return resp, ec.errorFmt("can't create temp file for rendered template: %w", err)
-	}
-	defer tmp.Close()
-	tmpName := tmp.Name()
-	defer func() {
-		if rErr := os.Remove(tmpName); rErr != nil {
-			log.Printf("[WARN] can't remove temp template file %s: %v", tmpName, rErr)
-		}
-	}()
-	if _, err = tmp.Write(rendered.Bytes()); err != nil {
-		return resp, ec.errorFmt("can't write rendered template to temp file: %w", err)
-	}
-
-	// determine file mode for the rendered file. defaults to 0600 so secret-bearing
-	// renders stay locked down; users can set 0644 for plain configs.
+	// wanted destination mode: explicit mode or 0600 default, chmod+x adds the execute bits
 	modeStr := ec.cmd.Template.Mode
 	if modeStr == "" {
 		modeStr = "0600"
@@ -711,38 +694,81 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	if err != nil {
 		return resp, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
 	}
-	if err = os.Chmod(tmpName, os.FileMode(modeVal)); err != nil {
-		return resp, ec.errorFmt("can't chmod temp template file to %s: %w", modeStr, err)
+	mode := os.FileMode(modeVal)
+	if ec.cmd.Template.ChmodX {
+		mode |= 0o111
 	}
 
-	// set mtime from content hash so unchanged renders produce the same (size, mtime, mode)
-	// tuple as the remote file, making upload idempotent under force: false
-	sum := sha256.Sum256(rendered.Bytes())
-	contentTime := time.Unix(int64(binary.BigEndian.Uint64(sum[:8])&(1<<63-1)), 0)
-	if err = os.Chtimes(tmpName, contentTime, contentTime); err != nil {
-		return resp, ec.errorFmt("can't set mtime on temp template file: %w", err)
+	// skip the upload when the remote file already has the rendered content and the wanted mode.
+	// comparing against dst itself (not the staging file) keeps idempotence across sudo and chmod+x.
+	if !ec.cmd.Template.Force {
+		if ec.templateMatchesRemote(ctx, rendered.Bytes(), dst, mode) {
+			resp.details = fmt.Sprintf(" {template: %s -> %s, skip: identical}", src, dst)
+			return resp, nil
+		}
+	}
+
+	// write the render to a staging file. it stays 0600 regardless of the wanted destination mode so
+	// a secret render is never widened in temp; the wanted mode is applied to dst after the upload.
+	tmp, err := os.CreateTemp("", "spot-template")
+	if err != nil {
+		return resp, ec.errorFmt("can't create temp file for rendered template: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() {
+		if rErr := os.Remove(tmpName); rErr != nil {
+			log.Printf("[WARN] can't remove temp template file %s: %v", tmpName, rErr)
+		}
+	}()
+	if _, err = tmp.Write(rendered.Bytes()); err != nil {
+		_ = tmp.Close()
+		return resp, ec.errorFmt("can't write rendered template to temp file: %w", err)
+	}
+	if err = tmp.Close(); err != nil {
+		return resp, ec.errorFmt("can't close temp template file: %w", err)
 	}
 
 	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command.
-	// if mode is explicitly set, the user controls exact permissions; chmod+x is only meaningful
-	// with the default 0600 mode.
-	chmodX := ec.cmd.Template.ChmodX && ec.cmd.Template.Mode == ""
+	// the mode is not taken from the staging file, dst gets the wanted mode below.
 	ecCopy := *ec
-	ecCopy.cmd.Copy = config.CopyInternal{
-		Source:    tmpName,
-		Dest:      dst,
-		Direction: "push",
-		Mkdir:     ec.cmd.Template.Mkdir,
-		Force:     ec.cmd.Template.Force,
-		ChmodX:    chmodX,
-	}
-	pushResp, err := ecCopy.copyPush(ctx, tmpName, dst)
-	if err != nil {
+	ecCopy.cmd.Copy = config.CopyInternal{Mkdir: ec.cmd.Template.Mkdir, Force: ec.cmd.Template.Force}
+	if _, err := ecCopy.copyPush(ctx, tmpName, dst); err != nil {
 		return resp, err
 	}
-	resp.details = strings.Replace(pushResp.details, " {copy:", " {template:", 1)
-	resp.details = strings.Replace(resp.details, tmpName, src, 1)
+
+	// apply the wanted mode on dst. on Windows the staging stat does not carry unix perms, so the
+	// chmod always runs to make the result exact regardless of what sftpUpload inferred.
+	chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod %o %s", mode.Perm(), shellQuote(dst)))
+	if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		return resp, ec.errorFmt("can't chmod %s on %s: %w", dst, ec.hostAddr, err)
+	}
+
+	resp.details = fmt.Sprintf(" {template: %s -> %s}", src, dst)
+	if ec.cmd.Options.Sudo {
+		resp.details += ", sudo: true"
+	}
+	if ec.cmd.Template.ChmodX {
+		resp.details += ", chmod: +x"
+	}
 	return resp, nil
+}
+
+// templateMatchesRemote reports whether dst already has the rendered content and the wanted mode.
+// a missing or unreadable remote file counts as a mismatch so the caller uploads.
+func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, dst string, mode os.FileMode) bool {
+	qDst := shellQuote(dst)
+	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))
+	out, err := ec.exec.Run(ctx, ec.wrapWithSudo(fmt.Sprintf("sha256sum %s", qDst)), &executor.RunOpts{Verbose: ec.verbose})
+	if err != nil || len(out) == 0 || !strings.HasPrefix(out[0], renderedSum) {
+		return false
+	}
+	out, err = ec.exec.Run(ctx, ec.wrapWithSudo(fmt.Sprintf("stat -c %%a %s", qDst)), &executor.RunOpts{Verbose: ec.verbose})
+	return err == nil && len(out) > 0 && out[0] == fmt.Sprintf("%o", mode.Perm())
+}
+
+// shellQuote wraps a path for safe use in a shell command, escaping embedded single quotes.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
@@ -933,12 +959,38 @@ func (tm *templater) apply(inp string) string {
 		return res
 	}
 
+	// built-ins first, in a fixed sequence. an env value may reference a SPOT_* var, so env
+	// substitution runs after and cannot shadow a built-in. map iteration would make the
+	// result depend on order, so the passes stay explicit.
 	res := inp
-	for k, v := range tm.vars() {
+	res = apply(res, "SPOT_REMOTE_HOST", tm.hostAddr)
+	res = apply(res, "SPOT_REMOTE_NAME", tm.hostName)
+	res = apply(res, "SPOT_COMMAND", tm.command)
+	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
+	res = apply(res, "SPOT_TASK", tm.task.Name)
+
+	host, port, err := net.SplitHostPort(tm.hostAddr)
+	if err == nil {
+		res = apply(res, "SPOT_REMOTE_ADDR", host)
+		res = apply(res, "SPOT_REMOTE_PORT", port)
+	} else {
+		res = apply(res, "SPOT_REMOTE_ADDR", tm.hostAddr)
+		res = apply(res, "SPOT_REMOTE_PORT", "22") // default ssh port
+	}
+
+	if tm.err != nil {
+		res = apply(res, "SPOT_ERROR", tm.err.Error())
+	} else {
+		res = apply(res, "SPOT_ERROR", "")
+	}
+
+	for k, v := range tm.env {
 		actualValue := v
-		// for env vars that were single-quoted, escape $ to prevent further expansion
-		if orig, ok := tm.env[k]; ok && strings.HasPrefix(orig, "__SQ__:") {
-			actualValue = strings.ReplaceAll(v, "$", "\\$")
+		// single-quoted vars carry the __SQ__: marker; strip it and escape $ so the value
+		// stays literal and does not re-expand in a later pass
+		if strings.HasPrefix(v, "__SQ__:") {
+			actualValue = v[7:]
+			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
 	}

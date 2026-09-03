@@ -1363,6 +1363,41 @@ func TestRegisteredVarTemplateSubstitution(t *testing.T) {
 		"Variables should propagate between tasks")
 }
 
+// TestRegisteredVarIntoTemplate drives a register script and then a template command through Process,
+// covering the runner dispatch arm for template commands and the __SQ__ marker stripping in template data.
+func TestRegisteredVarIntoTemplate(t *testing.T) {
+	ctx := context.Background()
+	testingHostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	logs := executor.MakeLogs(false, false, nil)
+	connector, err := executor.NewConnector("testdata/test_ssh_key", time.Second*10, logs)
+	require.NoError(t, err)
+
+	conf, err := config.New("testdata/register_into_template.yml", nil, nil)
+	require.NoError(t, err)
+
+	p := Process{
+		Concurrency: 1,
+		Connector:   connector,
+		Playbook:    conf,
+		Logs:        logs,
+		Verbose:     true,
+	}
+
+	res, err := p.Run(ctx, "register_into_template", testingHostAndPort)
+	require.NoError(t, err)
+	assert.Contains(t, res.Registered, "SQ_VAR")
+	assert.True(t, strings.HasPrefix(res.Registered["SQ_VAR"], "__SQ__:"), "single-quoted var keeps the marker")
+
+	// the registered var must reach the template render without the __SQ__ marker and with $ intact
+	sess, err := connector.Connect(ctx, testingHostAndPort, "my-host", "test")
+	require.NoError(t, err)
+	out, err := sess.Run(ctx, "cat /tmp/spot_register_template_out.txt", nil)
+	require.NoError(t, err)
+	assert.Equal(t, "value=sq-$value", strings.Join(out, "\n"))
+}
+
 func TestProcess_RunBcryptPassword(t *testing.T) {
 	ctx := context.Background()
 	testingHostAndPort, teardown := startTestContainer(t)

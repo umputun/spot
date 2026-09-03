@@ -1,0 +1,17 @@
+user: test
+
+targets:
+  localhost:
+    hosts: [{host: "localhost", name: "local"}]
+
+tasks:
+  - name: register_into_template
+    commands:
+      - name: register single-quoted var
+        script: |
+          export SQ_VAR='sq-$value'
+          echo "registered SQ_VAR"
+        register: ["SQ_VAR"]
+
+      - name: render registered var
+        template: {src: "testdata/template_registered.tmpl", dst: "/tmp/spot_register_template_out.txt", mkdir: true}

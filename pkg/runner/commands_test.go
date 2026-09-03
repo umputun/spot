@@ -206,6 +206,28 @@ func Test_templaterApply(t *testing.T) {
 			},
 			expected: "example.com:user:ls ",
 		},
+		{
+			name: "env pass runs after built-ins",
+			inp:  "/etc/{CFG}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "deploy", User: "user"},
+				env:      map[string]string{"CFG": "{SPOT_TASK}.conf"},
+			},
+			expected: "/etc/{SPOT_TASK}.conf",
+		},
+		{
+			name: "env key cannot shadow a built-in var",
+			inp:  "{SPOT_TASK} {CFG}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "deploy", User: "user"},
+				env:      map[string]string{"SPOT_TASK": "shadowed", "CFG": "x"},
+			},
+			expected: "deploy x",
+		},
 	}
 
 	for _, tt := range tests {
@@ -1828,6 +1850,11 @@ func Test_execTemplate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, "sudo: true")
 
+		// second render with identical content must skip, even with sudo
+		resp, err = ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "skip: identical")
+
 		out, err := sess.Run(ctx, "sudo cat "+dst, nil)
 		require.NoError(t, err)
 		assert.Equal(t, "hello, "+testingHostAndPort, out[0])
@@ -2013,11 +2040,12 @@ func Test_execTemplate(t *testing.T) {
 		resp, err := ec.Template(ctx)
 		require.NoError(t, err)
 		assert.Contains(t, resp.details, " {template:")
+		assert.NotContains(t, resp.details, "skip")
 
-		// second render with identical content and force=false should produce same output
+		// second render with identical content and force=false must be skipped, not re-uploaded
 		resp, err = ec.Template(ctx)
 		require.NoError(t, err)
-		assert.Contains(t, resp.details, " {template:")
+		assert.Equal(t, fmt.Sprintf(" {template: testdata/template_basic.tmpl -> %s, skip: identical}", dst), resp.details)
 
 		// verify content is correct after both renders
 		out, err := sess.Run(ctx, "cat "+dst, nil)
@@ -2030,5 +2058,100 @@ func Test_execTemplate(t *testing.T) {
 			"name=myhost",
 			"cmd=render first",
 		}, out)
+	})
+
+	t.Run("template changed content is re-uploaded", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_changed_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		// first render with one env value
+		ec := makeEC(config.Cmd{
+			Name:        "render changed",
+			Template:    config.TemplateInternal{Source: "testdata/template_env.tmpl", Dest: dst},
+			Environment: map[string]string{"GREETING": "first"},
+			Secrets:     map[string]string{"MY_SECRET": "s3cret"},
+			Options:     config.CmdOptions{Secrets: []string{"MY_SECRET"}},
+		})
+		_, err := ec.Template(ctx)
+		require.NoError(t, err)
+
+		// second render with a different env value, same dst, force=false: must upload, not skip
+		ec.cmd.Environment = map[string]string{"GREETING": "second"}
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, resp.details, "skip")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "msg=second", out[6])
+	})
+
+	t.Run("template chmod+x is idempotent under force=false", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_x_idem_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render chmod+x",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, ChmodX: true},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "chmod: +x")
+		assert.NotContains(t, resp.details, "skip")
+
+		// second render: execute bits are part of the wanted mode, so the run must skip
+		resp, err = ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "skip: identical")
+
+		out, err := sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "711", out[0])
+	})
+
+	t.Run("template chmod+x with explicit mode", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_mode_x_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render mode x",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mode: "0644", ChmodX: true},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		// mode 0644 with chmod+x folds to 0755
+		out, err := sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "755", out[0])
+	})
+
+	t.Run("template mode change re-applies mode without content change", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_mode_change_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		mk := func(mode string) execCmd {
+			return makeEC(config.Cmd{
+				Name:     "render mode change",
+				Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst, Mode: mode},
+			})
+		}
+
+		ec := mk("0644")
+		_, err := ec.Template(ctx)
+		require.NoError(t, err)
+		out, err := sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "644", out[0])
+
+		// same content, different mode: second run must fix the mode, not skip
+		ec = mk("0600")
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.NotContains(t, resp.details, "skip")
+		out, err = sess.Run(ctx, "stat -c %a "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "600", out[0])
 	})
 }

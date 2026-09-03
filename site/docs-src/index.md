@@ -424,11 +424,14 @@ Available template variables:
 - All values for keys listed in the command's `options.secrets` (only if loaded)
 - Variables captured by `register` from previous commands in the same task are exposed as regular `env` entries, so they are also available
 
-Template syntax follows Go's [text/template](https://pkg.go.dev/text/template) — for example `{{ .Name }}`, `{{ if .X }}...{{ end }}`, `{{ range .List }}...{{ end }}`.
+Template syntax follows Go's [text/template](https://pkg.go.dev/text/template) — for example `{{ .Name }}` and `{{ if .X }}...{{ else }}...{{ end }}`. Template data is a map of strings (`map[string]string`), so each `{{ .Key }}` resolves to a single value.
 
 ```yaml
 - name: render nginx config
   template: {src: "templates/nginx.conf.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
+  env:
+    APP_ENV: production
+    APP_PORT: "8080"
 
 - name: render a script and make it executable
   template: {"src": "scripts/run.sh.tmpl", "dst": "/opt/app/run.sh", "mkdir": true, "chmod+x": true}
