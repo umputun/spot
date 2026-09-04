@@ -101,8 +101,8 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 
 		// make target with name "the host" and host/port from testingHostAndPort
-		adr := strings.Split(testingHostAndPort, ":")[0]
-		port, err := strconv.Atoi(strings.Split(testingHostAndPort, ":")[1])
+		adr, portStr, _ := strings.Cut(testingHostAndPort, ":")
+		port, err := strconv.Atoi(portStr)
 		require.NoError(t, err)
 		tg := conf.Targets["default"]
 		tg.Hosts = []config.Destination{{Host: adr, Port: port, Name: "the host"}}
@@ -249,7 +249,7 @@ func TestProcess_Run(t *testing.T) {
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
-		adr := strings.Split(testingHostAndPort, ":")[0]
+		adr, _, _ := strings.Cut(testingHostAndPort, ":")
 		// msg like "uploaded testdata/conf.yml to localhost:/tmp/.spot-1101281563531463808/conf.yml in"
 		// adr is localhost or container ip if DOCKER_HOST is set
 		assert.Contains(t, outWriter.String(), fmt.Sprintf(`uploaded testdata/conf.yml to %s:/tmp/.spot-`, adr))

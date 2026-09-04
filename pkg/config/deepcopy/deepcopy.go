@@ -47,7 +47,7 @@ func Copy(src any) any {
 func copyRecursive(original, cpy reflect.Value) {
 	// check for implement deepcopy.Interface
 	if original.CanInterface() {
-		if copier, ok := original.Interface().(Interface); ok {
+		if copier, ok := reflect.TypeAssert[Interface](original); ok {
 			cpy.Set(reflect.ValueOf(copier.DeepCopy()))
 			return
 		}
@@ -80,7 +80,7 @@ func copyRecursive(original, cpy reflect.Value) {
 		cpy.Set(copyValue)
 
 	case reflect.Struct:
-		t, ok := original.Interface().(time.Time)
+		t, ok := reflect.TypeAssert[time.Time](original)
 		if ok {
 			cpy.Set(reflect.ValueOf(t))
 			return
