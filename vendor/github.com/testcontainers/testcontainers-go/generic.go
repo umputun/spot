@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"maps"
 	"sync"
 
+	"github.com/testcontainers/testcontainers-go/internal/config"
 	"github.com/testcontainers/testcontainers-go/internal/core"
 	"github.com/testcontainers/testcontainers-go/log"
 )
@@ -77,14 +78,6 @@ func GenericContainer(ctx context.Context, req GenericContainerRequest) (Contain
 	}
 	if err != nil {
 		// At this point `c` might not be nil. Give the caller an opportunity to call Destroy on the container.
-		// TODO: Remove this debugging.
-		if strings.Contains(err.Error(), "toomanyrequests") {
-			// Debugging information for rate limiting.
-			cfg, err := getDockerConfig()
-			if err == nil {
-				fmt.Printf("XXX: too many requests: %+v", cfg)
-			}
-		}
 		return c, fmt.Errorf("create container: %w", err)
 	}
 
@@ -108,12 +101,41 @@ type GenericProvider interface {
 // reaper is enabled, otherwise this is excluded to prevent resources being
 // incorrectly reaped.
 func GenericLabels() map[string]string {
-	return core.DefaultLabels(core.SessionID())
+	return core.DefaultLabels(config.Read().SessionID)
 }
 
 // AddGenericLabels adds the generic labels to target.
 func AddGenericLabels(target map[string]string) {
-	for k, v := range GenericLabels() {
-		target[k] = v
+	maps.Copy(target, GenericLabels())
+}
+
+// Run is a convenience function that creates a new container and starts it.
+// It calls the GenericContainer function and returns a concrete DockerContainer type.
+func Run(ctx context.Context, img string, opts ...ContainerCustomizer) (*DockerContainer, error) {
+	req := ContainerRequest{
+		Image: img,
 	}
+
+	genericContainerReq := GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	}
+
+	for _, opt := range opts {
+		if err := opt.Customize(&genericContainerReq); err != nil {
+			return nil, fmt.Errorf("customize: %w", err)
+		}
+	}
+
+	ctr, err := GenericContainer(ctx, genericContainerReq)
+	var c *DockerContainer
+	if ctr != nil {
+		c = ctr.(*DockerContainer)
+	}
+
+	if err != nil {
+		return c, fmt.Errorf("generic container: %w", err)
+	}
+
+	return c, nil
 }

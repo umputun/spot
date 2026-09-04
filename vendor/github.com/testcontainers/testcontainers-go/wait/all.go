@@ -3,6 +3,9 @@ package wait
 import (
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"time"
 )
 
@@ -50,6 +53,29 @@ func (ms *MultiStrategy) Timeout() *time.Duration {
 	return ms.timeout
 }
 
+// String returns a human-readable description of the wait strategy.
+func (ms *MultiStrategy) String() string {
+	if len(ms.Strategies) == 0 {
+		return "all of: (none)"
+	}
+
+	var strategies []string
+	for _, strategy := range ms.Strategies {
+		if strategy == nil || reflect.ValueOf(strategy).IsNil() {
+			continue
+		}
+		if s, ok := strategy.(fmt.Stringer); ok {
+			strategies = append(strategies, s.String())
+		} else {
+			strategies = append(strategies, fmt.Sprintf("%T", strategy))
+		}
+	}
+
+	// Always include "all of:" prefix to make it clear this is a MultiStrategy
+	// even when there's only one strategy after filtering out nils
+	return "all of: [" + strings.Join(strategies, ", ") + "]"
+}
+
 func (ms *MultiStrategy) WaitUntilReady(ctx context.Context, target StrategyTarget) error {
 	var cancel context.CancelFunc
 	if ms.deadline != nil {
@@ -62,6 +88,13 @@ func (ms *MultiStrategy) WaitUntilReady(ctx context.Context, target StrategyTarg
 	}
 
 	for _, strategy := range ms.Strategies {
+		if strategy == nil || reflect.ValueOf(strategy).IsNil() {
+			// A module could be appending strategies after part of the container initialization,
+			// and use wait.ForAll on a not initialized strategy.
+			// In this case, we just skip the nil strategy.
+			continue
+		}
+
 		strategyCtx := ctx
 
 		// Set default Timeout when strategy implements StrategyTimeout
