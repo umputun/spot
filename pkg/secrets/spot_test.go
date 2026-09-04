@@ -164,7 +164,7 @@ func setupTestContainers(t *testing.T) (pc testcontainers.Container, ps string, 
 	require.NoError(t, err)
 	pgPort, err := pgContainer.MappedPort(ctx, "5432")
 	require.NoError(t, err)
-	pgConnString := fmt.Sprintf("postgres://postgres:password@%s:%d/postgres?sslmode=disable", pgHost, pgPort.Int())
+	pgConnString := fmt.Sprintf("postgres://postgres:password@%s:%d/postgres?sslmode=disable", pgHost, pgPort.Num())
 
 	// mySQL container
 	mysqlReq := testcontainers.ContainerRequest{
@@ -182,7 +182,7 @@ func setupTestContainers(t *testing.T) (pc testcontainers.Container, ps string, 
 	require.NoError(t, err)
 	mysqlPort, err := mysqlContainer.MappedPort(ctx, "3306")
 	require.NoError(t, err)
-	mysqlConnString := fmt.Sprintf("root:password@tcp(%s:%d)/mysql", mysqlHost, mysqlPort.Int())
+	mysqlConnString := fmt.Sprintf("root:password@tcp(%s:%d)/mysql", mysqlHost, mysqlPort.Num())
 
 	return pgContainer, pgConnString, mysqlContainer, mysqlConnString
 }

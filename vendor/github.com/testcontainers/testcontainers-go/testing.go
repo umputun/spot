@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"regexp"
+	"strings"
 	"testing"
 
-	"github.com/docker/docker/errdefs"
+	"github.com/containerd/errdefs"
+	"github.com/moby/moby/client"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +21,7 @@ var errAlreadyInProgress = regexp.MustCompile(`removal of container .* is alread
 // SkipIfProviderIsNotHealthy is a utility function capable of skipping tests
 // if the provider is not healthy, or running at all.
 // This is a function designed to be used in your test, when Docker is not mandatory for CI/CD.
-// In this way tests that depend on Testcontainers won't run if the provider is provisioned correctly.
+// In this way tests that depend on Testcontainers won't run if the provider is not provisioned correctly.
 func SkipIfProviderIsNotHealthy(t *testing.T) {
 	t.Helper()
 	defer func() {
@@ -39,17 +42,41 @@ func SkipIfProviderIsNotHealthy(t *testing.T) {
 }
 
 // SkipIfDockerDesktop is a utility function capable of skipping tests
-// if tests are run using Docker Desktop.
+// if tests are run using Docker Desktop or another VM-based Docker
+// environment (e.g. colima) where host network access is not available.
 func SkipIfDockerDesktop(t *testing.T, ctx context.Context) {
+	t.Helper()
+
+	// Colima runs Docker inside a Linux VM, so host networking doesn't work
+	// the same way as native Docker on Linux. Detect it via DOCKER_HOST which
+	// typically contains the colima socket path.
+	if strings.Contains(os.Getenv("DOCKER_HOST"), "colima") {
+		t.Skip("Skipping test that requires host network access when running in colima")
+	}
+
+	cli, err := NewDockerClientWithOpts(ctx)
+	require.NoErrorf(t, err, "failed to create docker client: %s", err)
+
+	res, err := cli.Info(ctx, client.InfoOptions{})
+	require.NoErrorf(t, err, "failed to get docker info: %s", err)
+
+	if res.Info.OperatingSystem == "Docker Desktop" {
+		t.Skip("Skipping test that requires host network access when running in Docker Desktop")
+	}
+}
+
+// SkipIfNotDockerDesktop is a utility function capable of skipping tests
+// if tests are not run using Docker Desktop.
+func SkipIfNotDockerDesktop(t *testing.T, ctx context.Context) {
 	t.Helper()
 	cli, err := NewDockerClientWithOpts(ctx)
 	require.NoErrorf(t, err, "failed to create docker client: %s", err)
 
-	info, err := cli.Info(ctx)
+	res, err := cli.Info(ctx, client.InfoOptions{})
 	require.NoErrorf(t, err, "failed to get docker info: %s", err)
 
-	if info.OperatingSystem == "Docker Desktop" {
-		t.Skip("Skipping test that requires host network access when running in Docker Desktop")
+	if res.Info.OperatingSystem != "Docker Desktop" {
+		t.Skip("Skipping test that needs Docker Desktop")
 	}
 }
 
@@ -67,12 +94,8 @@ func (lc *StdoutLogConsumer) Accept(l Log) {
 
 // CleanupContainer is a helper function that schedules the container
 // to be stopped / terminated when the test ends.
-//
-// This should be called as a defer directly after (before any error check)
-// of [GenericContainer](...) or a modules Run(...) in a test to ensure the
-// container is stopped when the function ends.
-//
-// before any error check. If container is nil, it's a no-op.
+// This should be the first call after [GenericContainer](...) or a module's
+// Run(...) in a test before any error check. If container is nil, it's a no-op.
 func CleanupContainer(tb testing.TB, ctr Container, options ...TerminateOption) {
 	tb.Helper()
 
@@ -132,15 +155,19 @@ func isCleanupSafe(err error) bool {
 		return true
 	}
 
-	switch x := err.(type) { //nolint:errorlint // We need to check for interfaces.
-	case errdefs.ErrNotFound:
+	// First try with containerd's errdefs
+	switch {
+	case errdefs.IsNotFound(err):
 		return true
-	case errdefs.ErrConflict:
+	case errdefs.IsConflict(err):
 		// Terminating a container that is already terminating.
 		if errAlreadyInProgress.MatchString(err.Error()) {
 			return true
 		}
 		return false
+	}
+
+	switch x := err.(type) { //nolint:errorlint // We need to check for interfaces.
 	case causer:
 		return isCleanupSafe(x.Cause())
 	case wrapErr:
