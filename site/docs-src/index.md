@@ -361,14 +361,16 @@ tasks:
 - Paths are resolved relative to the importing file's directory.
 - Imports can be mixed with inline task definitions.
 - Both YAML and TOML formats are supported for main and imported files.
-- Imported tasks are validated just like inline tasks (strict parsing, duplicate name checks).
+- Imported tasks are validated with duplicate name checks and strict top-level field validation (errors on unknown keys at the task level). TOML import files also enforce strict field checking inside commands.
 
 **Limitations:**
 
 - Import directives are only supported in the full playbook format, not the simplified format.
 - Imported files must be flat task lists; nested imports are rejected.
+- Absolute import paths are rejected; only relative paths are allowed.
 - Empty import files (`tasks: []`) produce a hard error.
 - An import entry must not carry other task fields (e.g. `targets`, `tags`, `options`).
+- Case-insensitive task name checking: `Deploy` and `deploy` are treated as duplicate and rejected at load time.
 
 ## Tasks and Commands
 
@@ -381,7 +383,7 @@ Each task consists of a list of commands that will be executed on the remote hos
 
 *Note: these fields are supported in the full playbook type only*
 
-All tasks are executed sequentially on a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with a missing `name` field will fail to execute immediately. Duplicate task names are not allowed either.
+All tasks are executed sequentially on a given host, one after another. If a task fails, the execution of the playbook will stop and the `on_error` command will be executed on the local host, if defined. Every task has to have `name` field defined, which is used to identify the task everywhere. Playbook with a missing `name` field will fail to execute immediately. Duplicate task names are not allowed either; the comparison is case-insensitive, so `Deploy` and `deploy` collide.
 
 ### Relative paths resolution
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -392,21 +393,28 @@ func resolveImport(t Task, baseDir string) ([]Task, error) {
 }
 
 // checkUniqueTaskNames returns an error if any two tasks share the same name (case-insensitive).
-// If tasks have sourceFile set, the error includes file names.
+// if tasks have sourceFile set, the error includes file names.
 func checkUniqueTaskNames(tasks []Task) error {
-	seen := make(map[string]string) // lowercased name -> sourceFile
-	for _, t := range tasks {
+	for i, t := range tasks {
 		if t.Name == "" {
 			continue
 		}
-		key := strings.ToLower(t.Name)
-		if f, ok := seen[key]; ok {
+		for _, prev := range tasks[:i] {
+			if !strings.EqualFold(t.Name, prev.Name) {
+				continue
+			}
+			f := prev.sourceFile
 			if f != "" && t.sourceFile != "" && f != t.sourceFile {
 				return fmt.Errorf("duplicate task name %q (files: %s, %s)", t.Name, f, t.sourceFile)
 			}
+			if f == "" {
+				f = t.sourceFile
+			}
+			if f != "" {
+				return fmt.Errorf("duplicate task name %q (file: %s)", t.Name, f)
+			}
 			return fmt.Errorf("duplicate task name %q", t.Name)
 		}
-		seen[key] = t.sourceFile
 	}
 	return nil
 }
@@ -423,7 +431,7 @@ func parseImportFile(fname string, data []byte) ([]Task, error) {
 	case ".yml", ".yaml", "":
 		yamlDecoder := yaml.NewDecoder(bytes.NewReader(data))
 		yamlDecoder.KnownFields(true)
-		if err := yamlDecoder.Decode(&imp); err != nil {
+		if err := yamlDecoder.Decode(&imp); err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("can't parse import file %s: %w", fname, err)
 		}
 	case ".toml":
@@ -749,7 +757,7 @@ func (p *PlayBook) checkConfig() error {
 
 // loadSecrets loads secrets from secrets provider and stores them in secrets map
 func (p *PlayBook) loadSecrets() error {
-	// collect Secrets from all command's options and count them
+	// check if secrets are defined in playbook
 	secretsCount := 0
 	for _, t := range p.Tasks {
 		for _, c := range t.Commands {
@@ -771,6 +779,7 @@ func (p *PlayBook) loadSecrets() error {
 		p.secrets = make(map[string]string)
 	}
 
+	// collect Secrets from all command's, retrieve them from provider and store in the secrets map
 	for _, t := range p.Tasks {
 		for i, c := range t.Commands {
 			for _, key := range c.Options.Secrets {
@@ -778,13 +787,11 @@ func (p *PlayBook) loadSecrets() error {
 				if err != nil {
 					return fmt.Errorf("can't get secret %q defined in task %q, command %q: %w", key, t.Name, c.Name, err)
 				}
-				// store secret in the secrets map of playbook
-				p.secrets[key] = val
+				p.secrets[key] = val // store secret in the secrets map of playbook
 				if c.Secrets == nil {
 					c.Secrets = make(map[string]string)
 				}
-				// store secret in the secrets map of command
-				c.Secrets[key] = val
+				c.Secrets[key] = val // store secret in the secrets map of command
 			}
 			t.Commands[i] = c
 		}

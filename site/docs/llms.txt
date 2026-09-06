@@ -139,6 +139,7 @@ tasks:
 - Absolute paths are rejected; only relative paths allowed.
 - Nested imports (importing a file that itself imports) are rejected.
 - Import entries must not carry other task fields (`name`, `commands`, `targets`, `options`, etc.).
+- Task names must be unique across inline and imported tasks, ignoring case (`Deploy` and `deploy` collide).
 - Empty import files (`tasks: []` or equivalent) produce a hard error.
 - Both YAML and TOML supported (detected by file extension).
 - Only works with full playbook format, not simplified.

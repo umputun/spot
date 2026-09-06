@@ -673,6 +673,7 @@ hosts:
 	}))
 	defer ts.Close()
 
+	// create test cases
 	testCases := []struct {
 		name        string
 		loc         string
@@ -688,6 +689,7 @@ hosts:
 		{"file not found", "nonexistent-file.yaml", true},
 	}
 
+	// run test cases
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			p := &PlayBook{User: "testuser"}
@@ -821,6 +823,37 @@ func TestPlayBook_checkConfig(t *testing.T) {
 			expectedErr: `duplicate task name "deploy"`,
 		},
 		{
+			name: "duplicate task names unicode folding",
+			playbook: PlayBook{Tasks: []Task{
+				{Name: "Σ", Commands: []Cmd{{Script: "echo first"}}},
+				{Name: "ς", Commands: []Cmd{{Script: "echo second"}}},
+			}},
+			expectedErr: `duplicate task name "ς"`,
+		},
+		{
+			name: "distinct task names with same lowercase",
+			playbook: PlayBook{Tasks: []Task{
+				{Name: "İ", Commands: []Cmd{{Script: "echo first"}}},
+				{Name: "i", Commands: []Cmd{{Script: "echo second"}}},
+			}},
+		},
+		{
+			name: "inline task before imported duplicate",
+			playbook: PlayBook{Tasks: []Task{
+				{Name: "deploy", Commands: []Cmd{{Script: "echo first"}}},
+				{Name: "deploy", Commands: []Cmd{{Script: "echo second"}}, sourceFile: "tasks/deploy.yml"},
+			}},
+			expectedErr: `duplicate task name "deploy" (file: tasks/deploy.yml)`,
+		},
+		{
+			name: "duplicate tasks from the same file",
+			playbook: PlayBook{Tasks: []Task{
+				{Name: "deploy", Commands: []Cmd{{Script: "echo first"}}, sourceFile: "tasks/deploy.yml"},
+				{Name: "deploy", Commands: []Cmd{{Script: "echo second"}}, sourceFile: "tasks/deploy.yml"},
+			}},
+			expectedErr: `duplicate task name "deploy" (file: tasks/deploy.yml)`,
+		},
+		{
 			name: "no commands",
 			playbook: PlayBook{
 				Tasks: []Task{
@@ -943,12 +976,16 @@ func TestPlayBook_Import_Error(t *testing.T) {
 		{"nested rejected", "testdata/import/nested-import.yml", []string{"contains nested import of"}},
 		{"missing file", "testdata/import/missing-import.yml", []string{"can't read import", "tasks/nonexistent.yml"}},
 		{"empty tasks", "testdata/import/empty-import.yml", []string{"has no tasks"}},
+		{"empty yaml file", "testdata/import/empty-yaml-import.yml", []string{"tasks/empty-file.yml has no tasks"}},
 		{"invalid content", "testdata/import/bad-format-import.yml", []string{"can't parse import file"}},
 		{"unknown format", "testdata/import/unknown-format.yml", []string{"unknown format for import file"}},
 		{"dup task name in file", "testdata/import/dup-task-import.yml", []string{"import file", `duplicate task name "dup-task"`}},
 		{"cross file dup", "testdata/import/cross-file-dup.yml", []string{"duplicate task name", "shared-task", "tasks/a.yml", "tasks/b.yml"}},
-		{"inline collision", "testdata/import/collision-inline.yml", []string{`duplicate task name "install-deps"`}},
+		{"inline collision", "testdata/import/collision-inline.yml", []string{`duplicate task name "install-deps"`, "tasks/prepare.yml"}},
 		{"entry with extra fields", "testdata/import/import-with-name.yml", []string{"must not include other task fields"}},
+		{"entry with commands", "testdata/import/import-with-commands.yml", []string{"must not include other task fields"}},
+		{"entry with targets", "testdata/import/import-with-targets.yml", []string{"must not include other task fields"}},
+		{"entry with sudo", "testdata/import/import-with-sudo.yml", []string{"must not include other task fields"}},
 		{"absolute path rejected", "testdata/import/absolute-path.yml", []string{"must be relative"}},
 		{"toml unknown fields", "testdata/import/toml-unknown-fields.yml", []string{"can't parse import file"}},
 	}

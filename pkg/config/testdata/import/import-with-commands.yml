@@ -1,0 +1,4 @@
+tasks:
+  - import: tasks/prepare.yml
+    commands:
+      - script: echo unexpected
