@@ -1,0 +1,5 @@
+[[tasks]]
+name = "from-toml"
+[[tasks.commands]]
+name = "check"
+script = "echo from-toml"

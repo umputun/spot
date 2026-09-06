@@ -1,0 +1,5 @@
+tasks:
+  - name: common
+    commands:
+      - name: setup
+        script: echo common

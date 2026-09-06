@@ -1,0 +1,5 @@
+tasks:
+  - name: shared-task
+    commands:
+      - name: alpha
+        script: echo alpha

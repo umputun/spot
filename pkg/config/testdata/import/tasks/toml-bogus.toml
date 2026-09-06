@@ -1,0 +1,6 @@
+[[tasks]]
+name = "bogus"
+bogus_task_field = "x"
+[[tasks.commands]]
+name = "cmd"
+script = "echo bogus"

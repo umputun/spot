@@ -1,0 +1,5 @@
+tasks:
+  - name: check-task
+    commands:
+      - name: check
+        script: echo "check task works"

@@ -1,0 +1,13 @@
+tasks:
+  - name: pull-artifact
+    commands:
+      - name: download artifact
+        script: curl -o /tmp/app.tar.gz https://example.com/app/latest.tar.gz
+
+  - name: deploy-artifact
+    commands:
+      - name: extract and deploy
+        script: |
+          tar -xzf /tmp/app.tar.gz -C /srv/app
+          chown -R appuser:appuser /srv/app
+        options: {sudo: true}
