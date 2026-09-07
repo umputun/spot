@@ -670,6 +670,9 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 
 	tplData := tmpl.vars()
 	for _, k := range ec.cmd.Options.Secrets {
+		if _, ok := tplData[k]; ok {
+			continue // built-ins and env win over secret keys, same precedence as vars()
+		}
 		if v, ok := ec.cmd.Secrets[k]; ok {
 			tplData[k] = v
 		}
@@ -755,28 +758,50 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 }
 
 // templateMatchesRemote reports whether dst already has the rendered content and the wanted mode.
-// a missing or unreadable remote file counts as a mismatch so the caller uploads.
+// a missing or unreadable remote file counts as a mismatch so the caller uploads. the probes use the
+// GNU spelling first and the BSD/macOS spelling as fallback, so idempotence works on non-GNU hosts.
 func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, dst string, mode os.FileMode) bool {
 	qDst := shellQuote(dst)
+
 	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))
-	out, err := ec.exec.Run(ctx, ec.wrapWithSudo(fmt.Sprintf("sha256sum %s", qDst)), &executor.RunOpts{Verbose: ec.verbose})
-	if err != nil || len(out) == 0 || !strings.HasPrefix(out[0], renderedSum) {
-		if err != nil {
-			// the remote read failed (missing file, missing sha256sum, permission), so idempotence
-			// degrades to a plain upload; keep it visible instead of silent
-			log.Printf("[DEBUG] can't compare %s with rendered content, will re-upload: %v", dst, err)
-		}
+	sumProbe := fmt.Sprintf(
+		"(sha256sum %s 2>/dev/null || shasum -a 256 %s 2>/dev/null) | awk '{print \"spot-sum \"$1}'", qDst, qDst)
+	sumLine, ok := ec.runTemplateProbe(ctx, sumProbe, "spot-sum ")
+	if !ok || !strings.EqualFold(sumLine, renderedSum) {
 		return false
 	}
-	out, err = ec.exec.Run(ctx, ec.wrapWithSudo(fmt.Sprintf("stat -c %%a %s", qDst)), &executor.RunOpts{Verbose: ec.verbose})
-	if err != nil || len(out) == 0 {
-		if err != nil {
-			log.Printf("[DEBUG] can't stat %s, will re-upload: %v", dst, err)
-		}
+
+	modeProbe := fmt.Sprintf(
+		"(stat -c %%a %s 2>/dev/null || stat -f %%Lp %s 2>/dev/null) | awk '{print \"spot-mode \"$1}'", qDst, qDst)
+	modeLine, ok := ec.runTemplateProbe(ctx, modeProbe, "spot-mode ")
+	if !ok {
 		return false
 	}
-	// the full mode value, not just the perm mask, so a remote setuid/setgid/sticky bit matches
-	return out[0] == fmt.Sprintf("%o", mode)
+	// GNU prints 755, BSD prints 0755; parse as uint so both compare the same against the full mode
+	remoteMode, err := strconv.ParseUint(modeLine, 8, 32)
+	if err != nil {
+		return false
+	}
+	return uint32(remoteMode) == uint32(mode)
+}
+
+// runTemplateProbe runs a single shell command and returns the value after tag in its output line.
+// the tagged line makes the scan immune to shell rc noise on stdout, which a bare out[0] read would
+// catch as the wrong field. the whole alternation is wrapped once so sudo covers both branches.
+func (ec *execCmd) runTemplateProbe(ctx context.Context, probe, tag string) (string, bool) {
+	c := ec.wrapWithSudo(ec.shell() + " -c " + shellQuote(probe))
+	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose})
+	if err != nil {
+		log.Printf("[DEBUG] can't probe remote file, will re-upload: %v", err)
+		return "", false
+	}
+	for _, line := range out {
+		if v, found := strings.CutPrefix(line, tag); found {
+			return strings.TrimSpace(v), true
+		}
+	}
+	log.Printf("[DEBUG] remote probe emitted no %q line, will re-upload", tag)
+	return "", false
 }
 
 // shellQuote wraps a path for safe use in a shell command, escaping embedded single quotes.

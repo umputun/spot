@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"log"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/umputun/spot/pkg/config"
 	"github.com/umputun/spot/pkg/executor"
+	"github.com/umputun/spot/pkg/runner/mocks"
 )
 
 func Test_templaterApply(t *testing.T) {
@@ -250,6 +252,87 @@ func Test_templaterVars(t *testing.T) {
 	assert.Equal(t, "deploy", vars["SPOT_TASK"], "env must not shadow a built-in")
 	assert.Equal(t, "example.com", vars["SPOT_REMOTE_HOST"])
 	assert.Equal(t, "my$val", vars["MY_VAR"], "SQ marker must be stripped")
+}
+
+func Test_templateMatchesRemote(t *testing.T) {
+	rendered := []byte("hello")
+	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))
+
+	t.Run("matches content and mode with rc noise on stdout", func(t *testing.T) {
+		var commands []string
+		mock := &mocks.InterfaceMock{
+			RunFunc: func(_ context.Context, c string, _ *executor.RunOpts) ([]string, error) {
+				commands = append(commands, c)
+				switch {
+				case strings.Contains(c, "sha256sum"):
+					return []string{"> motd", "spot-sum " + renderedSum}, nil
+				case strings.Contains(c, "stat -c"):
+					return []string{"spot-mode 4755"}, nil
+				}
+				return nil, fmt.Errorf("unexpected probe %q", c)
+			},
+		}
+		ec := execCmd{exec: mock, cmd: config.Cmd{}}
+		assert.True(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o4755))
+		require.Len(t, commands, 2)
+		// each probe is one wrapped shell command that falls back to the bsd spelling
+		assert.Contains(t, commands[0], "sha256sum")
+		assert.Contains(t, commands[0], "shasum -a 256")
+		assert.Contains(t, commands[1], "stat -c %a")
+		assert.Contains(t, commands[1], "stat -f %Lp")
+	})
+
+	t.Run("content differs", func(t *testing.T) {
+		mock := &mocks.InterfaceMock{
+			RunFunc: func(_ context.Context, _ string, _ *executor.RunOpts) ([]string, error) {
+				return []string{"spot-sum " + strings.Repeat("0", 64)}, nil
+			},
+		}
+		ec := execCmd{exec: mock, cmd: config.Cmd{}}
+		assert.False(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o600))
+	})
+
+	t.Run("mode differs", func(t *testing.T) {
+		mock := &mocks.InterfaceMock{
+			RunFunc: func(_ context.Context, c string, _ *executor.RunOpts) ([]string, error) {
+				switch {
+				case strings.Contains(c, "sha256sum"):
+					return []string{"spot-sum " + renderedSum}, nil
+				case strings.Contains(c, "stat -c"):
+					return []string{"spot-mode 600"}, nil
+				}
+				return nil, fmt.Errorf("unexpected probe %q", c)
+			},
+		}
+		ec := execCmd{exec: mock, cmd: config.Cmd{}}
+		assert.False(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o644))
+	})
+
+	t.Run("missing remote file emits no tagged line", func(t *testing.T) {
+		mock := &mocks.InterfaceMock{
+			RunFunc: func(_ context.Context, _ string, _ *executor.RunOpts) ([]string, error) {
+				return nil, nil
+			},
+		}
+		ec := execCmd{exec: mock, cmd: config.Cmd{}}
+		assert.False(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o600))
+	})
+
+	t.Run("bsd mode spelling with leading zero parses", func(t *testing.T) {
+		mock := &mocks.InterfaceMock{
+			RunFunc: func(_ context.Context, c string, _ *executor.RunOpts) ([]string, error) {
+				switch {
+				case strings.Contains(c, "sha256sum"):
+					return []string{"spot-sum " + renderedSum}, nil
+				case strings.Contains(c, "stat -c"):
+					return []string{"spot-mode 0644"}, nil
+				}
+				return nil, fmt.Errorf("unexpected probe %q", c)
+			},
+		}
+		ec := execCmd{exec: mock, cmd: config.Cmd{}}
+		assert.True(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o644))
+	})
 }
 
 func Test_execCmd(t *testing.T) {
@@ -1794,6 +1877,25 @@ func Test_execTemplate(t *testing.T) {
 			"msg=hi-from-env",
 			"secret=s3cret-value",
 		}, out)
+	})
+
+	t.Run("secret cannot shadow a SPOT built-in", func(t *testing.T) {
+		dst := fmt.Sprintf("/tmp/spot_template_secret_shadow_%d.txt", time.Now().UnixNano())
+		defer cleanup(dst)
+
+		ec := makeEC(config.Cmd{
+			Name:     "render secret shadow",
+			Template: config.TemplateInternal{Source: "testdata/template_basic.tmpl", Dest: dst},
+			Secrets:  map[string]string{"SPOT_TASK": "intruder"},
+			Options:  config.CmdOptions{Secrets: []string{"SPOT_TASK"}},
+		})
+		resp, err := ec.Template(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, " {template:")
+
+		out, err := sess.Run(ctx, "cat "+dst, nil)
+		require.NoError(t, err)
+		assert.Equal(t, "task=task1", out[3])
 	})
 
 	t.Run("template with single-quoted env var", func(t *testing.T) {
