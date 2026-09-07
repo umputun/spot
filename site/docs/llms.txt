@@ -303,12 +303,6 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). 
     APP_ENV: production
     APP_PORT: "8080"
 
-- name: render with environment variables
-  template: {src: "templates/app.conf.tmpl", dst: "/etc/app/app.conf", mkdir: true}
-  env:
-    APP_ENV: production
-    APP_PORT: "8080"
-
 - name: render a script and make it executable
   template: {src: "scripts/run.sh.tmpl", dst: "/opt/app/run.sh", mkdir: true, chmod+x: true}
 
