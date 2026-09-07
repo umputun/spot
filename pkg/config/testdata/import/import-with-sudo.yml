@@ -1,0 +1,3 @@
+tasks:
+  - import: tasks/prepare.yml
+    options: {sudo: true}

@@ -24,6 +24,18 @@ import (
 	"github.com/umputun/spot/pkg/executor"
 )
 
+// setVarPrefix marks a line the script emits to hand a variable back to the runner.
+const setVarPrefix = "setvar "
+
+// isSetVarLine reports whether a script output line carries such a variable. It is both the
+// executor's line filter and the parse loop's guard, so the two cannot drift apart.
+func isSetVarLine(line string) bool { return strings.HasPrefix(line, setVarPrefix) }
+
+// discardOutput is the run options for call sites that ignore the returned lines. Output still
+// reaches the log in full; nothing is retained, so a command printing a large log costs no memory.
+// Safe to share: the predicate is pure and the value is never mutated.
+var discardOutput = &executor.RunOpts{KeepLine: func(string) bool { return false }}
+
 // execCmd is a single command execution on a target host. It prepares the command, executes it and returns details.
 // All commands directly correspond to the config.Cmd commands.
 type execCmd struct {
@@ -113,7 +125,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	}
 	resp.verbose = scr
 
-	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose})
+	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{KeepLine: isSetVarLine})
 	if err != nil {
 		return resp, ec.errorFmt("can't run script on %s: %w", ec.hostAddr, err)
 	}
@@ -124,11 +136,11 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	resp.vars = make(map[string]string)       // all variables set by the script, used for the next commands in the same task
 	resp.registered = make(map[string]string) // only variables that are registered used for the next tasks too
 	for _, line := range out {
-		if !strings.HasPrefix(line, "setvar ") {
+		if !isSetVarLine(line) { // the executor already filtered, this keeps the loop correct on its own
 			continue
 		}
 		// parse format: key=value or key:SQ=value for single-quoted values
-		trimmed := strings.TrimPrefix(line, "setvar ")
+		trimmed := strings.TrimPrefix(line, setVarPrefix)
 		parts := strings.SplitN(trimmed, "=", 2)
 		if len(parts) != 2 {
 			continue
@@ -216,7 +228,7 @@ func (ec *execCmd) copyPush(ctx context.Context, src, dst string) (resp execCmdR
 			return resp, ec.errorFmt("can't copy file to %s: %w", ec.hostAddr, err)
 		}
 		if ec.cmd.Copy.ChmodX {
-			if _, err := ec.exec.Run(ctx, fmt.Sprintf("chmod +x %s", dst), &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+			if _, err := ec.exec.Run(ctx, fmt.Sprintf("chmod +x %s", dst), discardOutput); err != nil {
 				return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
 			}
 			resp.details = fmt.Sprintf(" {copy: %s -> %s, chmod: +x}", src, dst)
@@ -258,13 +270,13 @@ func (ec *execCmd) copyPush(ctx context.Context, src, dst string) (resp execCmdR
 	// run move command with sudo
 	for line := range strings.SplitSeq(c, "\n") {
 		sudoMove := ec.wrapWithSudo(line)
-		if _, err := ec.exec.Run(ctx, sudoMove, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		if _, err := ec.exec.Run(ctx, sudoMove, discardOutput); err != nil {
 			return resp, ec.errorFmt("can't move file to %s: %w", ec.hostAddr, err)
 		}
 	}
 	if ec.cmd.Copy.ChmodX {
 		chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod +x %s", dst))
-		if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		if _, err := ec.exec.Run(ctx, chmodCmd, discardOutput); err != nil {
 			return resp, ec.errorFmt("can't chmod +x file on %s: %w", ec.hostAddr, err)
 		}
 		resp.details = fmt.Sprintf(" {copy: %s -> %s, sudo: true, chmod: +x}", src, dst)
@@ -320,14 +332,14 @@ func (ec *execCmd) copyPull(ctx context.Context, src, dst string) (resp execCmdR
 
 	// run copy with sudo on remote - this wraps the entire command sequence
 	sudoCmd := ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), cpCmd))
-	if _, err := ec.exec.Run(ctx, sudoCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+	if _, err := ec.exec.Run(ctx, sudoCmd, discardOutput); err != nil {
 		return resp, ec.errorFmt("can't prepare file for download with sudo on %s: %w", ec.hostAddr, err)
 	}
 
 	// cleanup function to remove temp directory on remote
 	defer func() {
 		cleanCmd := ec.wrapWithSudo(fmt.Sprintf("rm -rf %q", tmpRemoteDir))
-		if _, e := ec.exec.Run(ctx, cleanCmd, &executor.RunOpts{Verbose: false}); e != nil {
+		if _, e := ec.exec.Run(ctx, cleanCmd, discardOutput); e != nil {
 			log.Printf("[WARN] can't remove temporary directory %q on %s: %v", tmpRemoteDir, ec.hostAddr, e)
 		}
 	}()
@@ -441,7 +453,7 @@ func (ec *execCmd) Delete(ctx context.Context) (resp execCmdResp, err error) {
 			cmd = fmt.Sprintf("rm -rf %s", loc)
 		}
 		cmd = ec.wrapWithSudo(cmd)
-		if _, err := ec.exec.Run(ctx, cmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		if _, err := ec.exec.Run(ctx, cmd, discardOutput); err != nil {
 			return resp, ec.errorFmt("can't delete file(s) on %s: %w", ec.hostAddr, err)
 		}
 		resp.details = fmt.Sprintf(" {delete: %s, recursive: %v, sudo: true}", loc, ec.cmd.Delete.Recursive)
@@ -526,7 +538,7 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 		case <-timeoutTk.C:
 			return resp, ec.errorFmt("timeout exceeded")
 		case <-checkTk.C:
-			if _, err := ec.exec.Run(ctx, waitCmd, nil); err == nil {
+			if _, err := ec.exec.Run(ctx, waitCmd, discardOutput); err == nil {
 				return resp, nil // command succeeded
 			}
 		}
@@ -555,7 +567,10 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	if ec.cmd.Options.Sudo {
 		echoCmd = ec.wrapWithSudo(fmt.Sprintf("%s -c '%s'", ec.shell(), echoCmd))
 	}
-	out, err := ec.exec.Run(ctx, echoCmd, nil)
+	// empty lines carry nothing for the report and would show up as empty segments, so they are
+	// dropped before the executor retains them
+	keepPrinted := func(line string) bool { return line != "" }
+	out, err := ec.exec.Run(ctx, echoCmd, &executor.RunOpts{KeepLine: keepPrinted})
 	if err != nil {
 		return resp, ec.errorFmt("can't run echo command on %s: %w", ec.hostAddr, err)
 	}
@@ -612,7 +627,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		// first check if the pattern exists in the file
 		checkCmd := fmt.Sprintf("grep -q '%s' %s", match, file)
 		checkCmd = ec.wrapWithSudo(checkCmd)
-		if _, err := ec.exec.Run(ctx, checkCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err != nil {
 			// pattern not found, append the line using tee -a for proper sudo support
 			if ec.cmd.Options.Sudo {
 				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", appendLine, file)
@@ -635,7 +650,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	}
 
 	// execute the operation
-	_, err = ec.exec.Run(ctx, operationCmd, &executor.RunOpts{Verbose: ec.verbose})
+	_, err = ec.exec.Run(ctx, operationCmd, discardOutput)
 	if err != nil {
 		return resp, ec.errorFmt("can't execute line %s on %s: %w", operation, ec.hostAddr, err)
 	}
@@ -833,7 +848,7 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	}
 
 	// run the condition command
-	if _, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+	if _, err := ec.exec.Run(ctx, c, discardOutput); err != nil {
 		log.Printf("[DEBUG] condition not passed on %s: %v", ec.hostAddr, err)
 		if inverted {
 			return true, nil // inverted condition failed, so we return true
@@ -879,7 +894,7 @@ func (ec *execCmd) prepScript(ctx context.Context, s string, r io.Reader) (cmd, 
 		if strings.TrimSpace(l) == "" {
 			continue
 		}
-		scr += fmt.Sprintf(" + %s\n", strings.ReplaceAll(l, "%", "%%"))
+		scr += fmt.Sprintf(" + %s\n", l)
 	}
 
 	// make a temporary file and copy the script to it

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -20,19 +21,19 @@ func TestRun(t *testing.T) {
 	l := NewLocal(MakeLogs(true, false, nil))
 
 	t.Run("single line out, success", func(t *testing.T) {
-		out, e := l.Run(ctx, "echo 'hello world'", &RunOpts{Verbose: true})
+		out, e := l.Run(ctx, "echo 'hello world'", nil)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
 
 	t.Run("single line with sh -c, success", func(t *testing.T) {
-		out, e := l.Run(ctx, "sh -c echo hello world", &RunOpts{Verbose: true})
+		out, e := l.Run(ctx, "sh -c echo hello world", nil)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
 
 	t.Run("single line with sh -c with single quotes, success", func(t *testing.T) {
-		out, e := l.Run(ctx, "sh -c 'echo hello world'", &RunOpts{Verbose: true})
+		out, e := l.Run(ctx, "sh -c 'echo hello world'", nil)
 		require.NoError(t, e)
 		assert.Equal(t, []string{"hello world"}, out)
 	})
@@ -44,11 +45,11 @@ func TestRun(t *testing.T) {
 
 	t.Run("multi line out success", func(t *testing.T) {
 		// prepare the test environment
-		_, err := l.Run(ctx, "mkdir -p /tmp/st", &RunOpts{Verbose: true})
+		_, err := l.Run(ctx, "mkdir -p /tmp/st", nil)
 		require.NoError(t, err)
-		_, err = l.Run(ctx, "cp testdata/data1.txt /tmp/st/data1.txt", &RunOpts{Verbose: true})
+		_, err = l.Run(ctx, "cp testdata/data1.txt /tmp/st/data1.txt", nil)
 		require.NoError(t, err)
-		_, err = l.Run(ctx, "cp testdata/data2.txt /tmp/st/data2.txt", &RunOpts{Verbose: true})
+		_, err = l.Run(ctx, "cp testdata/data2.txt /tmp/st/data2.txt", nil)
 		require.NoError(t, err)
 
 		out, err := l.Run(ctx, "ls -1 /tmp/st", nil)
@@ -64,17 +65,28 @@ func TestRun(t *testing.T) {
 	})
 
 	t.Run("find out", func(t *testing.T) {
-		out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
+		out, e := l.Run(ctx, "find /tmp/st -type f", nil)
 		require.NoError(t, e)
 		slices.Sort(out)
 		assert.Contains(t, out, "/tmp/st/data1.txt")
 		assert.Contains(t, out, "/tmp/st/data2.txt")
 	})
 
+	t.Run("line over the scanner buffer limit", func(t *testing.T) {
+		quiet := NewLocal(MakeLogs(false, false, nil)) // non-verbose logs go to the std logger, muted below
+		defer log.SetOutput(os.Stderr)
+		log.SetOutput(io.Discard)
+
+		out, e := quiet.Run(ctx, "head -c 100000 /dev/zero | tr '\\0' 'x'", nil)
+		require.NoError(t, e)
+		require.Len(t, out, 1)
+		assert.Len(t, out[0], 100000)
+	})
+
 	t.Run("with secrets", func(t *testing.T) {
 		stdout := captureStdOut(t, func() {
 			l := NewLocal(MakeLogs(true, false, []string{"data2"}))
-			out, e := l.Run(ctx, "find /tmp/st -type f", &RunOpts{Verbose: true})
+			out, e := l.Run(ctx, "find /tmp/st -type f", nil)
 			require.NoError(t, e)
 			slices.Sort(out)
 			assert.Equal(t, []string{"/tmp/st/data1.txt", "/tmp/st/data2.txt"}, out)

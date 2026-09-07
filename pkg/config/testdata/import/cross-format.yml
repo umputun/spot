@@ -1,0 +1,11 @@
+user: testuser
+targets:
+  prod:
+    groups: ["production"]
+
+tasks:
+  - import: tasks/toml-imported.toml
+  - name: inline-after-toml
+    commands:
+      - name: check
+        script: echo after-toml

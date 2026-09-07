@@ -1,8 +1,6 @@
 package executor
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"hash/crc32"
 	"io"
@@ -54,7 +52,7 @@ type colorizedWriter struct {
 	prefix     string
 	hostAddr   string
 	hostName   string
-	secrets    []string
+	masker     *secretsMasker
 	monochrome bool
 }
 
@@ -66,33 +64,31 @@ func (s *colorizedWriter) WithHost(hostAddr, hostName string) LogWriter {
 		hostName = ""
 	}
 	return &colorizedWriter{wr: s.wr, hostAddr: hostAddr, hostName: hostName,
-		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome}
+		prefix: s.prefix, masker: s.masker, monochrome: s.monochrome}
 }
 
 func (s *colorizedWriter) WithWriter(wr io.Writer) LogWriter {
 	return &colorizedWriter{wr: wr, hostAddr: s.hostAddr, hostName: s.hostName,
-		prefix: s.prefix, secrets: s.secrets, monochrome: s.monochrome}
+		prefix: s.prefix, masker: s.masker, monochrome: s.monochrome}
 }
 
 // Printf writes the given text to io.Writer with the colorized hostAddr prefix.
 func (s *colorizedWriter) Printf(format string, v ...any) {
 	msg := fmt.Sprintf(format, v...)
-	msg = maskSecrets(msg, s.secrets)
+	msg = s.masker.mask(msg)
 	_, _ = fmt.Fprint(s, msg)
 }
 
 // Write writes the given byte slice to stdout with the colorized hostAddr prefix for each line.
 // If the input does not end with a newline, one is added.
 func (s *colorizedWriter) Write(p []byte) (n int, err error) {
-	scanner := bufio.NewScanner(bytes.NewReader(p))
-	for scanner.Scan() {
-		line := scanner.Text()
+	for _, line := range splitOutputLines(string(p)) {
 		hostID := s.hostAddr
 		if s.hostName != "" {
 			hostID = s.hostName + " " + s.hostAddr
 		}
 		formattedOutput := fmt.Sprintf("[%s] %s %s", hostID, s.prefix, line)
-		formattedOutput = maskSecrets(formattedOutput, s.secrets)
+		formattedOutput = s.masker.mask(formattedOutput)
 
 		if s.prefix == "" {
 			formattedOutput = fmt.Sprintf("[%s] %s", hostID, line)
@@ -105,9 +101,6 @@ func (s *colorizedWriter) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		return 0, err
-	}
 	return len(p), nil
 }
 
@@ -132,17 +125,28 @@ func (s *colorizedWriter) hostColorizer(host string) func(format string, a ...an
 // infoLog is always colorized and used to log the main info, like the command that is being executed.
 func MakeLogs(verbose, bw bool, secrets []string) Logs {
 	var infoLog, outLog, errLog LogWriter
-	infoLog = &colorizedWriter{wr: os.Stdout, prefix: "", secrets: secrets, monochrome: bw}
-	outLog = &stdOutLogWriter{prefix: " >", level: "DEBUG", secrets: secrets}
-	errLog = &stdOutLogWriter{prefix: " !", level: "WARN", secrets: secrets}
+	masker := newSecretsMasker(secrets) // compiled once here and shared by every writer below
+	infoLog = &colorizedWriter{wr: os.Stdout, prefix: "", masker: masker, monochrome: bw}
+	outLog = &stdOutLogWriter{prefix: " >", level: "DEBUG", masker: masker}
+	errLog = &stdOutLogWriter{prefix: " !", level: "WARN", masker: masker}
 	if verbose {
-		outLog = &colorizedWriter{wr: os.Stdout, prefix: " >", secrets: secrets, monochrome: bw}
-		errLog = &colorizedWriter{wr: os.Stdout, prefix: " !", secrets: secrets, monochrome: bw}
+		outLog = &colorizedWriter{wr: os.Stdout, prefix: " >", masker: masker, monochrome: bw}
+		errLog = &colorizedWriter{wr: os.Stdout, prefix: " !", masker: masker, monochrome: bw}
 	}
 	return Logs{Info: infoLog, Out: outLog, Err: errLog, verbose: verbose, secrets: secrets, monochrome: bw}
 }
 
-func maskSecrets(s string, secrets []string) string {
+// secretsMasker replaces known secret values in log output. Patterns are compiled once per masker
+// rather than per call: masking runs for every line of every command, and recompiling there
+// dominated the cost of the output path.
+type secretsMasker struct {
+	patterns []*regexp.Regexp
+}
+
+// newSecretsMasker compiles one pattern per usable secret, in the order given, since masking
+// applies them in sequence. A nil or empty list yields a masker that returns its input.
+func newSecretsMasker(secrets []string) *secretsMasker {
+	m := &secretsMasker{}
 	for _, secret := range secrets {
 		if secret == " " || secret == "" {
 			continue
@@ -151,12 +155,21 @@ func maskSecrets(s string, secrets []string) string {
 		// if the secret contains alphanumeric characters only, use word boundaries for better precision
 		pattern := regexp.QuoteMeta(secret)
 		if isAlphanumeric(secret) {
-			re := regexp.MustCompile(`\b` + pattern + `\b`)
-			s = re.ReplaceAllString(s, "****")
-		} else {
-			re := regexp.MustCompile(pattern)
-			s = re.ReplaceAllString(s, "****")
+			pattern = `\b` + pattern + `\b`
 		}
+		m.patterns = append(m.patterns, regexp.MustCompile(pattern))
+	}
+	return m
+}
+
+// mask replaces every configured secret in s. A nil masker leaves s untouched, so a writer built
+// without one still works.
+func (m *secretsMasker) mask(s string) string {
+	if m == nil {
+		return s
+	}
+	for _, re := range m.patterns {
+		s = re.ReplaceAllString(s, "****")
 	}
 	return s
 }
@@ -179,9 +192,9 @@ func isAlphanumeric(s string) bool {
 
 // stdOutLogWriter is a writer that writes to log with a prefix and a log level.
 type stdOutLogWriter struct {
-	prefix  string
-	level   string
-	secrets []string
+	prefix string
+	level  string
+	masker *secretsMasker
 }
 
 func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
@@ -189,7 +202,7 @@ func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
 		if line == "" {
 			continue
 		}
-		line = maskSecrets(line, w.secrets)
+		line = w.masker.mask(line)
 		log.Printf("[%s] %s %s", w.level, w.prefix, line)
 	}
 	return len(p), nil

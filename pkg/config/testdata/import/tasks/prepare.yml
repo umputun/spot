@@ -1,0 +1,9 @@
+tasks:
+  - name: install-deps
+    commands:
+      - name: apt
+        script: apt-get update && apt-get install -y curl
+  - name: setup-user
+    commands:
+      - name: user
+        script: useradd -m appuser || true

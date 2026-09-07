@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -35,13 +33,13 @@ func (ex *Remote) Close() error {
 }
 
 // Run command on remote server.
-func (ex *Remote) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
+func (ex *Remote) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	if ex.client == nil {
 		return nil, fmt.Errorf("client is not connected")
 	}
 	log.Printf("[DEBUG] run %s", cmd)
 
-	return ex.sshRun(ctx, ex.client, cmd)
+	return ex.sshRun(ctx, ex.client, cmd, opts)
 }
 
 // Upload file to remote server with scp
@@ -282,14 +280,13 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 		}
 
 		// delete files and directories in reverse order
-		for i := len(pathsToDelete) - 1; i >= 0; i-- {
+		for _, path := range slices.Backward(pathsToDelete) {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
 			default:
 			}
 
-			path := pathsToDelete[i]
 			fi, stErr := sftpClient.Stat(path)
 			if stErr != nil {
 				return fmt.Errorf("failed to stat %s: %w", path, stErr)
@@ -327,7 +324,7 @@ func (ex *Remote) Delete(ctx context.Context, remoteFile string, opts *DeleteOpt
 }
 
 // sshRun executes command on remote server. context close sends interrupt signal to the remote process.
-func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string) (out []string, err error) {
+func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string, opts *RunOpts) (out []string, err error) {
 	log.Printf("[DEBUG] run ssh command %q on %s", command, client.RemoteAddr().String())
 	session, err := client.NewSession()
 	if err != nil {
@@ -337,8 +334,8 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 
 	ex.logs.Out.Write([]byte(command)) // nolint
 
-	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(ex.logs.Out, &stdoutBuf)
+	capture := newLineCapture(opts)
+	mwr := io.MultiWriter(ex.logs.Out, capture)
 	session.Stdout, session.Stderr = mwr, ex.logs.Err
 
 	done := make(chan error, 1) // buffered so the goroutine can finish and exit even if we return on ctx.Done
@@ -358,12 +355,7 @@ func (ex *Remote) sshRun(ctx context.Context, client *ssh.Client, command string
 		return nil, fmt.Errorf("canceled: %w", ctx.Err())
 	}
 
-	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out, nil
+	return capture.result(), nil
 }
 
 type sftpReq struct {

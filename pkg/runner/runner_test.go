@@ -101,8 +101,8 @@ func TestProcess_Run(t *testing.T) {
 		require.NoError(t, err)
 
 		// make target with name "the host" and host/port from testingHostAndPort
-		adr := strings.Split(testingHostAndPort, ":")[0]
-		port, err := strconv.Atoi(strings.Split(testingHostAndPort, ":")[1])
+		adr, portStr, _ := strings.Cut(testingHostAndPort, ":")
+		port, err := strconv.Atoi(portStr)
 		require.NoError(t, err)
 		tg := conf.Targets["default"]
 		tg.Hosts = []config.Destination{{Host: adr, Port: port, Name: "the host"}}
@@ -249,7 +249,7 @@ func TestProcess_Run(t *testing.T) {
 		res, err := p.Run(ctx, "task1", testingHostAndPort)
 		require.NoError(t, err)
 		assert.Equal(t, 1, res.Commands)
-		adr := strings.Split(testingHostAndPort, ":")[0]
+		adr, _, _ := strings.Cut(testingHostAndPort, ":")
 		// msg like "uploaded testdata/conf.yml to localhost:/tmp/.spot-1101281563531463808/conf.yml in"
 		// adr is localhost or container ip if DOCKER_HOST is set
 		assert.Contains(t, outWriter.String(), fmt.Sprintf(`uploaded testdata/conf.yml to %s:/tmp/.spot-`, adr))
@@ -737,6 +737,25 @@ func TestProcess_RunVerbose(t *testing.T) {
 
 func TestProcess_RunLocal(t *testing.T) {
 	ctx := context.Background()
+
+	t.Run("script with percent verbs in verbose2 output", func(t *testing.T) {
+		log.SetOutput(io.Discard)
+		defer log.SetOutput(os.Stderr)
+
+		stdout := captureStdOut(t, func() {
+			logs := executor.MakeLogs(true, false, nil)
+			conf, err := config.New("testdata/conf-local-percent.yml", nil, nil)
+			require.NoError(t, err)
+			p := Process{Concurrency: 1, Playbook: conf, Logs: logs, Verbose: true, Verbose2: true}
+			_, err = p.Run(ctx, "default", "localhost")
+			require.NoError(t, err)
+		})
+
+		t.Log(stdout)
+		assert.Contains(t, stdout, `echo "progress 50% done"`)
+		assert.Contains(t, stdout, `echo "format %s %d"`)
+		assert.NotContains(t, stdout, "%!")
+	})
 
 	t.Run("command with local option", func(t *testing.T) {
 		var buf bytes.Buffer

@@ -1,8 +1,6 @@
 package executor
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"io"
 	"log"
@@ -22,17 +20,12 @@ func NewDry(logs Logs) *Dry {
 }
 
 // Run shows the command content, doesn't execute it
-func (ex *Dry) Run(_ context.Context, cmd string, _ *RunOpts) (out []string, err error) {
+func (ex *Dry) Run(_ context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	log.Printf("[DEBUG] run %s", cmd)
-	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(ex.logs.Out, &stdoutBuf)
+	capture := newLineCapture(opts)
+	mwr := io.MultiWriter(ex.logs.Out, capture)
 	mwr.Write([]byte(cmd)) // nolint
-	for line := range strings.SplitSeq(stdoutBuf.String(), "\n") {
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-	return out, nil
+	return capture.result(), nil
 }
 
 // Upload doesn't actually upload, just prints the command
@@ -50,18 +43,12 @@ func (ex *Dry) Upload(_ context.Context, local, remote string, opts *UpDownOpts)
 		// this is a temp script created by spot to perform script execution on remote host
 		ex.logs.Err.Write([]byte("command script " + remote)) // nolint
 		// read local file and write it to outLog
-		f, err := os.Open(local) // nolint
+		content, err := os.ReadFile(local) // nolint
 		if err != nil {
 			return err
 		}
-		defer f.Close() // nolint ro file
-
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			ex.logs.Out.Write([]byte(scanner.Text())) // nolint
-		}
-		if err := scanner.Err(); err != nil {
-			return err
+		for _, line := range splitOutputLines(string(content)) {
+			ex.logs.Out.Write([]byte(line)) // nolint
 		}
 	}
 	return nil

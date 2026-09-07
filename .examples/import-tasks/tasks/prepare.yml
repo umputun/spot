@@ -1,0 +1,12 @@
+tasks:
+  - name: install-deps
+    commands:
+      - name: install system packages
+        script: apt-get update && apt-get install -y curl unzip
+        options: {sudo: true}
+
+  - name: create-user
+    commands:
+      - name: create app user
+        script: useradd -m -s /bin/bash appuser || true
+        options: {sudo: true}

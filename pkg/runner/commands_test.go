@@ -592,7 +592,7 @@ func Test_execCmd(t *testing.T) {
 	})
 
 	t.Run("delete a single file", func(t *testing.T) {
-		_, err := sess.Run(ctx, "touch /tmp/delete.me", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "touch /tmp/delete.me", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/tmp/delete.me"}}}
@@ -601,27 +601,27 @@ func Test_execCmd(t *testing.T) {
 	})
 
 	t.Run("delete a multi-files", func(t *testing.T) {
-		_, err := sess.Run(ctx, "touch /tmp/delete1.me /tmp/delete2.me ", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "touch /tmp/delete1.me /tmp/delete2.me ", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "ls /tmp/delete1.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete1.me", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MDelete: []config.DeleteInternal{
 			{Location: "/tmp/delete1.me"}, {Location: "/tmp/delete2.me"}}}}
 		_, err = ec.MDelete(ctx)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "ls /tmp/delete1.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete1.me", nil)
 		require.Error(t, err)
-		_, err = sess.Run(ctx, "ls /tmp/delete2.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete2.me", nil)
 		require.Error(t, err)
 	})
 
 	t.Run("delete files recursive", func(t *testing.T) {
 		var err error
-		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-recursive", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-recursive", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete1.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete1.me", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete2.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "touch /tmp/delete-recursive/delete2.me", nil)
 		require.NoError(t, err)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
@@ -630,15 +630,15 @@ func Test_execCmd(t *testing.T) {
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
-		_, err = sess.Run(ctx, "ls /tmp/delete-recursive", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete-recursive", nil)
 		require.Error(t, err, "should not exist")
 	})
 
 	t.Run("delete files recursive with exclude", func(t *testing.T) {
 		var err error
-		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-exclude/keep", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-exclude/keep", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "touch /tmp/delete-exclude/delete1.me /tmp/delete-exclude/keep/keep.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "touch /tmp/delete-exclude/delete1.me /tmp/delete-exclude/keep/keep.me", nil)
 		require.NoError(t, err)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
@@ -647,9 +647,9 @@ func Test_execCmd(t *testing.T) {
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
-		_, err = sess.Run(ctx, "ls /tmp/delete-exclude/delete1.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete-exclude/delete1.me", nil)
 		require.Error(t, err, "should be deleted")
-		_, err = sess.Run(ctx, "ls /tmp/delete-exclude/keep/keep.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete-exclude/keep/keep.me", nil)
 		require.NoError(t, err, "excluded file should survive")
 	})
 
@@ -663,24 +663,24 @@ func Test_execCmd(t *testing.T) {
 	})
 
 	t.Run("delete with exclude without recur rejected", func(t *testing.T) {
-		_, err := sess.Run(ctx, "mkdir -p /tmp/delete-norecur", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "mkdir -p /tmp/delete-norecur", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "touch /tmp/delete-norecur/keep.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "touch /tmp/delete-norecur/keep.me", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/tmp/delete-norecur", Exclude: []string{"keep.me"}}}}
 		_, err = ec.Delete(ctx)
 		require.ErrorContains(t, err, "requires recursive")
 		require.ErrorContains(t, err, "/tmp/delete-norecur", "error should name the offending location")
-		_, err = sess.Run(ctx, "ls /tmp/delete-norecur/keep.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete-norecur/keep.me", nil)
 		require.NoError(t, err, "nothing should be deleted when validation fails")
 	})
 
 	t.Run("delete files recursive with non-matching nested exclude", func(t *testing.T) {
 		var err error
-		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-exclude2/logs/archive", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "mkdir -p /tmp/delete-exclude2/logs/archive", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "touch /tmp/delete-exclude2/logs/archive/drop.log", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "touch /tmp/delete-exclude2/logs/archive/drop.log", nil)
 		require.NoError(t, err)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
@@ -689,12 +689,12 @@ func Test_execCmd(t *testing.T) {
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
-		_, err = sess.Run(ctx, "ls /tmp/delete-exclude2", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/delete-exclude2", nil)
 		require.Error(t, err, "directory should be fully removed when exclusion matches nothing")
 	})
 
 	t.Run("mdelete with exclude and sudo rejected before deleting", func(t *testing.T) {
-		_, err := sess.Run(ctx, "touch /tmp/mdelete-first.me", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "touch /tmp/mdelete-first.me", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{MDelete: []config.DeleteInternal{
 			{Location: "/tmp/mdelete-first.me"}, {Location: "/tmp/whatever", Recursive: true, Exclude: []string{"keep.me"}}},
@@ -702,12 +702,12 @@ func Test_execCmd(t *testing.T) {
 		_, err = ec.MDelete(ctx)
 		require.ErrorContains(t, err, "not supported with sudo")
 		require.ErrorContains(t, err, "/tmp/whatever", "error should name the offending location")
-		_, err = sess.Run(ctx, "ls /tmp/mdelete-first.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /tmp/mdelete-first.me", nil)
 		require.NoError(t, err, "first location should not be deleted")
 	})
 
 	t.Run("delete file with sudo", func(t *testing.T) {
-		_, err := sess.Run(ctx, "sudo touch /srv/delete.me", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "sudo touch /srv/delete.me", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
 			Location: "/srv/delete.me"}, Options: config.CmdOptions{Sudo: false}}}
@@ -724,11 +724,11 @@ func Test_execCmd(t *testing.T) {
 
 	t.Run("delete files recursive with sudo", func(t *testing.T) {
 		var err error
-		_, err = sess.Run(ctx, "sudo mkdir -p /srv/delete-recursive", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "sudo mkdir -p /srv/delete-recursive", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete1.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete1.me", nil)
 		require.NoError(t, err)
-		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete2.me", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "sudo touch /srv/delete-recursive/delete2.me", nil)
 		require.NoError(t, err)
 
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Delete: config.DeleteInternal{
@@ -737,7 +737,7 @@ func Test_execCmd(t *testing.T) {
 		_, err = ec.Delete(ctx)
 		require.NoError(t, err)
 
-		_, err = sess.Run(ctx, "ls /srv/delete-recursive", &executor.RunOpts{Verbose: true})
+		_, err = sess.Run(ctx, "ls /srv/delete-recursive", nil)
 		require.Error(t, err, "should not exist")
 	})
 
@@ -750,7 +750,7 @@ func Test_execCmd(t *testing.T) {
 	})
 
 	t.Run("condition true", func(t *testing.T) {
-		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "ls -la /srv/test.condition",
 			Script: "echo condition true", Name: "test"}}
@@ -776,7 +776,7 @@ func Test_execCmd(t *testing.T) {
 	})
 
 	t.Run("condition true inverted", func(t *testing.T) {
-		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", &executor.RunOpts{Verbose: true})
+		_, err := sess.Run(ctx, "sudo touch /srv/test.condition", nil)
 		require.NoError(t, err)
 		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: "! ls -la /srv/test.condition",
 			Script: "echo condition true", Name: "test"}}
@@ -913,6 +913,20 @@ func Test_execEcho(t *testing.T) {
 		resp, err = ec.Echo(ctx)
 		require.NoError(t, err)
 		assert.Equal(t, " {echo: foo welcome back}", resp.details)
+	})
+
+	t.Run("echo command with blank line in output", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(echo first; echo; echo second)", Name: "test"}}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: first; second}", resp.details)
+	})
+
+	t.Run("echo command with whitespace-only line in output", func(t *testing.T) {
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Echo: "$(echo first; echo '   '; echo second)", Name: "test"}}
+		resp, err := ec.Echo(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {echo: first;    ; second}", resp.details)
 	})
 
 	t.Run("echo command with condition true", func(t *testing.T) {

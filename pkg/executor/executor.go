@@ -3,6 +3,7 @@
 package executor
 
 import (
+	"bytes"
 	"context"
 	"path"
 	"strings"
@@ -21,8 +22,12 @@ type Interface interface {
 }
 
 // RunOpts is a struct for run options.
+// Note it is not comparable, since KeepLine is a func.
 type RunOpts struct {
-	Verbose bool // print more info to primary stdout
+	// KeepLine decides which stdout lines Run returns; a nil predicate keeps every line.
+	// Every line still reaches the log in full, so this bounds only what the caller holds:
+	// a command printing a large log costs nothing extra when its output is not read.
+	KeepLine func(line string) bool
 }
 
 // UpDownOpts is a struct for upload and download options.
@@ -47,6 +52,89 @@ type DeleteOpts struct {
 // normalizeSlashes converts windows separators to forward slashes,
 // exclude patterns and remote paths always use forward slashes.
 func normalizeSlashes(s string) string { return strings.ReplaceAll(s, `\`, "/") }
+
+// splitOutputLines splits captured command output into lines the same way bufio.ScanLines does, i.e. dropping
+// a trailing \r and the empty element after the final newline, but without the scanner's token size limit.
+// All executors share it, so the same stdout produces the same lines regardless of the implementation.
+// The output is already fully buffered, so a single line of any length is returned as is.
+func splitOutputLines(s string) []string {
+	if s == "" {
+		return nil
+	}
+	lines := strings.Split(strings.TrimSuffix(s, "\n"), "\n")
+	res := make([]string, 0, len(lines))
+	for _, line := range lines {
+		res = append(res, strings.TrimSuffix(line, "\r"))
+	}
+	return res
+}
+
+// lineCapture splits everything written to it into lines exactly as splitOutputLines does, keeping
+// only the ones keep accepts. Executors pass it alongside the log writer, so retention scales with
+// what the caller reads rather than with what the command printed. A line of any length is handled,
+// there is no scanner token limit, and an unterminated final line is returned like a terminated one.
+type lineCapture struct {
+	keep    func(line string) bool
+	partial []byte
+	lines   []string
+}
+
+func (lc *lineCapture) Write(p []byte) (n int, err error) {
+	n = len(p)
+	for {
+		i := bytes.IndexByte(p, '\n')
+		if i < 0 {
+			lc.partial = append(lc.partial, p...)
+			return n, nil
+		}
+		if len(lc.partial) == 0 {
+			lc.take(p[:i]) // whole line arrived in this write, no need to stage it
+		} else {
+			lc.partial = append(lc.partial, p[:i]...)
+			lc.take(lc.partial)
+			lc.reset()
+		}
+		p = p[i+1:]
+	}
+}
+
+// reset readies the staging buffer for the next line. A buffer that stayed small is kept, sparing an
+// allocation per line, but a large one is released: holding it would pin the longest line for the rest
+// of the command, which is the retention this type exists to avoid.
+func (lc *lineCapture) reset() {
+	const maxStageReuse = 64 << 10
+	if cap(lc.partial) > maxStageReuse {
+		lc.partial = nil
+		return
+	}
+	lc.partial = lc.partial[:0]
+}
+
+// take converts one line and keeps it if the predicate accepts. The string conversion copies, so
+// the retained line never pins the writer's buffer, and a rejected line is garbage at once.
+func (lc *lineCapture) take(b []byte) {
+	line := string(bytes.TrimSuffix(b, []byte("\r")))
+	if lc.keep == nil || lc.keep(line) {
+		lc.lines = append(lc.lines, line)
+	}
+}
+
+// result flushes an unterminated final line and returns the kept lines, nil when nothing was kept.
+func (lc *lineCapture) result() []string {
+	if len(lc.partial) > 0 {
+		lc.take(lc.partial)
+		lc.partial = nil
+	}
+	return lc.lines
+}
+
+// newLineCapture builds a capture honoring opts, which may be nil.
+func newLineCapture(opts *RunOpts) *lineCapture {
+	if opts == nil {
+		return &lineCapture{}
+	}
+	return &lineCapture{keep: opts.KeepLine}
+}
 
 // isExcluded reports whether fpath matches any of the exclude patterns. A pattern ending in "/*"
 // also matches the directory it names, so the whole subtree is protected, but this directory match

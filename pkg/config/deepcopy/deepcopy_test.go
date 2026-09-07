@@ -113,8 +113,8 @@ CopyFloat32s:
 	}
 
 CopyInterfaces:
-	Interfaces := []interface{}{"a", 42, true, 4.32}
-	cpyIf := Copy(Interfaces).([]interface{})
+	Interfaces := []any{"a", 42, true, 4.32}
+	cpyIf := Copy(Interfaces).([]any)
 	if (*reflect.SliceHeader)(unsafe.Pointer(&Strings)).Data == (*reflect.SliceHeader)(unsafe.Pointer(&cpyIf)).Data {
 		t.Error("[]interfaces: expected SliceHeader data pointers to point to different locations, they didn't")
 		return
@@ -210,7 +210,7 @@ func TestMostTypes(t *testing.T) {
 		Complex64s:  []complex64{complex64(-65 + 11i), complex64(66 + 10i)},
 		Complex128:  complex128(-128 + 12i),
 		Complex128s: []complex128{complex128(-128 + 11i), complex128(129 + 10i)},
-		Interfaces:  []interface{}{42, true, "pan-galactic"},
+		Interfaces:  []any{42, true, "pan-galactic"},
 	}
 
 	cpy := Copy(test).(Basics)

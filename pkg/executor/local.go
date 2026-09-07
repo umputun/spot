@@ -1,8 +1,6 @@
 package executor
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/go-pkgz/fileutils"
@@ -27,7 +26,7 @@ func NewLocal(logs Logs) *Local {
 }
 
 // Run executes command on local hostAddr, inside the shell
-func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, err error) {
+func (l *Local) Run(ctx context.Context, cmd string, opts *RunOpts) (out []string, err error) {
 	shell := func() string {
 		if strings.HasPrefix(cmd, "sh -c") {
 			return "sh" // command has sh -c prefix, so use sh
@@ -51,19 +50,15 @@ func (l *Local) Run(ctx context.Context, cmd string, _ *RunOpts) (out []string, 
 	errLog := l.logs.Err.WithHost("localhost", "")
 	outLog.Write([]byte(cmd)) // nolint
 
-	var stdoutBuf bytes.Buffer
-	mwr := io.MultiWriter(outLog, &stdoutBuf)
+	capture := newLineCapture(opts)
+	mwr := io.MultiWriter(outLog, capture)
 	command.Stdout, command.Stderr = mwr, errLog
 	err = command.Run()
 	if err != nil {
 		return nil, err
 	}
 
-	scanner := bufio.NewScanner(&stdoutBuf)
-	for scanner.Scan() {
-		out = append(out, scanner.Text())
-	}
-	return out, scanner.Err()
+	return capture.result(), nil
 }
 
 // Upload just copy file from one place to another
@@ -267,8 +262,7 @@ func (l *Local) removeExtraDstFiles(ctx context.Context, src, dst string) error 
 	}
 
 	// remove files and directories in reverse order
-	for i := len(pathsToDelete) - 1; i >= 0; i-- {
-		dstPath := pathsToDelete[i]
+	for _, dstPath := range slices.Backward(pathsToDelete) {
 		if e := os.RemoveAll(dstPath); e != nil {
 			return e
 		}

@@ -99,9 +99,9 @@ func TestStdOutLogWriter(t *testing.T) {
 			log.SetFlags(0)
 
 			writer := &stdOutLogWriter{
-				prefix:  tc.prefix,
-				level:   tc.level,
-				secrets: tc.secrets,
+				prefix: tc.prefix,
+				level:  tc.level,
+				masker: newSecretsMasker(tc.secrets),
 			}
 
 			n, err := writer.Write([]byte(tc.input))
@@ -222,7 +222,7 @@ func TestColorizedWriter(t *testing.T) {
 			var writer LogWriter
 			buffer := bytes.NewBuffer([]byte{})
 			writer = &colorizedWriter{wr: buffer, prefix: tc.prefix,
-				hostAddr: tc.hostAddr, hostName: tc.hostName, secrets: tc.secrets}
+				hostAddr: tc.hostAddr, hostName: tc.hostName, masker: newSecretsMasker(tc.secrets)}
 			if tc.withHostName != "" && tc.withHostAddr != "" {
 				writer = writer.WithHost(tc.withHostAddr, tc.withHostName)
 			}
@@ -326,7 +326,7 @@ func TestMaskSecrets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			output := maskSecrets(tt.input, tt.secrets)
+			output := newSecretsMasker(tt.secrets).mask(tt.input)
 			assert.Equal(t, tt.expected, output)
 		})
 	}
@@ -354,7 +354,7 @@ func TestColorizedWriter_PrintfWithSecrets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			var buf bytes.Buffer
-			writer := &colorizedWriter{wr: &buf, secrets: tt.secrets, hostAddr: "localhost", hostName: "my-host"}
+			writer := &colorizedWriter{wr: &buf, masker: newSecretsMasker(tt.secrets), hostAddr: "localhost", hostName: "my-host"}
 			writer.Printf("%s", tt.input) //nolint
 			assert.Equal(t, tt.expected, buf.String())
 		})
@@ -383,4 +383,15 @@ func TestIsAlphanumeric(t *testing.T) {
 			assert.Equal(t, tt.result, result)
 		})
 	}
+}
+
+func TestColorizedWriter_LineOverScannerLimit(t *testing.T) {
+	var buf bytes.Buffer
+	wr := &colorizedWriter{wr: &buf, prefix: " >", hostAddr: "h1", monochrome: true}
+
+	line := strings.Repeat("x", 100000)
+	n, err := wr.Write([]byte(line + "\n"))
+	require.NoError(t, err)
+	assert.Equal(t, len(line)+1, n)
+	assert.Contains(t, buf.String(), line)
 }
