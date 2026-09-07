@@ -889,8 +889,8 @@ func (tm *templater) apply(inp string) string {
 		actualValue := v
 		// single-quoted vars carry the marker; strip it and escape $ so the value stays
 		// literal and does not re-expand in a later pass
-		if strings.HasPrefix(v, sqMarker) {
-			actualValue = strings.ReplaceAll(strings.TrimPrefix(v, sqMarker), "$", "\\$")
+		if value, ok := strings.CutPrefix(v, sqMarker); ok {
+			actualValue = strings.ReplaceAll(value, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
 	}
