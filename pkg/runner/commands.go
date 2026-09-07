@@ -758,7 +758,7 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	// chmod always runs to make the result exact regardless of what sftpUpload inferred. the full
 	// mode value is used so setuid/setgid/sticky bits survive, not just the 0o777 perm mask.
 	chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod %o %s", mode, shellQuote(dst)))
-	if _, err := ec.exec.Run(ctx, chmodCmd, &executor.RunOpts{Verbose: ec.verbose}); err != nil {
+	if _, err := ec.exec.Run(ctx, chmodCmd, discardOutput); err != nil {
 		return resp, ec.errorFmt("can't chmod %s on %s: %w", dst, ec.hostAddr, err)
 	}
 
@@ -805,7 +805,8 @@ func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, d
 // catch as the wrong field. the whole alternation is wrapped once so sudo covers both branches.
 func (ec *execCmd) runTemplateProbe(ctx context.Context, probe, tag string) (string, bool) {
 	c := ec.wrapWithSudo(ec.shell() + " -c " + shellQuote(probe))
-	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{Verbose: ec.verbose})
+	keep := func(line string) bool { return strings.HasPrefix(line, tag) }
+	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{KeepLine: keep})
 	if err != nil {
 		log.Printf("[DEBUG] can't probe remote file, will re-upload: %v", err)
 		return "", false
