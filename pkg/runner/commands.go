@@ -746,10 +746,11 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, ec.errorFmt("can't close temp template file: %w", err)
 	}
 
-	// reuse copyPush for the actual upload, mapping template options onto a synthetic copy command.
+	// reuse copyPush for the actual upload. force is unconditionally on: templateMatchesRemote has
+	// already decided the render differs, so the upload must not be skipped by copyPush's metadata check.
 	// the mode is not taken from the staging file, dst gets the wanted mode below.
 	ecCopy := *ec
-	ecCopy.cmd.Copy = config.CopyInternal{Mkdir: ec.cmd.Template.Mkdir, Force: ec.cmd.Template.Force}
+	ecCopy.cmd.Copy = config.CopyInternal{Mkdir: ec.cmd.Template.Mkdir, Force: true}
 	if _, err := ecCopy.copyPush(ctx, tmpName, dst); err != nil {
 		return resp, err
 	}

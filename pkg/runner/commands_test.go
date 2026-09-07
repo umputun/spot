@@ -335,6 +335,35 @@ func Test_templateMatchesRemote(t *testing.T) {
 	})
 }
 
+func Test_execTemplateForcesUploadAfterIdempotenceMiss(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "spot-template-force.tmpl")
+	require.NoError(t, os.WriteFile(src, []byte("task={{.SPOT_TASK}}"), 0o600))
+
+	var uploadOpts *executor.UpDownOpts
+	mock := &mocks.InterfaceMock{
+		RunFunc: func(_ context.Context, _ string, _ *executor.RunOpts) ([]string, error) {
+			return nil, nil
+		},
+		UploadFunc: func(_ context.Context, _ string, _ string, opts *executor.UpDownOpts) error {
+			uploadOpts = opts
+			return nil
+		},
+	}
+
+	ec := execCmd{
+		exec:     mock,
+		tsk:      &config.Task{Name: "task1", User: "deploy"},
+		cmd:      config.Cmd{Name: "render", Template: config.TemplateInternal{Source: src, Dest: "/tmp/out"}},
+		hostAddr: "example.com:22",
+		hostName: "myhost",
+	}
+
+	_, err := ec.Template(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, uploadOpts)
+	assert.True(t, uploadOpts.Force)
+}
+
 func Test_execCmd(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
