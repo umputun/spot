@@ -29,15 +29,49 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, nil
 	}
 
-	// resolve src/dst paths via spot's variable substitution
 	tmpl := templater{hostAddr: ec.hostAddr, hostName: ec.hostName, task: ec.tsk, command: ec.cmd.Name, env: ec.cmd.Environment}
 	src := tmpl.apply(ec.cmd.Template.Source)
 	dst := tmpl.apply(ec.cmd.Template.Dest)
 
-	// read template file from local filesystem
+	rendered, err := ec.renderTemplate(tmpl, src)
+	if err != nil {
+		return resp, err
+	}
+
+	mode, err := ec.templateMode()
+	if err != nil {
+		return resp, err
+	}
+
+	if !ec.cmd.Template.Force {
+		if ec.templateMatchesRemote(ctx, rendered, dst, mode) {
+			resp.details = fmt.Sprintf(" {template: %s -> %s, skip: identical}", src, dst)
+			return resp, nil
+		}
+	}
+
+	if err := ec.uploadRenderedTemplate(ctx, rendered, dst); err != nil {
+		return resp, err
+	}
+	if err := ec.applyTemplateMode(ctx, dst, mode); err != nil {
+		return resp, err
+	}
+
+	resp.details = fmt.Sprintf(" {template: %s -> %s}", src, dst)
+	if ec.cmd.Options.Sudo {
+		resp.details += ", sudo: true"
+	}
+	if ec.cmd.Template.ChmodX {
+		resp.details += ", chmod: +x"
+	}
+	return resp, nil
+}
+
+// renderTemplate parses and executes the template file, returning the rendered bytes.
+func (ec *execCmd) renderTemplate(tmpl templater, src string) ([]byte, error) {
 	data, err := os.ReadFile(src) // nolint:gosec // user-configured template path
 	if err != nil {
-		return resp, ec.errorFmt("can't read template %q: %w", src, err)
+		return nil, ec.errorFmt("can't read template %q: %w", src, err)
 	}
 
 	tplData := tmpl.vars()
@@ -50,44 +84,43 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		}
 	}
 
-	// parse and execute template
 	parsed, err := template.New(filepath.Base(src)).Option("missingkey=error").Parse(string(data))
 	if err != nil {
-		return resp, ec.errorFmt("can't parse template %q: %w", src, err)
+		return nil, ec.errorFmt("can't parse template %q: %w", src, err)
 	}
 	var rendered bytes.Buffer
 	if err = parsed.Execute(&rendered, tplData); err != nil {
-		return resp, ec.errorFmt("can't execute template %q: %w", src, err)
+		return nil, ec.errorFmt("can't execute template %q: %w", src, err)
 	}
+	return rendered.Bytes(), nil
+}
 
-	// wanted destination mode: explicit mode or 0600 default, chmod+x adds the execute bits
+// templateMode resolves the wanted destination mode: explicit mode or 0600 default, chmod+x adds
+// the execute bits.
+func (ec *execCmd) templateMode() (os.FileMode, error) {
 	modeStr := ec.cmd.Template.Mode
 	if modeStr == "" {
 		modeStr = "0600"
 	}
 	modeVal, err := strconv.ParseUint(modeStr, 8, 32)
 	if err != nil {
-		return resp, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
+		return 0, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
 	}
 	mode := os.FileMode(modeVal)
 	if ec.cmd.Template.ChmodX {
 		mode |= 0o111
 	}
+	return mode, nil
+}
 
-	// skip the upload when the remote file already has the rendered content and the wanted mode.
-	// comparing against dst itself (not the staging file) keeps idempotence across sudo and chmod+x.
-	if !ec.cmd.Template.Force {
-		if ec.templateMatchesRemote(ctx, rendered.Bytes(), dst, mode) {
-			resp.details = fmt.Sprintf(" {template: %s -> %s, skip: identical}", src, dst)
-			return resp, nil
-		}
-	}
-
-	// write the render to a staging file. it stays 0600 regardless of the wanted destination mode so
-	// a secret render is never widened in temp; the wanted mode is applied to dst after the upload.
+// uploadRenderedTemplate writes the render to a staging file and reuses copyPush for the upload.
+// the staging file stays 0600 so a secret render is never widened in temp; the wanted mode is
+// applied to dst after the upload. force is on unconditionally: templateMatchesRemote has already
+// decided the render differs, so copyPush must not skip it by metadata.
+func (ec *execCmd) uploadRenderedTemplate(ctx context.Context, rendered []byte, dst string) error {
 	tmp, err := os.CreateTemp("", "spot-template")
 	if err != nil {
-		return resp, ec.errorFmt("can't create temp file for rendered template: %w", err)
+		return ec.errorFmt("can't create temp file for rendered template: %w", err)
 	}
 	tmpName := tmp.Name()
 	defer func() {
@@ -95,39 +128,30 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 			log.Printf("[WARN] can't remove temp template file %s: %v", tmpName, rErr)
 		}
 	}()
-	if _, err = tmp.Write(rendered.Bytes()); err != nil {
+	if _, err = tmp.Write(rendered); err != nil {
 		_ = tmp.Close()
-		return resp, ec.errorFmt("can't write rendered template to temp file: %w", err)
+		return ec.errorFmt("can't write rendered template to temp file: %w", err)
 	}
 	if err = tmp.Close(); err != nil {
-		return resp, ec.errorFmt("can't close temp template file: %w", err)
+		return ec.errorFmt("can't close temp template file: %w", err)
 	}
 
-	// reuse copyPush for the actual upload. force is unconditionally on: templateMatchesRemote has
-	// already decided the render differs, so the upload must not be skipped by copyPush's metadata check.
-	// the mode is not taken from the staging file, dst gets the wanted mode below.
 	ecCopy := *ec
 	ecCopy.cmd.Copy = config.CopyInternal{Mkdir: ec.cmd.Template.Mkdir, Force: true}
 	if _, err := ecCopy.copyPush(ctx, tmpName, dst); err != nil {
-		return resp, err
+		return err
 	}
+	return nil
+}
 
-	// apply the wanted mode on dst. on Windows the staging stat does not carry unix perms, so the
-	// chmod always runs to make the result exact regardless of what sftpUpload inferred. the full
-	// mode value is used so setuid/setgid/sticky bits survive, not just the 0o777 perm mask.
+// applyTemplateMode applies the wanted mode on dst. on Windows the staging stat does not carry unix
+// perms, so the chmod always runs. the full mode value is used so setuid/setgid/sticky bits survive.
+func (ec *execCmd) applyTemplateMode(ctx context.Context, dst string, mode os.FileMode) error {
 	chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod %o %s", mode, shellQuote(dst)))
 	if _, err := ec.exec.Run(ctx, chmodCmd, discardOutput); err != nil {
-		return resp, ec.errorFmt("can't chmod %s on %s: %w", dst, ec.hostAddr, err)
+		return ec.errorFmt("can't chmod %s on %s: %w", dst, ec.hostAddr, err)
 	}
-
-	resp.details = fmt.Sprintf(" {template: %s -> %s}", src, dst)
-	if ec.cmd.Options.Sudo {
-		resp.details += ", sudo: true"
-	}
-	if ec.cmd.Template.ChmodX {
-		resp.details += ", chmod: +x"
-	}
-	return resp, nil
+	return nil
 }
 
 // templateMatchesRemote reports whether dst already has the rendered content and the wanted mode.
