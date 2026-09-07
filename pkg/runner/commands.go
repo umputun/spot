@@ -24,6 +24,9 @@ import (
 // setVarPrefix marks a line the script emits to hand a variable back to the runner.
 const setVarPrefix = "setvar "
 
+// sqMarker prefixes single-quoted registered variables.
+const sqMarker = "__SQ__:"
+
 // isSetVarLine reports whether a script output line carries such a variable. It is both the
 // executor's line filter and the parse loop's guard, so the two cannot drift apart.
 func isSetVarLine(line string) bool { return strings.HasPrefix(line, setVarPrefix) }
@@ -790,40 +793,70 @@ type templater struct {
 	err      error
 }
 
+// spotVarNames is the ordered list of built-in template variables. vars and apply share it so the
+// names and order cannot drift apart.
+var spotVarNames = []string{
+	"SPOT_REMOTE_HOST",
+	"SPOT_REMOTE_NAME",
+	"SPOT_COMMAND",
+	"SPOT_REMOTE_USER",
+	"SPOT_TASK",
+	"SPOT_REMOTE_ADDR",
+	"SPOT_REMOTE_PORT",
+	"SPOT_ERROR",
+}
+
+// hostPort splits the host address into host and port, defaulting the port to 22.
+func (tm *templater) hostPort() (host, port string) {
+	host, port, err := net.SplitHostPort(tm.hostAddr)
+	if err == nil {
+		return host, port
+	}
+	return tm.hostAddr, "22"
+}
+
+// spotVar resolves a single built-in template variable.
+func (tm *templater) spotVar(name string) string {
+	switch name {
+	case "SPOT_REMOTE_HOST":
+		return tm.hostAddr
+	case "SPOT_REMOTE_NAME":
+		return tm.hostName
+	case "SPOT_REMOTE_ADDR":
+		host, _ := tm.hostPort()
+		return host
+	case "SPOT_REMOTE_PORT":
+		_, port := tm.hostPort()
+		return port
+	case "SPOT_REMOTE_USER":
+		return tm.task.User
+	case "SPOT_COMMAND":
+		return tm.command
+	case "SPOT_TASK":
+		return tm.task.Name
+	case "SPOT_ERROR":
+		if tm.err != nil {
+			return tm.err.Error()
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
 // vars builds a map of all template variables: SPOT_* built-ins and environment variables.
-// environment values with the __SQ__: marker (single-quoted) have the prefix stripped.
+// environment values with the single-quote marker have the prefix stripped.
 func (tm *templater) vars() map[string]string {
-	host, port, _ := net.SplitHostPort(tm.hostAddr)
-	if host == "" {
-		host = tm.hostAddr
-		port = "22"
+	vars := make(map[string]string, len(spotVarNames)+len(tm.env))
+	for _, name := range spotVarNames {
+		vars[name] = tm.spotVar(name)
 	}
-
-	vars := map[string]string{
-		"SPOT_REMOTE_HOST": tm.hostAddr,
-		"SPOT_REMOTE_NAME": tm.hostName,
-		"SPOT_REMOTE_ADDR": host,
-		"SPOT_REMOTE_PORT": port,
-		"SPOT_REMOTE_USER": tm.task.User,
-		"SPOT_COMMAND":     tm.command,
-		"SPOT_TASK":        tm.task.Name,
-		"SPOT_ERROR":       "",
-	}
-	if tm.err != nil {
-		vars["SPOT_ERROR"] = tm.err.Error()
-	}
-
 	for k, v := range tm.env {
 		if _, ok := vars[k]; ok {
 			continue // built-ins win over env keys, same invariant as apply()
 		}
-		if strings.HasPrefix(v, "__SQ__:") {
-			vars[k] = v[7:]
-		} else {
-			vars[k] = v
-		}
+		vars[k] = strings.TrimPrefix(v, sqMarker)
 	}
-
 	return vars
 }
 
@@ -847,38 +880,17 @@ func (tm *templater) apply(inp string) string {
 		return res
 	}
 
-	// built-ins first, in a fixed sequence. an env value may reference a SPOT_* var, so env
-	// substitution runs after and cannot shadow a built-in. map iteration would make the
-	// result depend on order, so the passes stay explicit.
 	res := inp
-	res = apply(res, "SPOT_REMOTE_HOST", tm.hostAddr)
-	res = apply(res, "SPOT_REMOTE_NAME", tm.hostName)
-	res = apply(res, "SPOT_COMMAND", tm.command)
-	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
-	res = apply(res, "SPOT_TASK", tm.task.Name)
-
-	host, port, err := net.SplitHostPort(tm.hostAddr)
-	if err == nil {
-		res = apply(res, "SPOT_REMOTE_ADDR", host)
-		res = apply(res, "SPOT_REMOTE_PORT", port)
-	} else {
-		res = apply(res, "SPOT_REMOTE_ADDR", tm.hostAddr)
-		res = apply(res, "SPOT_REMOTE_PORT", "22") // default ssh port
-	}
-
-	if tm.err != nil {
-		res = apply(res, "SPOT_ERROR", tm.err.Error())
-	} else {
-		res = apply(res, "SPOT_ERROR", "")
+	for _, name := range spotVarNames {
+		res = apply(res, name, tm.spotVar(name))
 	}
 
 	for k, v := range tm.env {
 		actualValue := v
-		// single-quoted vars carry the __SQ__: marker; strip it and escape $ so the value
-		// stays literal and does not re-expand in a later pass
-		if strings.HasPrefix(v, "__SQ__:") {
-			actualValue = v[7:]
-			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
+		// single-quoted vars carry the marker; strip it and escape $ so the value stays
+		// literal and does not re-expand in a later pass
+		if strings.HasPrefix(v, sqMarker) {
+			actualValue = strings.ReplaceAll(strings.TrimPrefix(v, sqMarker), "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
 	}
