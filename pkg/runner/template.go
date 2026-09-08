@@ -169,7 +169,7 @@ func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, d
 	}
 
 	modeProbe := fmt.Sprintf(
-		"(stat -c %%a %s 2>/dev/null || stat -f %%Lp %s 2>/dev/null) | awk '{print \"spot-mode \"$1}'", qDst, qDst)
+		"(stat -L -c %%a %s 2>/dev/null || stat -L -f %%Mp%%Lp %s 2>/dev/null) | awk '{print \"spot-mode \"$1}'", qDst, qDst)
 	modeLine, ok := ec.runTemplateProbe(ctx, modeProbe, "spot-mode ")
 	if !ok {
 		return false
@@ -185,8 +185,13 @@ func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, d
 // runTemplateProbe runs a single shell command and returns the value after tag in its output line.
 // the tagged line makes the scan immune to shell rc noise on stdout, which a bare out[0] read would
 // catch as the wrong field. the whole alternation is wrapped once so sudo covers both branches.
+// the non-sudo path is prefixed with exec so the local executor cannot strip the /bin/sh -c wrapper
+// and unbalance the probe's single-quote escapes.
 func (ec *execCmd) runTemplateProbe(ctx context.Context, probe, tag string) (string, bool) {
-	c := ec.wrapWithSudo(ec.shell() + " -c " + shellQuote(probe))
+	c := "exec " + ec.shell() + " -c " + shellQuote(probe)
+	if ec.cmd.Options.Sudo {
+		c = ec.wrapWithSudo(ec.shell() + " -c " + shellQuote(probe))
+	}
 	keep := func(line string) bool { return strings.HasPrefix(line, tag) }
 	out, err := ec.exec.Run(ctx, c, &executor.RunOpts{KeepLine: keep})
 	if err != nil {

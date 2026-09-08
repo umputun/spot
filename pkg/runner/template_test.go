@@ -45,7 +45,7 @@ func Test_templateMatchesRemote(t *testing.T) {
 				switch {
 				case strings.Contains(c, "sha256sum"):
 					return []string{"> motd", "spot-sum " + renderedSum}, nil
-				case strings.Contains(c, "stat -c"):
+				case strings.Contains(c, "stat -L -c"):
 					return []string{"spot-mode 4755"}, nil
 				}
 				return nil, fmt.Errorf("unexpected probe %q", c)
@@ -57,8 +57,8 @@ func Test_templateMatchesRemote(t *testing.T) {
 		// each probe is one wrapped shell command that falls back to the bsd spelling
 		assert.Contains(t, commands[0], "sha256sum")
 		assert.Contains(t, commands[0], "shasum -a 256")
-		assert.Contains(t, commands[1], "stat -c %a")
-		assert.Contains(t, commands[1], "stat -f %Lp")
+		assert.Contains(t, commands[1], "stat -L -c %a")
+		assert.Contains(t, commands[1], "stat -L -f %Mp%Lp")
 	})
 
 	t.Run("content differs", func(t *testing.T) {
@@ -77,7 +77,7 @@ func Test_templateMatchesRemote(t *testing.T) {
 				switch {
 				case strings.Contains(c, "sha256sum"):
 					return []string{"spot-sum " + renderedSum}, nil
-				case strings.Contains(c, "stat -c"):
+				case strings.Contains(c, "stat -L -c"):
 					return []string{"spot-mode 600"}, nil
 				}
 				return nil, fmt.Errorf("unexpected probe %q", c)
@@ -97,20 +97,29 @@ func Test_templateMatchesRemote(t *testing.T) {
 		assert.False(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o600))
 	})
 
-	t.Run("bsd mode spelling with leading zero parses", func(t *testing.T) {
-		mock := &mocks.InterfaceMock{
-			RunFunc: func(_ context.Context, c string, _ *executor.RunOpts) ([]string, error) {
-				switch {
-				case strings.Contains(c, "sha256sum"):
-					return []string{"spot-sum " + renderedSum}, nil
-				case strings.Contains(c, "stat -c"):
-					return []string{"spot-mode 0644"}, nil
-				}
-				return nil, fmt.Errorf("unexpected probe %q", c)
-			},
+	t.Run("bsd mode fallback parses full mode", func(t *testing.T) {
+		dir := t.TempDir()
+		dst := filepath.Join(dir, "out")
+		require.NoError(t, os.WriteFile(dst, rendered, 0o644))
+
+		binDir := filepath.Join(dir, "bin")
+		require.NoError(t, os.MkdirAll(binDir, 0o755))
+		statScript := `#!/bin/sh
+case " $* " in
+  *" -c "*) exit 1 ;;
+  *" -f "*) echo "4755"; exit 0 ;;
+esac
+exit 1
+`
+		statPath := filepath.Join(binDir, "stat")
+		require.NoError(t, os.WriteFile(statPath, []byte(statScript), 0o755))
+		t.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
+
+		ec := execCmd{
+			exec: executor.NewLocal(executor.MakeLogs(false, false, nil)),
+			cmd:  config.Cmd{Options: config.CmdOptions{Local: true}},
 		}
-		ec := execCmd{exec: mock, cmd: config.Cmd{}}
-		assert.True(t, ec.templateMatchesRemote(context.Background(), rendered, "/tmp/out", 0o644))
+		assert.True(t, ec.templateMatchesRemote(context.Background(), rendered, dst, 0o4755))
 	})
 }
 
@@ -637,4 +646,36 @@ func Test_execTemplate(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "600", out[0])
 	})
+}
+
+func Test_execTemplateLocalProbeSkipsIdentical(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	dir := t.TempDir()
+	src := filepath.Join(dir, "spot-template.tmpl")
+	require.NoError(t, os.WriteFile(src, []byte("hello from local"), 0o600))
+	dst := filepath.Join(dir, "rendered.txt")
+
+	ec := execCmd{
+		exec: executor.NewLocal(executor.MakeLogs(false, false, nil)),
+		tsk:  &config.Task{Name: "task1", User: "deploy"},
+		cmd: config.Cmd{
+			Name:     "render local",
+			Template: config.TemplateInternal{Source: src, Dest: dst},
+			Options:  config.CmdOptions{Local: true},
+		},
+	}
+
+	resp, err := ec.Template(context.Background())
+	require.NoError(t, err)
+	assert.Contains(t, resp.details, " {template:")
+	st, err := os.Stat(dst)
+	require.NoError(t, err)
+	before := st.ModTime()
+
+	resp, err = ec.Template(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, fmt.Sprintf(" {template: %s -> %s, skip: identical}", src, dst), resp.details)
+	st2, err := os.Stat(dst)
+	require.NoError(t, err)
+	assert.True(t, st2.ModTime().Equal(before))
 }
