@@ -520,7 +520,7 @@ server {
 }
 ```
 
-`template` supports `mkdir`, `force`, `sudo` and `cond` like the `copy` command. `chmod+x` adds the execute bits to `mode`, not to the source file mode. With the default `mode: "0600"`, `chmod+x: true` produces `0711`; set `mode: "0644"` to get an executable script readable by group and others.
+`template` supports the same `mkdir`, `force` and `sudo` semantics as the `copy` command, and supports the `cond` condition field. `chmod+x` adds the execute bits to `mode`, not to the source file mode. With the default `mode: "0600"`, `chmod+x: true` produces `0711`; set `mode: "0644"` to get an executable script readable by group and others.
 
 
 #### `sync`
