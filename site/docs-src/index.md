@@ -482,7 +482,7 @@ Parameters:
 
 Available template variables:
 
-- All `SPOT_*` variables: `SPOT_REMOTE_HOST`, `SPOT_REMOTE_ADDR`, `SPOT_REMOTE_PORT`, `SPOT_REMOTE_NAME`, `SPOT_REMOTE_USER`, `SPOT_COMMAND`, `SPOT_TASK`
+- All `SPOT_*` variables: `SPOT_REMOTE_HOST`, `SPOT_REMOTE_ADDR`, `SPOT_REMOTE_PORT`, `SPOT_REMOTE_NAME`, `SPOT_REMOTE_USER`, `SPOT_COMMAND`, `SPOT_TASK` (`SPOT_ERROR` is also defined and always empty for template commands)
 - All entries from the command's `env:` map
 - All values for keys listed in the command's `options.secrets` (only if loaded)
 - Variables captured by `register` from previous commands in the same task are exposed as regular `env` entries, so they are also available
