@@ -162,7 +162,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 
 		// for single-quoted values, add a marker prefix
 		if singleQuoted {
-			val = "__SQ__:" + val
+			val = sqMarker + val
 		}
 		resp.vars[key] = val
 

@@ -720,6 +720,17 @@ template:
 				Template: TemplateInternal{Source: "testdata/config.tmpl", Dest: "/etc/app.conf", Mode: "0644"},
 			},
 		},
+		{
+			name: "template with numeric mode fails",
+			yamlInput: `
+name: render config
+template:
+  src: "testdata/config.tmpl"
+  dst: "/etc/app.conf"
+  mode: 0644
+`,
+			expectedErr: true,
+		},
 	}
 
 	for _, tc := range testCases {
