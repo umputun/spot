@@ -33,6 +33,23 @@ func Test_templaterVars(t *testing.T) {
 	assert.Equal(t, "my$val", vars["MY_VAR"], "SQ marker must be stripped")
 }
 
+func Test_renderTemplatePrecedence(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "precedence.tmpl")
+	require.NoError(t, os.WriteFile(src, []byte("task={{.SPOT_TASK}}\nmsg={{.GREETING}}\nsecret={{.MY_SECRET}}"), 0o600))
+
+	ec := execCmd{cmd: config.Cmd{
+		Name:        "render",
+		Environment: map[string]string{"GREETING": "env-greeting"},
+		Secrets:     map[string]string{"SPOT_TASK": "intruder", "GREETING": "secret-greeting", "MY_SECRET": "secret-value"},
+		Options:     config.CmdOptions{Secrets: []string{"SPOT_TASK", "GREETING", "MY_SECRET"}},
+	}}
+	tm := templater{hostAddr: "example.com", hostName: "example", command: "render", task: &config.Task{Name: "task1", User: "deploy"}, env: ec.cmd.Environment}
+
+	out, err := ec.renderTemplate(tm, src)
+	require.NoError(t, err)
+	assert.Equal(t, "task=task1\nmsg=secret-greeting\nsecret=secret-value", string(out))
+}
+
 func Test_templateMatchesRemote(t *testing.T) {
 	rendered := []byte("hello")
 	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))

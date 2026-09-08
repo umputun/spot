@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -76,11 +77,11 @@ func (ec *execCmd) renderTemplate(tmpl templater, src string) ([]byte, error) {
 
 	tplData := tmpl.vars()
 	for _, k := range ec.cmd.Options.Secrets {
-		if _, ok := tplData[k]; ok {
-			continue // built-ins and env win over secret keys, same precedence as vars()
+		if slices.Contains(spotVarNames, k) {
+			continue // built-ins win over secret keys
 		}
-		if v, ok := ec.cmd.Secrets[k]; ok {
-			tplData[k] = v
+		if v, ok := ec.cmd.Secrets[k]; ok && v != "" {
+			tplData[k] = v // non-empty secrets win over env keys, matching script commands
 		}
 	}
 
