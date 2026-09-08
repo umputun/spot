@@ -477,7 +477,7 @@ Parameters:
 | `dst` | remote destination file path |
 | `mkdir` | create destination directory if it does not exist |
 | `force` | upload even if destination already has the same content |
-| `chmod+x` | make the destination file executable after upload |
+| `chmod+x` | add the execute bits to `mode` |
 | `mode` | destination file mode in octal (default `0600`) |
 
 Available template variables:
@@ -487,7 +487,7 @@ Available template variables:
 - All values for keys listed in the command's `options.secrets` (only if loaded)
 - Variables captured by `register` from previous commands in the same task are exposed as regular `env` entries, so they are also available
 
-Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). For example `{{ .Name }}` and `{{ if .X }}...{{ else }}...{{ end }}`. Template data is a map of strings (`map[string]string`), so each `{{ .Key }}` resolves to a single value.
+Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). Template data is a map of strings (`map[string]string`), so each `{{ .Key }}` resolves to a single value. An unknown key fails the command. Use `{{ if index . "X" }}...{{ else }}...{{ end }}` to make a key optional.
 
 ```yaml
 - name: render nginx config
@@ -497,7 +497,7 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). 
     APP_PORT: "8080"
 
 - name: render a script and make it executable
-  template: {"src": "scripts/run.sh.tmpl", "dst": "/opt/app/run.sh", "mkdir": true, "chmod+x": true}
+  template: {"src": "scripts/run.sh.tmpl", "dst": "/opt/app/run.sh", "mkdir": true, "mode": "0644", "chmod+x": true}
 
 - name: render with a loaded secret
   template: {"src": "templates/db.conf.tmpl", "dst": "/etc/app/db.conf", "mkdir": true}
@@ -520,7 +520,7 @@ server {
 }
 ```
 
-`template` supports the same `mkdir`, `force`, `chmod+x` and `sudo` semantics as the `copy` command, and supports the `cond` condition field.
+`template` supports `mkdir`, `force`, `sudo` and `cond` like the `copy` command. `chmod+x` adds the execute bits to `mode`, not to the source file mode. With the default `mode: "0600"`, `chmod+x: true` produces `0711`; set `mode: "0644"` to get an executable script readable by group and others.
 
 
 #### `sync`

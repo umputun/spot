@@ -285,7 +285,7 @@ Fields:
 - `dst`: remote destination file path
 - `mkdir`: create destination directory if missing (default: false)
 - `force`: upload even if destination content is identical (default: false)
-- `chmod+x`: make destination executable (default: false)
+- `chmod+x`: add the execute bits to `mode` (default: false)
 - `mode`: destination file mode in octal (default: `0600`)
 
 Available template variables:
@@ -294,7 +294,7 @@ Available template variables:
 - All values for keys listed in `options.secrets` (if loaded)
 - Variables captured by `register` from previous commands in the same task are exposed as `env` entries, so they are also available
 
-Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). Template data is a map of strings (`map[string]string`), so each `{{ .Key }}` resolves to a single value.
+Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). Template data is a map of strings (`map[string]string`), so each `{{ .Key }}` resolves to a single value. An unknown key fails the command. Use `{{ if index . "X" }}...{{ else }}...{{ end }}` to make a key optional.
 
 ```yaml
 - name: render nginx config
@@ -304,7 +304,7 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). 
     APP_PORT: "8080"
 
 - name: render a script and make it executable
-  template: {src: "scripts/run.sh.tmpl", dst: "/opt/app/run.sh", mkdir: true, chmod+x: true}
+  template: {src: "scripts/run.sh.tmpl", dst: "/opt/app/run.sh", mkdir: true, mode: "0644", chmod+x: true}
 
 - name: render to a sudo-protected path
   template: {src: "templates/secret.conf.tmpl", dst: "/etc/app/secret.conf", mkdir: true}
@@ -325,7 +325,7 @@ server {
 }
 ```
 
-`template` supports the same `mkdir`, `force`, `chmod+x` and `sudo` semantics as `copy`, has its own `mode` field for explicit permission control, and respects the `cond` condition field.
+`template` supports `mkdir`, `force`, `sudo` and `cond` like `copy`. `chmod+x` adds the execute bits to `mode`, not to the source file mode. With the default `mode: "0600"`, `chmod+x: true` produces `0711`; set `mode: "0644"` to get an executable script readable by group and others.
 
 ### sync
 
