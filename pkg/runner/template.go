@@ -107,6 +107,9 @@ func (ec *execCmd) templateMode() (os.FileMode, error) {
 	if err != nil {
 		return 0, ec.errorFmt("can't parse mode %q: %w", modeStr, err)
 	}
+	if modeVal > 0o7777 {
+		return 0, ec.errorFmt("invalid mode %q: must be at most 07777", modeStr)
+	}
 	mode := os.FileMode(modeVal)
 	if ec.cmd.Template.ChmodX {
 		mode |= 0o111

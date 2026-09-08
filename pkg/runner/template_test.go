@@ -50,6 +50,13 @@ func Test_renderTemplatePrecedence(t *testing.T) {
 	assert.Equal(t, "task=task1\nmsg=secret-greeting\nsecret=secret-value", string(out))
 }
 
+func Test_templateModeRejectsModeAbove07777(t *testing.T) {
+	ec := execCmd{cmd: config.Cmd{Template: config.TemplateInternal{Mode: "100000"}}}
+	_, err := ec.templateMode()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be at most 07777")
+}
+
 func Test_templateMatchesRemote(t *testing.T) {
 	rendered := []byte("hello")
 	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))
