@@ -491,7 +491,7 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). 
 
 ```yaml
 - name: render nginx config
-  template: {src: "templates/nginx.conf.tmpl", dst: "/etc/nginx/nginx.conf", mkdir: true}
+  template: {src: "templates/nginx.conf.tmpl", dst: "/etc/nginx/conf.d/app.conf", mkdir: true}
   env:
     APP_ENV: production
     APP_PORT: "8080"
@@ -508,7 +508,6 @@ Template syntax follows Go's [text/template](https://pkg.go.dev/text/template). 
 Example template file `templates/nginx.conf.tmpl`:
 
 ```
-worker_processes {{ .SPOT_REMOTE_PORT }};
 # generated for {{ .SPOT_REMOTE_HOST }} ({{ .SPOT_REMOTE_NAME }})
 server {
   listen {{ .APP_PORT }};
