@@ -50,6 +50,22 @@ func Test_renderTemplatePrecedence(t *testing.T) {
 	assert.Equal(t, "task=task1\nmsg=secret-greeting\nsecret=secret-value", string(out))
 }
 
+func Test_renderTemplateEmptySecret(t *testing.T) {
+	src := filepath.Join(t.TempDir(), "empty-secret.tmpl")
+	require.NoError(t, os.WriteFile(src, []byte("secret={{.MY_SECRET}}"), 0o600))
+
+	ec := execCmd{cmd: config.Cmd{
+		Name:    "render",
+		Secrets: map[string]string{"MY_SECRET": ""},
+		Options: config.CmdOptions{Secrets: []string{"MY_SECRET"}},
+	}}
+	tm := templater{hostAddr: "example.com", hostName: "example", command: "render", task: &config.Task{Name: "task1", User: "deploy"}}
+
+	out, err := ec.renderTemplate(tm, src)
+	require.NoError(t, err)
+	assert.Equal(t, "secret=", string(out))
+}
+
 func Test_templateModeRejectsModeAbove07777(t *testing.T) {
 	ec := execCmd{cmd: config.Cmd{Template: config.TemplateInternal{Mode: "100000"}}}
 	_, err := ec.templateMode()

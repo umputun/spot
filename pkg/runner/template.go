@@ -81,8 +81,8 @@ func (ec *execCmd) renderTemplate(tmpl templater, src string) ([]byte, error) {
 		if slices.Contains(spotVarNames, k) {
 			continue // built-ins win over secret keys
 		}
-		if v, ok := ec.cmd.Secrets[k]; ok && v != "" {
-			tplData[k] = v // non-empty secrets win over env keys, matching script commands
+		if v, ok := ec.cmd.Secrets[k]; ok {
+			tplData[k] = v // secrets win over env keys, matching script commands
 		}
 	}
 
