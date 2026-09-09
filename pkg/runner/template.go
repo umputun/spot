@@ -58,13 +58,14 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, err
 	}
 
-	resp.details = fmt.Sprintf(" {template: %s -> %s}", src, dst)
+	suffix := ""
 	if ec.cmd.Options.Sudo {
-		resp.details += ", sudo: true"
+		suffix += ", sudo: true"
 	}
 	if ec.cmd.Template.ChmodX {
-		resp.details += ", chmod: +x"
+		suffix += ", chmod: +x"
 	}
+	resp.details = fmt.Sprintf(" {template: %s -> %s%s}", src, dst, suffix)
 	return resp, nil
 }
 
