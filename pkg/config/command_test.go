@@ -748,6 +748,12 @@ template:
 	}
 }
 
+func Test_validateTemplateModeYAML(t *testing.T) {
+	err := validateTemplateModeYAML(map[string]any{"template": map[string]any{"mode": 0644}})
+	require.Error(t, err)
+	assert.Equal(t, `template mode must be a quoted octal string, e.g. mode: "0644"`, err.Error())
+}
+
 func TestCmd_validate(t *testing.T) {
 	tbl := []struct {
 		name        string

@@ -459,8 +459,8 @@ func validateTemplateModeYAML(asMap map[string]any) error {
 	if !ok {
 		return nil
 	}
-	if modeVal, ok := mode.(int); ok {
-		return fmt.Errorf("template mode must be a quoted octal string, got %d", modeVal)
+	if _, ok := mode.(int); ok {
+		return fmt.Errorf("template mode must be a quoted octal string, e.g. mode: %q", "0644")
 	}
 	return nil
 }
