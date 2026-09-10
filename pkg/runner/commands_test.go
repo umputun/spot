@@ -204,6 +204,28 @@ func Test_templaterApply(t *testing.T) {
 			},
 			expected: "example.com:user:ls ",
 		},
+		{
+			name: "env pass runs after built-ins",
+			inp:  "/etc/{CFG}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "deploy", User: "user"},
+				env:      map[string]string{"CFG": "{SPOT_TASK}.conf"},
+			},
+			expected: "/etc/{SPOT_TASK}.conf",
+		},
+		{
+			name: "env key cannot shadow a built-in var",
+			inp:  "{SPOT_TASK} {CFG}",
+			tmpl: templater{
+				hostAddr: "example.com",
+				command:  "ls",
+				task:     &config.Task{Name: "deploy", User: "user"},
+				env:      map[string]string{"SPOT_TASK": "shadowed", "CFG": "x"},
+			},
+			expected: "deploy x",
+		},
 	}
 
 	for _, tt := range tests {

@@ -4,7 +4,7 @@
 
 **Spot** is a powerful deployment and configuration management tool written in Go. It allows users to define playbooks with tasks and execute them on remote hosts concurrently. Key features include:
 
-- Task execution with multiple command types (script, copy, sync, delete, echo, wait)
+- Task execution with multiple command types (script, copy, sync, delete, echo, wait, template)
 - Concurrent execution with configurable parallelism
 - Built-in secrets management with multiple providers
 - Inventory management with groups and tags
@@ -61,7 +61,7 @@
    - Handles on-error and on-exit command execution
 
 3. **Command Execution** (`pkg/runner/commands.go`)
-   - Supports multiple command types: script, copy, sync, delete, wait, echo
+   - Supports multiple command types: script, copy, sync, delete, wait, echo, template
    - Template variable substitution (SPOT_REMOTE_HOST, etc.)
    - Sudo handling via temporary directories
    - Register variable extraction from script output

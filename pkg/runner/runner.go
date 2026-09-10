@@ -336,6 +336,9 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 	case ec.cmd.Line.File != "" && ec.cmd.Line.Match != "":
 		log.Printf("[DEBUG] line manipulation on %s", ec.hostAddr)
 		return ec.Line(ctx)
+	case ec.cmd.Template.Source != "" && ec.cmd.Template.Dest != "":
+		log.Printf("[DEBUG] template render+copy on %s", ec.hostAddr)
+		return ec.Template(ctx)
 	default:
 		return execCmdResp{}, fmt.Errorf("unknown command %q", ec.cmd.Name)
 	}
@@ -345,6 +348,7 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
 	if p.Dry {
 		log.Printf("[DEBUG] run dry command %q", cmd.Name)
+		ec.dry = true
 		if cmd.Options.Local || p.Local {
 			ec.exec = executor.NewDry(p.Logs.WithHost("localhost", ""))
 		} else {

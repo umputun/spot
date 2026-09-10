@@ -24,6 +24,9 @@ import (
 // setVarPrefix marks a line the script emits to hand a variable back to the runner.
 const setVarPrefix = "setvar "
 
+// sqMarker prefixes single-quoted registered variables.
+const sqMarker = "__SQ__:"
+
 // isSetVarLine reports whether a script output line carries such a variable. It is both the
 // executor's line filter and the parse loop's guard, so the two cannot drift apart.
 func isSetVarLine(line string) bool { return strings.HasPrefix(line, setVarPrefix) }
@@ -43,6 +46,7 @@ type execCmd struct {
 	exec      executor.Interface
 	verbose   bool
 	verbose2  bool
+	dry       bool
 	sshShell  string
 	sshTmpDir string
 	onExit    string
@@ -89,16 +93,11 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 		env:      ec.cmd.Environment,
 	}
 
-	// create a copy of the command with processed register variable names
-	cmdCopy := ec.cmd
 	processedRegister := make([]string, 0, len(ec.cmd.Register))
 	for _, regVar := range ec.cmd.Register {
 		processed := tmpl.apply(regVar)
 		processedRegister = append(processedRegister, processed)
 	}
-	cmdCopy.Register = processedRegister
-	ecCopy := *ec
-	ecCopy.cmd = cmdCopy
 
 	single, multiRdr := ec.cmd.GetScript()
 	c, scr, teardown, err := ec.prepScript(ctx, single, multiRdr)
@@ -164,7 +163,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 
 		// for single-quoted values, add a marker prefix
 		if singleQuoted {
-			val = "__SQ__:" + val
+			val = sqMarker + val
 		}
 		resp.vars[key] = val
 
@@ -371,7 +370,7 @@ func (ec *execCmd) Mcopy(ctx context.Context) (resp execCmdResp, err error) {
 			arrow = "<-"
 		}
 		msgs = append(msgs, fmt.Sprintf("%s %s %s", src, arrow, dst))
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Copy = config.CopyInternal{Source: src, Dest: dst, Direction: c.Direction, Mkdir: c.Mkdir,
 			Force: c.Force, ChmodX: c.ChmodX, Exclude: c.Exclude}
 		if _, err := ecSingle.Copy(ctx); err != nil {
@@ -403,7 +402,7 @@ func (ec *execCmd) Msync(ctx context.Context) (resp execCmdResp, err error) {
 		src := tmpl.apply(c.Source)
 		dst := tmpl.apply(c.Dest)
 		msgs = append(msgs, fmt.Sprintf("%s -> %s", src, dst))
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Sync = config.SyncInternal{Source: src, Dest: dst, Exclude: c.Exclude, Delete: c.Delete}
 		if _, err := ecSingle.Sync(ctx); err != nil {
 			return resp, ec.errorFmt("can't sync %s to %s %s: %w", src, ec.hostAddr, dst, err)
@@ -478,7 +477,7 @@ func (ec *execCmd) MDelete(ctx context.Context) (resp execCmdResp, err error) {
 
 	for _, c := range ec.cmd.MDelete {
 		loc := tmpl.apply(c.Location)
-		ecSingle := ec
+		ecSingle := *ec
 		ecSingle.cmd.Delete = config.DeleteInternal{Location: loc, Recursive: c.Recursive, Exclude: c.Exclude}
 		if _, err := ecSingle.Delete(ctx); err != nil {
 			return resp, ec.errorFmt("can't delete %s on %s: %w", loc, ec.hostAddr, err)
@@ -795,6 +794,73 @@ type templater struct {
 	err      error
 }
 
+// spotVarNames is the ordered list of built-in template variables. vars and apply share it so the
+// names and order cannot drift apart.
+var spotVarNames = []string{
+	"SPOT_REMOTE_HOST",
+	"SPOT_REMOTE_NAME",
+	"SPOT_COMMAND",
+	"SPOT_REMOTE_USER",
+	"SPOT_TASK",
+	"SPOT_REMOTE_ADDR",
+	"SPOT_REMOTE_PORT",
+	"SPOT_ERROR",
+}
+
+// hostPort splits the host address into host and port, defaulting the port to 22.
+func (tm *templater) hostPort() (host, port string) {
+	host, port, err := net.SplitHostPort(tm.hostAddr)
+	if err == nil {
+		return host, port
+	}
+	return tm.hostAddr, "22"
+}
+
+// spotVar resolves a single built-in template variable.
+func (tm *templater) spotVar(name string) string {
+	switch name {
+	case "SPOT_REMOTE_HOST":
+		return tm.hostAddr
+	case "SPOT_REMOTE_NAME":
+		return tm.hostName
+	case "SPOT_REMOTE_ADDR":
+		host, _ := tm.hostPort()
+		return host
+	case "SPOT_REMOTE_PORT":
+		_, port := tm.hostPort()
+		return port
+	case "SPOT_REMOTE_USER":
+		return tm.task.User
+	case "SPOT_COMMAND":
+		return tm.command
+	case "SPOT_TASK":
+		return tm.task.Name
+	case "SPOT_ERROR":
+		if tm.err != nil {
+			return tm.err.Error()
+		}
+		return ""
+	default:
+		return ""
+	}
+}
+
+// vars builds a map of all template variables: SPOT_* built-ins and environment variables.
+// environment values with the single-quote marker have the prefix stripped.
+func (tm *templater) vars() map[string]string {
+	vars := make(map[string]string, len(spotVarNames)+len(tm.env))
+	for _, name := range spotVarNames {
+		vars[name] = tm.spotVar(name)
+	}
+	for k, v := range tm.env {
+		if _, ok := vars[k]; ok {
+			continue // built-ins win over env keys, same invariant as apply()
+		}
+		vars[k] = strings.TrimPrefix(v, sqMarker)
+	}
+	return vars
+}
+
 // apply applies templates to a string to replace predefined vars placeholders with actual values
 // it also applies the task environment variables to strings
 func (tm *templater) apply(inp string) string {
@@ -816,36 +882,16 @@ func (tm *templater) apply(inp string) string {
 	}
 
 	res := inp
-	res = apply(res, "SPOT_REMOTE_HOST", tm.hostAddr)
-	res = apply(res, "SPOT_REMOTE_NAME", tm.hostName)
-	res = apply(res, "SPOT_COMMAND", tm.command)
-	res = apply(res, "SPOT_REMOTE_USER", tm.task.User)
-	res = apply(res, "SPOT_TASK", tm.task.Name)
-
-	// split hostAddr to SPOT_REMOTE_ADDR and SPOT_REMOTE_PORT
-	host, port, err := net.SplitHostPort(tm.hostAddr)
-	if err == nil {
-		res = apply(res, "SPOT_REMOTE_ADDR", host)
-		res = apply(res, "SPOT_REMOTE_PORT", port)
-	} else {
-		res = apply(res, "SPOT_REMOTE_ADDR", tm.hostAddr)
-		res = apply(res, "SPOT_REMOTE_PORT", "22") // set to default ssh port
-	}
-
-	if tm.err != nil {
-		res = apply(res, "SPOT_ERROR", tm.err.Error())
-	} else {
-		res = apply(res, "SPOT_ERROR", "")
+	for _, name := range spotVarNames {
+		res = apply(res, name, tm.spotVar(name))
 	}
 
 	for k, v := range tm.env {
 		actualValue := v
-		// check if this value was originally single-quoted
-		if strings.HasPrefix(v, "__SQ__:") {
-			// remove the marker and escape dollar signs
-			actualValue = v[7:] // skip "__SQ__:"
-			// single quotes prevented expansion, so we need to escape $ to preserve literal values
-			actualValue = strings.ReplaceAll(actualValue, "$", "\\$")
+		// single-quoted vars carry the marker; strip it and escape $ so the value stays
+		// literal and does not re-expand in a later pass
+		if value, ok := strings.CutPrefix(v, sqMarker); ok {
+			actualValue = strings.ReplaceAll(value, "$", "\\$")
 		}
 		res = apply(res, k, actualValue)
 	}
