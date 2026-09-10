@@ -395,3 +395,33 @@ func TestColorizedWriter_LineOverScannerLimit(t *testing.T) {
 	assert.Equal(t, len(line)+1, n)
 	assert.Contains(t, buf.String(), line)
 }
+
+func TestColorizedWriter_WriteWithoutPrefixMasksSecrets(t *testing.T) {
+	// an empty prefix must not discard masking of the line or host label
+	var buf bytes.Buffer
+	w := &colorizedWriter{wr: &buf, prefix: "", hostAddr: "localhost",
+		masker: newSecretsMasker([]string{"token321"})}
+	_, err := w.Write([]byte("deploying with token321\n"))
+	require.NoError(t, err)
+	assert.NotContains(t, buf.String(), "token321")
+	assert.Contains(t, buf.String(), "****")
+
+	buf.Reset()
+	w = &colorizedWriter{wr: &buf, prefix: "", hostAddr: "token321",
+		masker: newSecretsMasker([]string{"token321"})}
+	w.Printf("deploying")
+	assert.NotContains(t, buf.String(), "token321", "a secret matching the host label is masked too")
+}
+
+func TestStdOutLogWriter_PrintfMasksSecrets(t *testing.T) {
+	var buf bytes.Buffer
+	wr, flags := log.Writer(), log.Flags()
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+	defer func() { log.SetOutput(wr); log.SetFlags(flags) }()
+
+	w := &stdOutLogWriter{prefix: " >", level: "DEBUG", masker: newSecretsMasker([]string{"token321"})}
+	w.Printf("deploying with %s", "token321")
+	assert.NotContains(t, buf.String(), "token321")
+	assert.Contains(t, buf.String(), "****")
+}

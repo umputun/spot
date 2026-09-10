@@ -88,11 +88,11 @@ func (s *colorizedWriter) Write(p []byte) (n int, err error) {
 			hostID = s.hostName + " " + s.hostAddr
 		}
 		formattedOutput := fmt.Sprintf("[%s] %s %s", hostID, s.prefix, line)
-		formattedOutput = s.masker.mask(formattedOutput)
-
 		if s.prefix == "" {
 			formattedOutput = fmt.Sprintf("[%s] %s", hostID, line)
 		}
+		// mask after choosing the format so an empty prefix cannot discard masking
+		formattedOutput = s.masker.mask(formattedOutput)
 		colorizer := s.hostColorizer(s.hostAddr)
 		colorizedOutput := colorizer("%s\n", formattedOutput)
 		_, err = io.WriteString(s.wr, colorizedOutput)
@@ -210,7 +210,7 @@ func (w *stdOutLogWriter) Write(p []byte) (n int, err error) {
 
 // Printf writes the given text to log with the prefix and log level.
 func (w *stdOutLogWriter) Printf(format string, v ...any) {
-	log.Printf("[%s] %s %s", w.level, w.prefix, fmt.Sprintf(format, v...))
+	log.Printf("[%s] %s %s", w.level, w.prefix, w.masker.mask(fmt.Sprintf(format, v...)))
 }
 
 // WithHost does nothing for stdOutLogWriter.
