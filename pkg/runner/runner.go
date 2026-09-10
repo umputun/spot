@@ -348,6 +348,7 @@ func (p *Process) execCommand(ctx context.Context, ec execCmd) (resp execCmdResp
 func (p *Process) pickCmdExecutor(cmd config.Cmd, ec execCmd, hostAddr, hostName string) execCmd {
 	if p.Dry {
 		log.Printf("[DEBUG] run dry command %q", cmd.Name)
+		ec.dry = true
 		if cmd.Options.Local || p.Local {
 			ec.exec = executor.NewDry(p.Logs.WithHost("localhost", ""))
 		} else {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -1415,6 +1416,41 @@ func TestRegisteredVarIntoTemplate(t *testing.T) {
 	out, err := sess.Run(ctx, "cat /tmp/spot_register_template_out.txt", nil)
 	require.NoError(t, err)
 	assert.Equal(t, "value=sq-$value", strings.Join(out, "\n"))
+}
+
+func TestProcess_RunDryTemplateWithRegisteredVar(t *testing.T) {
+	dir := t.TempDir()
+	tmplPath := filepath.Join(dir, "registered.tmpl")
+	require.NoError(t, os.WriteFile(tmplPath, []byte("value={{len .SQ_VAR}}/{{slice .SQ_VAR 0 1}}\n"), 0o600))
+
+	playbook := filepath.Join(dir, "register_into_template_dry.yml")
+	playbookYAML := fmt.Sprintf(`user: test
+targets:
+  localhost:
+    hosts: [{host: "localhost", name: "local"}]
+tasks:
+  - name: register_into_template
+    commands:
+      - name: register single-quoted var
+        script: |
+          export SQ_VAR='sq-$value'
+          echo "registered SQ_VAR"
+        register: ["SQ_VAR"]
+      - name: render registered var
+        template: {src: %q, dst: "/tmp/spot_register_template_dry_out.txt"}
+      - name: trailing command
+        script: echo done
+`, tmplPath)
+	require.NoError(t, os.WriteFile(playbook, []byte(playbookYAML), 0o600))
+
+	conf, err := config.New(playbook, nil, nil)
+	require.NoError(t, err)
+
+	p := Process{Concurrency: 1, Playbook: conf, Logs: executor.MakeLogs(false, false, nil), Local: true, Dry: true}
+	res, err := p.Run(context.Background(), "register_into_template", "localhost")
+	require.NoError(t, err)
+	assert.Equal(t, 3, res.Commands)
+	assert.Equal(t, 1, res.Hosts)
 }
 
 func TestProcess_RunBcryptPassword(t *testing.T) {

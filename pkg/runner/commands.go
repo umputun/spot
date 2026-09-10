@@ -46,6 +46,7 @@ type execCmd struct {
 	exec      executor.Interface
 	verbose   bool
 	verbose2  bool
+	dry       bool
 	sshShell  string
 	sshTmpDir string
 	onExit    string

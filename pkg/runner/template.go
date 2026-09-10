@@ -34,6 +34,18 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	src := tmpl.apply(ec.cmd.Template.Source)
 	dst := tmpl.apply(ec.cmd.Template.Dest)
 
+	if ec.dry {
+		// a dry run has no registered vars from earlier commands, so it parses and validates mode only
+		if _, err = ec.parseTemplate(src); err != nil {
+			return resp, err
+		}
+		if _, err = ec.templateMode(); err != nil {
+			return resp, err
+		}
+		resp.details = ec.templateDetails(src, dst)
+		return resp, nil
+	}
+
 	rendered, err := ec.renderTemplate(tmpl, src)
 	if err != nil {
 		return resp, err
@@ -58,6 +70,12 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 		return resp, err
 	}
 
+	resp.details = ec.templateDetails(src, dst)
+	return resp, nil
+}
+
+// templateDetails formats the details string for a completed template command.
+func (ec *execCmd) templateDetails(src, dst string) string {
 	suffix := ""
 	if ec.cmd.Options.Sudo {
 		suffix += ", sudo: true"
@@ -65,15 +83,14 @@ func (ec *execCmd) Template(ctx context.Context) (resp execCmdResp, err error) {
 	if ec.cmd.Template.ChmodX {
 		suffix += ", chmod: +x"
 	}
-	resp.details = fmt.Sprintf(" {template: %s -> %s%s}", src, dst, suffix)
-	return resp, nil
+	return fmt.Sprintf(" {template: %s -> %s%s}", src, dst, suffix)
 }
 
 // renderTemplate parses and executes the template file, returning the rendered bytes.
 func (ec *execCmd) renderTemplate(tmpl templater, src string) ([]byte, error) {
-	data, err := os.ReadFile(src) // nolint:gosec // user-configured template path
+	parsed, err := ec.parseTemplate(src)
 	if err != nil {
-		return nil, ec.errorFmt("can't read template %q: %w", src, err)
+		return nil, err
 	}
 
 	tplData := tmpl.vars()
@@ -86,10 +103,6 @@ func (ec *execCmd) renderTemplate(tmpl templater, src string) ([]byte, error) {
 		}
 	}
 
-	parsed, err := template.New(filepath.Base(src)).Option("missingkey=error").Parse(string(data))
-	if err != nil {
-		return nil, ec.errorFmt("can't parse template %q: %w", src, err)
-	}
 	var rendered bytes.Buffer
 	if err = parsed.Execute(&rendered, tplData); err != nil {
 		return nil, ec.errorFmt("can't execute template %q: %w", src, err)
@@ -97,9 +110,22 @@ func (ec *execCmd) renderTemplate(tmpl templater, src string) ([]byte, error) {
 	return rendered.Bytes(), nil
 }
 
+// parseTemplate reads and parses the template file without executing it.
+func (ec *execCmd) parseTemplate(src string) (*template.Template, error) {
+	data, err := os.ReadFile(src) // nolint:gosec // user-configured template path
+	if err != nil {
+		return nil, ec.errorFmt("can't read template %q: %w", src, err)
+	}
+	parsed, err := template.New(filepath.Base(src)).Option("missingkey=error").Parse(string(data))
+	if err != nil {
+		return nil, ec.errorFmt("can't parse template %q: %w", src, err)
+	}
+	return parsed, nil
+}
+
 // templateMode resolves the wanted destination mode: explicit mode or 0600 default, chmod+x adds
-// the execute bits.
-func (ec *execCmd) templateMode() (os.FileMode, error) {
+// the execute bits. it returns the raw octal value so setuid/setgid/sticky bits survive.
+func (ec *execCmd) templateMode() (uint32, error) {
 	modeStr := ec.cmd.Template.Mode
 	if modeStr == "" {
 		modeStr = "0600"
