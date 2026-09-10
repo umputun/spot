@@ -748,10 +748,24 @@ template:
 	}
 }
 
-func Test_validateTemplateModeYAML(t *testing.T) {
-	err := validateTemplateModeYAML(map[string]any{"template": map[string]any{"mode": 0644}})
-	require.Error(t, err)
-	assert.Equal(t, `template mode must be a quoted octal string, e.g. mode: "0644"`, err.Error())
+func TestCmd_UnmarshalYAMLNumericTemplateMode(t *testing.T) {
+	tbl := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"legacy octal", "name: x\ntemplate: {src: x, dst: y, mode: 0644}", `got "0644"`},
+		{"decimal", "name: x\ntemplate: {src: x, dst: y, mode: 644}", `got "644"`},
+		{"explicit octal", "name: x\ntemplate: {src: x, dst: y, mode: 0o644}", `got "0o644"`},
+	}
+	for _, tc := range tbl {
+		t.Run(tc.name, func(t *testing.T) {
+			var cmd Cmd
+			err := yaml.Unmarshal([]byte(tc.in), &cmd)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
 }
 
 func TestCmd_validate(t *testing.T) {

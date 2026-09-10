@@ -344,12 +344,16 @@ func (cmd *Cmd) getSecrets() []string {
 // It allows to unmarshal a "copy", "sync" and "delete" from a single field or a slice
 // All other fields are unmarshalled as usual.
 func (cmd *Cmd) UnmarshalYAML(unmarshal func(any) error) error {
-	var asMap map[string]any
-	if err := unmarshal(&asMap); err != nil {
+	var raw map[string]yaml.Node
+	if err := unmarshal(&raw); err != nil {
+		return err
+	}
+	if err := validateTemplateModeYAML(raw); err != nil {
 		return err
 	}
 
-	if err := validateTemplateModeYAML(asMap); err != nil {
+	var asMap map[string]any
+	if err := unmarshal(&asMap); err != nil {
 		return err
 	}
 
@@ -447,20 +451,23 @@ func (cmd *Cmd) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
-// validateTemplateModeYAML rejects a numeric template mode value. YAML decodes mode: 0644 as integer 420,
-// and the field-wise unmarshal below would coerce it into the string "420", which templateMode then reads as
-// octal 0420 instead of 0644. The documented form is a quoted octal string, so a numeric value fails loudly.
-func validateTemplateModeYAML(asMap map[string]any) error {
-	tmpl, ok := asMap["template"].(map[string]any)
-	if !ok {
+// validateTemplateModeYAML rejects a numeric template mode value. the field-wise unmarshal would coerce
+// mode: 0644 into the string "420", which templateMode then reads as octal 0420. the documented form is a
+// quoted octal string, so a numeric value fails loudly. the raw node preserves the exact spelling.
+func validateTemplateModeYAML(raw map[string]yaml.Node) error {
+	tmpl, ok := raw["template"]
+	if !ok || tmpl.Kind != yaml.MappingNode {
 		return nil
 	}
-	mode, ok := tmpl["mode"]
-	if !ok {
+	for i := 0; i+1 < len(tmpl.Content); i += 2 {
+		if tmpl.Content[i].Value != "mode" {
+			continue
+		}
+		mode := tmpl.Content[i+1]
+		if mode.Tag == "!!int" {
+			return fmt.Errorf("template mode must be a quoted octal string, got %q", mode.Value)
+		}
 		return nil
-	}
-	if _, ok := mode.(int); ok {
-		return fmt.Errorf("template mode must be a quoted octal string, e.g. mode: %q", "0644")
 	}
 	return nil
 }
