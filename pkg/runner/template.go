@@ -210,7 +210,7 @@ func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, d
 	if err != nil {
 		return false
 	}
-	return uint32(remoteMode) == mode
+	return remoteMode == uint64(mode)
 }
 
 // runTemplateProbe runs a single shell command and returns the value after tag in its output line.
