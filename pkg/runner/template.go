@@ -137,7 +137,7 @@ func (ec *execCmd) templateMode() (uint32, error) {
 	if modeVal > 0o7777 {
 		return 0, ec.errorFmt("invalid mode %q: must be at most 07777", modeStr)
 	}
-	mode := os.FileMode(modeVal)
+	mode := uint32(modeVal)
 	if ec.cmd.Template.ChmodX {
 		mode |= 0o111
 	}
@@ -177,7 +177,7 @@ func (ec *execCmd) uploadRenderedTemplate(ctx context.Context, rendered []byte, 
 
 // applyTemplateMode applies the wanted mode on dst. on Windows the staging stat does not carry unix
 // perms, so the chmod always runs. the full mode value is used so setuid/setgid/sticky bits survive.
-func (ec *execCmd) applyTemplateMode(ctx context.Context, dst string, mode os.FileMode) error {
+func (ec *execCmd) applyTemplateMode(ctx context.Context, dst string, mode uint32) error {
 	chmodCmd := ec.wrapWithSudo(fmt.Sprintf("chmod %o %s", mode, shellQuote(dst)))
 	if _, err := ec.exec.Run(ctx, chmodCmd, discardOutput); err != nil {
 		return ec.errorFmt("can't chmod %s on %s: %w", dst, ec.hostAddr, err)
@@ -188,7 +188,7 @@ func (ec *execCmd) applyTemplateMode(ctx context.Context, dst string, mode os.Fi
 // templateMatchesRemote reports whether dst already has the rendered content and the wanted mode.
 // a missing or unreadable remote file counts as a mismatch so the caller uploads. the probes use the
 // GNU spelling first and the BSD/macOS spelling as fallback, so idempotence works on non-GNU hosts.
-func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, dst string, mode os.FileMode) bool {
+func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, dst string, mode uint32) bool {
 	qDst := shellQuote(dst)
 
 	renderedSum := fmt.Sprintf("%x", sha256.Sum256(rendered))
@@ -210,7 +210,7 @@ func (ec *execCmd) templateMatchesRemote(ctx context.Context, rendered []byte, d
 	if err != nil {
 		return false
 	}
-	return uint32(remoteMode) == uint32(mode)
+	return uint32(remoteMode) == mode
 }
 
 // runTemplateProbe runs a single shell command and returns the value after tag in its output line.
