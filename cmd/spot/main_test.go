@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
@@ -522,7 +524,9 @@ func Test_connectFailed(t *testing.T) {
 	assert.ErrorContains(t, err, `ssh: unable to authenticate`)
 }
 
-func runSSHAgent(t *testing.T, keyPath string) (stop func()) {
+// runSSHAgent serves an in-memory agent holding the key at keyPath, after rejected freshly generated
+// keys the test server doesn't accept, and points SSH_AUTH_SOCK at it.
+func runSSHAgent(t *testing.T, keyPath string, rejected int) (stop func()) {
 	t.Helper()
 
 	path := fmt.Sprintf("/tmp/%s.sock", uuid.New())
@@ -561,6 +565,11 @@ func runSSHAgent(t *testing.T, keyPath string) (stop func()) {
 	signer, err := ssh.ParseRawPrivateKey(keyBytes)
 	require.NoError(t, err)
 
+	for range rejected {
+		_, k, e := ed25519.GenerateKey(rand.Reader)
+		require.NoError(t, e)
+		require.NoError(t, a.Add(agent.AddedKey{PrivateKey: k}))
+	}
 	err = a.Add(agent.AddedKey{PrivateKey: signer})
 	require.NoError(t, err)
 
@@ -590,7 +599,7 @@ func getKeyFingerprint(t *testing.T, keyPath string) string {
 }
 
 func Test_sshAgentForwarding(t *testing.T) {
-	stop := runSSHAgent(t, "testdata/test_ssh_key")
+	stop := runSSHAgent(t, "testdata/test_ssh_key", 0)
 	defer stop()
 
 	hostAndPort, teardown := startTestContainer(t)
@@ -612,6 +621,31 @@ func Test_sshAgentForwarding(t *testing.T) {
 	setupLog(true)
 	err := run(opts)
 	require.NoError(t, err)
+}
+
+func Test_sshAgentKeyOfferedFirst(t *testing.T) {
+	// the accepted key sits after seven the server rejects; sshd's default MaxAuthTries is 6
+	stop := runSSHAgent(t, "testdata/test_ssh_key", 7)
+	defer stop()
+
+	hostAndPort, teardown := startTestContainer(t)
+	defer teardown()
+
+	setupLog(true)
+
+	t.Run("agent only, accepted key is past MaxAuthTries", func(t *testing.T) {
+		opts := options{SSHUser: "test", SSHAgent: true, Targets: []string{hostAndPort}}
+		opts.PositionalArgs.AdHocCmd = "true"
+		err := run(opts)
+		require.ErrorContains(t, err, "Too many authentication failures")
+	})
+
+	t.Run("-k with agent, matching agent key offered first", func(t *testing.T) {
+		opts := options{SSHUser: "test", SSHAgent: true, SSHKey: "testdata/test_ssh_key", Targets: []string{hostAndPort}}
+		opts.PositionalArgs.AdHocCmd = "true"
+		err := run(opts)
+		require.NoError(t, err)
+	})
 }
 
 func Test_sshUserAndKey(t *testing.T) {
