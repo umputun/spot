@@ -1,7 +1,9 @@
 package executor
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -19,6 +21,7 @@ type Connector struct {
 	timeout               time.Duration
 	enableAgent           bool
 	enableAgentForwarding bool
+	preferredKey          ssh.PublicKey // agent key offered first, resolved once from privateKey in WithAgent
 	logs                  Logs
 }
 
@@ -37,11 +40,97 @@ func NewConnector(privateKey string, timeout time.Duration, logs Logs) (res *Con
 	return res, nil
 }
 
-// WithAgent enables ssh agent for authentication.
+// WithAgent enables ssh agent for authentication. If the connector has a private key, the agent key
+// matching it is offered first, so a host accepting that key is not pushed past MaxAuthTries by the
+// other agent keys. The rest of the agent keys are still offered, in agent order.
 func (c *Connector) WithAgent() *Connector {
 	log.Printf("[DEBUG] use ssh agent")
 	c.enableAgent = true
+	c.preferredKey = c.resolvePreferredKey()
 	return c
+}
+
+// resolvePreferredKey returns the public key of the connector's private key if the agent holds it.
+// it runs once, at setup, so the warnings are not repeated for every host and task.
+func (c *Connector) resolvePreferredKey() ssh.PublicKey {
+	if c.privateKey == "" {
+		return nil
+	}
+	pub, err := c.publicKey()
+	if err != nil {
+		log.Printf("[WARN] can't get public key for %q: %v, agent keys will be offered in agent order", c.privateKey, err)
+		return nil
+	}
+	aconn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+	if err != nil {
+		return pub // no agent to check against, connecting will report it
+	}
+	defer aconn.Close()
+	if c.timeout > 0 { // bound a stalled agent, zero means no deadline as in sshClient
+		_ = aconn.SetDeadline(time.Now().Add(c.timeout))
+	}
+	keys, err := agent.NewClient(aconn).List()
+	if err != nil {
+		log.Printf("[WARN] can't list ssh agent keys: %v", err)
+		return pub
+	}
+	for _, k := range keys {
+		if bytes.Equal(k.Marshal(), pub.Marshal()) {
+			log.Printf("[DEBUG] agent key %s matches %q, offered first", ssh.FingerprintSHA256(pub), c.privateKey)
+			return pub
+		}
+	}
+	log.Printf("[WARN] key %q is not in the ssh agent, agent keys will be offered in agent order", c.privateKey)
+	return nil
+}
+
+// publicKey returns the public key for the connector's private key, from <key>.pub if present, otherwise
+// from the private key itself. for a passphrase-protected OpenSSH key the public key is readable without
+// the passphrase, PEM-encrypted and hardware (sk) keys need the .pub file.
+func (c *Connector) publicKey() (ssh.PublicKey, error) {
+	keyPath := c.privateKey
+	if data, err := os.ReadFile(keyPath + ".pub"); err == nil { // nolint
+		pub, _, _, _, err := ssh.ParseAuthorizedKey(data)
+		if err != nil {
+			return nil, fmt.Errorf("can't parse %s.pub: %w", keyPath, err)
+		}
+		return pub, nil
+	}
+	data, err := os.ReadFile(keyPath) // nolint
+	if err != nil {
+		return nil, fmt.Errorf("can't read private key: %w", err)
+	}
+	signer, err := ssh.ParsePrivateKey(data)
+	if err == nil {
+		return signer.PublicKey(), nil
+	}
+	var pmErr *ssh.PassphraseMissingError
+	if errors.As(err, &pmErr) && pmErr.PublicKey != nil {
+		return pmErr.PublicKey, nil
+	}
+	return nil, fmt.Errorf("can't parse private key and no %s.pub (needed for PEM-encrypted and sk keys): %w", keyPath, err)
+}
+
+// preferKey returns signers with the one matching the preferred key moved to the front, others keep
+// their order. signers is not modified.
+func (c *Connector) preferKey(signers []ssh.Signer) []ssh.Signer {
+	if c.preferredKey == nil {
+		return signers
+	}
+	want := c.preferredKey.Marshal()
+	for i, s := range signers {
+		if !bytes.Equal(s.PublicKey().Marshal(), want) {
+			continue
+		}
+		if i == 0 {
+			return signers
+		}
+		res := make([]ssh.Signer, 0, len(signers))
+		res = append(res, s)
+		res = append(res, signers[:i]...)
+		return append(res, signers[i+1:]...)
+	}
+	return signers
 }
 
 // WithAgentForwarding enables ssh agent forwarding.
@@ -145,7 +234,14 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, n
 			if e != nil {
 				return nil, nil, fmt.Errorf("unable to connect to ssh agent: %w", e)
 			}
-			auth = append(auth, ssh.PublicKeysCallback(agent.NewClient(aconn).Signers))
+			agentSigners := agent.NewClient(aconn).Signers
+			auth = append(auth, ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+				signers, err := agentSigners()
+				if err != nil {
+					return nil, err
+				}
+				return c.preferKey(signers), nil // reorder only, signing stays in the agent
+			}))
 			log.Printf("[DEBUG] ssh agent found at %s", os.Getenv("SSH_AUTH_SOCK"))
 			return auth, aconn, nil
 		}
