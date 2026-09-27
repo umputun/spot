@@ -113,6 +113,41 @@ func TestConnector_WithAgent(t *testing.T) {
 		assert.Equal(t, 1, bytes.Count(logBuf.Bytes(), []byte("is not in the ssh agent")))
 	})
 
+	t.Run("stalled agent", func(t *testing.T) {
+		sock, err := net.Listen("unix", filepath.Join(dir, "s.sock")) // parent dir keeps the path short for macOS
+		require.NoError(t, err)
+		defer sock.Close()
+		stop := make(chan struct{})
+		defer close(stop)
+		go func() { // accept and never reply
+			for {
+				conn, err := sock.Accept()
+				if err != nil {
+					return
+				}
+				go func() { <-stop; conn.Close() }()
+			}
+		}()
+		t.Setenv("SSH_AUTH_SOCK", sock.Addr().String())
+
+		logBuf.Reset()
+		c := &Connector{privateKey: writeKey(t, dir, "stalled", inAgent, "", false), timeout: 100 * time.Millisecond}
+		done := make(chan struct{})
+		go func() {
+			c.WithAgent()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Fatal("WithAgent blocked on a stalled agent")
+		}
+		assert.Contains(t, logBuf.String(), "[WARN] can't list ssh agent keys")
+		assert.Contains(t, logBuf.String(), "i/o timeout")
+		require.NotNil(t, c.preferredKey, "public key is still used when the agent can't be listed")
+		assert.Equal(t, pubOf(t, inAgent).Marshal(), c.preferredKey.Marshal())
+	})
+
 	t.Run("no key, agent only", func(t *testing.T) {
 		c := &Connector{}
 		c.WithAgent()
@@ -121,7 +156,7 @@ func TestConnector_WithAgent(t *testing.T) {
 	})
 }
 
-func TestPublicKeyFor(t *testing.T) {
+func TestConnector_publicKey(t *testing.T) {
 	dir := t.TempDir()
 	key := genEd25519(t)
 	want := pubOf(t, key).Marshal()
@@ -129,19 +164,19 @@ func TestPublicKeyFor(t *testing.T) {
 	t.Run("from .pub", func(t *testing.T) {
 		path := writeKey(t, dir, "withpub", key, "", true)
 		require.NoError(t, os.WriteFile(path, []byte("not a key the parser can read"), 0o600)) // like an sk key
-		pub, err := publicKeyFor(path)
+		pub, err := (&Connector{privateKey: path}).publicKey()
 		require.NoError(t, err)
 		assert.Equal(t, want, pub.Marshal())
 	})
 
 	t.Run("from unencrypted private key", func(t *testing.T) {
-		pub, err := publicKeyFor(writeKey(t, dir, "plain", key, "", false))
+		pub, err := (&Connector{privateKey: writeKey(t, dir, "plain", key, "", false)}).publicKey()
 		require.NoError(t, err)
 		assert.Equal(t, want, pub.Marshal())
 	})
 
 	t.Run("from passphrase-protected private key", func(t *testing.T) {
-		pub, err := publicKeyFor(writeKey(t, dir, "enc", key, "secret", false))
+		pub, err := (&Connector{privateKey: writeKey(t, dir, "enc", key, "secret", false)}).publicKey()
 		require.NoError(t, err)
 		assert.Equal(t, want, pub.Marshal())
 	})
@@ -149,19 +184,19 @@ func TestPublicKeyFor(t *testing.T) {
 	t.Run("unparsable key without .pub", func(t *testing.T) {
 		path := filepath.Join(dir, "sk_no_pub")
 		require.NoError(t, os.WriteFile(path, []byte("not a key the parser can read"), 0o600))
-		_, err := publicKeyFor(path)
+		_, err := (&Connector{privateKey: path}).publicKey()
 		require.ErrorContains(t, err, "no "+path+".pub (needed for PEM-encrypted and sk keys)")
 	})
 
 	t.Run("bad .pub", func(t *testing.T) {
 		path := filepath.Join(dir, "badpub")
 		require.NoError(t, os.WriteFile(path+".pub", []byte("garbage"), 0o600))
-		_, err := publicKeyFor(path)
+		_, err := (&Connector{privateKey: path}).publicKey()
 		require.ErrorContains(t, err, "can't parse "+path+".pub")
 	})
 }
 
-func TestPreferKey(t *testing.T) {
+func TestConnector_preferKey(t *testing.T) {
 	signers := make([]ssh.Signer, 0, 4)
 	for range 4 {
 		s, err := ssh.NewSignerFromKey(genEd25519(t))
@@ -185,7 +220,7 @@ func TestPreferKey(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			in := append([]ssh.Signer(nil), signers...)
-			assert.Equal(t, tc.want, preferKey(in, tc.key))
+			assert.Equal(t, tc.want, (&Connector{preferredKey: tc.key}).preferKey(in))
 			assert.Equal(t, signers, in, "input must not be modified")
 		})
 	}

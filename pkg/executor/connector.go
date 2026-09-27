@@ -56,7 +56,7 @@ func (c *Connector) resolvePreferredKey() ssh.PublicKey {
 	if c.privateKey == "" {
 		return nil
 	}
-	pub, err := publicKeyFor(c.privateKey)
+	pub, err := c.publicKey()
 	if err != nil {
 		log.Printf("[WARN] can't get public key for %q: %v, agent keys will be offered in agent order", c.privateKey, err)
 		return nil
@@ -66,6 +66,9 @@ func (c *Connector) resolvePreferredKey() ssh.PublicKey {
 		return pub // no agent to check against, connecting will report it
 	}
 	defer aconn.Close()
+	if c.timeout > 0 { // bound a stalled agent, zero means no deadline as in sshClient
+		_ = aconn.SetDeadline(time.Now().Add(c.timeout))
+	}
 	keys, err := agent.NewClient(aconn).List()
 	if err != nil {
 		log.Printf("[WARN] can't list ssh agent keys: %v", err)
@@ -81,10 +84,11 @@ func (c *Connector) resolvePreferredKey() ssh.PublicKey {
 	return nil
 }
 
-// publicKeyFor returns the public key for a private key file, from <key>.pub if present, otherwise from
-// the private key itself. for a passphrase-protected OpenSSH key the public key is readable without the
-// passphrase, PEM-encrypted and hardware (sk) keys need the .pub file.
-func publicKeyFor(keyPath string) (ssh.PublicKey, error) {
+// publicKey returns the public key for the connector's private key, from <key>.pub if present, otherwise
+// from the private key itself. for a passphrase-protected OpenSSH key the public key is readable without
+// the passphrase, PEM-encrypted and hardware (sk) keys need the .pub file.
+func (c *Connector) publicKey() (ssh.PublicKey, error) {
+	keyPath := c.privateKey
 	if data, err := os.ReadFile(keyPath + ".pub"); err == nil { // nolint
 		pub, _, _, _, err := ssh.ParseAuthorizedKey(data)
 		if err != nil {
@@ -107,13 +111,13 @@ func publicKeyFor(keyPath string) (ssh.PublicKey, error) {
 	return nil, fmt.Errorf("can't parse private key and no %s.pub (needed for PEM-encrypted and sk keys): %w", keyPath, err)
 }
 
-// preferKey returns signers with the one matching key moved to the front, others keep their order.
-// signers is not modified.
-func preferKey(signers []ssh.Signer, key ssh.PublicKey) []ssh.Signer {
-	if key == nil {
+// preferKey returns signers with the one matching the preferred key moved to the front, others keep
+// their order. signers is not modified.
+func (c *Connector) preferKey(signers []ssh.Signer) []ssh.Signer {
+	if c.preferredKey == nil {
 		return signers
 	}
-	want := key.Marshal()
+	want := c.preferredKey.Marshal()
 	for i, s := range signers {
 		if !bytes.Equal(s.PublicKey().Marshal(), want) {
 			continue
@@ -236,7 +240,7 @@ func (c *Connector) sshConfig(user, privateKeyPath string) (*ssh.ClientConfig, n
 				if err != nil {
 					return nil, err
 				}
-				return preferKey(signers, c.preferredKey), nil // reorder only, signing stays in the agent
+				return c.preferKey(signers), nil // reorder only, signing stays in the agent
 			}))
 			log.Printf("[DEBUG] ssh agent found at %s", os.Getenv("SSH_AUTH_SOCK"))
 			return auth, aconn, nil
