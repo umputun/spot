@@ -43,7 +43,7 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 
 ![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs-src/screen-playbook-dry.jpg)
 
-- `spot` ad-hoc command on given hosts: `spot "ls -la /tmp -t dev1.umputun.com -t dev2.umputun.com`
+- `spot` ad-hoc command on given hosts: `spot "ls -la /tmp" -t dev1.umputun.com -t dev2.umputun.com`
 
 ![spot-adhoc](https://github.com/umputun/spot/raw/master/site/docs-src/screen-adhoc.jpg)
 </details>
