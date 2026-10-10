@@ -37,15 +37,15 @@ Spot is a powerful and easy-to-use tool for effortless deployment and configurat
 
 - `spot` with playbook `spot.yml` and target name `prod`: `spot -p spot.yml -t prod`
 
-![spot-playbook](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook.jpg)
+![spot-playbook](https://github.com/umputun/spot/raw/master/site/docs-src/screen-playbook.jpg)
 
 - `spot` with the same playbook in dry mode: `spot -p spot.yml -t prod --dry`
 
-![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs/screen-playbook-dry.jpg)
+![spot-playbook-dry](https://github.com/umputun/spot/raw/master/site/docs-src/screen-playbook-dry.jpg)
 
 - `spot` ad-hoc command on given hosts: `spot "ls -la /tmp -t dev1.umputun.com -t dev2.umputun.com`
 
-![spot-adhoc](https://github.com/umputun/spot/raw/master/site/docs/screen-adhoc.jpg)
+![spot-adhoc](https://github.com/umputun/spot/raw/master/site/docs-src/screen-adhoc.jpg)
 </details>
 
 ## Getting Started
