@@ -1099,6 +1099,20 @@ func TestEnvVars(t *testing.T) {
 			},
 			expectedError: false,
 		},
+		{
+			name:          "unparsable env file",
+			cliVars:       map[string]string{"key1": "cliValue1"},
+			envFileData:   "vars:\n  key1: [unclosed\n",
+			expectedVars:  nil,
+			expectedError: true,
+		},
+		{
+			name:          "env file with comments only",
+			cliVars:       map[string]string{"key1": "cliValue1"},
+			envFileData:   "# no vars yet\n",
+			expectedVars:  map[string]string{"key1": "cliValue1"},
+			expectedError: false,
+		},
 	}
 
 	for _, tt := range tests {

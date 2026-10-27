@@ -566,8 +566,9 @@ func envVars(vars map[string]string, envFile string) (map[string]string, error) 
 	fh, err := os.Open(envFile) //nolint:gosec // file inclusion from cli is intentional
 	if err == nil {
 		defer fh.Close()
-		if err := yaml.NewDecoder(fh).Decode(&envFileData); err != nil {
-			log.Printf("[WARN] can't parse env file %q: %v", envFile, err)
+		// io.EOF means the file has no yaml document, e.g. empty or comments only
+		if err := yaml.NewDecoder(fh).Decode(&envFileData); err != nil && !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("can't parse env file %q: %w", envFile, err)
 		}
 		for k, v := range envFileData.Vars {
 			res[k] = expandEnv(v)
