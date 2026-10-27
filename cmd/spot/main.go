@@ -564,6 +564,9 @@ func envVars(vars map[string]string, envFile string) (map[string]string, error) 
 		Vars map[string]string `yaml:"vars"`
 	}{}
 	fh, err := os.Open(envFile) //nolint:gosec // file inclusion from cli is intentional
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("can't open env file %q: %w", envFile, err)
+	}
 	if err == nil {
 		defer fh.Close()
 		// io.EOF means the file has no yaml document, e.g. empty or comments only
