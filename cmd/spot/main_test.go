@@ -1044,8 +1044,10 @@ func TestEnvVars(t *testing.T) {
 		name          string
 		cliVars       map[string]string
 		envFileData   string
+		unreadable    bool
 		expectedVars  map[string]string
 		expectedError bool
+		errContains   string
 	}{
 		{
 			name: "override env file vars",
@@ -1099,6 +1101,30 @@ func TestEnvVars(t *testing.T) {
 			},
 			expectedError: false,
 		},
+		{
+			name:          "unparsable env file",
+			cliVars:       map[string]string{"key1": "cliValue1"},
+			envFileData:   "vars:\n  key1: [unclosed\n",
+			expectedVars:  nil,
+			expectedError: true,
+			errContains:   "can't parse env file",
+		},
+		{
+			name:          "unreadable env file",
+			cliVars:       map[string]string{"key1": "cliValue1"},
+			envFileData:   "vars:\n  key1: fileValue1\n",
+			unreadable:    true,
+			expectedVars:  nil,
+			expectedError: true,
+			errContains:   "can't open env file",
+		},
+		{
+			name:          "env file with comments only",
+			cliVars:       map[string]string{"key1": "cliValue1"},
+			envFileData:   "# no vars yet\n",
+			expectedVars:  map[string]string{"key1": "cliValue1"},
+			expectedError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1118,6 +1144,9 @@ func TestEnvVars(t *testing.T) {
 				if err = file.Close(); err != nil {
 					t.Fatalf("could not close temp file: %v", err)
 				}
+				if tt.unreadable {
+					require.NoError(t, os.Chmod(file.Name(), 0o000))
+				}
 				envFile = file.Name()
 			}
 
@@ -1129,6 +1158,10 @@ func TestEnvVars(t *testing.T) {
 			if err == nil && tt.expectedError {
 				t.Errorf("envVars() expected error, got none")
 				return
+			}
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+				require.ErrorContains(t, err, envFile)
 			}
 
 			assert.Equal(t, tt.expectedVars, actualVars)
