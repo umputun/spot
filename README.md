@@ -948,6 +948,8 @@ tasks:
 
 In this example, the host address is initially fetched from http://example.com/next-host. Following this, the task "run on host" is executed on the host that was just identified. This ability to use dynamic targets proves beneficial in a variety of scenarios, especially when the list of hosts is not predetermined.
 
+The variable holds a single target name and is resolved the same way as any other entry in `targets`. If it names a playbook target, an inventory group or a tag, the task runs on all hosts of that target, group or tag. For example, `export grp=production` in one task and `targets: ["$grp"]` in the next one runs the second task on every host of the `production` group. A list of hosts in the variable, such as `"h1 h2"`, is not split and is treated as one host address.
+
 A practical use case for dynamic targets arises during the provisioning of a new host, followed by the execution of commands on it. Since the IP address of the new host isn't known beforehand, dynamic retrieval becomes essential.
 
 _The reason the first task specifies `targets: ["default"]` is because Spot requires some target to execute a task. In this case, all commands in "get host" tasks are local and won't be invoked on a remote host. The `default` target is utilized by Spot if no alternative target is specified via the command line._
