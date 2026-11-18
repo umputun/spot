@@ -311,6 +311,34 @@ func TestCmd_isShellName(t *testing.T) {
 	}
 }
 
+func TestCmd_secretsReachShellUnchanged(t *testing.T) {
+	secret := "Xk9$Lm2#q\"x`id`\\"
+	cmd := &Cmd{Secrets: map[string]string{"DB_PASS": secret}, Options: CmdOptions{Secrets: []string{"DB_PASS"}}}
+
+	t.Run("single line", func(t *testing.T) {
+		script := cmd.scriptCommand(`printf %s "$DB_PASS"`)
+		out, err := exec.Command("/bin/sh", "-c", script).Output()
+		require.NoError(t, err)
+		assert.Equal(t, secret, string(out))
+	})
+
+	t.Run("single line without the sh -c wrapper, as the local executor runs it", func(t *testing.T) {
+		script := cmd.scriptCommand(`printf %s "$DB_PASS"`)
+		inner := strings.TrimSuffix(strings.TrimPrefix(script, "/bin/sh -c '"), "'")
+		out, err := exec.Command("/bin/sh", "-c", inner).Output()
+		require.NoError(t, err)
+		assert.Equal(t, secret, string(out))
+	})
+
+	t.Run("script file", func(t *testing.T) {
+		script, err := io.ReadAll(cmd.scriptFile("printf %s \"$DB_PASS\"\necho", nil))
+		require.NoError(t, err)
+		out, err := exec.Command("/bin/sh", "-c", string(script)).Output()
+		require.NoError(t, err)
+		assert.Equal(t, secret+"\n", string(out))
+	})
+}
+
 func TestCmd_scriptCommandComments(t *testing.T) {
 	tbl := []struct {
 		name   string

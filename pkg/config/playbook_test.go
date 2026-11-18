@@ -1046,3 +1046,8 @@ func TestPlayBook_SSHTempDir(t *testing.T) {
 		})
 	}
 }
+
+func TestPlayBook_AllSecretValuesEscapedForms(t *testing.T) {
+	p := &PlayBook{secrets: map[string]string{"A": "plain", "B": `p$w"d`}}
+	assert.Equal(t, []string{`p$w"d`, `p\$w\"d`, `p\\$w\\\"d`, "plain"}, p.AllSecretValues())
+}

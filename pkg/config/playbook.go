@@ -573,6 +573,11 @@ func (p *PlayBook) AllSecretValues() []string {
 	res := make([]string, 0, len(p.secrets))
 	for _, v := range p.secrets {
 		res = append(res, v)
+		// commands carry secrets escaped (see getSecrets), and some paths quote the command again with %q
+		if esc := secretQuoter.Replace(v); esc != v {
+			quoted := strconv.Quote(esc)
+			res = append(res, esc, quoted[1:len(quoted)-1])
+		}
 	}
 	sort.Strings(res)
 	return res
