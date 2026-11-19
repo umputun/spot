@@ -624,7 +624,9 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		if !strings.HasPrefix(sedMatch, "^") {
 			sedMatch = "^.*" + sedMatch
 		}
-		if !strings.HasSuffix(sedMatch, "$") {
+		// a "$" after an odd run of backslashes is escaped and matches a literal dollar
+		body := strings.TrimSuffix(sedMatch, "$")
+		if body == sedMatch || (len(body)-len(strings.TrimRight(body, `\`)))%2 == 1 {
 			sedMatch += ".*$"
 		}
 		operationCmd = fmt.Sprintf("sed -i 's|%s|%s|' %s", sedMatch, replace, file)

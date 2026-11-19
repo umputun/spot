@@ -1000,6 +1000,28 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{"port=3000", "host=new-value", "hostname=keep", "db_host=keep"}, out)
 	})
 
+	t.Run("line command replace with escaped trailing dollar", func(t *testing.T) {
+		testFile := "/tmp/test_line_escaped_dollar.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'price=$10\\nname=keep' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		ec := execCmd{
+			exec: sess,
+			tsk:  &config.Task{Name: "test"},
+			cmd: config.Cmd{
+				Line: config.LineInternal{File: testFile, Match: `price=.*\$`, Replace: "price=20"},
+				Name: "test line replace escaped dollar",
+			},
+		}
+		_, err = ec.Line(ctx)
+		require.NoError(t, err)
+
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"price=20", "name=keep"}, out)
+	})
+
 	t.Run("line command append", func(t *testing.T) {
 		// create a test file without the pattern
 		testFile := "/tmp/test_line_append.txt"
