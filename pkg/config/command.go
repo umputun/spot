@@ -165,8 +165,13 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 		res += strings.Join(envs, "; ") + "; "
 	}
 
-	// add secrets as environment variables
+	// export only valid assignment names: dash aborts the whole command on "export a/b=..."
 	secrets := cmd.getSecrets()
+	for i, s := range secrets {
+		if k, _, _ := strings.Cut(s, "="); cmd.isShellName(k) {
+			secrets[i] = "export " + s
+		}
+	}
 	if len(secrets) > 0 {
 		res += strings.Join(secrets, "; ") + "; "
 	}
@@ -183,6 +188,21 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	}
 	res += strings.Join(parts, "; ") + "'"
 	return res
+}
+
+// isShellName reports whether s can be used as a shell variable name.
+func (cmd *Cmd) isShellName(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		isLetter := r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		if !isLetter && (i == 0 || !isDigit) {
+			return false
+		}
+	}
+	return true
 }
 
 // stripTrailingComment removes a trailing shell comment from a single line so the lines can be

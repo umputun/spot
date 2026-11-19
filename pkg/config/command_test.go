@@ -3,6 +3,7 @@ package config
 import (
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -277,6 +278,37 @@ func TestCmd_getScriptCommand(t *testing.T) {
 		res := cmd.scriptCommand(cmd.Script)
 		assert.Equal(t, `/bin/sh -c 'export BAR="qux"; export FOO="bar"; docker pull umputun/remark42:latest; docker stop remark42 || true; docker rm remark42 || true; docker run -d --name remark42 -p 8080:8080 umputun/remark42:latest'`, res)
 	})
+}
+
+func TestCmd_scriptCommandExportsSecrets(t *testing.T) {
+	t.Run("child process sees the secret", func(t *testing.T) {
+		cmd := &Cmd{Secrets: map[string]string{"SPOT_SEC": "val1"}, Options: CmdOptions{Secrets: []string{"SPOT_SEC"}}}
+		out, err := exec.Command("/bin/sh", "-c", cmd.scriptCommand("printenv SPOT_SEC")).Output()
+		require.NoError(t, err)
+		assert.Equal(t, "val1\n", string(out))
+	})
+
+	t.Run("key that is not a shell name is not exported", func(t *testing.T) {
+		cmd := &Cmd{Secrets: map[string]string{"deploy/sudo-password": "pw"}, Options: CmdOptions{Secrets: []string{"deploy/sudo-password"}}}
+		res := cmd.scriptCommand("echo ran")
+		assert.Equal(t, `/bin/sh -c 'deploy/sudo-password="pw"; echo ran'`, res)
+	})
+}
+
+func TestCmd_isShellName(t *testing.T) {
+	tbl := []struct {
+		in   string
+		want bool
+	}{
+		{"DB_PASS", true}, {"_x1", true}, {"a", true}, {"", false}, {"1abc", false},
+		{"deploy/sudo-password", false}, {"my-key", false}, {"a.b", false},
+	}
+	cmd := &Cmd{}
+	for _, tt := range tbl {
+		t.Run(tt.in, func(t *testing.T) {
+			assert.Equal(t, tt.want, cmd.isShellName(tt.in))
+		})
+	}
 }
 
 func TestCmd_scriptCommandComments(t *testing.T) {
