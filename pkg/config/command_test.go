@@ -3,6 +3,7 @@ package config
 import (
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -279,6 +280,37 @@ func TestCmd_getScriptCommand(t *testing.T) {
 	})
 }
 
+func TestCmd_scriptCommandExportsSecrets(t *testing.T) {
+	t.Run("child process sees the secret", func(t *testing.T) {
+		cmd := &Cmd{Secrets: map[string]string{"SPOT_SEC": "val1"}, Options: CmdOptions{Secrets: []string{"SPOT_SEC"}}}
+		out, err := exec.Command("/bin/sh", "-c", cmd.scriptCommand("printenv SPOT_SEC")).Output()
+		require.NoError(t, err)
+		assert.Equal(t, "val1\n", string(out))
+	})
+
+	t.Run("key that is not a shell name is not exported", func(t *testing.T) {
+		cmd := &Cmd{Secrets: map[string]string{"deploy/sudo-password": "pw"}, Options: CmdOptions{Secrets: []string{"deploy/sudo-password"}}}
+		res := cmd.scriptCommand("echo ran")
+		assert.Equal(t, `/bin/sh -c 'deploy/sudo-password="pw"; echo ran'`, res)
+	})
+}
+
+func TestCmd_isShellName(t *testing.T) {
+	tbl := []struct {
+		in   string
+		want bool
+	}{
+		{"DB_PASS", true}, {"_x1", true}, {"a", true}, {"", false}, {"1abc", false},
+		{"deploy/sudo-password", false}, {"my-key", false}, {"a.b", false},
+	}
+	cmd := &Cmd{}
+	for _, tt := range tbl {
+		t.Run(tt.in, func(t *testing.T) {
+			assert.Equal(t, tt.want, cmd.isShellName(tt.in))
+		})
+	}
+}
+
 func TestCmd_scriptCommandComments(t *testing.T) {
 	tbl := []struct {
 		name   string
@@ -347,6 +379,23 @@ func TestCmd_getScriptFile(t *testing.T) {
 				Script: "#!/bin/bash\necho 'Hello, World!'",
 			},
 			expected: "#!/bin/bash\nset -e\necho 'Hello, World!'\n",
+		},
+		{
+			name: "with indented shebang",
+			cmd: &Cmd{
+				Script: "  #!/bin/bash\necho 'Hello, World!'",
+			},
+			expected: "#!/bin/sh\nset -e\n  #!/bin/bash\necho 'Hello, World!'\n",
+		},
+		{
+			name: "with custom shebang, environment and secrets",
+			cmd: &Cmd{
+				Script:      "#!/bin/bash\necho 'Hello, World!'",
+				Environment: map[string]string{"VAR1": "value1"},
+				Secrets:     map[string]string{"SEC1": "secret1"},
+				Options:     CmdOptions{Secrets: []string{"SEC1"}},
+			},
+			expected: "#!/bin/bash\nexport VAR1=\"value1\"\nexport SEC1=\"secret1\"\nset -e\necho 'Hello, World!'\n",
 		},
 		{
 			name: "with non-default shell",
@@ -864,6 +913,7 @@ func TestHasShebang(t *testing.T) {
 		{"newline, no shebang", "test\ndata", false},
 		{"newline, shebang not at start", "test\n# data", false},
 		{"newline, shebang at start", "#!test\ndata", true},
+		{"indented shebang", "  #!/bin/bash\ndata", false},
 	}
 
 	for _, tc := range testCases {

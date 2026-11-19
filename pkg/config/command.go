@@ -165,8 +165,13 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 		res += strings.Join(envs, "; ") + "; "
 	}
 
-	// add secrets as environment variables
+	// export only valid assignment names: dash aborts the whole command on "export a/b=..."
 	secrets := cmd.getSecrets()
+	for i, s := range secrets {
+		if k, _, _ := strings.Cut(s, "="); cmd.isShellName(k) {
+			secrets[i] = "export " + s
+		}
+	}
 	if len(secrets) > 0 {
 		res += strings.Join(secrets, "; ") + "; "
 	}
@@ -183,6 +188,21 @@ func (cmd *Cmd) scriptCommand(inp string) string {
 	}
 	res += strings.Join(parts, "; ") + "'"
 	return res
+}
+
+// isShellName reports whether s can be used as a shell variable name.
+func (cmd *Cmd) isShellName(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i, r := range s {
+		isLetter := r == '_' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		if !isLetter && (i == 0 || !isDigit) {
+			return false
+		}
+	}
+	return true
 }
 
 // stripTrailingComment removes a trailing shell comment from a single line so the lines can be
@@ -209,7 +229,14 @@ func (cmd *Cmd) stripTrailingComment(s string) string {
 func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	var buf bytes.Buffer
 	inp = strings.TrimPrefix(inp, "\n") // trim leading newline if present; can be due to multiline yaml format
-	if !cmd.hasShebang(inp) {
+	lines := strings.Split(inp, "\n")
+	// a custom shebang is honored only on the first line, so it goes ahead of the exports
+	customShebang := cmd.hasShebang(inp)
+	if customShebang {
+		buf.WriteString(lines[0] + "\n")
+		lines = lines[1:]
+	}
+	if !customShebang {
 		buf.WriteString("#!" + cmd.shell() + "\n") // add default shebang if not present
 		buf.WriteString("set -e\n")                // add 'set -e' to make the script exit on error
 	}
@@ -222,6 +249,9 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 			buf.WriteString(fmt.Sprintf("export %s\n", env))
 		}
 	}
+	if customShebang {
+		buf.WriteString("set -e\n") // after the exports, so bash keeps going past an invalid export name
+	}
 
 	// process all the exported variables in the script
 	type exportInfo struct {
@@ -229,15 +259,7 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 		singleQuoted bool
 	}
 	exports := []exportInfo{} // we collect them all here to pass as setenv to the next command
-	lines := strings.Split(inp, "\n")
-	for i, line := range lines {
-		if strings.HasPrefix(line, "#!") && i == 0 {
-			// if the line in the script is a shebang write it right away and add 'set -e' to make the script exit on error
-			buf.WriteString(line)
-			buf.WriteString("\n")
-			buf.WriteString("set -e\n")
-			continue
-		}
+	for _, line := range lines {
 		buf.WriteString(line)
 		buf.WriteString("\n")
 
@@ -299,12 +321,7 @@ func (cmd *Cmd) exportKeyWithQuote(line string) (key string, singleQuoted bool) 
 }
 
 func (cmd *Cmd) hasShebang(inp string) bool {
-	lines := strings.Split(inp, "\n")
-	if len(lines) == 0 {
-		return false
-	}
-	c := strings.TrimSpace(lines[0])
-	return strings.HasPrefix(c, "#!")
+	return strings.HasPrefix(inp, "#!") // the kernel reads a shebang only at byte zero
 }
 
 // genEnv returns a sorted list of environment variables from the Environment map (part of the command)

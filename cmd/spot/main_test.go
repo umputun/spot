@@ -1178,7 +1178,7 @@ func startTestContainer(t *testing.T) (hostAndPort string, teardown func()) {
 	req := testcontainers.ContainerRequest{
 		Image:        "lscr.io/linuxserver/openssh-server:latest",
 		ExposedPorts: []string{"2222/tcp"},
-		WaitingFor:   wait.NewLogStrategy("done.").WithStartupTimeout(time.Second * 60),
+		WaitingFor:   wait.ForAll(wait.NewLogStrategy("done."), wait.ForMappedPort("2222/tcp")).WithDeadline(time.Second * 60),
 		Env: map[string]string{
 			"PUBLIC_KEY": string(pubKey),
 			"USER_NAME":  "test",
