@@ -381,6 +381,16 @@ func TestCmd_getScriptFile(t *testing.T) {
 			expected: "#!/bin/bash\nset -e\necho 'Hello, World!'\n",
 		},
 		{
+			name: "with custom shebang, environment and secrets",
+			cmd: &Cmd{
+				Script:      "#!/bin/bash\necho 'Hello, World!'",
+				Environment: map[string]string{"VAR1": "value1"},
+				Secrets:     map[string]string{"SEC1": "secret1"},
+				Options:     CmdOptions{Secrets: []string{"SEC1"}},
+			},
+			expected: "#!/bin/bash\nexport VAR1=\"value1\"\nexport SEC1=\"secret1\"\nset -e\necho 'Hello, World!'\n",
+		},
+		{
 			name: "with non-default shell",
 			cmd: &Cmd{
 				Script:   "echo 'Hello, World!'",

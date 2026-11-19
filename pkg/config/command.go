@@ -229,9 +229,17 @@ func (cmd *Cmd) stripTrailingComment(s string) string {
 func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	var buf bytes.Buffer
 	inp = strings.TrimPrefix(inp, "\n") // trim leading newline if present; can be due to multiline yaml format
+	lines := strings.Split(inp, "\n")
 	if !cmd.hasShebang(inp) {
 		buf.WriteString("#!" + cmd.shell() + "\n") // add default shebang if not present
 		buf.WriteString("set -e\n")                // add 'set -e' to make the script exit on error
+	}
+
+	// a custom shebang is honored only on the first line, so it goes ahead of the exports
+	customShebang := strings.HasPrefix(lines[0], "#!")
+	if customShebang {
+		buf.WriteString(lines[0] + "\n")
+		lines = lines[1:]
 	}
 
 	envs := cmd.genEnv()
@@ -242,6 +250,9 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 			buf.WriteString(fmt.Sprintf("export %s\n", env))
 		}
 	}
+	if customShebang {
+		buf.WriteString("set -e\n") // after the exports, so bash keeps going past an invalid export name
+	}
 
 	// process all the exported variables in the script
 	type exportInfo struct {
@@ -249,15 +260,7 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 		singleQuoted bool
 	}
 	exports := []exportInfo{} // we collect them all here to pass as setenv to the next command
-	lines := strings.Split(inp, "\n")
-	for i, line := range lines {
-		if strings.HasPrefix(line, "#!") && i == 0 {
-			// if the line in the script is a shebang write it right away and add 'set -e' to make the script exit on error
-			buf.WriteString(line)
-			buf.WriteString("\n")
-			buf.WriteString("set -e\n")
-			continue
-		}
+	for _, line := range lines {
 		buf.WriteString(line)
 		buf.WriteString("\n")
 
