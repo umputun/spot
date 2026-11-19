@@ -470,6 +470,41 @@ func Test_execCmd(t *testing.T) {
 		require.EqualError(t, err, "timeout exceeded")
 	})
 
+	t.Run("wait with secret ending in $name", func(t *testing.T) {
+		for _, sudo := range []bool{false, true} {
+			_, err := sess.Run(ctx, "sudo rm -f /tmp/wait.secret", nil)
+			require.NoError(t, err)
+			ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Wait: config.WaitInternal{
+				Command: `printf %s "$PASS" > /tmp/wait.secret`, Timeout: time.Second, CheckDuration: time.Millisecond * 100},
+				Secrets: map[string]string{"PASS": "p@ss$word"},
+				Options: config.CmdOptions{Sudo: sudo, Secrets: []string{"PASS"}}}}
+			_, err = ec.Wait(ctx)
+			require.NoError(t, err, "sudo: %v", sudo)
+			out, err := sess.Run(ctx, "cat /tmp/wait.secret", nil)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"p@ss$word"}, out, "sudo: %v", sudo)
+		}
+	})
+
+	t.Run("sudo condition with secret ending in $name", func(t *testing.T) {
+		_, err := sess.Run(ctx, "sudo rm -f /tmp/cond.secret", nil)
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Condition: `printf %s "$PASS" > /tmp/cond.secret`,
+			Script: "echo condition true", Name: "test", Secrets: map[string]string{"PASS": "p@ss$word"},
+			Options: config.CmdOptions{Sudo: true, Secrets: []string{"PASS"}}}}
+		resp, err := ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Contains(t, resp.details, "echo condition true")
+		out, err := sess.Run(ctx, "cat /tmp/cond.secret", nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"p@ss$word"}, out)
+
+		ec.cmd.Condition = "! " + ec.cmd.Condition
+		resp, err = ec.Script(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, " {skip: test}", resp.details)
+	})
+
 	t.Run("delete a single file", func(t *testing.T) {
 		_, err := sess.Run(ctx, "touch /tmp/delete.me", nil)
 		require.NoError(t, err)
