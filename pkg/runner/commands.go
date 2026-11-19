@@ -618,11 +618,18 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 
 	case replace != "":
 		operation = "replace"
-		// use sed to replace lines matching the pattern.
-		// strip leading ^ and trailing $ from match since sed pattern already wraps with ^.* and .*$
-		sedMatch := strings.TrimPrefix(match, "^")
-		sedMatch = strings.TrimSuffix(sedMatch, "$")
-		operationCmd = fmt.Sprintf("sed -i 's|^.*%s.*$|%s|' %s", sedMatch, replace, file)
+		// use sed to replace the whole line matching the pattern. an anchored match
+		// keeps its anchor, so "^PORT=" doesn't also replace "DB_PORT=..."
+		sedMatch := match
+		if !strings.HasPrefix(sedMatch, "^") {
+			sedMatch = "^.*" + sedMatch
+		}
+		// a "$" after an odd run of backslashes is escaped and matches a literal dollar
+		body := strings.TrimSuffix(sedMatch, "$")
+		if body == sedMatch || (len(body)-len(strings.TrimRight(body, `\`)))%2 == 1 {
+			sedMatch += ".*$"
+		}
+		operationCmd = fmt.Sprintf("sed -i 's|%s|%s|' %s", sedMatch, replace, file)
 
 	case appendLine != "":
 		operation = "append"
