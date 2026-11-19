@@ -381,6 +381,13 @@ func TestCmd_getScriptFile(t *testing.T) {
 			expected: "#!/bin/bash\nset -e\necho 'Hello, World!'\n",
 		},
 		{
+			name: "with indented shebang",
+			cmd: &Cmd{
+				Script: "  #!/bin/bash\necho 'Hello, World!'",
+			},
+			expected: "#!/bin/sh\nset -e\n  #!/bin/bash\necho 'Hello, World!'\n",
+		},
+		{
 			name: "with custom shebang, environment and secrets",
 			cmd: &Cmd{
 				Script:      "#!/bin/bash\necho 'Hello, World!'",
@@ -906,6 +913,7 @@ func TestHasShebang(t *testing.T) {
 		{"newline, no shebang", "test\ndata", false},
 		{"newline, shebang not at start", "test\n# data", false},
 		{"newline, shebang at start", "#!test\ndata", true},
+		{"indented shebang", "  #!/bin/bash\ndata", false},
 	}
 
 	for _, tc := range testCases {

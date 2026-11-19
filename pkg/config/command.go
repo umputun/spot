@@ -230,16 +230,15 @@ func (cmd *Cmd) scriptFile(inp string, register []string) (r io.Reader) {
 	var buf bytes.Buffer
 	inp = strings.TrimPrefix(inp, "\n") // trim leading newline if present; can be due to multiline yaml format
 	lines := strings.Split(inp, "\n")
-	if !cmd.hasShebang(inp) {
-		buf.WriteString("#!" + cmd.shell() + "\n") // add default shebang if not present
-		buf.WriteString("set -e\n")                // add 'set -e' to make the script exit on error
-	}
-
 	// a custom shebang is honored only on the first line, so it goes ahead of the exports
-	customShebang := strings.HasPrefix(lines[0], "#!")
+	customShebang := cmd.hasShebang(inp)
 	if customShebang {
 		buf.WriteString(lines[0] + "\n")
 		lines = lines[1:]
+	}
+	if !customShebang {
+		buf.WriteString("#!" + cmd.shell() + "\n") // add default shebang if not present
+		buf.WriteString("set -e\n")                // add 'set -e' to make the script exit on error
 	}
 
 	envs := cmd.genEnv()
@@ -322,12 +321,7 @@ func (cmd *Cmd) exportKeyWithQuote(line string) (key string, singleQuoted bool) 
 }
 
 func (cmd *Cmd) hasShebang(inp string) bool {
-	lines := strings.Split(inp, "\n")
-	if len(lines) == 0 {
-		return false
-	}
-	c := strings.TrimSpace(lines[0])
-	return strings.HasPrefix(c, "#!")
+	return strings.HasPrefix(inp, "#!") // the kernel reads a shebang only at byte zero
 }
 
 // genEnv returns a sorted list of environment variables from the Environment map (part of the command)
