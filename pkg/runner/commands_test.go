@@ -1022,6 +1022,39 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{"price=20", "name=keep"}, out)
 	})
 
+	t.Run("line command replace with end anchor", func(t *testing.T) {
+		tbl := []struct {
+			name, match string
+			want        []string
+		}{
+			{name: "start and end anchors", match: "^host=old$", want: []string{"host=new", "host=older", "db_host=old"}},
+			{name: "end anchor only", match: "host=old$", want: []string{"host=new", "host=older", "host=new"}},
+		}
+		for _, tt := range tbl {
+			t.Run(tt.name, func(t *testing.T) {
+				testFile := "/tmp/test_line_end_anchor.txt"
+				_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'host=old\\nhost=older\\ndb_host=old' > %s", testFile), nil)
+				require.NoError(t, err)
+				defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+				ec := execCmd{
+					exec: sess,
+					tsk:  &config.Task{Name: "test"},
+					cmd: config.Cmd{
+						Line: config.LineInternal{File: testFile, Match: tt.match, Replace: "host=new"},
+						Name: "test line replace end anchor",
+					},
+				}
+				_, err = ec.Line(ctx)
+				require.NoError(t, err)
+
+				out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, out)
+			})
+		}
+	})
+
 	t.Run("line command append", func(t *testing.T) {
 		// create a test file without the pattern
 		testFile := "/tmp/test_line_append.txt"
