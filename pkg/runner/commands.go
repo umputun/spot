@@ -119,11 +119,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {script: %s}", c)
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {script: %s, sudo: true}", c)
-		if strings.HasPrefix(c, ec.shell()+" ") { // single line script already has sh -c
-			c = ec.wrapWithSudo(c)
-		} else {
-			c = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c))
-		}
+		c = ec.wrapWithSudo(c) // both forms prepScript returns already start with "<shell> -c"
 	}
 	resp.verbose = scr
 

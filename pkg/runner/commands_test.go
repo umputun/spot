@@ -505,6 +505,19 @@ func Test_execCmd(t *testing.T) {
 		assert.Equal(t, " {skip: test}", resp.details)
 	})
 
+	t.Run("sudo script with secret ending in $name and a non-default ssh shell", func(t *testing.T) {
+		_, err := sess.Run(ctx, "sudo rm -f /tmp/script.secret", nil)
+		require.NoError(t, err)
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Script: `printf %s "$PASS" > /tmp/script.secret`,
+			Name: "test", SSHShell: "sh", Secrets: map[string]string{"PASS": "p@ss$word"},
+			Options: config.CmdOptions{Sudo: true, Secrets: []string{"PASS"}}}}
+		_, err = ec.Script(ctx)
+		require.NoError(t, err)
+		out, err := sess.Run(ctx, "cat /tmp/script.secret", nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"p@ss$word"}, out)
+	})
+
 	t.Run("delete a single file", func(t *testing.T) {
 		_, err := sess.Run(ctx, "touch /tmp/delete.me", nil)
 		require.NoError(t, err)
