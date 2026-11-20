@@ -334,8 +334,9 @@ func (cmd *Cmd) genEnv() []string {
 	return envs
 }
 
-// secretQuoter escapes a value for a double-quoted shell string, so "$" and "`" in a secret are not expanded
-var secretQuoter = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`")
+// secretQuoter escapes a value for a double-quoted shell string, so "$" and "`" in a secret are not expanded.
+// a backtick closes the quote and is escaped outside it, since fish keeps a \` inside double quotes literally
+var secretQuoter = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\"\\`\"")
 
 // getSecrets returns a sorted list of secrets keys from the secrets slice (part of the command)
 func (cmd *Cmd) getSecrets() []string {

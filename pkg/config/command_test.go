@@ -337,6 +337,19 @@ func TestCmd_secretsReachShellUnchanged(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, secret+"\n", string(out))
 	})
+
+	t.Run("single line under fish, as a local command with a fish shell runs it", func(t *testing.T) {
+		fish, err := exec.LookPath("fish")
+		if err != nil {
+			t.Skip("fish is not installed")
+		}
+		fishCmd := &Cmd{LocalShell: fish, Secrets: cmd.Secrets, Options: CmdOptions{Local: true, Secrets: []string{"DB_PASS"}}}
+		script := fishCmd.scriptCommand(`printf %s "$DB_PASS"`)
+		inner := strings.TrimSuffix(strings.TrimPrefix(script, fish+" -c '"), "'")
+		out, err := exec.Command(fish, "-c", inner).Output()
+		require.NoError(t, err)
+		assert.Equal(t, secret, string(out))
+	})
 }
 
 func TestCmd_scriptCommandComments(t *testing.T) {
