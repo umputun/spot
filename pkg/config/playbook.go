@@ -568,11 +568,17 @@ func (p *PlayBook) TargetHosts(name string) ([]Destination, error) {
 }
 
 // AllSecretValues returns all secret values from all tasks and all commands.
-// It is used to mask Secrets in logs.
+// It is used to mask Secrets in logs. Escaped forms of the values are included too, for masking.
 func (p *PlayBook) AllSecretValues() []string {
 	res := make([]string, 0, len(p.secrets))
 	for _, v := range p.secrets {
 		res = append(res, v)
+		// commands carry secrets escaped (see getSecrets), and the --dbg "run ssh command %q" line in
+		// pkg/executor/remote.go quotes the command again
+		if esc := secretQuoter.Replace(v); esc != v {
+			quoted := strconv.Quote(esc)
+			res = append(res, esc, quoted[1:len(quoted)-1])
+		}
 	}
 	sort.Strings(res)
 	return res

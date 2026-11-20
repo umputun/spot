@@ -119,11 +119,7 @@ func (ec *execCmd) Script(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {script: %s}", c)
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {script: %s, sudo: true}", c)
-		if strings.HasPrefix(c, ec.shell()+" ") { // single line script already has sh -c
-			c = ec.wrapWithSudo(c)
-		} else {
-			c = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c))
-		}
+		c = ec.wrapWithSudo(c) // both forms prepScript returns already start with "<shell> -c"
 	}
 	resp.verbose = scr
 
@@ -520,11 +516,14 @@ func (ec *execCmd) Wait(ctx context.Context) (resp execCmdResp, err error) {
 	resp.details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v}",
 		c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
 
-	waitCmd := fmt.Sprintf("%s -c %q", ec.shell(), c) // run wait command in a shell
+	waitCmd := c // single line wait already has sh -c
+	if single == "" {
+		waitCmd = fmt.Sprintf("%s -c %q", ec.shell(), c) // run wait script in a shell
+	}
 	if ec.cmd.Options.Sudo {
 		resp.details = fmt.Sprintf(" {wait: %s, timeout: %v, duration: %v, sudo: true}",
 			c, timeout.Truncate(100*time.Millisecond), duration.Truncate(100*time.Millisecond))
-		waitCmd = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c)) // add sudo if needed
+		waitCmd = ec.wrapWithSudo(waitCmd) // add sudo if needed
 	}
 	resp.verbose = script
 
@@ -688,7 +687,10 @@ func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {
 	}()
 
 	if ec.cmd.Options.Sudo { // command's sudo also applies to condition script
-		c = ec.wrapWithSudo(fmt.Sprintf("%s -c %q", ec.shell(), c))
+		if single == "" { // single line condition already has sh -c
+			c = fmt.Sprintf("%s -c %q", ec.shell(), c)
+		}
+		c = ec.wrapWithSudo(c)
 	}
 
 	// run the condition command

@@ -334,12 +334,15 @@ func (cmd *Cmd) genEnv() []string {
 	return envs
 }
 
+// secretQuoter escapes a value for a double-quoted shell string, so "$" and "`" in a secret are not expanded
+var secretQuoter = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "$", `\$`, "`", "\\`")
+
 // getSecrets returns a sorted list of secrets keys from the secrets slice (part of the command)
 func (cmd *Cmd) getSecrets() []string {
 	secrets := []string{}
 	for _, k := range cmd.Options.Secrets {
 		if v := cmd.Secrets[k]; v != "" {
-			secrets = append(secrets, fmt.Sprintf("%s=%q", k, v))
+			secrets = append(secrets, k+`="`+secretQuoter.Replace(v)+`"`)
 		}
 	}
 	slices.Sort(secrets)
