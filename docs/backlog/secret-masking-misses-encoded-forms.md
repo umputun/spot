@@ -24,3 +24,9 @@ whether shell escaping changed it.
 Deferred until #378 settles: `AllSecretValues` is the function #378 rewrites, and on master the
 split-order part alone fixes no visible case. Separate from secret-masking-misses-split-writes.md,
 which is about command output split across writes.
+
+The sudo password has one more spelling. `wrapWithSudo` (`pkg/runner/commands.go`) puts it in a
+single-quoted `printf` argument with each `'` written as `'\''`, so a password such as `pa'ss`
+appears as `pa'\''ss` in the `-v` command echo and in the `%q` spelling of the `--dbg` line, and
+neither matches. `AllSecretValues` cannot tell which secret is the sudo password, so add that
+spelling and its `%q` form for every secret containing `'`.
