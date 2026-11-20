@@ -977,6 +977,26 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{"line1", "replaced line", "line3"}, out)
 	})
 
+	t.Run("line command replace and append write the text literally", func(t *testing.T) {
+		testFile := "/tmp/test_line_literal.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'url=old\\nname=x' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		replace := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "replace",
+			Line: config.LineInternal{File: testFile, Match: "^url=", Replace: `url=db?ssl=1&t=5|x it's \1`}}}
+		_, err = replace.Line(ctx)
+		require.NoError(t, err)
+		add := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append",
+			Line: config.LineInternal{File: testFile, Match: "^alias ll=", Append: "alias ll='ls -l'"}}}
+		_, err = add.Line(ctx)
+		require.NoError(t, err)
+
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{`url=db?ssl=1&t=5|x it's \1`, "name=x", "alias ll='ls -l'"}, out)
+	})
+
 	t.Run("line command replace with anchored match", func(t *testing.T) {
 		testFile := "/tmp/test_line_anchored.txt"
 		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'port=3000\\nhost=old\\nhostname=keep\\ndb_host=keep' > %s", testFile), nil)

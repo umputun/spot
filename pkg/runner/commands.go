@@ -582,6 +582,11 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 
 // Line modifies file content by operating on lines that match a regex pattern.
 // It supports three operations: delete lines, replace lines, or append a line if pattern not found.
+// singleQuoted escapes s for use inside a single-quoted shell string.
+func singleQuoted(s string) string {
+	return strings.ReplaceAll(s, "'", `'\''`)
+}
+
 func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	// check the condition if it exists
 	cond, err := ec.checkCondition(ctx)
@@ -629,7 +634,9 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		if body == sedMatch || (len(body)-len(strings.TrimRight(body, `\`)))%2 == 1 {
 			sedMatch += ".*$"
 		}
-		operationCmd = fmt.Sprintf("sed -i 's|%s|%s|' %s", sedMatch, replace, file)
+		// the replacement is literal text: escape what sed treats specially, then the quote
+		sedReplace := strings.NewReplacer(`\`, `\\`, "&", `\&`, "|", `\|`).Replace(replace)
+		operationCmd = fmt.Sprintf("sed -i 's|%s|%s|' %s", sedMatch, singleQuoted(sedReplace), file)
 
 	case appendLine != "":
 		operation = "append"
@@ -639,9 +646,9 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err != nil {
 			// pattern not found, append the line using tee -a for proper sudo support
 			if ec.cmd.Options.Sudo {
-				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", appendLine, file)
+				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", singleQuoted(appendLine), file)
 			} else {
-				operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", appendLine, file)
+				operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", singleQuoted(appendLine), file)
 			}
 		} else {
 			// pattern found, skip
