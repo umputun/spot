@@ -997,6 +997,24 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{`url=db?ssl=1&t=5|x it's \1`, "name=x", "alias ll='ls -l'"}, out)
 	})
 
+	t.Run("line command append writes options and backslashes literally", func(t *testing.T) {
+		testFile := "/tmp/test_line_append_literal.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo 'first' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		for _, text := range []string{"-n", `PS1='\u@\h\n\$ '`} {
+			add := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append",
+				Line: config.LineInternal{File: testFile, Match: "^nomatch$", Append: text}}}
+			_, err = add.Line(ctx)
+			require.NoError(t, err)
+		}
+
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"first", "-n", `PS1='\u@\h\n\$ '`}, out)
+	})
+
 	t.Run("line command replace with anchored match", func(t *testing.T) {
 		testFile := "/tmp/test_line_anchored.txt"
 		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'port=3000\\nhost=old\\nhostname=keep\\ndb_host=keep' > %s", testFile), nil)

@@ -580,13 +580,13 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	return resp, nil
 }
 
-// Line modifies file content by operating on lines that match a regex pattern.
-// It supports three operations: delete lines, replace lines, or append a line if pattern not found.
 // singleQuoted escapes s for use inside a single-quoted shell string.
 func singleQuoted(s string) string {
 	return strings.ReplaceAll(s, "'", `'\''`)
 }
 
+// Line modifies file content by operating on lines that match a regex pattern.
+// It supports three operations: delete lines, replace lines, or append a line if pattern not found.
 func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	// check the condition if it exists
 	cond, err := ec.checkCondition(ctx)
@@ -646,9 +646,9 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err != nil {
 			// pattern not found, append the line using tee -a for proper sudo support
 			if ec.cmd.Options.Sudo {
-				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", singleQuoted(appendLine), file)
+				operationCmd = fmt.Sprintf("printf '%%s\\n' '%s' | sudo tee -a %s > /dev/null", singleQuoted(appendLine), file)
 			} else {
-				operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", singleQuoted(appendLine), file)
+				operationCmd = fmt.Sprintf("printf '%%s\\n' '%s' | tee -a %s > /dev/null", singleQuoted(appendLine), file)
 			}
 		} else {
 			// pattern found, skip
