@@ -548,6 +548,7 @@ Manipulates lines in a file based on a regex pattern. This command supports thre
 
 The `line` command:
 - Uses regex patterns for matching lines
+- Writes `replace` and `append` text literally: only `match` is a regex, so `&`, `\1` and quotes in the new text are written as is
 - For replace operation: replaces the entire line containing the match, not just the matching portion
 - Only performs one operation per command (delete, replace, or append)
 - Supports sudo for files requiring elevated permissions
