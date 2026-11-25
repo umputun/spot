@@ -609,8 +609,17 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	}
 	file := tmpl.apply(ec.cmd.Line.File)
 	match := tmpl.apply(ec.cmd.Line.Match)
-	replace := tmpl.apply(ec.cmd.Line.Replace)
-	appendLine := tmpl.apply(ec.cmd.Line.Append)
+
+	// replace and append are literal text, so a single-quoted value keeps its "$" as is;
+	// match and file are regex and path, where "\$" is the right spelling
+	literalEnv := make(map[string]string, len(ec.cmd.Environment))
+	for k, v := range ec.cmd.Environment {
+		literalEnv[k] = strings.TrimPrefix(v, "__SQ__:")
+	}
+	literalTmpl := tmpl
+	literalTmpl.env = literalEnv
+	replace := literalTmpl.apply(ec.cmd.Line.Replace)
+	appendLine := literalTmpl.apply(ec.cmd.Line.Append)
 
 	// determine the operation and build the command
 	var operation string

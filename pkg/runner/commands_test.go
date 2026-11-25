@@ -1015,6 +1015,56 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{`url=db?ssl=1&t=5|x it's \1`, "name=x", "alias ll='ls -l'"}, out)
 	})
 
+	t.Run("line command replace and append keep $ of a single-quoted script value", func(t *testing.T) {
+		testFile := "/tmp/test_line_sq_value.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo -e 'admin:old\\nkeep' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		// a script's export HASH='$2a$14$abc' reaches the command env with the single-quote marker
+		env := map[string]string{"HASH": "__SQ__:$2a$14$abc"}
+		replace := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "replace", Environment: env,
+			Line: config.LineInternal{File: testFile, Match: "^admin:", Replace: "admin:$HASH"}}}
+		_, err = replace.Line(ctx)
+		require.NoError(t, err)
+		add := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append", Environment: env,
+			Line: config.LineInternal{File: testFile, Match: "^root:", Append: "root:$HASH"}}}
+		_, err = add.Line(ctx)
+		require.NoError(t, err)
+
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"admin:$2a$14$abc", "keep", "root:$2a$14$abc"}, out)
+	})
+
+	t.Run("line command delete and replace with a single quote in match", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			line config.LineInternal
+			want []string
+		}{
+			{name: "delete", line: config.LineInternal{Match: "alias ll='ls -l'", Delete: true}, want: []string{"keep"}},
+			{name: "replace", line: config.LineInternal{Match: "alias ll='ls -l'", Replace: "alias ll='ls -la'"},
+				want: []string{"alias ll='ls -la'", "keep"}},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				testFile := "/tmp/test_line_quote_match.txt"
+				_, err := sess.Run(ctx, fmt.Sprintf(`printf '%%s\n' "alias ll='ls -l'" keep > %s`, testFile), nil)
+				require.NoError(t, err)
+				defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+				tc.line.File = testFile
+				ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: tc.name, Line: tc.line}}
+				_, err = ec.Line(ctx)
+				require.NoError(t, err)
+
+				out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+				require.NoError(t, err)
+				assert.Equal(t, tc.want, out)
+			})
+		}
+	})
+
 	t.Run("line command append with a quoted match adds the line once", func(t *testing.T) {
 		testFile := "/tmp/test_line_append_once.txt"
 		_, err := sess.Run(ctx, fmt.Sprintf("echo 'first' > %s", testFile), nil)
