@@ -16,9 +16,10 @@ operator's own playbook, and an operator who can write the playbook can already 
 commands through `script`. It still means spot cannot write to a path with a space, which is
 ordinary on macOS targets.
 
-`wrapWithSudo` at commands.go:1071 already contains the POSIX single-quote escaping this needs
-(`'` becomes `'\''`), written inline for the sudo password path. A helper carrying that escaping,
-used by both, would settle the duplication and the three call sites together.
+`singleQuoted` in `pkg/runner/commands.go` (#380) is the escaping this needs: `'` becomes `'\''` and
+`\` becomes `'\\'`, which holds under fish too. `wrapWithSudo` still escapes the sudo password
+inline without the backslash case (sudo-password-escaping-breaks-under-fish.md); use the helper
+at all three call sites.
 
 Surfaced during the review of #349, whose new `template` command quotes its own remote paths and
 so reads as if the shared copy path does too.

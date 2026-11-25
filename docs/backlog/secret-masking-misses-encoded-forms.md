@@ -30,3 +30,9 @@ single-quoted `printf` argument with each `'` written as `'\''`, so a password s
 appears as `pa'\''ss` in the `-v` command echo and in the `%q` spelling of the `--dbg` line, and
 neither matches. `AllSecretValues` cannot tell which secret is the sudo password, so add that
 spelling and its `%q` form for every secret containing `'`.
+
+The `line` command adds two more spellings (#380). `Line` writes `append` text as
+`singleQuoted(v)` (`'` as `'\''`, `\` as `'\\'`) and `replace` text as `singleQuoted` of the
+sed-escaped value (`\` as `\\`, `&` as `\&`, `|` as `\|`), so a secret such as `demo&value`
+exported by a script and used in `replace` shows as `demo'\\'&value` in the `-v` echo and in the
+`%q` form of the `--dbg` line. Add both spellings and their `%q` forms for every secret they change.
