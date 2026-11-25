@@ -579,6 +579,12 @@ func (ec *execCmd) Echo(ctx context.Context) (resp execCmdResp, err error) {
 	return resp, nil
 }
 
+// singleQuoted escapes s for use inside a single-quoted shell string. quotes and backslashes
+// are written outside the quotes, as fish treats \\ and \' as escapes even inside them.
+func singleQuoted(s string) string {
+	return strings.NewReplacer(`'`, `'\''`, `\`, `'\\'`).Replace(s)
+}
+
 // Line modifies file content by operating on lines that match a regex pattern.
 // It supports three operations: delete lines, replace lines, or append a line if pattern not found.
 func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
@@ -602,8 +608,17 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	}
 	file := tmpl.apply(ec.cmd.Line.File)
 	match := tmpl.apply(ec.cmd.Line.Match)
-	replace := tmpl.apply(ec.cmd.Line.Replace)
-	appendLine := tmpl.apply(ec.cmd.Line.Append)
+
+	// replace and append are literal text, so a single-quoted value keeps its "$" as is;
+	// match and file are regex and path, where "\$" is the right spelling
+	literalEnv := make(map[string]string, len(ec.cmd.Environment))
+	for k, v := range ec.cmd.Environment {
+		literalEnv[k] = strings.TrimPrefix(v, "__SQ__:")
+	}
+	literalTmpl := tmpl
+	literalTmpl.env = literalEnv
+	replace := literalTmpl.apply(ec.cmd.Line.Replace)
+	appendLine := literalTmpl.apply(ec.cmd.Line.Append)
 
 	// determine the operation and build the command
 	var operation string
@@ -613,7 +628,7 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 	case ec.cmd.Line.Delete:
 		operation = "delete"
 		// use sed to delete lines matching the pattern
-		operationCmd = fmt.Sprintf("sed -i '\\|%s|d' %s", match, file)
+		operationCmd = fmt.Sprintf("sed -i '\\|%s|d' %s", singleQuoted(match), file)
 
 	case replace != "":
 		operation = "replace"
@@ -628,19 +643,21 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		if body == sedMatch || (len(body)-len(strings.TrimRight(body, `\`)))%2 == 1 {
 			sedMatch += ".*$"
 		}
-		operationCmd = fmt.Sprintf("sed -i 's|%s|%s|' %s", sedMatch, replace, file)
+		// the replacement is literal text: escape what sed treats specially, then the quote
+		sedReplace := strings.NewReplacer(`\`, `\\`, "&", `\&`, "|", `\|`).Replace(replace)
+		operationCmd = fmt.Sprintf("sed -i 's|%s|%s|' %s", singleQuoted(sedMatch), singleQuoted(sedReplace), file)
 
 	case appendLine != "":
 		operation = "append"
 		// first check if the pattern exists in the file
-		checkCmd := fmt.Sprintf("grep -q '%s' %s", match, file)
+		checkCmd := fmt.Sprintf("grep -q '%s' %s", singleQuoted(match), file)
 		checkCmd = ec.wrapWithSudo(checkCmd)
 		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err != nil {
 			// pattern not found, append the line using tee -a for proper sudo support
 			if ec.cmd.Options.Sudo {
-				operationCmd = fmt.Sprintf("echo '%s' | sudo tee -a %s > /dev/null", appendLine, file)
+				operationCmd = fmt.Sprintf("printf '%%s\\n' '%s' | sudo tee -a %s > /dev/null", singleQuoted(appendLine), file)
 			} else {
-				operationCmd = fmt.Sprintf("echo '%s' | tee -a %s > /dev/null", appendLine, file)
+				operationCmd = fmt.Sprintf("printf '%%s\\n' '%s' | tee -a %s > /dev/null", singleQuoted(appendLine), file)
 			}
 		} else {
 			// pattern found, skip
