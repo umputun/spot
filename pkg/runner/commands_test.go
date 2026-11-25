@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -909,6 +910,23 @@ func Test_execEcho(t *testing.T) {
 	})
 }
 
+func Test_singleQuotedReachesShellUnchanged(t *testing.T) {
+	values := []string{`location ~ \.php$ {`, `it's \1`, `C:\\dir`, `a\'b`, `end\`}
+	for _, shell := range []string{"sh", "bash", "dash", "zsh", "fish"} {
+		t.Run(shell, func(t *testing.T) {
+			path, err := exec.LookPath(shell)
+			if err != nil {
+				t.Skipf("%s is not installed", shell)
+			}
+			for _, v := range values {
+				out, err := exec.Command(path, "-c", fmt.Sprintf("printf %%s '%s'", singleQuoted(v))).Output()
+				require.NoError(t, err)
+				assert.Equal(t, v, string(out))
+			}
+		})
+	}
+}
+
 func Test_execLine(t *testing.T) {
 	testingHostAndPort, teardown := startTestContainer(t)
 	defer teardown()
@@ -995,6 +1013,24 @@ func Test_execLine(t *testing.T) {
 		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
 		require.NoError(t, err)
 		assert.Equal(t, []string{`url=db?ssl=1&t=5|x it's \1`, "name=x", "alias ll='ls -l'"}, out)
+	})
+
+	t.Run("line command append with a quoted match adds the line once", func(t *testing.T) {
+		testFile := "/tmp/test_line_append_once.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("echo 'first' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		for range 3 {
+			add := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append",
+				Line: config.LineInternal{File: testFile, Match: "alias ll='ls -l'", Append: "alias ll='ls -l'"}}}
+			_, err = add.Line(ctx)
+			require.NoError(t, err)
+		}
+
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"first", "alias ll='ls -l'"}, out)
 	})
 
 	t.Run("line command append writes options and backslashes literally", func(t *testing.T) {
