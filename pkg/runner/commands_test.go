@@ -1131,6 +1131,22 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{"first", "alias ll='ls -l'"}, out)
 	})
 
+	t.Run("line command append to a file without a final newline", func(t *testing.T) {
+		testFile := "/tmp/test_line_append_noeol.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("printf 'port=1\\nname=a' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		add := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append",
+			Line: config.LineInternal{File: testFile, Match: "^debug=", Append: "debug=true"}}}
+		_, err = add.Line(ctx)
+		require.NoError(t, err)
+
+		out, err := sess.Run(ctx, fmt.Sprintf("cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"port=1", "name=a", "debug=true"}, out)
+	})
+
 	t.Run("line command append writes options and backslashes literally", func(t *testing.T) {
 		testFile := "/tmp/test_line_append_literal.txt"
 		_, err := sess.Run(ctx, fmt.Sprintf("echo 'first' > %s", testFile), nil)
