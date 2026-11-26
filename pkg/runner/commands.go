@@ -654,11 +654,13 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		checkCmd = ec.wrapWithSudo(checkCmd)
 		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err != nil {
 			// pattern not found, append the line using tee -a for proper sudo support
+			// a file whose last line has no newline gets one first, so the new line is not glued onto it
+			sudo := ""
 			if ec.cmd.Options.Sudo {
-				operationCmd = fmt.Sprintf("printf '%%s\\n' '%s' | sudo tee -a %s > /dev/null", singleQuoted(appendLine), file)
-			} else {
-				operationCmd = fmt.Sprintf("printf '%%s\\n' '%s' | tee -a %s > /dev/null", singleQuoted(appendLine), file)
+				sudo = "sudo "
 			}
+			operationCmd = fmt.Sprintf("{ [ -n \"$(%stail -c 1 %s 2>/dev/null)\" ] && echo; printf '%%s\\n' '%s'; } | %stee -a %s > /dev/null",
+				sudo, file, singleQuoted(appendLine), sudo, file)
 		} else {
 			// pattern found, skip
 			resp.details = fmt.Sprintf(" {line: %s, match: %s, skip: pattern found}", file, match)
