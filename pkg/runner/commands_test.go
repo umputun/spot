@@ -3,6 +3,7 @@ package runner
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -1147,6 +1148,22 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, []string{"port=1", "name=a", "debug=true"}, out)
 	})
 
+	t.Run("line command append to a file ending with a carriage return", func(t *testing.T) {
+		testFile := "/tmp/test_line_append_cr.txt"
+		_, err := sess.Run(ctx, fmt.Sprintf("printf 'port=1\\r\\nname=a\\r' > %s", testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("rm -f %s", testFile), nil)
+
+		add := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append",
+			Line: config.LineInternal{File: testFile, Match: "^debug=", Append: "debug=true"}}}
+		_, err = add.Line(ctx)
+		require.NoError(t, err)
+
+		out, err := sess.Run(ctx, fmt.Sprintf("od -An -tx1 %s | tr -d ' \\n'", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{hex.EncodeToString([]byte("port=1\r\nname=a\r\ndebug=true\n"))}, out)
+	})
+
 	t.Run("line command append writes options and backslashes literally", func(t *testing.T) {
 		testFile := "/tmp/test_line_append_literal.txt"
 		_, err := sess.Run(ctx, fmt.Sprintf("echo 'first' > %s", testFile), nil)
@@ -1391,6 +1408,24 @@ func Test_execLine(t *testing.T) {
 		assert.Equal(t, " {line: /srv/test_line_append_sudo/authorized_keys, append: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5}", resp.details)
 
 		// verify line was appended
+		out, err := sess.Run(ctx, fmt.Sprintf("sudo cat %s", testFile), nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"existing-key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 testkey@example.com"}, out)
+	})
+
+	t.Run("line command append with sudo to a root-only file without a final newline", func(t *testing.T) {
+		testDir := "/srv/test_line_append_sudo_noeol"
+		testFile := "/srv/test_line_append_sudo_noeol/authorized_keys"
+		_, err := sess.Run(ctx, fmt.Sprintf("sudo mkdir -p %s && printf 'existing-key' | sudo tee %s > /dev/null && sudo chmod 600 %s && sudo chown root:root %s",
+			testDir, testFile, testFile, testFile), nil)
+		require.NoError(t, err)
+		defer sess.Run(ctx, fmt.Sprintf("sudo rm -rf %s", testDir), nil)
+
+		ec := execCmd{exec: sess, tsk: &config.Task{Name: "test"}, cmd: config.Cmd{Name: "append", Options: config.CmdOptions{Sudo: true},
+			Line: config.LineInternal{File: testFile, Match: "^ssh-ed25519 ", Append: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 testkey@example.com"}}}
+		_, err = ec.Line(ctx)
+		require.NoError(t, err)
+
 		out, err := sess.Run(ctx, fmt.Sprintf("sudo cat %s", testFile), nil)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"existing-key", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5 testkey@example.com"}, out)
