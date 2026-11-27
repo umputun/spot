@@ -66,6 +66,7 @@
    - Sudo handling via temporary directories
    - Register variable extraction from script output
    - Generated shell commands run under `$SHELL -c` for local runs (`pkg/executor/local.go`, can be fish) and under the remote account's login shell over SSH. Quoting must hold in fish too: inside single quotes fish still treats `\\` and `\'` as escapes, so a single-quote escaper writes `'` as `'\''` and `\` as `'\\'` (precedent: `secretQuoter`, 3a8353bc)
+   - Generated commands must parse in fish 3.x. Brace groups (`{ ...; }`) require fish 4.1. The #381 append produced a parse error under `fish -c` in fish 3.6 and exited 0, so spot reported success without writing. When a check would require unsupported shell syntax, run it separately and decide in Go, as `missingFinalNewline` does (PR #382)
    - `templater.apply` rewrites `$` to `\$` in env values carrying the `__SQ__:` marker (a script's single-quoted `export`, passed on via `setvar NAME:SQ`), because those values usually end up inside double quotes. A field that escapes templated text to write it literally (line `replace`/`append`) must resolve the marker without that `\$`, or the backslash lands in the file; regex fields (line `match`) need the `\$` form (PR #380)
    - On-exit command deferral
 
