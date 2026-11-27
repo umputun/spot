@@ -65,6 +65,8 @@
    - Template variable substitution (SPOT_REMOTE_HOST, etc.)
    - Sudo handling via temporary directories
    - Register variable extraction from script output
+   - Generated shell commands run under `$SHELL -c` for local runs (`pkg/executor/local.go`, can be fish) and under the remote account's login shell over SSH. Quoting must hold in fish too: inside single quotes fish still treats `\\` and `\'` as escapes, so a single-quote escaper writes `'` as `'\''` and `\` as `'\\'` (precedent: `secretQuoter`, 3a8353bc)
+   - `templater.apply` rewrites `$` to `\$` in env values carrying the `__SQ__:` marker (a script's single-quoted `export`, passed on via `setvar NAME:SQ`), because those values usually end up inside double quotes. A field that escapes templated text to write it literally (line `replace`/`append`) must resolve the marker without that `\$`, or the backslash lands in the file; regex fields (line `match`) need the `\$` form (PR #380)
    - On-exit command deferral
 
 4. **Connection Management**
