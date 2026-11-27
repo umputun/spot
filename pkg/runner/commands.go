@@ -652,19 +652,24 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 		// first check if the pattern exists in the file
 		checkCmd := fmt.Sprintf("grep -q '%s' %s", singleQuoted(match), file)
 		checkCmd = ec.wrapWithSudo(checkCmd)
-		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err != nil {
-			// pattern not found, append the line using tee -a for proper sudo support
-			// a file whose last line has no newline gets one first, so the new line is not glued onto it
-			sudo := ""
-			if ec.cmd.Options.Sudo {
-				sudo = "sudo "
-			}
-			operationCmd = fmt.Sprintf("{ [ -n \"$(%stail -c 1 %s 2>/dev/null)\" ] && echo; printf '%%s\\n' '%s'; } | %stee -a %s > /dev/null",
-				sudo, file, singleQuoted(appendLine), sudo, file)
-		} else {
+		if _, err := ec.exec.Run(ctx, checkCmd, discardOutput); err == nil {
 			// pattern found, skip
 			resp.details = fmt.Sprintf(" {line: %s, match: %s, skip: pattern found}", file, match)
 			return resp, nil
+		}
+		// pattern not found, append the line using tee -a for proper sudo support
+		noEOL, err := ec.missingFinalNewline(ctx, file)
+		if err != nil {
+			return resp, ec.errorFmt("can't read the last byte of %s on %s: %w", file, ec.hostAddr, err)
+		}
+		sep := ""
+		if noEOL {
+			sep = `\n`
+		}
+		if ec.cmd.Options.Sudo {
+			operationCmd = fmt.Sprintf("printf '%s%%s\\n' '%s' | sudo tee -a %s > /dev/null", sep, singleQuoted(appendLine), file)
+		} else {
+			operationCmd = fmt.Sprintf("printf '%s%%s\\n' '%s' | tee -a %s > /dev/null", sep, singleQuoted(appendLine), file)
 		}
 
 	default:
@@ -684,6 +689,18 @@ func (ec *execCmd) Line(ctx context.Context) (resp execCmdResp, err error) {
 
 	resp.details = fmt.Sprintf(" {line: %s, %s: %s}", file, operation, match)
 	return resp, nil
+}
+
+// missingFinalNewline reports whether file ends with a byte other than a newline. a missing,
+// empty or unreadable file reports false. the shell counts the byte because line capture drops
+// a trailing \r, and the C locale keeps tr from rejecting one byte of a multibyte character.
+func (ec *execCmd) missingFinalNewline(ctx context.Context, file string) (bool, error) {
+	cmd := ec.wrapWithSudo(fmt.Sprintf("tail -c 1 %s 2>/dev/null", file)) + ` | env LC_ALL=C tr -d '\n' | wc -c`
+	out, err := ec.exec.Run(ctx, cmd, nil)
+	if err != nil {
+		return false, err
+	}
+	return len(out) > 0 && strings.TrimSpace(out[0]) == "1", nil
 }
 
 func (ec *execCmd) checkCondition(ctx context.Context) (bool, error) {

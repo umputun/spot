@@ -550,6 +550,7 @@ The `line` command:
 - Uses regex patterns for matching lines
 - Writes `replace` and `append` text literally: only `match` is a regex, so `&`, `\1` and quotes in the new text are written as is
 - For replace operation: replaces the entire line containing the match, not just the matching portion
+- For append operation: adds a newline first when a non-empty file does not end with one, so the new line is not joined to the last line
 - Only performs one operation per command (delete, replace, or append)
 - Supports sudo for files requiring elevated permissions
 - Supports variable substitution in all fields
